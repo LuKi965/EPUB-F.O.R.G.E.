@@ -136,6 +136,23 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
 
     lines.append(f'    <meta property="dcterms:modified">{escape(metadata.modified or "")}</meta>')
 
+    # EPUB Accessibility 1.1. "schema" and "a11y" are reserved prefixes in
+    # EPUB 3.3, so no prefix declaration is needed on the package element.
+    for property_name, values in metadata.accessibility.items():
+        for value in values:
+            lines.append(f'    <meta property="{property_name}">{escape(value)}</meta>')
+    if metadata.accessibility_summary:
+        lines.append(
+            f'    <meta property="schema:accessibilitySummary">'
+            f"{escape(metadata.accessibility_summary)}</meta>"
+        )
+    if metadata.conforms_to:
+        lines.append(
+            f'    <link rel="dcterms:conformsTo" href="{escape(metadata.conforms_to)}"/>'
+            if metadata.conforms_to.startswith("http")
+            else f'    <meta property="dcterms:conformsTo">{escape(metadata.conforms_to)}</meta>'
+        )
+
     for key, value in book.rendition.items():
         lines.append(f'    <meta property="rendition:{escape(key)}">{escape(value)}</meta>')
 

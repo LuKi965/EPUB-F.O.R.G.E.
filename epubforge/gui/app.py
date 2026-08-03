@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import sys
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QTextCursor
+from PySide6.QtCore import QObject, QSettings, Qt, QThread, Signal
+from PySide6.QtGui import QAction, QActionGroup, QColor, QFont, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -35,7 +35,8 @@ from ..policy import Policy
 from ..report import Level, Report
 from ..validate import find_epubcheck, validate
 from . import theme
-from .strings import tr
+from .about import AboutDialog
+from .strings import LANGUAGES, set_language, tr
 
 LEVEL_KEYS = {
     Level.FIX: "level.fix",
@@ -90,9 +91,16 @@ class Worker(QObject):
         self.finished_all.emit()
 
 
+def settings() -> QSettings:
+    return QSettings("EPUB-Forge", "EPUB-Forge")
+
+
 class MainWindow(QMainWindow):
-    def __init__(self, palette: theme.Palette | None = None):
+    def __init__(self, palette: theme.Palette | None = None, initial_files: list[str] | None = None):
         super().__init__()
+        #: Set when the language changes; run() rebuilds the window so every
+        #: label is retranslated, carrying the queue across.
+        self.restart_requested = False
         self.palette_colors = palette or theme.LIGHT
         self.setWindowTitle(tr("window.title", version=__version__))
         self.resize(1180, 760)
@@ -106,6 +114,8 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._build_menu()
+        if initial_files:
+            self._add(initial_files)
 
     # ---------------------------------------------------------------- layout
     def _build_ui(self) -> None:
@@ -302,6 +312,34 @@ class MainWindow(QMainWindow):
             action.triggered.connect(slot)
             action.setShortcut(shortcut)
             file_menu.addAction(action)
+
+        settings_menu = self.menuBar().addMenu(tr("menu.settings"))
+        language_menu = settings_menu.addMenu(tr("menu.language"))
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        current = settings().value("language", "pl")
+        for code in LANGUAGES:
+            action = QAction(tr(f"language.{code}"), self, checkable=True)
+            action.setChecked(code == current)
+            action.triggered.connect(lambda _checked=False, c=code: self._change_language(c))
+            group.addAction(action)
+            language_menu.addAction(action)
+
+        help_menu = self.menuBar().addMenu(tr("menu.help"))
+        about = QAction(tr("menu.about"), self)
+        about.triggered.connect(self._show_about)
+        help_menu.addAction(about)
+
+    def _change_language(self, code: str) -> None:
+        if code == settings().value("language", "pl"):
+            return
+        settings().setValue("language", code)
+        set_language(code)
+        self.restart_requested = True
+        self.close()
+
+    def _show_about(self) -> None:
+        AboutDialog(self, self.palette_colors).exec()
 
     # ------------------------------------------------------------ file input
     def dragEnterEvent(self, event):
@@ -525,17 +563,24 @@ def run(argv: list[str] | None = None) -> int:
     if icon_path is not None:
         app.setWindowIcon(QIcon(str(icon_path)))
 
+    set_language(settings().value("language", "pl"))
+
     palette = theme.active_palette(app)
     app.setStyleSheet(theme.stylesheet(palette))
 
-    window = MainWindow(palette)
     # Paths arrive this way from the installer's "Rebuild with EPUB-Forge"
     # shell verb and from dragging files onto the executable.
     queued = [
         path for path in argv[1:]
         if path.lower().endswith(".epub") and os.path.isfile(path)
     ]
-    if queued:
-        window._add(queued)
-    window.show()
-    return app.exec()
+
+    # Retranslating an imperatively built UI in place means tracking every
+    # widget; rebuilding the window is simpler and keeps the queue.
+    while True:
+        window = MainWindow(palette, initial_files=queued)
+        window.show()
+        app.exec()
+        if not window.restart_requested:
+            return 0
+        queued = list(window._sources)
