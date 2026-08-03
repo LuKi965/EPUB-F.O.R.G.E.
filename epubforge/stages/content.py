@@ -152,9 +152,15 @@ class ContentStage(Stage):
             self._rewrite_references(ctx, root, resource, global_ids)
             self._modernise(ctx, root, resource)
             self._image_paragraphs(ctx, root, resource)
+            self._block_in_inline(ctx, root, resource)
             self._accessibility(ctx, root, resource)
             self._scripting(ctx, root, resource)
             self._properties(ctx, root, resource)
+            ctx.document_ids[resource.path] = {
+                element.get("id")
+                for element in xhtml.iter_elements(root)
+                if element.get("id")
+            }
             resource.data = xhtml.serialize(root)
 
     def _fix_identifiers(self, ctx: Context, root, path: str) -> dict[str, str]:
@@ -450,6 +456,14 @@ class ContentStage(Stage):
                 respected += 1
                 continue
 
+            align, _ = cascade.lookup("text-align", tag, classes, element_id)
+            indent, _ = cascade.lookup("text-indent", tag, classes, element_id)
+            centred = (align or "").strip().lower() in {"center", "-webkit-center"}
+            if centred and css_cascade.is_zero_length(indent):
+                # Already centred by a generic rule; restating it would only add
+                # noise to the markup and to the report.
+                continue
+
             # Nothing decided this paragraph's alignment. Either running-text
             # rules leak onto it, or — as on title pages that link no stylesheet
             # at all — the reader's default left-aligns the artwork. Both leave
@@ -475,6 +489,68 @@ class ContentStage(Stage):
                 f"left {respected} image paragraph(s) as the publisher styled them",
                 location=resource.path,
                 detail="A rule aimed at these paragraphs sets their alignment or indent.",
+            )
+
+    def _block_in_inline(self, ctx: Context, root, resource) -> None:
+        """Repair a block-level box nested directly inside an inline one.
+
+        Seen in the wild as a chapter heading built like::
+
+            <h1><a href="toc.xhtml"><span class="numer">III</span>…</a></h1>
+
+        where the stylesheet gives that span ``display: block``. A block inside
+        an inline box forces the browser to split the inline into anonymous
+        boxes; margins and centring on the heading then behave unpredictably.
+        Promoting the inline wrapper to ``inline-block`` makes it a legal
+        container without changing where it sits in the line.
+        """
+        cascade = self._document_cascade(ctx, root, resource)
+        promoted = 0
+
+        for element in xhtml.iter_elements(root):
+            tag = xhtml.local_name(element).lower()
+            if tag in {"html", "head", "body"}:
+                continue
+            display = css_cascade.effective_display(
+                cascade,
+                tag,
+                frozenset((element.get("class") or "").split()),
+                element.get("id"),
+                element.get("style") or "",
+            )
+            if display != "inline":
+                continue
+            # Only direct children: a deeper block is the intermediate
+            # element's problem, and it will be visited in its own right.
+            has_block_child = any(
+                css_cascade.is_block_level(
+                    css_cascade.effective_display(
+                        cascade,
+                        xhtml.local_name(child).lower(),
+                        frozenset((child.get("class") or "").split()),
+                        child.get("id"),
+                        child.get("style") or "",
+                    )
+                )
+                for child in element
+                if isinstance(child.tag, str)
+            )
+            if not has_block_child:
+                continue
+            _append_style(element, "display: inline-block;")
+            promoted += 1
+
+        if promoted:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"promoted {promoted} inline element(s) that contain block-level content",
+                location=resource.path,
+                detail=(
+                    "A block box inside an inline box splits the line and makes margins and "
+                    "centring behave unpredictably; inline-block is a legal container that "
+                    "keeps the element where it was."
+                ),
             )
 
     def _presentational_attributes(self, element, tag: str, changed: set[str]) -> None:
@@ -538,17 +614,21 @@ class ContentStage(Stage):
             element.attrib.pop("clear", None)
             changed.add("br[clear]")
 
-        # width/height stay as attributes on replaced elements, where HTML 5
-        # still defines them; elsewhere they only exist as CSS.
-        if tag not in {"img", "canvas", "video", "iframe", "embed", "object", "svg"}:
-            for attribute in ("width", "height"):
-                value = element.get(attribute)
-                if value:
-                    length = _css_length(value)
-                    if length:
-                        declarations.append(f"{attribute}: {length};")
-                    element.attrib.pop(attribute, None)
-                    changed.add(attribute)
+        # HTML 5 keeps width/height on replaced elements, but only as bare
+        # integers. XHTML 1.1 allowed percentages, so EPUB 2 books carry values
+        # like width="10%" that make an EPUB 3 parser reject the document.
+        replaced = tag in {"img", "canvas", "video", "iframe", "embed", "object", "svg"}
+        for attribute in ("width", "height"):
+            value = (element.get(attribute) or "").strip()
+            if not value:
+                continue
+            if replaced and re.fullmatch(r"\d+", value):
+                continue
+            length = _css_length(value)
+            if length:
+                declarations.append(f"{attribute}: {length};")
+            element.attrib.pop(attribute, None)
+            changed.add(attribute)
 
         for obsolete in ("nowrap", "compact", "noshade", "frameborder", "scrolling", "language"):
             if element.get(obsolete) is not None:
@@ -673,10 +753,20 @@ class ContentStage(Stage):
         if any(True for _ in root.iter(f"{{{xhtml.MATHML_NS}}}math")):
             properties.add("mathml")
 
+        # "remote-resources" is about resources the document *embeds*, not about
+        # where its hyperlinks point; declaring it for an ordinary <a href> to a
+        # website is a conformance error in its own right.
         for element in xhtml.iter_elements(root):
-            for attribute in REFERENCE_ATTRS:
+            tag = xhtml.local_name(element).lower()
+            if tag == "a":
+                continue
+            for attribute in ("src", "poster", "data", f"{{{XLINK_NS}}}href") + (
+                ("href",) if tag in {"link", "image", "use"} else ()
+            ):
                 value = element.get(attribute)
-                if value and paths.is_remote(value) and not value.lower().startswith(("mailto:", "tel:")):
+                if value and paths.is_remote(value) and not value.lower().startswith(
+                    ("mailto:", "tel:", "data:")
+                ):
                     properties.add("remote-resources")
                     break
 

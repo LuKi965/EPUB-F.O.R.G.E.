@@ -7,6 +7,35 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.4.0
+
+Driven by three more real books: Casino Royale, and Preludium Fundacji before
+and after a manual repair.
+
+### Added
+- Repair for a block-level box nested directly inside an inline one — a chapter
+  heading built as `<h1><a><span style="display:block">…</span></a></h1>`. The
+  block splits the inline into anonymous boxes and margins and centring then
+  behave unpredictably; the wrapper is promoted to `inline-block`, which is a
+  legal container in the same position.
+
+### Fixed
+- Undefined entities such as `&nbsp;` survived into the output. With
+  `resolve_entities=False` lxml accepts them as entity nodes and the strict
+  parse *succeeds*, so the fallback that rewrites them never ran — and the
+  EPUB 3 `<!DOCTYPE html>` does not declare them, making readers fail fatally.
+  Entities are now normalised before the strict parse rather than after it.
+- `width="10%"` on an image is valid XHTML 1.1 but invalid XHTML 5, where the
+  attribute must be a bare integer. Non-integer values move to CSS; integers
+  stay as attributes.
+- `remote-resources` was declared for documents whose only external reference
+  was an ordinary hyperlink. The property covers resources a document embeds,
+  not where its links point.
+- Navigation entries pointing at a fragment that no longer exists now fall back
+  to the document, instead of leaving a dangling anchor for validators.
+- Image paragraphs already centred by a generic rule are no longer given a
+  redundant inline style.
+
 ## 0.3.0
 
 ### Added

@@ -96,6 +96,9 @@ CHAPTER_TWO = """<?xml version="1.0" encoding="utf-8"?>
 <p><img src="../Images/ok%C5%82adka.png" alt="tytu&#322;"/></p>
 <p style="text-align: left"><img src="../Images/deco.webp" alt="ozdoba"/></p>
 <p class="ilustracja"><img src="../Images/deco.webp" alt="wybor wydawcy"/></p>
+<p><img src="../Images/deco.webp" alt="procent" width="10%"/></p>
+<h1 id="naglowek"><a href="chapter2.xhtml"><span class="numer">III</span><br/>Tytu&#322;</a></h1>
+<p><a href="https://example.test/strona">link zewn&#281;trzny</a></p>
 </body>
 </html>
 """
@@ -119,6 +122,8 @@ p { text-align: justify; text-indent: 2%; }
 /* A rule aimed at illustrations: a decision about those paragraphs, which the
    rebuild must not override even though it is not centred. */
 p.ilustracja { text-align: right; }
+/* A block box declared on a span that sits inside an inline <a>. */
+.numer { display: block; font-size: 0.6em; }
 @media amzn-kf8 { body { font-size: 1.1em; } }
 @font-face { font-family: "Moja Czcionka"; src: url("../Fonts/moja.ttf"); }
 """
