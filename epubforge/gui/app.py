@@ -158,8 +158,10 @@ class MainWindow(QMainWindow):
         return row
 
     def _build_table(self) -> QWidget:
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Book", "Status", "Fixed", "Issues"])
+        self.table = QTableWidget(0, 5)
+        # "Kept" makes deliberate deviations visible without opening the report;
+        # a rebuild that fixed nothing but preserved something is not a no-op.
+        self.table.setHorizontalHeaderLabels(["Book", "Status", "Fixed", "Kept", "Issues"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -266,8 +268,8 @@ class MainWindow(QMainWindow):
                 self.table.insertRow(row)
                 self.table.setItem(row, 0, QTableWidgetItem(os.path.basename(path)))
                 self._set_status(row, "queued")
-                self.table.setItem(row, 2, QTableWidgetItem("—"))
-                self.table.setItem(row, 3, QTableWidgetItem("—"))
+                for column in (2, 3, 4):
+                    self.table.setItem(row, column, QTableWidgetItem("—"))
         self.statusBar().showMessage(f"{len(self._sources)} book(s) queued.")
 
     def _clear(self) -> None:
@@ -346,9 +348,6 @@ class MainWindow(QMainWindow):
     def _on_one_finished(self, index: int, result) -> None:
         self._results[index] = result
         report = result.report
-        fixed = report.count(Level.FIX)
-        issues = report.count(Level.ERROR) + report.count(Level.WARN)
-
         if result.output_path is None:
             self._set_status(index, "failed")
         elif report.count(Level.ERROR):
@@ -356,8 +355,13 @@ class MainWindow(QMainWindow):
         else:
             self._set_status(index, "done")
 
-        self.table.setItem(index, 2, QTableWidgetItem(str(fixed)))
-        self.table.setItem(index, 3, QTableWidgetItem(str(issues)))
+        counts = (
+            report.count(Level.FIX),
+            report.count(Level.PRESERVED),
+            report.count(Level.ERROR) + report.count(Level.WARN),
+        )
+        for column, value in enumerate(counts, start=2):
+            self.table.setItem(index, column, QTableWidgetItem(str(value)))
         self.progress.setValue(index + 1)
         if self.table.currentRow() in (-1, index):
             self.table.selectRow(index)

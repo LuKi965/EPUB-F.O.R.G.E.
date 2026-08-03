@@ -154,8 +154,12 @@ class StructureStage(Stage):
             book.rename(old_path, new_path)
 
         if moves:
+            renamed = sum(
+                1 for old, new in moves if posixpath.basename(old) != posixpath.basename(new)
+            )
             self.note(
                 ctx,
-                Level.INFO,
+                Level.FIX,
                 f"reorganised {len(moves)} file(s) into a typed {root}/ layout with portable names",
+                detail=f"{renamed} file(s) needed a new name; every reference was rewritten to match",
             )
