@@ -6,7 +6,7 @@ import os
 import sys
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QTextCursor
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__
+from .. import __version__, resources
 from ..pipeline import rebuild
 from ..policy import Policy
 from ..report import Level, Report
@@ -511,9 +511,19 @@ class MainWindow(QMainWindow):
 
 def run(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
+
+    # Must happen before the first window exists, or the taskbar has already
+    # decided which icon to group this process under.
+    resources.set_windows_app_id()
+
     app = QApplication(argv)
     app.setApplicationName("EPUB-Forge")
+    app.setApplicationDisplayName("EPUB-Forge")
     app.setStyle("Fusion")
+
+    icon_path = resources.app_icon()
+    if icon_path is not None:
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     palette = theme.active_palette(app)
     app.setStyleSheet(theme.stylesheet(palette))

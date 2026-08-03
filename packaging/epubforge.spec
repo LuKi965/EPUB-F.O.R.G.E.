@@ -27,6 +27,12 @@ if (BUNDLE_DIR / "jre").is_dir():
 if (BUNDLE_DIR / "epubcheck").is_dir():
     datas.append((str(BUNDLE_DIR / "epubcheck"), "epubcheck"))
 
+# The window and taskbar icons are loaded at runtime; the executable's own
+# resource icon (set below) only covers how Explorer draws the file.
+for icon_name in ("epubforge.ico", "epubforge.png"):
+    if (SPEC_DIR / icon_name).is_file():
+        datas.append((str(SPEC_DIR / icon_name), "."))
+
 # Qt ships far more than this app touches; dropping the unused stacks saves
 # well over a hundred megabytes.
 excludes = [

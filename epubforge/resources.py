@@ -43,6 +43,38 @@ def epubcheck_jar() -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def app_icon() -> Path | None:
+    """The application icon, whether frozen or running from a checkout.
+
+    PyInstaller's ``icon=`` only stamps the executable's Windows resource, which
+    Explorer reads. The window and taskbar icons come from the toolkit at
+    runtime and need the actual file.
+    """
+    root = bundle_root()
+    candidates = [root / "epubforge.ico", root / "epubforge.png"] if root else []
+    packaging = Path(__file__).resolve().parent.parent / "packaging"
+    candidates += [packaging / "epubforge.ico", packaging / "epubforge.png"]
+    return next((path for path in candidates if path.is_file()), None)
+
+
+def set_windows_app_id(app_id: str = "EpubForge.EpubForge") -> None:
+    """Give Windows an explicit AppUserModelID.
+
+    Without one, a frozen Python GUI is grouped under the host interpreter and
+    the taskbar shows that interpreter's icon instead of the application's.
+    A no-op everywhere else.
+    """
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+    except Exception:
+        # Cosmetic only; never let it stop the application from starting.
+        pass
+
+
 def bundled_epubcheck_command() -> list[str] | None:
     """Command prefix running the bundled EPUBCheck on the bundled JRE."""
     java = java_executable()

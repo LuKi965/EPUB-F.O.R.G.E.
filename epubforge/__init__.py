@@ -5,6 +5,6 @@ from .pipeline import Result, rebuild
 from .policy import Policy
 from .report import Level, Report
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = ["rebuild", "Result", "Policy", "Report", "Level", "Book", "__version__"]

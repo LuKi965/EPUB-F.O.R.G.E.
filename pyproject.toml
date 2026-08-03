@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "epub-forge"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Rebuilds arbitrary EPUB files into standards-clean EPUB 3.3 while preserving their visual identity"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,9 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 epubforge = "epubforge.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "epubforge.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["epubforge*"]

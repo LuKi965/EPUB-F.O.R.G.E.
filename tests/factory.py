@@ -93,6 +93,8 @@ CHAPTER_TWO = """<?xml version="1.0" encoding="utf-8"?>
 <h1 id="1st-heading">Rozdzia&#322; drugi</h1>
 <p>Koniec &mdash; naprawd&#281;.</p>
 <tt>monospace</tt><big>wi&#281;kszy</big>
+<p><img src="../Images/ok%C5%82adka.png" alt="tytu&#322;"/></p>
+<p style="text-align: left"><img src="../Images/deco.webp" alt="ozdoba"/></p>
 </body>
 </html>
 """
