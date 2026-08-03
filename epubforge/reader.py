@@ -287,7 +287,16 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                 continue
             report.add("reader", Level.FIX, "matched a manifest entry by case-insensitive path", location=path)
             path = resolved
-        media_type = guess_media_type(path, item.get("media-type"))
+        declared = (item.get("media-type") or "").strip()
+        media_type = guess_media_type(path, declared)
+        if declared and declared != media_type:
+            report.add(
+                "reader",
+                Level.FIX,
+                f"manifest declared {declared!r}, which is not the type this file actually is; "
+                f"corrected to {media_type!r}",
+                location=path,
+            )
         properties = set((item.get("properties") or "").split())
         resource = Resource(path=path, media_type=media_type, data=entries[path], properties=properties)
         if item_id:

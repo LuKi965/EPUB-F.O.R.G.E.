@@ -99,8 +99,17 @@ CHAPTER_TWO = """<?xml version="1.0" encoding="utf-8"?>
 
 STYLESHEET = """@charset "utf-8";
 body { font-family: "Moja Czcionka", serif; margin: 1em; }
-h1 { color: #884400; }
+h1 {
+  color: #884400;
+  font-family: "Judson";
+  adobe-hyphenate: none;
+  -epub-hyphenate: auto;
+}
 .deco { background-image: url('../Images/deco.webp'); }
+/* Publisher mistakes seen in shipped books: out-of-flow content in a
+   reflowable title page, and a font-style value that does not exist. */
+div.dol { position: absolute; bottom: 0; width: 100%; }
+p.dedykacja { text-align: center; font-style: regular; }
 @media amzn-kf8 { body { font-size: 1.1em; } }
 @font-face { font-family: "Moja Czcionka"; src: url("../Fonts/moja.ttf"); }
 """
