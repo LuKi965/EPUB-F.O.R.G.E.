@@ -1,6 +1,6 @@
-# EPUB-Forge
+# EPUB F.O.R.G.E. - Fabryka Odbudowy i Renowacji Glitchujących EPUB-ów
 
-Przebudowuje dowolny plik EPUB do czystego standardu **EPUB 3.3**, nie tracąc tego,
+Przekuwamy wadliwe EPUB-y w czysty standard **EPUB 3.3**, nie tracąc tego,
 co czyni książkę sobą — okładki, grafik, czcionek, układu i typografii.
 
 Narzędzie nie łata pliku, który dostaje. Wczytuje książkę do modelu niezależnego od
