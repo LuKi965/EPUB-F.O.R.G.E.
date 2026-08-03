@@ -49,6 +49,10 @@ class Policy:
     #: Remove files present in the archive but referenced by nothing.
     drop_orphans: bool = True
 
+    #: Consolidate publisher watermark markup. The tokens are never removed;
+    #: only the repeated inline styling and their presence in the reading order.
+    normalize_watermarks: bool = True
+
     #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
     accessibility_metadata: bool = True
 

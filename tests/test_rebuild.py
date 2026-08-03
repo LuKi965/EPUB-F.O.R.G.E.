@@ -475,6 +475,79 @@ class TestRemoteResources:
         assert "remote-resources" not in self.properties_of(rebuilt, "chapter2")
 
 
+class TestWatermarks:
+    """The mark is the publisher's; the mess it makes is not."""
+
+    def chapter(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+
+    def stylesheet(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read("EPUB/styles/main.css").decode()
+
+    def test_the_token_itself_is_never_touched(self, rebuilt):
+        assert "NzgxMjI0NjMzOTUzNjQ" in self.chapter(rebuilt)
+
+    def test_repeated_inline_styling_is_replaced_by_one_rule(self, rebuilt):
+        html = self.chapter(rebuilt)
+        assert "font-size:1px !important" not in html
+        assert "epubforge-watermark" in html
+        assert "epubforge-watermark" in self.stylesheet(rebuilt)
+
+    def test_marker_is_hidden_from_assistive_technology(self, rebuilt):
+        import re
+
+        marker = re.search(r"<div[^>]*epubforge-watermark[^>]*>", self.chapter(rebuilt))
+        assert marker and 'aria-hidden="true"' in marker.group()
+
+    def test_replacement_is_never_more_visible_than_the_original(self, rebuilt):
+        """Publishers hide these at 0pt as well as 1px; 0 is safe for both."""
+        assert "font-size: 0 !important" in self.stylesheet(rebuilt)
+
+    def test_a_visible_notice_is_left_alone(self, rebuilt):
+        import re
+
+        html = self.chapter(rebuilt)
+        assert "Order ##46932" in html
+        notice = re.search(r"<div[^>]*>(?=This document is protected)", html)
+        assert notice, "the notice element is missing"
+        # It is meant to be read, so it keeps its own styling and stays audible.
+        assert "epubforge-watermark" not in notice.group()
+        assert "aria-hidden" not in notice.group()
+        assert "font-style:italic" in notice.group()
+
+    def test_the_notice_and_its_personal_data_are_reported(self, rebuilt):
+        findings = [
+            f for f in rebuilt.report.findings
+            if "visible watermark" in f.message
+        ]
+        assert findings and findings[0].level is Level.PRESERVED
+        assert "jan@example.test" in (findings[0].detail or "")
+
+    def test_ordinary_small_print_is_not_mistaken_for_a_watermark(self, rebuilt):
+        """0.9em is how publishers set legitimate fine print."""
+        import re
+
+        html = self.chapter(rebuilt)
+        paragraph = re.search(r"<p[^>]*>(?=Drobny druk)", html)
+        assert paragraph, "the fine print is missing"
+        assert "epubforge-watermark" not in paragraph.group()
+        assert "aria-hidden" not in paragraph.group()
+
+    def test_consolidation_can_be_switched_off(self, legacy_epub, tmp_path):
+        from epubforge.pipeline import rebuild as run
+        from epubforge.policy import Policy
+
+        policy = Policy.preset("preserve")
+        policy.normalize_watermarks = False
+        result = run(legacy_epub, str(tmp_path / "kept.epub"), policy)
+        with zipfile.ZipFile(result.output_path) as archive:
+            html = archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+        assert "font-size:1px !important" in html
+        assert "epubforge-watermark" not in html
+
+
 class TestStylesheetLinting:
     def stylesheet(self, result) -> str:
         with zipfile.ZipFile(result.output_path) as archive:

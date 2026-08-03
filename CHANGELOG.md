@@ -7,6 +7,32 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.5.0
+
+### Added
+- Publisher watermarks are consolidated instead of being left to smear through
+  the book. Retailer "social DRM" stamps a per-purchase token into a
+  `<div style="font-size:1px !important">` at the end of **every** document —
+  34 copies in one book measured here, 27 and 23 in two others. The token text
+  is never touched, but the repeated inline `!important` styling becomes a
+  single rule, and the marker gains `aria-hidden` so a screen reader stops
+  spelling it out at the end of every chapter.
+- Visible watermark notices — the human-readable "this document is protected,
+  order ##…" block — are recognised separately and left exactly as written,
+  because they are meant to be read. They are reported, and if the notice
+  carries an e-mail address that is called out, since it identifies the buyer.
+- `--keep-watermark-markup` leaves the markup untouched.
+
+### Fixed
+- Nothing in the watermark heuristic may catch ordinary content: an unanchored
+  font-size pattern read `10px` as `1` and `0.9em` as `0`, which would have
+  pulled legitimate fine print into the watermark path. Sizes are now compared
+  numerically, and only absolute units count — `em` and `%` are how publishers
+  set small print.
+- The consolidated rule hides at `font-size: 0`, not `1px`, because publishers
+  hide these at `0pt` as often as at `1px` and the replacement must never be
+  more visible than what it replaces.
+
 ## 0.4.0
 
 Driven by three more real books: Casino Royale, and Preludium Fundacji before

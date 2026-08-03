@@ -26,6 +26,10 @@ class Context:
     #: the DOM and would otherwise mistake a filled-in alt for a real one.
     auto_alt_locations: list[str] = field(default_factory=list)
 
+    #: Stylesheets that must gain the consolidated watermark rule, because a
+    #: document they style had its repeated inline styling removed.
+    watermark_stylesheets: set[str] = field(default_factory=set)
+
     #: Every id present in each finished document, so navigation can check
     #: that the fragments it points at actually exist.
     document_ids: dict[str, set[str]] = field(default_factory=dict)
