@@ -17,7 +17,7 @@ from .. import __version__, resources
 from . import theme
 from .strings import tr
 
-REPOSITORY = "https://github.com/LuKi965/EPUB-Forge"
+REPOSITORY = "https://github.com/LuKi965/EPUB-F.O.R.G.E."
 
 
 class AboutDialog(QDialog):
@@ -83,9 +83,14 @@ class AboutDialog(QDialog):
         text = QVBoxLayout()
         text.setSpacing(2)
 
-        name = QLabel("EPUB-Forge")
+        name = QLabel("EPUB F.O.R.G.E.")
         name.setStyleSheet(f"font-size: 17pt; font-weight: 600; color: {colors.text};")
         text.addWidget(name)
+
+        subtitle = QLabel(tr("about.subtitle"))
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet(f"color: {colors.accent}; font-size: 9.5pt; font-style: italic;")
+        text.addWidget(subtitle)
 
         version = QLabel(tr("about.version", version=__version__))
         version.setStyleSheet(f"color: {colors.text_muted};")

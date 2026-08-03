@@ -97,8 +97,8 @@ trafia do raportu.
 
 ### Windows — bez Pythona i bez Javy
 
-Pobierz `EPUB-Forge-<wersja>-setup.exe` ze
-[strony wydań](https://github.com/LuKi965/EPUB-Forge/releases) albo wersję przenośną
+Pobierz `EPUB-FORGE-<wersja>-setup.exe` ze
+[strony wydań](https://github.com/LuKi965/EPUB-F.O.R.G.E./releases) albo wersję przenośną
 `.zip`. Obie zawierają środowisko Pythona, Qt, minimalne środowisko Javy i EPUBCheck —
 na komputerze docelowym nie trzeba mieć niczego. Instalator działa w trybie
 użytkownika i nie pyta o uprawnienia administratora.
@@ -145,6 +145,14 @@ Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout
 Polski lub angielski, przełączany w menu **Ustawienia → Język interfejsu** (wybór jest
 zapamiętywany). Każda opcja ma dymek opisujący, co zrobi z książką — nie powtarzający
 jej nazwy. Motyw jasny i ciemny dobiera się z ustawień systemu.
+
+## Poczucie humoru
+
+Po każdej przebudowie narzędzie pozwala sobie na jedną suchą uwagę — w raporcie
+i w wierszu poleceń. Skaluje się z tym, jak zepsuty był plik. Obowiązują dwie
+zasady: żart jest zawsze o pliku, nigdy o osobie, która go kupiła, a przy
+jakimkolwiek błędzie narzędzie milknie, bo nikt nie chce dowcipu obok problemu
+do rozwiązania.
 
 ## Raport
 

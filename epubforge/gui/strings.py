@@ -15,7 +15,7 @@ import os
 
 PL: dict[str, str] = {
     # --- window and toolbar ---------------------------------------------
-    "window.title": "EPUB-Forge {version}",
+    "window.title": "EPUB F.O.R.G.E. {version}",
     "toolbar.add": "Dodaj książki…",
     "toolbar.add.tip": (
         "Wybierz pliki EPUB do przebudowy.\n\n"
@@ -182,8 +182,9 @@ PL: dict[str, str] = {
     "menu.about": "O programie",
     "language.pl": "Polski",
     "language.en": "English",
-    "about.title": "O programie EPUB-Forge",
-    "about.tagline": "Przebudowuje ebooki do standardu EPUB 3.3, nie psując ich wyglądu.",
+    "about.title": "O programie EPUB F.O.R.G.E.",
+    "about.subtitle": "Fabryka Odbudowy i Renowacji Glitchujących EPUB-ów",
+    "about.tagline": "Przekuwa wadliwe ebooki w czysty EPUB 3.3 — bez psucia tego, jak wyglądają.",
     "about.version": "Wersja {version}",
     "about.authors": "Autorzy",
     "about.author.human": "Łukasz „LuKi” Kniotek — pomysł, kierunek i wymagania",
@@ -200,7 +201,7 @@ PL: dict[str, str] = {
 }
 
 EN: dict[str, str] = {
-    "window.title": "EPUB-Forge {version}",
+    "window.title": "EPUB F.O.R.G.E. {version}",
     "toolbar.add": "Add books…",
     "toolbar.add.tip": "Pick EPUB files to rebuild.\n\nYou can also drop them anywhere in this window.",
     "toolbar.clear": "Clear list",
@@ -328,8 +329,9 @@ EN: dict[str, str] = {
     "menu.about": "About",
     "language.pl": "Polski",
     "language.en": "English",
-    "about.title": "About EPUB-Forge",
-    "about.tagline": "Rebuilds e-books to EPUB 3.3 without spoiling how they look.",
+    "about.title": "About EPUB F.O.R.G.E.",
+    "about.subtitle": "Factory for Overhauling and Renovating Glitchy EPUBs",
+    "about.tagline": "Forges broken e-books into clean EPUB 3.3 — without spoiling how they look.",
     "about.version": "Version {version}",
     "about.authors": "Authors",
     "about.author.human": "Łukasz \u201cLuKi\u201d Kniotek — concept, direction and requirements",

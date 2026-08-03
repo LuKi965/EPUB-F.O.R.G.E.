@@ -7,6 +7,24 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.6.0
+
+### Changed
+- Renamed to **EPUB F.O.R.G.E.** — *Fabryka Odbudowy i Renowacji Glitchujących
+  EPUB-ów* / *Factory for Overhauling and Renovating Glitchy EPUBs*. The window
+  title, About dialog, installer and documentation follow; executable and
+  distribution folder names are deliberately unchanged so the Windows build
+  keeps working.
+
+### Added
+- One dry remark per rebuilt book, in the report pane and after the CLI
+  summary. It scales with how broken the file was and has its own line for
+  books watermarked in every chapter. Two rules keep it from wearing thin: the
+  target is always the file rather than the person who bought it, and it goes
+  silent whenever a run produced an error — nobody wants a wisecrack next to a
+  problem they have to deal with. The line is derived from the report, so the
+  same book always gets the same one.
+
 ## 0.5.1
 
 ### Fixed
