@@ -40,6 +40,9 @@ class NavigationStage(Stage):
     name = "navigation"
 
     def run(self, ctx: Context) -> None:
+        # EPUB 2 sources have no navigation document at all; generating one is a
+        # correction, whereas replacing an existing one is routine.
+        self._had_nav = bool(ctx.book.nav_path)
         self._ensure_cover_page(ctx)
         self._prune_toc(ctx)
         if not ctx.book.toc:
@@ -271,7 +274,17 @@ class NavigationStage(Stage):
             )
         )
         book.nav_path = nav_path
-        self.note(ctx, Level.INFO, f"wrote an EPUB 3 navigation document with {len(book.toc)} top-level entries")
+        entries = sum(1 for root in book.toc for _ in root.walk())
+        self.note(
+            ctx,
+            Level.INFO if self._had_nav else Level.FIX,
+            (
+                f"regenerated the navigation document ({entries} entries)"
+                if self._had_nav
+                else f"generated the navigation document EPUB 3 requires ({entries} entries)"
+            ),
+            detail=None if self._had_nav else "The source had none; its table of contents came from the NCX.",
+        )
 
     def _drop_ncx(self, ctx: Context) -> None:
         if ctx.book.ncx_path:

@@ -278,6 +278,132 @@ class TestPolicyModes:
         assert not any(name.startswith("EPUB/text/") for name in names)
 
 
+class TestReportHonesty:
+    """The report must account for structural work, not just content edits.
+
+    A rebuild that relocates every file and upgrades the package version while
+    reporting "0 fixed" is worse than useless — it reads as a no-op.
+    """
+
+    def messages(self, rebuilt, level: Level) -> list[str]:
+        return [f.message for f in rebuilt.report.findings if f.level is level]
+
+    def test_version_upgrade_is_reported(self, rebuilt):
+        assert any(
+            "EPUB 2.0 to EPUB 3.3" in message for message in self.messages(rebuilt, Level.FIX)
+        )
+
+    def test_file_reorganisation_is_reported_as_a_change(self, rebuilt):
+        assert any("reorganised" in message for message in self.messages(rebuilt, Level.FIX))
+
+    def test_generated_navigation_is_reported_as_a_fix(self, rebuilt):
+        assert any(
+            "navigation document" in message for message in self.messages(rebuilt, Level.FIX)
+        )
+
+    def test_corrected_manifest_media_types_are_reported(self, rebuilt):
+        # The fixture declares chapter 2 as text/html, which it is not.
+        assert any(
+            "text/html" in (f.detail or "") + f.message for f in rebuilt.report.findings
+        )
+
+    def test_a_real_rebuild_never_reports_zero_changes(self, rebuilt):
+        assert rebuilt.report.count(Level.FIX) > 0
+
+
+class TestPublisherErrorRepair:
+    """Mistakes the browser already discards, so repairing restores intent."""
+
+    def stylesheet(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read("EPUB/styles/main.css").decode()
+
+    def test_invalid_font_style_value_is_corrected(self, rebuilt):
+        css = self.stylesheet(rebuilt)
+        assert "font-style: regular" not in css
+        assert "font-style: normal" in css
+        assert any(
+            "'regular'" in f.message for f in rebuilt.report.findings if f.level is Level.FIX
+        )
+
+    def test_out_of_flow_positioning_is_removed_from_reflowable_books(self, rebuilt):
+        css = self.stylesheet(rebuilt)
+        assert "position: absolute" not in css
+        # Only the positioning goes; the rest of the rule is left alone.
+        assert "width: 100%" in css
+        assert "text-align: center" in css
+
+    def test_removal_is_reported(self, rebuilt):
+        assert any(
+            "absolute/fixed position" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.FIX
+        )
+
+    def test_fixed_layout_books_keep_their_positioning(self, legacy_epub, tmp_path):
+        """Absolute positioning is how fixed-layout books work; never strip it."""
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+        from epubforge.reader import read_epub
+        from epubforge.report import Report
+
+        # Re-read and mark the book pre-paginated, then run the stage directly.
+        from epubforge.stages import Context, StructureStage, StyleStage
+
+        report = Report()
+        book = read_epub(legacy_epub, report)
+        book.rendition["layout"] = "pre-paginated"
+        ctx = Context(book=book, policy=Policy.preset("preserve"), report=report)
+        StructureStage().run(ctx)
+        StyleStage().run(ctx)
+
+        css = next(r for r in book.by_type("style")).text()
+        assert "position: absolute" in css
+        assert any(
+            f.level is Level.PRESERVED and "fixed-layout" in (f.detail or "")
+            for f in report.findings
+        )
+
+
+class TestStylesheetLinting:
+    def stylesheet(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read("EPUB/styles/main.css").decode()
+
+    def test_reader_specific_property_is_reported_and_kept(self, rebuilt):
+        preserved = [
+            f for f in rebuilt.report.findings
+            if f.level is Level.PRESERVED and "reader-specific" in f.message
+        ]
+        assert preserved and "adobe-hyphenate" in (preserved[0].detail or "")
+        assert "adobe-hyphenate" in self.stylesheet(rebuilt)
+
+    def test_strict_removes_only_the_reader_specific_property(self, rebuilt_strict):
+        css = self.stylesheet(rebuilt_strict)
+        assert "adobe-hyphenate" not in css
+        # The standard EPUB prefix must survive; readers honour it.
+        assert "-epub-hyphenate" in css
+        assert "color: #884400" in css or "color:#884400" in css
+
+    def test_strict_output_is_still_parsable(self, rebuilt_strict):
+        import cssutils
+
+        sheet = cssutils.parseString(self.stylesheet(rebuilt_strict))
+        assert len(sheet.cssRules) > 1
+
+    def test_font_stack_without_generic_family_is_reported(self, rebuilt):
+        findings = [
+            f for f in rebuilt.report.findings if "generic family" in f.message
+        ]
+        assert findings and findings[0].level is Level.PRESERVED
+        assert "Judson" in (findings[0].detail or "")
+
+    def test_font_face_declarations_are_not_counted_as_stacks(self, rebuilt):
+        # @font-face names a font; only "Judson" in the h1 rule lacks a fallback.
+        findings = [f for f in rebuilt.report.findings if "generic family" in f.message]
+        assert findings[0].message.startswith("1 font stack")
+
+
 def test_rebuild_is_idempotent(rebuilt, tmp_path):
     """Rebuilding an already-clean book must not degrade it."""
     from epubforge.pipeline import rebuild as run
