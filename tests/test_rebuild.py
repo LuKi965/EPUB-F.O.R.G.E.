@@ -326,19 +326,20 @@ class TestPublisherErrorRepair:
             "'regular'" in f.message for f in rebuilt.report.findings if f.level is Level.FIX
         )
 
-    def test_out_of_flow_positioning_is_removed_from_reflowable_books(self, rebuilt):
-        css = self.stylesheet(rebuilt)
+    def test_out_of_flow_positioning_is_kept_by_default(self, rebuilt):
+        """A publisher pinning content to the page foot is intent, not a defect."""
+        assert "position: absolute" in self.stylesheet(rebuilt)
+        assert any(
+            f.level is Level.PRESERVED and "absolute/fixed position" in f.message
+            for f in rebuilt.report.findings
+        )
+
+    def test_strict_removes_out_of_flow_positioning(self, rebuilt_strict):
+        css = self.stylesheet(rebuilt_strict)
         assert "position: absolute" not in css
         # Only the positioning goes; the rest of the rule is left alone.
         assert "width: 100%" in css
         assert "text-align: center" in css
-
-    def test_removal_is_reported(self, rebuilt):
-        assert any(
-            "absolute/fixed position" in f.message
-            for f in rebuilt.report.findings
-            if f.level is Level.FIX
-        )
 
     def test_fixed_layout_books_keep_their_positioning(self, legacy_epub, tmp_path):
         """Absolute positioning is how fixed-layout books work; never strip it."""
@@ -362,6 +363,41 @@ class TestPublisherErrorRepair:
         assert any(
             f.level is Level.PRESERVED and "fixed-layout" in (f.detail or "")
             for f in report.findings
+        )
+
+
+class TestImageParagraphs:
+    """Cover and title pages are `<p><img/></p>`; body-text rules must not shift them."""
+
+    def chapter(self, rebuilt) -> str:
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+
+    def test_image_only_paragraph_is_centred_and_unindented(self, rebuilt):
+        html = self.chapter(rebuilt)
+        assert 'style="text-indent: 0; text-align: center;"' in html
+
+    def test_explicit_alignment_is_respected(self, rebuilt):
+        """An inline text-align is a deliberate choice and must survive."""
+        import re
+
+        html = self.chapter(rebuilt)
+        paragraph = re.search(r'<p[^>]*>(?=<img[^>]*alt="ozdoba")', html)
+        assert paragraph, "the decorative image paragraph is missing"
+        assert "text-align: left" in paragraph.group()
+        assert "center" not in paragraph.group()
+
+    def test_paragraphs_with_text_are_left_alone(self, rebuilt):
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            chapter_one = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+        # Chapter one's images sit inside a paragraph that also has prose.
+        assert "text-indent: 0; text-align: center;" not in chapter_one
+
+    def test_the_change_is_reported(self, rebuilt):
+        assert any(
+            "image-only paragraph" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.FIX
         )
 
 

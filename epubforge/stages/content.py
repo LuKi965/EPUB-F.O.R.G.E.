@@ -146,6 +146,7 @@ class ContentStage(Stage):
             self._skeleton(ctx, root, resource)
             self._rewrite_references(ctx, root, resource, global_ids)
             self._modernise(ctx, root, resource)
+            self._image_paragraphs(ctx, root, resource)
             self._accessibility(ctx, root, resource)
             self._scripting(ctx, root, resource)
             self._properties(ctx, root, resource)
@@ -374,6 +375,41 @@ class ContentStage(Stage):
                 "converted legacy presentational markup to CSS",
                 location=resource.path,
                 detail=", ".join(sorted(changed)),
+            )
+
+    def _image_paragraphs(self, ctx: Context, root, resource) -> None:
+        """Stop body-text rules from indenting a paragraph that is just an image.
+
+        Cover and title pages are almost always ``<p><img/></p>``. When the
+        stylesheet gives ``p`` an indent and justification — which it does for
+        running text — that indent shifts the artwork off-centre and the
+        justification never centres it. No publisher intends a first-line indent
+        on a picture, so the paragraph is opted out of both.
+        """
+        adjusted = 0
+        for element in xhtml.iter_elements(root):
+            if xhtml.local_name(element).lower() not in {"p", "div"}:
+                continue
+            children = [child for child in element if isinstance(child.tag, str)]
+            if len(children) != 1:
+                continue
+            if xhtml.local_name(children[0]).lower() not in {"img", "svg", "image"}:
+                continue
+            if (element.text or "").strip() or (children[0].tail or "").strip():
+                continue
+            # An explicit inline alignment is a deliberate choice; leave it be.
+            if "text-align" in (element.get("style") or "").lower():
+                continue
+            _append_style(element, "text-indent: 0; text-align: center;")
+            adjusted += 1
+
+        if adjusted:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"centred {adjusted} image-only paragraph(s) and removed their text indent",
+                location=resource.path,
+                detail="Body-text indentation was shifting cover and title artwork off-centre.",
             )
 
     def _presentational_attributes(self, element, tag: str, changed: set[str]) -> None:
@@ -659,6 +695,14 @@ class StyleStage(Stage):
         return repaired
 
     def _repair_positioning(self, ctx: Context, css_text: str, resource) -> str:
+        """Absolute positioning is a compatibility risk, not a defect.
+
+        Publishers use it deliberately — a rule named ``.dol`` ("bottom") pins a
+        dedication to the foot of the page, and that is intent, not a mistake.
+        Readium-based readers honour it; older ones ignore it. Since removing it
+        destroys a layout the publisher chose, it is reported and kept unless
+        conformance has been asked to win.
+        """
         matches = _OUT_OF_FLOW_RE.findall(css_text)
         if not matches:
             return css_text
@@ -669,7 +713,20 @@ class StyleStage(Stage):
                 Level.PRESERVED,
                 f"kept {len(matches)} absolute/fixed position rule(s)",
                 location=resource.path,
-                detail="This is a fixed-layout book, where out-of-flow positioning is legitimate.",
+                detail="This is a fixed-layout book, where out-of-flow positioning is how it works.",
+            )
+            return css_text
+
+        if not ctx.policy.strict:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                f"kept {len(matches)} absolute/fixed position rule(s) in a reflowable book",
+                location=resource.path,
+                detail=(
+                    "Out-of-flow content does not paginate on every reader, but it is a layout "
+                    "the publisher chose. Use --strict to drop it."
+                ),
             )
             return css_text
 
@@ -679,11 +736,7 @@ class StyleStage(Stage):
             Level.FIX,
             f"removed {len(matches)} absolute/fixed position rule(s) from a reflowable book",
             location=resource.path,
-            detail=(
-                "Out-of-flow content cannot paginate: readers clip it, overlap it, or drop it, "
-                "and text-align inside it stops being visible. The affected blocks now flow "
-                "normally and their own alignment applies again."
-            ),
+            detail="The affected blocks now flow with the page instead of being pinned to it.",
         )
         return repaired
 
