@@ -49,6 +49,14 @@ class Policy:
     #: Remove files present in the archive but referenced by nothing.
     drop_orphans: bool = True
 
+    #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
+    accessibility_metadata: bool = True
+
+    #: Assert conformance ("wcag-a" / "wcag-aa" / "wcag-aaa"). Off by default:
+    #: WCAG cannot be verified mechanically, and under the European
+    #: Accessibility Act the claim is the publisher's to make, not the tool's.
+    claim_conformance: str | None = None
+
     #: Force a language tag when the source has none or an invalid one.
     default_language: str = "en"
 

@@ -21,6 +21,15 @@ class Context:
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None
+    #: Documents where an image had no alt at all and one was supplied. The
+    #: accessibility stage runs after that repair, so it cannot see the gap in
+    #: the DOM and would otherwise mistake a filled-in alt for a real one.
+    auto_alt_locations: list[str] = field(default_factory=list)
+
+    #: Every id present in each finished document, so navigation can check
+    #: that the fragments it points at actually exist.
+    document_ids: dict[str, set[str]] = field(default_factory=dict)
+
     #: Per-document ``{old_id: new_id}`` for ids that were not valid XML names.
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)

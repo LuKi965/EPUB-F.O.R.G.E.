@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import zipfile
 
+import pytest
 from lxml import etree
 
 from epubforge.report import Level
@@ -326,19 +327,20 @@ class TestPublisherErrorRepair:
             "'regular'" in f.message for f in rebuilt.report.findings if f.level is Level.FIX
         )
 
-    def test_out_of_flow_positioning_is_removed_from_reflowable_books(self, rebuilt):
-        css = self.stylesheet(rebuilt)
+    def test_out_of_flow_positioning_is_kept_by_default(self, rebuilt):
+        """A publisher pinning content to the page foot is intent, not a defect."""
+        assert "position: absolute" in self.stylesheet(rebuilt)
+        assert any(
+            f.level is Level.PRESERVED and "absolute/fixed position" in f.message
+            for f in rebuilt.report.findings
+        )
+
+    def test_strict_removes_out_of_flow_positioning(self, rebuilt_strict):
+        css = self.stylesheet(rebuilt_strict)
         assert "position: absolute" not in css
         # Only the positioning goes; the rest of the rule is left alone.
         assert "width: 100%" in css
         assert "text-align: center" in css
-
-    def test_removal_is_reported(self, rebuilt):
-        assert any(
-            "absolute/fixed position" in f.message
-            for f in rebuilt.report.findings
-            if f.level is Level.FIX
-        )
 
     def test_fixed_layout_books_keep_their_positioning(self, legacy_epub, tmp_path):
         """Absolute positioning is how fixed-layout books work; never strip it."""
@@ -363,6 +365,114 @@ class TestPublisherErrorRepair:
             f.level is Level.PRESERVED and "fixed-layout" in (f.detail or "")
             for f in report.findings
         )
+
+
+class TestImageParagraphs:
+    """Cover and title pages are `<p><img/></p>`; body-text rules must not shift them."""
+
+    def chapter(self, rebuilt) -> str:
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+
+    def test_image_only_paragraph_is_centred_and_unindented(self, rebuilt):
+        html = self.chapter(rebuilt)
+        assert 'style="text-indent: 0; text-align: center;"' in html
+
+    def test_explicit_alignment_is_respected(self, rebuilt):
+        """An inline text-align is a deliberate choice and must survive."""
+        import re
+
+        html = self.chapter(rebuilt)
+        paragraph = re.search(r'<p[^>]*>(?=<img[^>]*alt="ozdoba")', html)
+        assert paragraph, "the decorative image paragraph is missing"
+        assert "text-align: left" in paragraph.group()
+        assert "center" not in paragraph.group()
+
+    def test_paragraphs_with_text_are_left_alone(self, rebuilt):
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            chapter_one = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+        # Chapter one's images sit inside a paragraph that also has prose.
+        assert "text-indent: 0; text-align: center;" not in chapter_one
+
+    def test_the_change_is_reported(self, rebuilt):
+        assert any(
+            "image-only paragraph" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.FIX
+        )
+
+    def test_a_rule_targeting_the_paragraph_is_obeyed(self, rebuilt):
+        """The publisher aimed p.ilustracja at these; right-aligned is a choice."""
+        import re
+
+        html = self.chapter(rebuilt)
+        paragraph = re.search(r'<p[^>]*>(?=<img[^>]*alt="wybor wydawcy")', html)
+        assert paragraph, "the publisher-styled image paragraph is missing"
+        assert 'class="ilustracja"' in paragraph.group()
+        assert "text-align" not in paragraph.group(), "its alignment must not be overridden"
+
+    def test_respected_paragraphs_are_reported(self, rebuilt):
+        assert any(
+            "as the publisher styled them" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.PRESERVED
+        )
+
+
+class TestEpub2ToEpub3Migration:
+    """Constructs XHTML 1.1 allowed that XHTML 5 rejects."""
+
+    def chapter(self, rebuilt) -> str:
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+
+    def test_percentage_width_moves_from_attribute_to_css(self, rebuilt):
+        """XHTML 5 requires width to be a bare integer; 10% makes it invalid."""
+        import re
+
+        html = self.chapter(rebuilt)
+        image = re.search(r'<img[^>]*alt="procent"[^>]*/>', html)
+        assert image, "the image is missing"
+        assert 'width="10%"' not in image.group()
+        assert "width: 10%" in image.group()
+
+    def test_integer_width_stays_an_attribute(self, archive):
+        """Where HTML 5 still defines the attribute, leave it alone."""
+        # Chapter one's table had width="100%" on a <table>, which is not a
+        # replaced element, so it must have become CSS.
+        html = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+        assert 'width="100%"' not in html
+        assert "width: 100%" in html
+
+    def test_block_inside_inline_is_promoted(self, rebuilt):
+        """A block span inside an inline <a> splits the line box."""
+        import re
+
+        html = self.chapter(rebuilt)
+        anchor = re.search(r"<a[^>]*>(?=<span[^>]*numer)", html)
+        assert anchor, "the heading anchor is missing"
+        assert "display: inline-block" in anchor.group()
+
+    def test_promotion_is_reported(self, rebuilt):
+        assert any(
+            "contain block-level content" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.FIX
+        )
+
+
+class TestRemoteResources:
+    def properties_of(self, rebuilt, href_fragment: str) -> str:
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            package = etree.fromstring(archive.read(OPF_PATH))
+        item = package.xpath(
+            f'.//opf:item[contains(@href, "{href_fragment}")]', namespaces=OPF_NS
+        )[0]
+        return item.get("properties") or ""
+
+    def test_an_external_hyperlink_is_not_a_remote_resource(self, rebuilt):
+        """remote-resources covers embedded media, not where links point."""
+        assert "remote-resources" not in self.properties_of(rebuilt, "chapter2")
 
 
 class TestStylesheetLinting:
@@ -402,6 +512,102 @@ class TestStylesheetLinting:
         # @font-face names a font; only "Judson" in the h1 rule lacks a fallback.
         findings = [f for f in rebuilt.report.findings if "generic family" in f.message]
         assert findings[0].message.startswith("1 font stack")
+
+
+class TestAccessibility:
+    """Declarations must follow the content, because under the EAA they are claims."""
+
+    def metadata(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read(OPF_PATH).decode()
+
+    def properties(self, result, name: str) -> list[str]:
+        package = etree.fromstring(self.metadata(result).encode())
+        return [
+            (node.text or "")
+            for node in package.xpath(
+                f'.//opf:meta[@property="{name}"]', namespaces=OPF_NS
+            )
+        ]
+
+    def test_access_modes_reflect_the_content(self, rebuilt):
+        modes = self.properties(rebuilt, "schema:accessMode")
+        assert "textual" in modes
+        assert "visual" in modes, "the fixture has images"
+
+    def test_features_are_declared(self, rebuilt):
+        features = self.properties(rebuilt, "schema:accessibilityFeature")
+        assert "tableOfContents" in features
+        assert "structuralNavigation" in features
+        assert "displayTransformability" in features, "reflowable text is resizable"
+
+    def test_alternative_text_is_not_claimed_without_real_descriptions(self, rebuilt):
+        """The fixture's images get an empty alt, which means decorative."""
+        features = self.properties(rebuilt, "schema:accessibilityFeature")
+        assert "alternativeText" not in features
+        assert self.properties(rebuilt, "schema:accessModeSufficient") == ["textual,visual"]
+
+    def test_a_summary_is_written(self, rebuilt):
+        summary = self.properties(rebuilt, "schema:accessibilitySummary")
+        assert summary and len(summary[0]) > 20
+
+    def test_conformance_is_never_claimed_on_its_own(self, rebuilt):
+        assert "conformsTo" not in self.metadata(rebuilt)
+
+    def test_conformance_is_claimed_only_when_asked(self, legacy_epub, tmp_path):
+        from epubforge.pipeline import rebuild as run
+        from epubforge.policy import Policy
+
+        policy = Policy.preset("preserve")
+        policy.claim_conformance = "wcag-aa"
+        result = run(legacy_epub, str(tmp_path / "a11y.epub"), policy)
+        assert "WCAG 2.2 Level AA" in self.metadata(result)
+
+    def test_metadata_can_be_switched_off(self, legacy_epub, tmp_path):
+        from epubforge.pipeline import rebuild as run
+        from epubforge.policy import Policy
+
+        policy = Policy.preset("preserve")
+        policy.accessibility_metadata = False
+        result = run(legacy_epub, str(tmp_path / "plain.epub"), policy)
+        assert "schema:accessMode" not in self.metadata(result)
+
+    def test_missing_alt_is_reported_not_silently_hidden(self, rebuilt):
+        assert any(
+            "no alt text" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.WARN
+        )
+
+
+class TestPlaceholderAltDetection:
+    @pytest.mark.parametrize(
+        "alt,source",
+        [
+            ("title-1", "../images/title-1.jpg"),
+            ("cover", "cover.jpg"),
+            ("image", None),
+            ("okładka", "x.png"),
+            ("cover.jpg", None),
+        ],
+    )
+    def test_useless_alt_is_recognised(self, alt, source):
+        from epubforge.stages.accessibility import is_placeholder_alt
+
+        assert is_placeholder_alt(alt, source)
+
+    @pytest.mark.parametrize(
+        "alt",
+        [
+            "Geralt walczy z wiedźminem",
+            "Portret autora w młodości",
+            "Mapa Królestw Północy",
+        ],
+    )
+    def test_real_descriptions_are_left_alone(self, alt):
+        from epubforge.stages.accessibility import is_placeholder_alt
+
+        assert not is_placeholder_alt(alt, "../images/pic.jpg")
 
 
 def test_rebuild_is_idempotent(rebuilt, tmp_path):

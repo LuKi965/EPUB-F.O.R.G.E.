@@ -88,11 +88,17 @@ CHAPTER_ONE = """<?xml version="1.0" encoding="utf-8"?>
 
 CHAPTER_TWO = """<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head><title></title></head>
+<head><title></title><link rel="stylesheet" type="text/css" href="../Styles/main.css"/></head>
 <body>
 <h1 id="1st-heading">Rozdzia&#322; drugi</h1>
 <p>Koniec &mdash; naprawd&#281;.</p>
 <tt>monospace</tt><big>wi&#281;kszy</big>
+<p><img src="../Images/ok%C5%82adka.png" alt="tytu&#322;"/></p>
+<p style="text-align: left"><img src="../Images/deco.webp" alt="ozdoba"/></p>
+<p class="ilustracja"><img src="../Images/deco.webp" alt="wybor wydawcy"/></p>
+<p><img src="../Images/deco.webp" alt="procent" width="10%"/></p>
+<h1 id="naglowek"><a href="chapter2.xhtml"><span class="numer">III</span><br/>Tytu&#322;</a></h1>
+<p><a href="https://example.test/strona">link zewn&#281;trzny</a></p>
 </body>
 </html>
 """
@@ -110,6 +116,14 @@ h1 {
    reflowable title page, and a font-style value that does not exist. */
 div.dol { position: absolute; bottom: 0; width: 100%; }
 p.dedykacja { text-align: center; font-style: regular; }
+/* Running-text defaults, as almost every publisher writes them. These reach an
+   image-only paragraph by accident. */
+p { text-align: justify; text-indent: 2%; }
+/* A rule aimed at illustrations: a decision about those paragraphs, which the
+   rebuild must not override even though it is not centred. */
+p.ilustracja { text-align: right; }
+/* A block box declared on a span that sits inside an inline <a>. */
+.numer { display: block; font-size: 0.6em; }
 @media amzn-kf8 { body { font-size: 1.1em; } }
 @font-face { font-family: "Moja Czcionka"; src: url("../Fonts/moja.ttf"); }
 """

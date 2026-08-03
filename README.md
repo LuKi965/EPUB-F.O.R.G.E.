@@ -1,172 +1,232 @@
 # EPUB-Forge
 
-Rebuilds an arbitrary EPUB into a standards-clean **EPUB 3.3** without losing what
-makes the book itself — cover, artwork, fonts, layout and typography.
+Przebudowuje dowolny plik EPUB do czystego standardu **EPUB 3.3**, nie tracąc tego,
+co czyni książkę sobą — okładki, grafik, czcionek, układu i typografii.
 
-It does not patch the file you give it. It reads the book into a format-neutral
-model, throws the original container away, and generates a new one: package
-document, navigation, manifest, spine, filenames, ZIP layout. That is what makes
-the result independent of however broken the input was.
+Narzędzie nie łata pliku, który dostaje. Wczytuje książkę do modelu niezależnego od
+formatu, wyrzuca oryginalny kontener i generuje nowy: dokument pakietu, nawigację,
+manifest, spine, nazwy plików i strukturę ZIP. Właśnie dlatego poprawność wyniku nie
+zależy od tego, jak zepsute było źródło.
 
-## Why rebuilding beats repairing
+*(README in English: see [`README.en.md`](README.en.md).)*
 
-Bookstore and converter output fails in ways that resist patching: manifests that
-list files which aren't there, spines pointing at missing ids, `<center>` and
-`<font>` from a 2004 HTML converter, ids starting with a digit, undefined HTML
-entities in files claiming to be XML, fonts obfuscated against an identifier
-nobody recorded. A repair tool has to anticipate each case. A rebuild only has to
-*read* each case — and the output is correct by construction.
+## Dlaczego przebudowa, a nie naprawa
 
-## What it preserves
+Pliki z księgarń i konwerterów psują się w sposób, który wymyka się łataniu:
+manifesty wymieniające nieistniejące pliki, spine wskazujący brakujące identyfikatory,
+`<center>` i `<font>` z konwertera HTML z 2004 roku, identyfikatory zaczynające się
+cyfrą, nieokreślone encje HTML w plikach podających się za XML, czcionki
+zaobfuskowane kluczem, którego nikt nie zapisał. Narzędzie naprawiające musi
+przewidzieć każdy taki przypadek. Przebudowa musi go tylko *odczytać* — a wynik jest
+poprawny z konstrukcji.
 
-Preservation is a hard requirement, not a best effort. Legacy markup is
-**translated**, never deleted:
+## Co jest zachowywane
 
-| Source | Output | Rendering |
+Zachowanie wyglądu to twarde wymaganie, nie „staranie się". Przestarzały markup jest
+**tłumaczony**, nigdy usuwany:
+
+| Źródło | Wynik | Wygląd |
 |---|---|---|
-| `<center>` | `<div style="text-align: center">` | identical |
-| `<font color size face>` | `<span style="…">` | identical |
-| `<table border cellspacing bgcolor>` | CSS equivalents on the element | identical |
-| `<tt>` `<big>` `<strike>` | `<span>` with the matching CSS | identical |
-| `<a name="x">` | `<a id="x">` | identical |
-| obfuscated fonts | deobfuscated, `encryption.xml` dropped | identical |
-| WebP / BMP / TIFF | PNG, references rewritten | identical |
+| `<center>` | `<div style="text-align: center">` | identyczny |
+| `<font color size face>` | `<span style="…">` | identyczny |
+| `<table border cellspacing bgcolor>` | odpowiedniki CSS na elemencie | identyczny |
+| `<tt>` `<big>` `<strike>` | `<span>` z pasującym CSS | identyczny |
+| `<a name="x">` | `<a id="x">` | identyczny |
+| czcionki zaobfuskowane | odszyfrowane, `encryption.xml` usunięty | identyczny |
+| WebP / BMP / TIFF | PNG, odnośniki przepisane | identyczny |
 
-## Conformance vs. appearance
+## Naprawa błędów wydawcy
 
-Where the two genuinely conflict, the mode decides — and every deviation is
-reported either way.
+Osobna kategoria: rzeczy, które przeglądarka i tak odrzuca, więc ich naprawa
+**przywraca** intencję wydawcy, zamiast ją nadpisywać.
 
-- **`preserve`** (default) — appearance wins. Vendor CSS hacks, scripting and
-  links to files the book never contained are kept, each logged as `preserved`.
-  The book looks exactly as it did; some source defects remain conformance
-  errors.
-- **`strict`** — the specification wins. Dead links are unlinked (their text
-  survives), Kindle-only `@media` blocks are dropped. Produces a clean EPUBCheck
-  run.
-- **`minimal`** — container only. Content files are passed through untouched;
-  only the OPF, navigation and ZIP structure are regenerated.
+- **`font-style: regular`** — `regular` nie jest wartością CSS, więc parser wyrzucał
+  całą deklarację. Zamieniane na `normal`.
+- **`<p><img/></p>` w tekście ciągłym** — reguła `p { text-indent: 2%; text-align: justify }`
+  pisana pod prozę przesuwała okładki i strony tytułowe w bok i nigdy ich nie
+  centrowała. Akapity zawierające wyłącznie obrazek są z tego wyłączane.
+- **Błędne typy MIME w manifeście** — np. `application/x-font-ttf`, który nie istnieje
+  w żadnym standardzie.
+- **Identyfikatory niebędące poprawnymi nazwami XML** — zmieniane wraz ze wszystkimi
+  odnośnikami, także we wnętrzu spisu treści.
 
-## Install
+Rzeczy, które są **wyborem** wydawcy — nawet nietypowym — zostają i trafiają do
+raportu. `div.dol { position: absolute; bottom: 0 }` dociska dedykację do dołu strony;
+to układ, a nie usterka.
 
-### Windows — no Python, no Java
+## Dostępność cyfrowa
 
-Grab `EPUB-Forge-<version>-setup.exe` from the
-[releases page](https://github.com/LuKi965/EPUB-Forge/releases), or the portable
-`.zip` if you would rather not install anything. Both ship the Python runtime,
-Qt, a minimal Java runtime and EPUBCheck, so nothing else has to be present on
-the machine. The installer is per-user by default and never prompts for
-administrator rights.
+Od czerwca 2025 **European Accessibility Act** obejmuje ebooki, więc metadane
+dostępności przestały być opcjonalne. Narzędzie generuje deklaracje
+**EPUB Accessibility 1.1** wyprowadzone z tego, co książka faktycznie zawiera:
+`schema:accessMode`, `accessModeSufficient`, `accessibilityFeature`,
+`accessibilityHazard` i podsumowanie.
 
-The distribution contains two programs:
+Obowiązuje przy tym jedna twarda zasada: **żadna deklaracja nie jest zmyślana.**
+Narzędzie, które wpisze `alternativeText` książce bez opisów alternatywnych, nie
+poprawiło dostępności — wyprodukowało fałszywe oświadczenie i utrudniło znalezienie
+problemu. Dlatego:
 
-- `EPUB-Forge.exe` — the window. Drag books in, review the report, write them out.
-- `epubforge.exe` — the same tool on the command line, for batch runs.
+- `alternativeText` pojawia się tylko wtedy, gdy **każda** ilustracja ma realny opis;
+- alt powtarzający nazwę pliku (`alt="title-1"`, `alt="cover"`) jest wykrywany i
+  **nie** liczy się jako opis;
+- okładka dostaje opis z tytułu książki, bo okładka przedstawia książkę;
+- zgodność z WCAG **nigdy** nie jest deklarowana automatycznie — maszynowo się jej nie
+  da ustalić, a pod EAA to oświadczenie wydawcy. Służy do tego jawna flaga
+  `--claim-conformance`.
 
-### From source
+Braki, których nie da się naprawić automatycznie (brakujące opisy, przeskoki poziomów
+nagłówków, tabele bez komórek nagłówkowych), trafiają do raportu jako robota dla
+człowieka.
+
+## Zgodność kontra wygląd
+
+Tam, gdzie jedno naprawdę kłóci się z drugim, decyduje tryb — a każde odstępstwo i tak
+trafia do raportu.
+
+- **`preserve`** (domyślny) — wygrywa wygląd. Hacki CSS pod konkretne czytniki,
+  skrypty i linki do plików, których książka nigdy nie zawierała, zostają, każde
+  odnotowane jako `zachowano`.
+- **`strict`** — wygrywa specyfikacja. Martwe odnośniki tracą `href` (tekst zostaje),
+  znikają bloki `@media` pod Kindle, właściwości `adobe-*` i pozycjonowanie
+  bezwzględne. Wynik przechodzi EPUBCheck bez zastrzeżeń.
+- **`minimal`** — tylko kontener. Pliki treści przechodzą bajt w bajt; regenerowane są
+  wyłącznie OPF, nawigacja i struktura ZIP.
+
+## Instalacja
+
+### Windows — bez Pythona i bez Javy
+
+Pobierz `EPUB-Forge-<wersja>-setup.exe` ze
+[strony wydań](https://github.com/LuKi965/EPUB-Forge/releases) albo wersję przenośną
+`.zip`. Obie zawierają środowisko Pythona, Qt, minimalne środowisko Javy i EPUBCheck —
+na komputerze docelowym nie trzeba mieć niczego. Instalator działa w trybie
+użytkownika i nie pyta o uprawnienia administratora.
+
+W paczce są dwa programy:
+
+- `EPUB-Forge.exe` — okno. Przeciągasz książki, oglądasz raport, zapisujesz wynik.
+- `epubforge.exe` — to samo z wiersza poleceń, do przetwarzania wsadowego.
+
+### Ze źródeł
 
 ```bash
 pip install -e ".[gui]"
 ```
 
-Here EPUBCheck is optional: point `EPUBCHECK_JAR` at `epubcheck.jar`, or put
-`epubcheck` on `PATH`. Without it everything works except validation.
+Tutaj EPUBCheck jest opcjonalny: wskaż `epubcheck.jar` zmienną `EPUBCHECK_JAR` albo
+umieść `epubcheck` w `PATH`. Bez niego działa wszystko poza walidacją.
 
-## Use
+## Użycie
 
 ```bash
-# Rebuild one book next to the original
-epubforge build book.epub
+# Jedna książka, obok oryginału
+epubforge build ksiazka.epub
 
-# A whole library into one folder, verified as it goes
-epubforge build ~/Books -o ~/Books/clean --check
+# Cała biblioteka do jednego folderu, z weryfikacją
+epubforge build ~/Ebooki -o ~/Ebooki/czyste --check
 
-# Full conformance, appearance second
-epubforge build book.epub --strict -o clean.epub
+# Pełna zgodność, wygląd na drugim miejscu
+epubforge build ksiazka.epub --strict -o czysta.epub
 
-# What is wrong with this file, without writing anything?
-epubforge inspect book.epub
+# Co jest nie tak z tym plikiem, bez zapisywania czegokolwiek
+epubforge inspect ksiazka.epub
 
-# Desktop interface: drag books in, review the report, write them out
+# Interfejs graficzny
 epubforge gui
 ```
 
-Useful flags: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
-`--title/--author/--publisher/--series/--language`, `--report out.json`, `-v`.
+Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
+`--no-a11y-metadata`, `--claim-conformance wcag-aa`,
+`--title/--author/--publisher/--series/--language`, `--report raport.json`, `-v`.
 
-## The report
+## Interfejs
 
-Every run accounts for what it did. Findings are one of `fix` (a defect
-corrected), `preserved` (a deviation kept on purpose), `warn`, `error`, or
-`info`. `--report` writes the same data as JSON.
+Polski lub angielski, przełączany w menu **Ustawienia → Język interfejsu** (wybór jest
+zapamiętywany). Każda opcja ma dymek opisujący, co zrobi z książką — nie powtarzający
+jej nazwy. Motyw jasny i ciemny dobiera się z ustawień systemu.
+
+## Raport
+
+Każde uruchomienie rozlicza się z tego, co zrobiło. Wpisy mają jeden z poziomów:
+`naprawiono` (usterka poprawiona), `zachowano` (odstępstwo zostawione świadomie),
+`ostrzeżenie`, `błąd`, `informacja`. `--report` zapisuje te same dane w JSON-ie.
 
 ```
-fix        fonts       deobfuscated 1 embedded font(s) and dropped META-INF/encryption.xml
-fix        images      transcoded image/webp to PNG for universal reader support
-fix        xhtml       converted legacy presentational markup to CSS
-preserved  css         kept 1 vendor-specific at-rule(s) that target particular readers
-warn       reader      spine referenced an unknown manifest id; the entry was dropped
+naprawiono  package        rebuilt the package from EPUB 2.0 to EPUB 3.3
+naprawiono  css            corrected 5 declarations using the invalid value 'regular'
+naprawiono  xhtml          centred 1 image-only paragraph and removed its text indent
+naprawiono  accessibility  added EPUB Accessibility 1.1 discovery metadata
+zachowano   css            kept 1 absolute/fixed position rule in a reflowable book
+ostrzeżenie accessibility  2 images have alt text that only repeats the filename
 ```
 
-## As a library
+Treść wpisów jest na razie po angielsku — tłumaczenie wymaga przebudowy sposobu, w
+jaki etapy tworzą komunikaty, i jest zaplanowane osobno.
+
+## Jako biblioteka
 
 ```python
 from epubforge import rebuild, Policy
 
-result = rebuild("in.epub", "out.epub", Policy.preset("strict"))
-print(result.report.to_text())
+wynik = rebuild("we.epub", "wy.epub", Policy.preset("strict"))
+print(wynik.report.to_text())
 ```
 
-## Pipeline
+## Potok przetwarzania
 
-Stage order is load-bearing and documented in `epubforge/stages/__init__.py`.
+Kolejność etapów ma znaczenie i jest udokumentowana w `epubforge/stages/__init__.py`.
 
 ```
-read → fonts → images → structure → metadata → xhtml → css → navigation → write
+odczyt → czcionki → obrazy → struktura → metadane → xhtml → css → nawigacja → dostępność → zapis
 ```
 
-`fonts` runs before `metadata` because deobfuscation is keyed on the *source*
-identifier, which normalisation may replace. `structure` runs before `xhtml`
-because it freezes the path map that href rewriting depends on.
+`czcionki` przed `metadanymi`, bo deobfuskacja opiera się na *źródłowym*
+identyfikatorze, który normalizacja może wymienić. `struktura` przed `xhtml`, bo
+zamraża mapę ścieżek, od której zależy przepisywanie odnośników. `dostępność` na
+końcu, bo mierzy gotową książkę.
 
-## Limits
+## Budowanie paczki
 
-- **DRM is not touched.** Real encryption is detected, refused and reported.
-  Only font obfuscation — which is not DRM — is undone.
-- Fixed-layout books are carried through with their `rendition:*` properties
-  intact, but their absolute positioning is not re-derived.
-- Filenames are folded to ASCII. Polish `ł` has no Unicode decomposition and is
-  dropped (`okładka.png` → `okadka.png`); links are rewritten to match.
-
-## Building the packaged app yourself
-
-Needs a JDK 17+ (for `jlink`) and `pip install pyinstaller`.
+Wymaga JDK 17+ (dla `jlink`) i `pip install pyinstaller`.
 
 ```bash
-python packaging/build.py                # downloads EPUBCheck, links a JRE, freezes
-python packaging/build.py --skip-java    # ~60 MB, no validation
-python packaging/smoke_test.py           # runs the result with the environment stripped
+python packaging/build.py                # pobiera EPUBCheck, linkuje JRE, zamraża
+python packaging/build.py --skip-java    # ~60 MB, bez walidacji
+python packaging/smoke_test.py           # uruchamia wynik z wyczyszczonym środowiskiem
 ```
 
-The output lands in `dist/EPUB-Forge/`. `smoke_test.py` clears `PATH`,
-`JAVA_HOME` and `EPUBCHECK_JAR` before running the packaged executables, so it
-fails if the build quietly depends on something installed on the build machine.
+Wynik trafia do `dist/EPUB-Forge/`. `smoke_test.py` czyści `PATH`, `JAVA_HOME` i
+`EPUBCHECK_JAR` przed uruchomieniem zbudowanych plików wykonywalnych, więc wykryje
+sytuację, w której paczka po cichu polega na czymś zainstalowanym na maszynie
+budującej.
 
-Windows installers are produced by `.github/workflows/build-windows.yml`, which
-runs the same script on a Windows runner and then compiles
-`packaging/installer.iss`. Push a `v*` tag to cut a release, or run the workflow
-manually to get artifacts without one.
+Instalatory Windows powstają przez `.github/workflows/build-windows.yml`. Wypchnij tag
+`v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
 
-Size comes almost entirely from the bundled runtimes — roughly 90 MB Qt, 56 MB
-JRE, 34 MB EPUBCheck. `packaging/epubforge.spec` prunes the Qt stacks a
-widgets-only app never loads, which is worth about 150 MB.
+## Ograniczenia
 
-## Tests
+- **DRM nie jest ruszany.** Prawdziwe szyfrowanie jest wykrywane, odrzucane i
+  raportowane. Odwracana jest wyłącznie obfuskacja czcionek, która DRM-em nie jest.
+- Książki o stałym układzie przechodzą z zachowanymi właściwościami `rendition:*`, ale
+  ich pozycjonowanie nie jest przeliczane.
+- Nazwy plików są sprowadzane do ASCII. Polskie `ł` nie ma rozkładu unikodowego i
+  wypada (`okładka.png` → `okadka.png`); odnośniki są przepisywane.
+
+## Testy
 
 ```bash
 pytest
 ```
 
-The suite rebuilds a fixture carrying the damage described above and asserts on
-the result — including, when EPUBCheck is installed, that `--strict` output
-validates with zero errors and zero warnings.
+Zestaw przebudowuje plik testowy zawierający opisane wyżej uszkodzenia i sprawdza
+wynik — w tym, jeśli EPUBCheck jest zainstalowany, że tryb `--strict` waliduje się z
+zerem błędów i zerem ostrzeżeń.
+
+## Autorzy
+
+- **Łukasz „LuKi” Kniotek** — pomysł, kierunek i wymagania
+- **Claude (Anthropic)** — projekt i implementacja
+
+Licencja MIT — patrz [`LICENSE`](LICENSE), gdzie wymieniono też licencje komponentów
+dołączanych do paczek (EPUBCheck, OpenJDK, Qt).

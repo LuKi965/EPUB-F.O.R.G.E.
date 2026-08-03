@@ -14,8 +14,10 @@ import re
 import cssutils
 from lxml import etree
 
+from .. import cascade as css_cascade
 from .. import paths, xhtml
 from ..report import Level
+from .accessibility import is_placeholder_alt
 from .base import Context, Stage
 
 cssutils.log.setLevel(50)  # cssutils logs every minor deviation at WARNING.
@@ -103,6 +105,9 @@ class ContentStage(Stage):
 
     name = "xhtml"
 
+    def __init__(self) -> None:
+        self._sheet_cache: dict[str, str] = {}
+
     def run(self, ctx: Context) -> None:
         documents: list[tuple[object, object, dict[str, str]]] = []
 
@@ -146,9 +151,16 @@ class ContentStage(Stage):
             self._skeleton(ctx, root, resource)
             self._rewrite_references(ctx, root, resource, global_ids)
             self._modernise(ctx, root, resource)
+            self._image_paragraphs(ctx, root, resource)
+            self._block_in_inline(ctx, root, resource)
             self._accessibility(ctx, root, resource)
             self._scripting(ctx, root, resource)
             self._properties(ctx, root, resource)
+            ctx.document_ids[resource.path] = {
+                element.get("id")
+                for element in xhtml.iter_elements(root)
+                if element.get("id")
+            }
             resource.data = xhtml.serialize(root)
 
     def _fix_identifiers(self, ctx: Context, root, path: str) -> dict[str, str]:
@@ -376,6 +388,171 @@ class ContentStage(Stage):
                 detail=", ".join(sorted(changed)),
             )
 
+    def _document_cascade(self, ctx: Context, root, resource) -> css_cascade.Cascade:
+        """Collect the CSS that actually applies to one document."""
+        sources: list[str] = []
+        for link in root.iter(xhtml.qname("link")):
+            if "stylesheet" not in (link.get("rel") or "").lower():
+                continue
+            href = link.get("href")
+            target = paths.resolve(resource.path, href) if href else None
+            sheet = ctx.book.get(target) if target else None
+            if sheet is not None and sheet.is_style:
+                cached = self._sheet_cache.get(sheet.path)
+                if cached is None:
+                    cached = sheet.text()
+                    self._sheet_cache[sheet.path] = cached
+                sources.append(cached)
+        for style in root.iter(xhtml.qname("style")):
+            if style.text:
+                sources.append(style.text)
+        return css_cascade.Cascade.parse(sources)
+
+    def _image_paragraphs(self, ctx: Context, root, resource) -> None:
+        """Stop body-text rules from indenting a paragraph that is just an image.
+
+        Cover and title pages are almost always ``<p><img/></p>``. When the
+        stylesheet gives ``p`` an indent and justification — which it does for
+        running text — that indent shifts the artwork off-centre.
+
+        The correction only applies where the layout is an accident of
+        inheritance. If the publisher aimed a rule at this paragraph — by class,
+        by id, or inline — that is a decision about the image, and it is left
+        exactly as written even when it is not centred.
+        """
+        candidates = []
+        for element in xhtml.iter_elements(root):
+            if xhtml.local_name(element).lower() not in {"p", "div"}:
+                continue
+            children = [child for child in element if isinstance(child.tag, str)]
+            if len(children) != 1:
+                continue
+            if xhtml.local_name(children[0]).lower() not in {"img", "svg", "image"}:
+                continue
+            if (element.text or "").strip() or (children[0].tail or "").strip():
+                continue
+            candidates.append(element)
+
+        if not candidates:
+            return
+
+        cascade = self._document_cascade(ctx, root, resource)
+        adjusted = 0
+        respected = 0
+
+        for element in candidates:
+            tag = xhtml.local_name(element).lower()
+            classes = frozenset((element.get("class") or "").split())
+            element_id = element.get("id")
+            inline = (element.get("style") or "").lower()
+
+            if "text-align" in inline or "text-indent" in inline:
+                respected += 1
+                continue
+            # A rule naming this paragraph's class or id is about this image.
+            if cascade.declares_targeted("text-align", tag, classes, element_id) or (
+                cascade.declares_targeted("text-indent", tag, classes, element_id)
+            ):
+                respected += 1
+                continue
+
+            align, _ = cascade.lookup("text-align", tag, classes, element_id)
+            indent, _ = cascade.lookup("text-indent", tag, classes, element_id)
+            centred = (align or "").strip().lower() in {"center", "-webkit-center"}
+            if centred and css_cascade.is_zero_length(indent):
+                # Already centred by a generic rule; restating it would only add
+                # noise to the markup and to the report.
+                continue
+
+            # Nothing decided this paragraph's alignment. Either running-text
+            # rules leak onto it, or — as on title pages that link no stylesheet
+            # at all — the reader's default left-aligns the artwork. Both leave
+            # the image off-centre for want of an instruction, not by choice.
+            _append_style(element, "text-indent: 0; text-align: center;")
+            adjusted += 1
+
+        if adjusted:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"centred {adjusted} image-only paragraph(s) and removed their text indent",
+                location=resource.path,
+                detail=(
+                    "Running-text rules were shifting the artwork; no rule targeted these "
+                    "paragraphs specifically, so the layout was inherited rather than chosen."
+                ),
+            )
+        if respected:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                f"left {respected} image paragraph(s) as the publisher styled them",
+                location=resource.path,
+                detail="A rule aimed at these paragraphs sets their alignment or indent.",
+            )
+
+    def _block_in_inline(self, ctx: Context, root, resource) -> None:
+        """Repair a block-level box nested directly inside an inline one.
+
+        Seen in the wild as a chapter heading built like::
+
+            <h1><a href="toc.xhtml"><span class="numer">III</span>…</a></h1>
+
+        where the stylesheet gives that span ``display: block``. A block inside
+        an inline box forces the browser to split the inline into anonymous
+        boxes; margins and centring on the heading then behave unpredictably.
+        Promoting the inline wrapper to ``inline-block`` makes it a legal
+        container without changing where it sits in the line.
+        """
+        cascade = self._document_cascade(ctx, root, resource)
+        promoted = 0
+
+        for element in xhtml.iter_elements(root):
+            tag = xhtml.local_name(element).lower()
+            if tag in {"html", "head", "body"}:
+                continue
+            display = css_cascade.effective_display(
+                cascade,
+                tag,
+                frozenset((element.get("class") or "").split()),
+                element.get("id"),
+                element.get("style") or "",
+            )
+            if display != "inline":
+                continue
+            # Only direct children: a deeper block is the intermediate
+            # element's problem, and it will be visited in its own right.
+            has_block_child = any(
+                css_cascade.is_block_level(
+                    css_cascade.effective_display(
+                        cascade,
+                        xhtml.local_name(child).lower(),
+                        frozenset((child.get("class") or "").split()),
+                        child.get("id"),
+                        child.get("style") or "",
+                    )
+                )
+                for child in element
+                if isinstance(child.tag, str)
+            )
+            if not has_block_child:
+                continue
+            _append_style(element, "display: inline-block;")
+            promoted += 1
+
+        if promoted:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"promoted {promoted} inline element(s) that contain block-level content",
+                location=resource.path,
+                detail=(
+                    "A block box inside an inline box splits the line and makes margins and "
+                    "centring behave unpredictably; inline-block is a legal container that "
+                    "keeps the element where it was."
+                ),
+            )
+
     def _presentational_attributes(self, element, tag: str, changed: set[str]) -> None:
         declarations: list[str] = []
 
@@ -437,17 +614,21 @@ class ContentStage(Stage):
             element.attrib.pop("clear", None)
             changed.add("br[clear]")
 
-        # width/height stay as attributes on replaced elements, where HTML 5
-        # still defines them; elsewhere they only exist as CSS.
-        if tag not in {"img", "canvas", "video", "iframe", "embed", "object", "svg"}:
-            for attribute in ("width", "height"):
-                value = element.get(attribute)
-                if value:
-                    length = _css_length(value)
-                    if length:
-                        declarations.append(f"{attribute}: {length};")
-                    element.attrib.pop(attribute, None)
-                    changed.add(attribute)
+        # HTML 5 keeps width/height on replaced elements, but only as bare
+        # integers. XHTML 1.1 allowed percentages, so EPUB 2 books carry values
+        # like width="10%" that make an EPUB 3 parser reject the document.
+        replaced = tag in {"img", "canvas", "video", "iframe", "embed", "object", "svg"}
+        for attribute in ("width", "height"):
+            value = (element.get(attribute) or "").strip()
+            if not value:
+                continue
+            if replaced and re.fullmatch(r"\d+", value):
+                continue
+            length = _css_length(value)
+            if length:
+                declarations.append(f"{attribute}: {length};")
+            element.attrib.pop(attribute, None)
+            changed.add(attribute)
 
         for obsolete in ("nowrap", "compact", "noshade", "frameborder", "scrolling", "language"):
             if element.get(obsolete) is not None:
@@ -481,18 +662,48 @@ class ContentStage(Stage):
         parent.remove(element)
 
     def _accessibility(self, ctx: Context, root, resource) -> None:
+        """Give every image an alt, and describe the cover rather than hiding it.
+
+        An empty alt is not a neutral placeholder — it tells assistive software
+        the image carries no information. That is the right answer for a rule or
+        a flourish and the wrong one for cover art, which is why the cover is
+        named. Everything else is counted here and reported by the accessibility
+        stage, because inventing descriptions is not this tool's job.
+        """
+        cover_path = ctx.book.cover_path
         missing_alt = 0
+        described = 0
+
         for image in root.iter(xhtml.qname("img")):
-            if image.get("alt") is None:
+            alt = image.get("alt")
+            source = image.get("src")
+            target = paths.resolve(resource.path, source) if source else None
+            is_cover = bool(cover_path) and target == cover_path
+
+            if is_cover and (alt is None or is_placeholder_alt(alt, source)):
+                # The cover depicts the book, so its title is a true description
+                # — unlike "cover", which names the slot rather than the picture.
+                image.set("alt", ctx.book.metadata.title)
+                described += 1
+            elif alt is None:
                 image.set("alt", "")
                 missing_alt += 1
+                ctx.auto_alt_locations.append(resource.path)
+
+        if described:
+            self.note(
+                ctx,
+                Level.FIX,
+                "described the cover image with the book title",
+                location=resource.path,
+            )
         if missing_alt:
             self.note(
                 ctx,
                 Level.FIX,
                 f"added an empty alt attribute to {missing_alt} image(s)",
                 location=resource.path,
-                detail="Required by EPUB 3; empty marks them decorative.",
+                detail="Required for valid markup; empty declares them decorative.",
             )
 
     def _scripting(self, ctx: Context, root, resource) -> None:
@@ -542,10 +753,20 @@ class ContentStage(Stage):
         if any(True for _ in root.iter(f"{{{xhtml.MATHML_NS}}}math")):
             properties.add("mathml")
 
+        # "remote-resources" is about resources the document *embeds*, not about
+        # where its hyperlinks point; declaring it for an ordinary <a href> to a
+        # website is a conformance error in its own right.
         for element in xhtml.iter_elements(root):
-            for attribute in REFERENCE_ATTRS:
+            tag = xhtml.local_name(element).lower()
+            if tag == "a":
+                continue
+            for attribute in ("src", "poster", "data", f"{{{XLINK_NS}}}href") + (
+                ("href",) if tag in {"link", "image", "use"} else ()
+            ):
                 value = element.get(attribute)
-                if value and paths.is_remote(value) and not value.lower().startswith(("mailto:", "tel:")):
+                if value and paths.is_remote(value) and not value.lower().startswith(
+                    ("mailto:", "tel:", "data:")
+                ):
                     properties.add("remote-resources")
                     break
 
@@ -659,6 +880,14 @@ class StyleStage(Stage):
         return repaired
 
     def _repair_positioning(self, ctx: Context, css_text: str, resource) -> str:
+        """Absolute positioning is a compatibility risk, not a defect.
+
+        Publishers use it deliberately — a rule named ``.dol`` ("bottom") pins a
+        dedication to the foot of the page, and that is intent, not a mistake.
+        Readium-based readers honour it; older ones ignore it. Since removing it
+        destroys a layout the publisher chose, it is reported and kept unless
+        conformance has been asked to win.
+        """
         matches = _OUT_OF_FLOW_RE.findall(css_text)
         if not matches:
             return css_text
@@ -669,7 +898,20 @@ class StyleStage(Stage):
                 Level.PRESERVED,
                 f"kept {len(matches)} absolute/fixed position rule(s)",
                 location=resource.path,
-                detail="This is a fixed-layout book, where out-of-flow positioning is legitimate.",
+                detail="This is a fixed-layout book, where out-of-flow positioning is how it works.",
+            )
+            return css_text
+
+        if not ctx.policy.strict:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                f"kept {len(matches)} absolute/fixed position rule(s) in a reflowable book",
+                location=resource.path,
+                detail=(
+                    "Out-of-flow content does not paginate on every reader, but it is a layout "
+                    "the publisher chose. Use --strict to drop it."
+                ),
             )
             return css_text
 
@@ -679,11 +921,7 @@ class StyleStage(Stage):
             Level.FIX,
             f"removed {len(matches)} absolute/fixed position rule(s) from a reflowable book",
             location=resource.path,
-            detail=(
-                "Out-of-flow content cannot paginate: readers clip it, overlap it, or drop it, "
-                "and text-align inside it stops being visible. The affected blocks now flow "
-                "normally and their own alignment applies again."
-            ),
+            detail="The affected blocks now flow with the page instead of being pinned to it.",
         )
         return repaired
 
