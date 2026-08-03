@@ -57,6 +57,17 @@ GENERIC_FAMILIES = {
     "fangsong", "inherit", "initial", "unset", "revert", "revert-layer",
 }
 
+#: `regular` is not a CSS value for either property; the whole declaration is
+#: dropped by every parser, so the publisher's intent never applied at all.
+_REGULAR_VALUE_RE = re.compile(r"(font-(?:style|weight)\s*:\s*)regular\b", re.IGNORECASE)
+
+#: Out-of-flow positioning in a reflowable book. Legitimate in fixed-layout,
+#: where the viewport is known; in reflowable it detaches content from
+#: pagination and readers clip, overlap or lose it.
+_OUT_OF_FLOW_RE = re.compile(
+    r"([;{]\s*|^\s*)position\s*:\s*(?:absolute|fixed)\s*;?", re.IGNORECASE | re.MULTILINE
+)
+
 _FONT_FACE_RE = re.compile(r"@font-face\s*\{[^}]*\}", re.IGNORECASE)
 _FONT_FAMILY_RE = re.compile(r"font-family\s*:\s*([^;}]+)", re.IGNORECASE)
 #: Adobe Digital Editions inventions; unprefixed, so validators call them unknown.
@@ -552,6 +563,7 @@ class StyleStage(Stage):
             text = resource.text()
             rewritten, unresolved = self._rewrite_urls(ctx, text, source_path, resource.path)
             rewritten = self._strip_vendor_hacks(ctx, rewritten, resource)
+            rewritten = self._repair(ctx, rewritten, resource)
             rewritten = self._vendor_properties(ctx, rewritten, resource)
             self._font_stacks(ctx, rewritten, resource)
             resource.data = rewritten.encode("utf-8")
@@ -622,6 +634,58 @@ class StyleStage(Stage):
             location=resource.path,
         )
         return cleaned
+
+    def _repair(self, ctx: Context, css_text: str, resource) -> str:
+        """Correct declarations that are simply wrong, not merely unfashionable.
+
+        These are publisher mistakes rather than stylistic choices: the browser
+        already discards them, so repairing them restores the intended layout
+        instead of overriding it.
+        """
+        repaired, invalid_values = _REGULAR_VALUE_RE.subn(r"\1normal", css_text)
+        if invalid_values:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"corrected {invalid_values} declaration(s) using the invalid value 'regular'",
+                location=resource.path,
+                detail=(
+                    "font-style/font-weight have no 'regular' keyword, so parsers dropped these "
+                    "rules entirely. Replaced with 'normal', which is what was meant."
+                ),
+            )
+
+        repaired = self._repair_positioning(ctx, repaired, resource)
+        return repaired
+
+    def _repair_positioning(self, ctx: Context, css_text: str, resource) -> str:
+        matches = _OUT_OF_FLOW_RE.findall(css_text)
+        if not matches:
+            return css_text
+
+        if ctx.book.rendition.get("layout") == "pre-paginated":
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                f"kept {len(matches)} absolute/fixed position rule(s)",
+                location=resource.path,
+                detail="This is a fixed-layout book, where out-of-flow positioning is legitimate.",
+            )
+            return css_text
+
+        repaired = _OUT_OF_FLOW_RE.sub(lambda match: match.group(1), css_text)
+        self.note(
+            ctx,
+            Level.FIX,
+            f"removed {len(matches)} absolute/fixed position rule(s) from a reflowable book",
+            location=resource.path,
+            detail=(
+                "Out-of-flow content cannot paginate: readers clip it, overlap it, or drop it, "
+                "and text-align inside it stops being visible. The affected blocks now flow "
+                "normally and their own alignment applies again."
+            ),
+        )
+        return repaired
 
     def _vendor_properties(self, ctx: Context, css_text: str, resource) -> str:
         """Report — and under strict, drop — properties no EPUB 3 reader knows.
