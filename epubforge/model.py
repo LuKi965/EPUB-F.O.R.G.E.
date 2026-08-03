@@ -187,6 +187,15 @@ class Metadata:
     #: Vendor metadata worth carrying over, as ``(name, content)`` pairs.
     extra_meta: list[tuple[str, str]] = field(default_factory=list)
 
+    #: EPUB Accessibility 1.1 discovery metadata, as schema.org property names
+    #: mapped to their values. Derived from what the book demonstrably contains
+    #: — never asserted on faith, because under the European Accessibility Act
+    #: these are claims a publisher is answerable for.
+    accessibility: dict[str, list[str]] = field(default_factory=dict)
+    accessibility_summary: str | None = None
+    #: Set only when the caller explicitly asserts conformance.
+    conforms_to: str | None = None
+
     @property
     def title(self) -> str:
         return self.titles[0] if self.titles else "Untitled"

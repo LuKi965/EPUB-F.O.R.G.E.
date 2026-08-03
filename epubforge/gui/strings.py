@@ -174,6 +174,29 @@ PL: dict[str, str] = {
     "dialog.selectfiles": "Wybierz pliki EPUB",
     "dialog.selectfolder": "Wybierz folder wyjściowy",
     "dialog.savereport": "Zapisz raport",
+
+    # --- settings and about ---------------------------------------------
+    "menu.settings": "&Ustawienia",
+    "menu.language": "Język interfejsu",
+    "menu.help": "&Pomoc",
+    "menu.about": "O programie",
+    "language.pl": "Polski",
+    "language.en": "English",
+    "about.title": "O programie EPUB-Forge",
+    "about.tagline": "Przebudowuje ebooki do standardu EPUB 3.3, nie psując ich wyglądu.",
+    "about.version": "Wersja {version}",
+    "about.authors": "Autorzy",
+    "about.author.human": "Łukasz „LuKi” Kniotek — pomysł, kierunek i wymagania",
+    "about.author.ai": "Claude (Anthropic) — projekt i implementacja",
+    "about.license": "Licencja",
+    "about.license.body": "MIT. Kod źródłowy dostępny na GitHubie.",
+    "about.components": "Dołączone komponenty",
+    "about.components.body": (
+        "EPUBCheck (W3C) — licencja BSD 3-Clause\n"
+        "Środowisko OpenJDK zbudowane jlinkiem — GPLv2 z wyjątkiem Classpath\n"
+        "Qt przez PySide6 — LGPLv3, biblioteki dołączone jako wymienialne pliki"
+    ),
+    "about.close": "Zamknij",
 }
 
 EN: dict[str, str] = {
@@ -298,20 +321,49 @@ EN: dict[str, str] = {
     "dialog.selectfiles": "Select EPUB files",
     "dialog.selectfolder": "Select output folder",
     "dialog.savereport": "Save report",
+
+    "menu.settings": "&Settings",
+    "menu.language": "Interface language",
+    "menu.help": "&Help",
+    "menu.about": "About",
+    "language.pl": "Polski",
+    "language.en": "English",
+    "about.title": "About EPUB-Forge",
+    "about.tagline": "Rebuilds e-books to EPUB 3.3 without spoiling how they look.",
+    "about.version": "Version {version}",
+    "about.authors": "Authors",
+    "about.author.human": "Łukasz \u201cLuKi\u201d Kniotek — concept, direction and requirements",
+    "about.author.ai": "Claude (Anthropic) — design and implementation",
+    "about.license": "License",
+    "about.license.body": "MIT. Source available on GitHub.",
+    "about.components": "Bundled components",
+    "about.components.body": (
+        "EPUBCheck (W3C) — BSD 3-Clause\n"
+        "OpenJDK runtime built with jlink — GPLv2 with the Classpath Exception\n"
+        "Qt via PySide6 — LGPLv3, shipped as replaceable shared libraries"
+    ),
+    "about.close": "Close",
 }
 
 LANGUAGES = {"pl": PL, "en": EN}
 
 
-def _detect() -> str:
-    """Polish unless explicitly overridden.
+DEFAULT_LANGUAGE = "pl"
 
-    The system locale is deliberately *not* consulted: this tool is used in
-    Polish, and a machine reporting an English locale (a container, an
-    English Windows install) should not silently switch the interface.
+
+def _detect() -> str:
+    """Environment override first, then Polish.
+
+    The system locale is deliberately *not* consulted: a machine reporting an
+    English locale (a container, an English Windows install) should not decide
+    the interface language. The GUI overrides this from stored settings.
     """
     override = os.environ.get("EPUBFORGE_LANG", "").strip().lower()[:2]
-    return override if override in LANGUAGES else "pl"
+    return override if override in LANGUAGES else DEFAULT_LANGUAGE
+
+
+def language() -> str:
+    return _ACTIVE
 
 
 _ACTIVE = _detect()
