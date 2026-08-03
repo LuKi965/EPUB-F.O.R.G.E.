@@ -120,24 +120,27 @@ def parse(data: bytes) -> tuple[etree._Element, str]:
     rewriting was needed, or ``"html"`` when a full tag-soup recovery ran.
     """
     prepared = _STYLESHEET_PI_RE.sub(b"", data)
-    for mode, candidate in (
-        ("xml", prepared),
-        ("xml-entities", _numeric_entities(_strip_internal_dtd(prepared))),
-    ):
-        try:
-            root = etree.fromstring(candidate, XML_PARSER)
-        except etree.XMLSyntaxError:
-            continue
-        if root is not None and isinstance(root.tag, str):
-            # Well-formed but namespace-less documents parse cleanly as XML and
-            # would then fail every namespaced lookup downstream.
-            if not root.tag.startswith("{"):
-                return _namespacify(root), mode
-            return root, mode
+
+    # Entities must be rewritten *before* the strict parse, not as a fallback
+    # after it. With resolve_entities=False lxml accepts an undeclared &nbsp;
+    # as an entity node and parsing succeeds, so the reference survives into the
+    # output — where the EPUB 3 <!DOCTYPE html> does not declare it and readers
+    # fail fatally on the file.
+    normalized = _numeric_entities(_strip_internal_dtd(prepared))
+    mode = "xml" if normalized == prepared else "xml-entities"
+
+    try:
+        root = etree.fromstring(normalized, XML_PARSER)
+    except etree.XMLSyntaxError:
+        root = None
+
+    if root is not None and isinstance(root.tag, str):
+        # Well-formed but namespace-less documents parse cleanly as XML and
+        # would then fail every namespaced lookup downstream.
+        return (root if root.tag.startswith("{") else _namespacify(root)), mode
 
     html_root = lxml_html.document_fromstring(
-        _numeric_entities(_strip_internal_dtd(prepared)) or b"<html><body></body></html>",
-        parser=HTML_PARSER,
+        normalized or b"<html><body></body></html>", parser=HTML_PARSER
     )
     return _namespacify(html_root), "html"
 

@@ -152,3 +152,41 @@ def is_zero_length(value: str | None) -> bool:
     if value is None:
         return True
     return bool(re.fullmatch(r"0(\.0+)?\s*(%|[a-z]{2,4})?", value.strip(), re.IGNORECASE))
+
+
+#: HTML's default rendering. Only the elements this tool needs to reason about
+#: are listed; anything unknown is treated as inline, which is the safer guess
+#: because it leads to no intervention.
+_DEFAULT_BLOCK = {
+    "address", "article", "aside", "blockquote", "body", "dd", "details", "div",
+    "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2",
+    "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "html", "main", "nav", "ol",
+    "p", "pre", "section", "table", "ul",
+}
+_DEFAULT_LIST_ITEM = {"li"}
+
+#: Display values that establish a block-level box inside their parent.
+BLOCK_LEVEL_DISPLAYS = {
+    "block", "flow-root", "list-item", "table", "flex", "grid", "table-row",
+    "table-cell", "table-row-group",
+}
+
+
+def effective_display(
+    cascade: "Cascade", tag: str, classes: frozenset[str], element_id: str | None,
+    inline_style: str = "",
+) -> str:
+    """Best-effort computed ``display`` for an element."""
+    match = re.search(r"(?:^|;)\s*display\s*:\s*([\w-]+)", inline_style or "", re.IGNORECASE)
+    if match:
+        return match.group(1).lower()
+    declared, _ = cascade.lookup("display", tag, classes, element_id)
+    if declared:
+        return declared.strip().lower().split()[0]
+    if tag in _DEFAULT_LIST_ITEM:
+        return "list-item"
+    return "block" if tag in _DEFAULT_BLOCK else "inline"
+
+
+def is_block_level(display: str) -> bool:
+    return display in BLOCK_LEVEL_DISPLAYS

@@ -419,6 +419,62 @@ class TestImageParagraphs:
         )
 
 
+class TestEpub2ToEpub3Migration:
+    """Constructs XHTML 1.1 allowed that XHTML 5 rejects."""
+
+    def chapter(self, rebuilt) -> str:
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+
+    def test_percentage_width_moves_from_attribute_to_css(self, rebuilt):
+        """XHTML 5 requires width to be a bare integer; 10% makes it invalid."""
+        import re
+
+        html = self.chapter(rebuilt)
+        image = re.search(r'<img[^>]*alt="procent"[^>]*/>', html)
+        assert image, "the image is missing"
+        assert 'width="10%"' not in image.group()
+        assert "width: 10%" in image.group()
+
+    def test_integer_width_stays_an_attribute(self, archive):
+        """Where HTML 5 still defines the attribute, leave it alone."""
+        # Chapter one's table had width="100%" on a <table>, which is not a
+        # replaced element, so it must have become CSS.
+        html = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+        assert 'width="100%"' not in html
+        assert "width: 100%" in html
+
+    def test_block_inside_inline_is_promoted(self, rebuilt):
+        """A block span inside an inline <a> splits the line box."""
+        import re
+
+        html = self.chapter(rebuilt)
+        anchor = re.search(r"<a[^>]*>(?=<span[^>]*numer)", html)
+        assert anchor, "the heading anchor is missing"
+        assert "display: inline-block" in anchor.group()
+
+    def test_promotion_is_reported(self, rebuilt):
+        assert any(
+            "contain block-level content" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.FIX
+        )
+
+
+class TestRemoteResources:
+    def properties_of(self, rebuilt, href_fragment: str) -> str:
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            package = etree.fromstring(archive.read(OPF_PATH))
+        item = package.xpath(
+            f'.//opf:item[contains(@href, "{href_fragment}")]', namespaces=OPF_NS
+        )[0]
+        return item.get("properties") or ""
+
+    def test_an_external_hyperlink_is_not_a_remote_resource(self, rebuilt):
+        """remote-resources covers embedded media, not where links point."""
+        assert "remote-resources" not in self.properties_of(rebuilt, "chapter2")
+
+
 class TestStylesheetLinting:
     def stylesheet(self, result) -> str:
         with zipfile.ZipFile(result.output_path) as archive:

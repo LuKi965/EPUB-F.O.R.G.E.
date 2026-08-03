@@ -103,6 +103,7 @@ class NavigationStage(Stage):
     def _prune_toc(self, ctx: Context) -> None:
         book = ctx.book
         removed = 0
+        dangling_fragments = 0
 
         # The content stage may have renamed the very ids these targets point at.
         for root in book.toc:
@@ -113,6 +114,14 @@ class NavigationStage(Stage):
         for page in book.page_list:
             page.target = ctx.remap_fragment(page.target) or page.target
 
+        def fragment_exists(target: str | None) -> bool:
+            if not target or "#" not in target:
+                return True
+            path, _, fragment = target.partition("#")
+            known = ctx.document_ids.get(path)
+            # Unknown document (an image, say): nothing to verify against.
+            return fragment in known if known is not None else True
+
         def prune(nodes: list[NavPoint]) -> list[NavPoint]:
             nonlocal removed
             kept: list[NavPoint] = []
@@ -122,6 +131,12 @@ class NavigationStage(Stage):
                 if target_path and target_path not in book.resources:
                     removed += 1
                     node.target = None
+                elif not fragment_exists(node.target):
+                    # The document survives, only the anchor is gone; keep the
+                    # entry pointing at the file rather than dropping it.
+                    nonlocal dangling_fragments
+                    dangling_fragments += 1
+                    node.target = node.target.split("#", 1)[0]
                 if node.target or node.children:
                     kept.append(node)
                 else:
@@ -129,10 +144,27 @@ class NavigationStage(Stage):
             return kept
 
         book.toc = prune(book.toc)
+
+        for landmark in book.landmarks:
+            if not fragment_exists(landmark.target):
+                landmark.target = landmark.target.split("#", 1)[0]
+                dangling_fragments += 1
+        for page in book.page_list:
+            if not fragment_exists(page.target):
+                page.target = page.target.split("#", 1)[0]
+                dangling_fragments += 1
+
         book.page_list = [p for p in book.page_list if p.target.split("#")[0] in book.resources]
         book.landmarks = [l for l in book.landmarks if l.target.split("#")[0] in book.resources]
         if removed:
             self.note(ctx, Level.FIX, f"dropped {removed} table-of-contents entry/entries pointing nowhere")
+        if dangling_fragments:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"cleared {dangling_fragments} navigation fragment(s) whose anchor does not exist",
+                detail="The entry now points at the document, which is where the reader would land anyway.",
+            )
 
     def _synthesize_toc(self, ctx: Context) -> None:
         book = ctx.book
