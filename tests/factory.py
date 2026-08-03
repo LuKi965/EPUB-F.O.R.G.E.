@@ -99,6 +99,9 @@ CHAPTER_TWO = """<?xml version="1.0" encoding="utf-8"?>
 <p><img src="../Images/deco.webp" alt="procent" width="10%"/></p>
 <h1 id="naglowek"><a href="chapter2.xhtml"><span class="numer">III</span><br/>Tytu&#322;</a></h1>
 <p><a href="https://example.test/strona">link zewn&#281;trzny</a></p>
+<p style="font-size:0.9em">Drobny druk wydawcy, kt&#243;ry ma pozosta&#263; widoczny.</p>
+<div style="font-size:1px !important;color:#FFF">NzgxMjI0NjMzOTUzNjQ</div>
+<div style="margin:0 1cm;font-style:italic">This document is protected using an electronic watermark. Order ##46932 (jan@example.test)</div>
 </body>
 </html>
 """

@@ -51,6 +51,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.drop_orphans = False
     if args.keep_layout:
         policy.reorganize_files = False
+    if args.keep_watermark_markup:
+        policy.normalize_watermarks = False
     if args.no_a11y_metadata:
         policy.accessibility_metadata = False
     if args.claim_conformance:
@@ -253,6 +255,11 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--keep-orphans", action="store_true", help="keep unreferenced files")
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
     build.add_argument("--strict-exit", action="store_true", help="exit non-zero when findings remain")
+    build.add_argument(
+        "--keep-watermark-markup",
+        action="store_true",
+        help="leave publisher watermark markup exactly as found (tokens are never removed either way)",
+    )
     build.add_argument(
         "--no-a11y-metadata",
         action="store_true",

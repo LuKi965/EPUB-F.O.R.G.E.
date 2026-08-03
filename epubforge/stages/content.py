@@ -15,7 +15,7 @@ import cssutils
 from lxml import etree
 
 from .. import cascade as css_cascade
-from .. import paths, xhtml
+from .. import paths, watermark, xhtml
 from ..report import Level
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
@@ -107,6 +107,12 @@ class ContentStage(Stage):
 
     def __init__(self) -> None:
         self._sheet_cache: dict[str, str] = {}
+        # A watermark repeats across every document, so its findings are summed
+        # and reported once rather than thirty-four times.
+        self._watermarks_consolidated = 0
+        self._watermark_documents = 0
+        self._watermark_tokens: set[str] = set()
+        self._watermark_notices: list[str] = []
 
     def run(self, ctx: Context) -> None:
         documents: list[tuple[object, object, dict[str, str]]] = []
@@ -153,6 +159,7 @@ class ContentStage(Stage):
             self._modernise(ctx, root, resource)
             self._image_paragraphs(ctx, root, resource)
             self._block_in_inline(ctx, root, resource)
+            self._watermarks(ctx, root, resource)
             self._accessibility(ctx, root, resource)
             self._scripting(ctx, root, resource)
             self._properties(ctx, root, resource)
@@ -162,6 +169,35 @@ class ContentStage(Stage):
                 if element.get("id")
             }
             resource.data = xhtml.serialize(root)
+
+        self._report_watermarks(ctx)
+
+    def _report_watermarks(self, ctx: Context) -> None:
+        if self._watermarks_consolidated:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"consolidated {self._watermarks_consolidated} watermark marker(s) "
+                f"across {self._watermark_documents} document(s)",
+                detail=(
+                    f"{len(self._watermark_tokens)} distinct token(s), text unchanged. The "
+                    "repeated inline !important style became one rule, and the markers are "
+                    "hidden from screen readers instead of being spelled out each chapter."
+                ),
+            )
+        if self._watermark_notices:
+            emails = watermark.personal_data(" ".join(self._watermark_notices))
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                f"kept {len(self._watermark_notices)} visible watermark notice(s)",
+                detail=(
+                    ("Carries personal data (" + ", ".join(sorted(set(emails))) + "). ")
+                    if emails
+                    else ""
+                )
+                + "Meant to be read, so left exactly as the publisher wrote it.",
+            )
 
     def _fix_identifiers(self, ctx: Context, root, path: str) -> dict[str, str]:
         """Make every ``id`` a valid XML NCName, remembering what changed."""
@@ -553,6 +589,66 @@ class ContentStage(Stage):
                 ),
             )
 
+    def _watermarks(self, ctx: Context, root, resource) -> None:
+        """Consolidate a publisher's per-purchase marker without touching it.
+
+        The token text is left exactly as found — it is the publisher's
+        traceability mark and removing it would defeat its purpose. What goes is
+        the collateral damage: the ``!important`` inline style repeated in every
+        document, and the token's presence in the reading order, where a screen
+        reader announces it character by character at the end of each chapter.
+        """
+        if not ctx.policy.normalize_watermarks:
+            return
+
+        consolidated = 0
+        notices: list[str] = []
+
+        for element in xhtml.iter_elements(root):
+            if len(element) or xhtml.local_name(element).lower() in {"html", "head", "body"}:
+                continue
+            text = (element.text or "").strip()
+            if not text:
+                continue
+
+            if watermark.is_visible_notice(text):
+                # Meant to be read; the buyer's own copy notice. Never restyled.
+                notices.append(text[:120])
+                continue
+
+            style = element.get("style") or ""
+            if not watermark.is_token(text) or not watermark.is_negligibly_styled(style):
+                continue
+            self._watermark_tokens.add(text)
+
+            element.attrib.pop("style", None)
+            classes = (element.get("class") or "").split()
+            if watermark.MARKER_CLASS not in classes:
+                classes.append(watermark.MARKER_CLASS)
+            element.set("class", " ".join(classes))
+            # Keeps the token in the file and out of the spoken reading order.
+            element.set("aria-hidden", "true")
+            consolidated += 1
+
+        if consolidated:
+            for sheet in self._linked_stylesheets(ctx, root, resource):
+                ctx.watermark_stylesheets.add(sheet)
+            self._watermarks_consolidated += consolidated
+            self._watermark_documents += 1
+        self._watermark_notices.extend(notices)
+
+    def _linked_stylesheets(self, ctx: Context, root, resource) -> list[str]:
+        found = []
+        for link in root.iter(xhtml.qname("link")):
+            if "stylesheet" not in (link.get("rel") or "").lower():
+                continue
+            href = link.get("href")
+            target = paths.resolve(resource.path, href) if href else None
+            sheet = ctx.book.get(target) if target else None
+            if sheet is not None and sheet.is_style:
+                found.append(sheet.path)
+        return found
+
     def _presentational_attributes(self, element, tag: str, changed: set[str]) -> None:
         declarations: list[str] = []
 
@@ -779,6 +875,7 @@ class StyleStage(Stage):
     name = "css"
 
     def run(self, ctx: Context) -> None:
+        self._add_watermark_rule(ctx)
         for resource in ctx.book.by_type("style"):
             source_path = resource.original_path or resource.path
             text = resource.text()
@@ -797,6 +894,14 @@ class StyleStage(Stage):
                     location=resource.path,
                 )
             self._validate(ctx, resource)
+
+    def _add_watermark_rule(self, ctx: Context) -> None:
+        """Define, once, the class the content stage put on watermark markers."""
+        for path in sorted(ctx.watermark_stylesheets):
+            sheet = ctx.book.get(path)
+            if sheet is None or watermark.MARKER_CLASS in sheet.text():
+                continue
+            sheet.data = sheet.data + watermark.MARKER_RULE.encode("utf-8")
 
     def _rewrite_urls(self, ctx: Context, css_text: str, source_path: str, current_path: str) -> tuple[str, int]:
         unresolved = 0
