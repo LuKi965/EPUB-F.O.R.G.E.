@@ -1,13 +1,13 @@
 """A closing remark on each rebuilt book.
 
-The tool spends its life reading files that nobody proofread, so it is allowed
-one dry observation per book. Two rules keep this from becoming annoying:
+The tool's personality lives in its documentation and in the fixed text of the
+interface. Here there is exactly one running remark, and it is deliberately
+rare: it appears only when a book arrives with nothing at all to fix, which is
+unusual enough to be worth a raised eyebrow.
 
-* **The joke is never at the user's expense.** They did not write the file; they
-  bought it. The target is always the file, the converter or the publisher.
-* **It never replaces information.** The quip is decoration printed after the
-  counts, never instead of them, and it is silent when something actually went
-  wrong — nobody wants a wisecrack next to an error they have to deal with.
+Everything else stays quiet. A wisecrack after every single book stops being
+funny by the third one and gets in the way of reading the counts, and one next
+to an error the user has to act on is simply rude.
 
 The line is picked deterministically from the report, so the same book always
 gets the same remark rather than a slot machine on every run.
@@ -21,95 +21,28 @@ from .report import Level, Report
 QUIPS: dict[str, dict[str, list[str]]] = {
     "spotless": {
         "pl": [
-            "Ani jednej usterki. Sprawdź, czy to na pewno ebook.",
+            "Ani jednej usterki. Sprawdź, czy to na pewno EPUB.",
             "Nie znalazłem nic do naprawienia. Zapisz sobie tę datę.",
             "Plik poprawny od pierwszego wejrzenia. Zdarza się raz na jakiś czas.",
         ],
         "en": [
-            "Not a single defect. Check that this is actually an e-book.",
+            "Not a single defect. Check that this is actually an EPUB.",
             "Nothing to fix. Note the date somewhere.",
             "Correct on arrival. It happens, apparently.",
-        ],
-    },
-    "light": {
-        "pl": [
-            "Kilka drobiazgów. Wydawca prawie się postarał.",
-            "Lekkie zadrapania, nic poważnego.",
-            "Dało się to naprawić bez wzywania karetki.",
-        ],
-        "en": [
-            "A few odds and ends. The publisher nearly tried.",
-            "Light scratches, nothing structural.",
-            "Fixed without having to call anyone.",
-        ],
-    },
-    "moderate": {
-        "pl": [
-            "Wydawca się postarał. W złym kierunku.",
-            "Ktoś tu eksportował z Worda i nie poczuł nic.",
-            "Standard był w pobliżu. Nikt go nie zaczepił.",
-        ],
-        "en": [
-            "The publisher tried. In the wrong direction.",
-            "Someone exported this from Word and felt nothing.",
-            "The specification was nearby. Nobody spoke to it.",
-        ],
-    },
-    "carnage": {
-        "pl": [
-            "Ten plik nie został złożony. On się po prostu wydarzył.",
-            "Podejrzewam, że konwerter płakał, ale robił swoje.",
-            "Więcej tu było napraw niż akapitów w niejednym wstępie.",
-        ],
-        "en": [
-            "This file was not authored. It simply happened.",
-            "The converter was crying, but it kept going.",
-            "More repairs here than some books have paragraphs.",
-        ],
-    },
-    "watermarks": {
-        "pl": [
-            "Znak wodny w każdym rozdziale. Ktoś płacił od sztuki?",
-            "Ten sam token powtórzony do znudzenia. Zostaje, ale już nie krzyczy.",
-        ],
-        "en": [
-            "A watermark in every chapter. Was somebody paid per copy?",
-            "The same token, over and over. It stays — it just stops shouting.",
-        ],
-    },
-    "legacy": {
-        "pl": [
-            "EPUB 2 w tym roku. Klasyka gatunku.",
-            "Ten plik pamięta czasy, gdy `<center>` był dobrym pomysłem.",
-        ],
-        "en": [
-            "EPUB 2, this year. A classic of the genre.",
-            "This file remembers when `<center>` was a good idea.",
         ],
     },
 }
 
 
 def _situation(report: Report) -> str | None:
-    """Pick the category, or ``None`` when a joke would be out of place."""
-    if report.count(Level.ERROR):
+    """Pick the category, or ``None`` when the tool should stay quiet."""
+    if report.count(Level.ERROR) or report.count(Level.WARN):
         # Something needs the user's attention; do not be cute about it.
         return None
-
-    fixes = report.count(Level.FIX)
-    messages = " ".join(f.message for f in report.findings)
-
-    if "watermark marker" in messages and fixes >= 5:
-        return "watermarks"
-    if "EPUB 2" in messages and fixes >= 5:
-        return "legacy"
-    if fixes == 0:
+    if report.count(Level.FIX) == 0:
         return "spotless"
-    if fixes <= 4:
-        return "light"
-    if fixes <= 12:
-        return "moderate"
-    return "carnage"
+    # Every other outcome is ordinary work and speaks for itself.
+    return None
 
 
 def quip_for(report: Report, language: str = "pl") -> str | None:
