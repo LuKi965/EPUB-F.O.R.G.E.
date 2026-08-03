@@ -7,6 +7,17 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.5.1
+
+### Fixed
+- The `schema:` prefix used by the accessibility metadata is only *reserved*
+  from EPUB 3.3 onwards. A reader built against EPUB 3.0 or 3.1 sees an
+  undeclared prefix on every accessibility property, and a strict one can
+  reject the package document — which presents to the user as a book that will
+  not open at all. The prefix is now declared on `<package>`, which is
+  redundant under 3.3 and legal there, so it costs nothing and restores older
+  devices. EPUBCheck never flagged this because it validates against 3.3.
+
 ## 0.5.0
 
 ### Added
