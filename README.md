@@ -148,11 +148,13 @@ jej nazwy. Motyw jasny i ciemny dobiera się z ustawień systemu.
 
 ## Poczucie humoru
 
-Po każdej przebudowie narzędzie pozwala sobie na jedną suchą uwagę — w raporcie
-i w wierszu poleceń. Skaluje się z tym, jak zepsuty był plik. Obowiązują dwie
-zasady: żart jest zawsze o pliku, nigdy o osobie, która go kupiła, a przy
-jakimkolwiek błędzie narzędzie milknie, bo nikt nie chce dowcipu obok problemu
-do rozwiązania.
+Charakter tego narzędzia mieszka w dokumentacji i w stałych opisach interfejsu,
+nie w komentarzu do każdego uruchomienia. W samej pracy jest dokładnie jedna
+sucha uwaga i pojawia się rzadko: gdy plik przychodzi bez **żadnej** usterki,
+co jest na tyle niecodzienne, że zasługuje na uniesioną brew.
+
+Poza tym program milczy. Dowcip po każdej książce przestaje bawić przy trzeciej,
+a obok ostrzeżenia albo błędu zwyczajnie przeszkadza.
 
 ## Raport
 

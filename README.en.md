@@ -127,10 +127,13 @@ and dark themes follow the system palette.
 
 ## Sense of humour
 
-Each rebuilt book gets one dry remark, in the report and after the CLI summary.
-It scales with how broken the file was. Two rules keep it bearable: the target
-is always the file rather than the person who bought it, and it falls silent
-whenever a run produced an error.
+The personality lives in the documentation and in the fixed text of the
+interface, not in a running commentary. During work there is exactly one dry
+remark, and it is rare: it appears only when a book turns up with **nothing**
+to fix, which is unusual enough to deserve a raised eyebrow.
+
+Otherwise the tool keeps quiet. A joke after every book stops being funny by
+the third one, and one next to a warning is simply in the way.
 
 ## Report
 

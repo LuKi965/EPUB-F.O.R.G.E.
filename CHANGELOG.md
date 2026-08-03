@@ -17,13 +17,10 @@ installer — bump it there and everything follows.
   keeps working.
 
 ### Added
-- One dry remark per rebuilt book, in the report pane and after the CLI
-  summary. It scales with how broken the file was and has its own line for
-  books watermarked in every chapter. Two rules keep it from wearing thin: the
-  target is always the file rather than the person who bought it, and it goes
-  silent whenever a run produced an error — nobody wants a wisecrack next to a
-  problem they have to deal with. The line is derived from the report, so the
-  same book always gets the same one.
+- A rare dry remark, shown only when a book arrives with nothing at all to fix.
+  The tool's personality lives in its documentation and in the fixed text of
+  the interface; a wisecrack after every book stops being funny by the third
+  one, and one beside a warning or an error is simply in the way.
 
 ## 0.5.1
 
