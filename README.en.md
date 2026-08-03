@@ -1,4 +1,4 @@
-# EPUB-Forge
+# EPUB F.O.R.G.E. - Factory for Overhauling and Renovating Glitchy EPUBs
 
 Rebuilds an arbitrary EPUB into a standards-clean **EPUB 3.3** without losing what
 makes the book itself — cover, artwork, fonts, layout and typography.
