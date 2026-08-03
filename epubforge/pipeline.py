@@ -31,6 +31,29 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         report.add("reader", Level.ERROR, f"could not read the source file: {exc}")
         return Result(report, None, None)
 
+    # The version change is the single largest thing the rebuild does, so it is
+    # stated outright rather than left for the reader to infer from the output.
+    source_version = book.source_version
+    if source_version.startswith("2"):
+        report.add(
+            "package",
+            Level.FIX,
+            f"rebuilt the package from EPUB {source_version} to EPUB 3.3",
+            detail="Package document, navigation and container structure were regenerated.",
+        )
+    elif source_version.startswith("3"):
+        report.add(
+            "package",
+            Level.INFO,
+            f"source was already EPUB {source_version}; the package was regenerated regardless",
+        )
+    else:
+        report.add(
+            "package",
+            Level.WARN,
+            "package declared no usable version; treating it as EPUB 2 and rebuilding to 3.3",
+        )
+
     ctx = Context(book=book, policy=policy, report=report)
 
     for stage_class in DEFAULT_STAGES:
