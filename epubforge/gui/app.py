@@ -32,11 +32,12 @@ from PySide6.QtWidgets import (
 from .. import __version__, resources
 from ..pipeline import rebuild
 from ..policy import Policy
+from ..quips import quip_for
 from ..report import Level, Report
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog
-from .strings import LANGUAGES, set_language, tr
+from .strings import LANGUAGES, language, set_language, tr
 
 LEVEL_KEYS = {
     Level.FIX: "level.fix",
@@ -519,8 +520,13 @@ class MainWindow(QMainWindow):
         self.report_view.setTextColor(default)
         self.report_view.append(f"{tr('report.source')}: {result.report.source}")
         self.report_view.append(
-            f"{tr('report.output')}: {result.output_path or tr('report.notwritten')}\n"
+            f"{tr('report.output')}: {result.output_path or tr('report.notwritten')}"
         )
+        remark = quip_for(result.report, language())
+        if remark:
+            self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
+            self.report_view.append(f"— {remark}")
+        self.report_view.append("")
 
         width = max(len(tr(key)) for key in LEVEL_KEYS.values())
         for finding in result.report.sorted_findings():
@@ -555,8 +561,8 @@ def run(argv: list[str] | None = None) -> int:
     resources.set_windows_app_id()
 
     app = QApplication(argv)
-    app.setApplicationName("EPUB-Forge")
-    app.setApplicationDisplayName("EPUB-Forge")
+    app.setApplicationName("EPUB F.O.R.G.E.")
+    app.setApplicationDisplayName("EPUB F.O.R.G.E.")
     app.setStyle("Fusion")
 
     icon_path = resources.app_icon()

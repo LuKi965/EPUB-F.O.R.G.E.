@@ -88,8 +88,8 @@ tables without header cells — are reported as work for a human.
 
 ### Windows — no Python, no Java
 
-Grab `EPUB-Forge-<version>-setup.exe` from the
-[releases page](https://github.com/LuKi965/EPUB-Forge/releases), or the portable `.zip`.
+Grab `EPUB-FORGE-<version>-setup.exe` from the
+[releases page](https://github.com/LuKi965/EPUB-F.O.R.G.E./releases), or the portable `.zip`.
 Both ship the Python runtime, Qt, a minimal Java runtime and EPUBCheck. The installer is
 per-user and never prompts for administrator rights.
 
@@ -124,6 +124,13 @@ Useful flags: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
 Polish or English, switched under **Settings → Interface language** and remembered
 between runs. Every option carries a tooltip describing what it does to the book. Light
 and dark themes follow the system palette.
+
+## Sense of humour
+
+Each rebuilt book gets one dry remark, in the report and after the CLI summary.
+It scales with how broken the file was. Two rules keep it bearable: the target
+is always the file rather than the person who bought it, and it falls silent
+whenever a run produced an error.
 
 ## Report
 

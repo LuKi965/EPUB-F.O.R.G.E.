@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "epub-forge"
 dynamic = ["version"]
-description = "Rebuilds arbitrary EPUB files into standards-clean EPUB 3.3 while preserving their visual identity"
+description = "EPUB F.O.R.G.E. — Factory for Overhauling and Renovating Glitchy EPUBs: rebuilds any EPUB into standards-clean EPUB 3.3 while preserving its visual identity"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
