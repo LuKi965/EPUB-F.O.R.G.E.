@@ -7,6 +7,47 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.3.0
+
+### Added
+- EPUB Accessibility 1.1 discovery metadata (`schema:accessMode`,
+  `accessModeSufficient`, `accessibilityFeature`, `accessibilityHazard`,
+  `accessibilitySummary`), derived only from what the book demonstrably
+  contains. Relevant since the European Accessibility Act began covering
+  e-books in June 2025.
+- Detection of alt text that merely repeats the filename (`alt="title-1"`,
+  `alt="cover"`). It satisfies a validator and tells a screen-reader user
+  nothing, so it does not count as a description and `alternativeText` is
+  withheld.
+- The cover image is described with the book's title instead of being left with
+  a placeholder or an empty alt.
+- Accessibility gaps a machine cannot fill — missing descriptions, skipped
+  heading levels, tables without header cells — are reported as human work.
+- `--claim-conformance {wcag-a,wcag-aa,wcag-aaa}` records the publisher's own
+  conformance assertion. Never set automatically: WCAG cannot be established
+  mechanically, and under the EAA the claim carries legal weight.
+- `--no-a11y-metadata` to skip the declarations entirely.
+- Interface language is switchable between Polish and English under
+  Settings → Interface language, and remembered between runs.
+- An About dialog naming the authors, the licence and the bundled components
+  with their licences.
+- Polish README, with the English one kept as `README.en.md`.
+
+### Changed
+- The image-paragraph correction now reads the CSS cascade before acting. A rule
+  aimed at a paragraph by class or id — `p.ilustracja { text-align: right }` —
+  is a decision about that image and is obeyed, while a blanket
+  `p { text-align: justify }` written for prose is treated as inheritance that
+  happens to land on the artwork. Inline styles are likewise respected. Books
+  that style their images deliberately are therefore left alone; only pages
+  where nothing decided the alignment are centred.
+
+### Fixed
+- The portable build showed no icon in the taskbar or window. PyInstaller's
+  `icon=` only stamps the executable's resource, which is what Explorer draws;
+  Qt needs the file at runtime, and Windows needs an explicit AppUserModelID or
+  it groups the process under the host interpreter.
+
 ## 0.2.0
 
 ### Added

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import zipfile
 
+import pytest
 from lxml import etree
 
 from epubforge.report import Level
@@ -400,6 +401,23 @@ class TestImageParagraphs:
             if f.level is Level.FIX
         )
 
+    def test_a_rule_targeting_the_paragraph_is_obeyed(self, rebuilt):
+        """The publisher aimed p.ilustracja at these; right-aligned is a choice."""
+        import re
+
+        html = self.chapter(rebuilt)
+        paragraph = re.search(r'<p[^>]*>(?=<img[^>]*alt="wybor wydawcy")', html)
+        assert paragraph, "the publisher-styled image paragraph is missing"
+        assert 'class="ilustracja"' in paragraph.group()
+        assert "text-align" not in paragraph.group(), "its alignment must not be overridden"
+
+    def test_respected_paragraphs_are_reported(self, rebuilt):
+        assert any(
+            "as the publisher styled them" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.PRESERVED
+        )
+
 
 class TestStylesheetLinting:
     def stylesheet(self, result) -> str:
@@ -438,6 +456,102 @@ class TestStylesheetLinting:
         # @font-face names a font; only "Judson" in the h1 rule lacks a fallback.
         findings = [f for f in rebuilt.report.findings if "generic family" in f.message]
         assert findings[0].message.startswith("1 font stack")
+
+
+class TestAccessibility:
+    """Declarations must follow the content, because under the EAA they are claims."""
+
+    def metadata(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read(OPF_PATH).decode()
+
+    def properties(self, result, name: str) -> list[str]:
+        package = etree.fromstring(self.metadata(result).encode())
+        return [
+            (node.text or "")
+            for node in package.xpath(
+                f'.//opf:meta[@property="{name}"]', namespaces=OPF_NS
+            )
+        ]
+
+    def test_access_modes_reflect_the_content(self, rebuilt):
+        modes = self.properties(rebuilt, "schema:accessMode")
+        assert "textual" in modes
+        assert "visual" in modes, "the fixture has images"
+
+    def test_features_are_declared(self, rebuilt):
+        features = self.properties(rebuilt, "schema:accessibilityFeature")
+        assert "tableOfContents" in features
+        assert "structuralNavigation" in features
+        assert "displayTransformability" in features, "reflowable text is resizable"
+
+    def test_alternative_text_is_not_claimed_without_real_descriptions(self, rebuilt):
+        """The fixture's images get an empty alt, which means decorative."""
+        features = self.properties(rebuilt, "schema:accessibilityFeature")
+        assert "alternativeText" not in features
+        assert self.properties(rebuilt, "schema:accessModeSufficient") == ["textual,visual"]
+
+    def test_a_summary_is_written(self, rebuilt):
+        summary = self.properties(rebuilt, "schema:accessibilitySummary")
+        assert summary and len(summary[0]) > 20
+
+    def test_conformance_is_never_claimed_on_its_own(self, rebuilt):
+        assert "conformsTo" not in self.metadata(rebuilt)
+
+    def test_conformance_is_claimed_only_when_asked(self, legacy_epub, tmp_path):
+        from epubforge.pipeline import rebuild as run
+        from epubforge.policy import Policy
+
+        policy = Policy.preset("preserve")
+        policy.claim_conformance = "wcag-aa"
+        result = run(legacy_epub, str(tmp_path / "a11y.epub"), policy)
+        assert "WCAG 2.2 Level AA" in self.metadata(result)
+
+    def test_metadata_can_be_switched_off(self, legacy_epub, tmp_path):
+        from epubforge.pipeline import rebuild as run
+        from epubforge.policy import Policy
+
+        policy = Policy.preset("preserve")
+        policy.accessibility_metadata = False
+        result = run(legacy_epub, str(tmp_path / "plain.epub"), policy)
+        assert "schema:accessMode" not in self.metadata(result)
+
+    def test_missing_alt_is_reported_not_silently_hidden(self, rebuilt):
+        assert any(
+            "no alt text" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.WARN
+        )
+
+
+class TestPlaceholderAltDetection:
+    @pytest.mark.parametrize(
+        "alt,source",
+        [
+            ("title-1", "../images/title-1.jpg"),
+            ("cover", "cover.jpg"),
+            ("image", None),
+            ("okładka", "x.png"),
+            ("cover.jpg", None),
+        ],
+    )
+    def test_useless_alt_is_recognised(self, alt, source):
+        from epubforge.stages.accessibility import is_placeholder_alt
+
+        assert is_placeholder_alt(alt, source)
+
+    @pytest.mark.parametrize(
+        "alt",
+        [
+            "Geralt walczy z wiedźminem",
+            "Portret autora w młodości",
+            "Mapa Królestw Północy",
+        ],
+    )
+    def test_real_descriptions_are_left_alone(self, alt):
+        from epubforge.stages.accessibility import is_placeholder_alt
+
+        assert not is_placeholder_alt(alt, "../images/pic.jpg")
 
 
 def test_rebuild_is_idempotent(rebuilt, tmp_path):

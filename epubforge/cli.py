@@ -51,6 +51,10 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.drop_orphans = False
     if args.keep_layout:
         policy.reorganize_files = False
+    if args.no_a11y_metadata:
+        policy.accessibility_metadata = False
+    if args.claim_conformance:
+        policy.claim_conformance = args.claim_conformance
     if args.language:
         policy.default_language = args.language
         policy.metadata_overrides["language"] = args.language
@@ -249,6 +253,19 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--keep-orphans", action="store_true", help="keep unreferenced files")
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
     build.add_argument("--strict-exit", action="store_true", help="exit non-zero when findings remain")
+    build.add_argument(
+        "--no-a11y-metadata",
+        action="store_true",
+        help="skip the EPUB Accessibility 1.1 discovery metadata",
+    )
+    build.add_argument(
+        "--claim-conformance",
+        choices=["wcag-a", "wcag-aa", "wcag-aaa"],
+        help=(
+            "assert accessibility conformance in the metadata. EPUB-Forge cannot verify "
+            "WCAG mechanically, so this records YOUR claim as publisher"
+        ),
+    )
     build.add_argument("--title", help="override dc:title")
     build.add_argument("--author", help="override the main dc:creator")
     build.add_argument("--publisher", help="override dc:publisher")

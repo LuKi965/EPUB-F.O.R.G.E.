@@ -14,8 +14,10 @@ import re
 import cssutils
 from lxml import etree
 
+from .. import cascade as css_cascade
 from .. import paths, xhtml
 from ..report import Level
+from .accessibility import is_placeholder_alt
 from .base import Context, Stage
 
 cssutils.log.setLevel(50)  # cssutils logs every minor deviation at WARNING.
@@ -102,6 +104,9 @@ class ContentStage(Stage):
     """Rebuilds every content document and rewrites its outgoing references."""
 
     name = "xhtml"
+
+    def __init__(self) -> None:
+        self._sheet_cache: dict[str, str] = {}
 
     def run(self, ctx: Context) -> None:
         documents: list[tuple[object, object, dict[str, str]]] = []
@@ -377,16 +382,39 @@ class ContentStage(Stage):
                 detail=", ".join(sorted(changed)),
             )
 
+    def _document_cascade(self, ctx: Context, root, resource) -> css_cascade.Cascade:
+        """Collect the CSS that actually applies to one document."""
+        sources: list[str] = []
+        for link in root.iter(xhtml.qname("link")):
+            if "stylesheet" not in (link.get("rel") or "").lower():
+                continue
+            href = link.get("href")
+            target = paths.resolve(resource.path, href) if href else None
+            sheet = ctx.book.get(target) if target else None
+            if sheet is not None and sheet.is_style:
+                cached = self._sheet_cache.get(sheet.path)
+                if cached is None:
+                    cached = sheet.text()
+                    self._sheet_cache[sheet.path] = cached
+                sources.append(cached)
+        for style in root.iter(xhtml.qname("style")):
+            if style.text:
+                sources.append(style.text)
+        return css_cascade.Cascade.parse(sources)
+
     def _image_paragraphs(self, ctx: Context, root, resource) -> None:
         """Stop body-text rules from indenting a paragraph that is just an image.
 
         Cover and title pages are almost always ``<p><img/></p>``. When the
         stylesheet gives ``p`` an indent and justification — which it does for
-        running text — that indent shifts the artwork off-centre and the
-        justification never centres it. No publisher intends a first-line indent
-        on a picture, so the paragraph is opted out of both.
+        running text — that indent shifts the artwork off-centre.
+
+        The correction only applies where the layout is an accident of
+        inheritance. If the publisher aimed a rule at this paragraph — by class,
+        by id, or inline — that is a decision about the image, and it is left
+        exactly as written even when it is not centred.
         """
-        adjusted = 0
+        candidates = []
         for element in xhtml.iter_elements(root):
             if xhtml.local_name(element).lower() not in {"p", "div"}:
                 continue
@@ -397,9 +425,35 @@ class ContentStage(Stage):
                 continue
             if (element.text or "").strip() or (children[0].tail or "").strip():
                 continue
-            # An explicit inline alignment is a deliberate choice; leave it be.
-            if "text-align" in (element.get("style") or "").lower():
+            candidates.append(element)
+
+        if not candidates:
+            return
+
+        cascade = self._document_cascade(ctx, root, resource)
+        adjusted = 0
+        respected = 0
+
+        for element in candidates:
+            tag = xhtml.local_name(element).lower()
+            classes = frozenset((element.get("class") or "").split())
+            element_id = element.get("id")
+            inline = (element.get("style") or "").lower()
+
+            if "text-align" in inline or "text-indent" in inline:
+                respected += 1
                 continue
+            # A rule naming this paragraph's class or id is about this image.
+            if cascade.declares_targeted("text-align", tag, classes, element_id) or (
+                cascade.declares_targeted("text-indent", tag, classes, element_id)
+            ):
+                respected += 1
+                continue
+
+            # Nothing decided this paragraph's alignment. Either running-text
+            # rules leak onto it, or — as on title pages that link no stylesheet
+            # at all — the reader's default left-aligns the artwork. Both leave
+            # the image off-centre for want of an instruction, not by choice.
             _append_style(element, "text-indent: 0; text-align: center;")
             adjusted += 1
 
@@ -409,7 +463,18 @@ class ContentStage(Stage):
                 Level.FIX,
                 f"centred {adjusted} image-only paragraph(s) and removed their text indent",
                 location=resource.path,
-                detail="Body-text indentation was shifting cover and title artwork off-centre.",
+                detail=(
+                    "Running-text rules were shifting the artwork; no rule targeted these "
+                    "paragraphs specifically, so the layout was inherited rather than chosen."
+                ),
+            )
+        if respected:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                f"left {respected} image paragraph(s) as the publisher styled them",
+                location=resource.path,
+                detail="A rule aimed at these paragraphs sets their alignment or indent.",
             )
 
     def _presentational_attributes(self, element, tag: str, changed: set[str]) -> None:
@@ -517,18 +582,48 @@ class ContentStage(Stage):
         parent.remove(element)
 
     def _accessibility(self, ctx: Context, root, resource) -> None:
+        """Give every image an alt, and describe the cover rather than hiding it.
+
+        An empty alt is not a neutral placeholder — it tells assistive software
+        the image carries no information. That is the right answer for a rule or
+        a flourish and the wrong one for cover art, which is why the cover is
+        named. Everything else is counted here and reported by the accessibility
+        stage, because inventing descriptions is not this tool's job.
+        """
+        cover_path = ctx.book.cover_path
         missing_alt = 0
+        described = 0
+
         for image in root.iter(xhtml.qname("img")):
-            if image.get("alt") is None:
+            alt = image.get("alt")
+            source = image.get("src")
+            target = paths.resolve(resource.path, source) if source else None
+            is_cover = bool(cover_path) and target == cover_path
+
+            if is_cover and (alt is None or is_placeholder_alt(alt, source)):
+                # The cover depicts the book, so its title is a true description
+                # — unlike "cover", which names the slot rather than the picture.
+                image.set("alt", ctx.book.metadata.title)
+                described += 1
+            elif alt is None:
                 image.set("alt", "")
                 missing_alt += 1
+                ctx.auto_alt_locations.append(resource.path)
+
+        if described:
+            self.note(
+                ctx,
+                Level.FIX,
+                "described the cover image with the book title",
+                location=resource.path,
+            )
         if missing_alt:
             self.note(
                 ctx,
                 Level.FIX,
                 f"added an empty alt attribute to {missing_alt} image(s)",
                 location=resource.path,
-                detail="Required by EPUB 3; empty marks them decorative.",
+                detail="Required for valid markup; empty declares them decorative.",
             )
 
     def _scripting(self, ctx: Context, root, resource) -> None:
