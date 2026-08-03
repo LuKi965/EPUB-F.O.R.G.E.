@@ -414,9 +414,19 @@ class MainWindow(QMainWindow):
                 handle.write(result.report.to_json())
 
 
-def run() -> int:
-    app = QApplication(sys.argv)
+def run(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv if argv is None else argv)
+    app = QApplication(argv)
     app.setApplicationName("EPUB-Forge")
+
     window = MainWindow()
+    # Paths arrive this way from the installer's "Rebuild with EPUB-Forge"
+    # shell verb and from dragging files onto the executable.
+    queued = [
+        path for path in argv[1:]
+        if path.lower().endswith(".epub") and os.path.isfile(path)
+    ]
+    if queued:
+        window._add(queued)
     window.show()
     return app.exec()

@@ -1,0 +1,85 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Provides jlink, which builds the minimal runtime that gets bundled.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[gui,dev]"
+          pip install pyinstaller
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Build the bundled distribution
+        run: python packaging/build.py --clean
+
+      # Runs the packaged .exe with the environment stripped, so a pass proves
+      # the bundled JRE and EPUBCheck did the work rather than the runner's.
+      - name: Verify the frozen build is self-contained
+        run: python packaging/smoke_test.py
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (python -c "import epubforge; print(epubforge.__version__)")
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $version = $env:GITHUB_REF -replace "refs/tags/v", ""
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc "/DMyAppVersion=${{ steps.version.outputs.version }}" packaging\installer.iss
+
+      - name: Package the portable build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\EPUB-Forge\* `
+            -DestinationPath "dist\EPUB-Forge-${{ steps.version.outputs.version }}-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EPUB-Forge-windows
+          path: |
+            dist/installer/*.exe
+            dist/*-portable.zip
+          retention-days: 30
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/installer/*.exe
+            dist/*-portable.zip
