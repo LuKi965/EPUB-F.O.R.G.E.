@@ -49,12 +49,28 @@ reported either way.
 
 ## Install
 
+### Windows — no Python, no Java
+
+Grab `EPUB-Forge-<version>-setup.exe` from the
+[releases page](https://github.com/LuKi965/EPUB-Forge/releases), or the portable
+`.zip` if you would rather not install anything. Both ship the Python runtime,
+Qt, a minimal Java runtime and EPUBCheck, so nothing else has to be present on
+the machine. The installer is per-user by default and never prompts for
+administrator rights.
+
+The distribution contains two programs:
+
+- `EPUB-Forge.exe` — the window. Drag books in, review the report, write them out.
+- `epubforge.exe` — the same tool on the command line, for batch runs.
+
+### From source
+
 ```bash
 pip install -e ".[gui]"
 ```
 
-EPUBCheck is optional and used only for verification. Point `EPUBCHECK_JAR` at
-`epubcheck.jar`, or put `epubcheck` on `PATH`.
+Here EPUBCheck is optional: point `EPUBCHECK_JAR` at `epubcheck.jar`, or put
+`epubcheck` on `PATH`. Without it everything works except validation.
 
 ## Use
 
@@ -121,6 +137,29 @@ because it freezes the path map that href rewriting depends on.
   intact, but their absolute positioning is not re-derived.
 - Filenames are folded to ASCII. Polish `ł` has no Unicode decomposition and is
   dropped (`okładka.png` → `okadka.png`); links are rewritten to match.
+
+## Building the packaged app yourself
+
+Needs a JDK 17+ (for `jlink`) and `pip install pyinstaller`.
+
+```bash
+python packaging/build.py                # downloads EPUBCheck, links a JRE, freezes
+python packaging/build.py --skip-java    # ~60 MB, no validation
+python packaging/smoke_test.py           # runs the result with the environment stripped
+```
+
+The output lands in `dist/EPUB-Forge/`. `smoke_test.py` clears `PATH`,
+`JAVA_HOME` and `EPUBCHECK_JAR` before running the packaged executables, so it
+fails if the build quietly depends on something installed on the build machine.
+
+Windows installers are produced by `.github/workflows/build-windows.yml`, which
+runs the same script on a Windows runner and then compiles
+`packaging/installer.iss`. Push a `v*` tag to cut a release, or run the workflow
+manually to get artifacts without one.
+
+Size comes almost entirely from the bundled runtimes — roughly 90 MB Qt, 56 MB
+JRE, 34 MB EPUBCheck. `packaging/epubforge.spec` prunes the Qt stacks a
+widgets-only app never loads, which is worth about 150 MB.
 
 ## Tests
 

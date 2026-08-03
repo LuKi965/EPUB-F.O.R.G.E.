@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 
+from . import resources
 from .report import Level, Report
 
 ENV_JAR = "EPUBCHECK_JAR"
@@ -38,17 +39,37 @@ class ValidationResult:
 
 
 def find_epubcheck() -> list[str] | None:
-    """Return the command prefix that runs EPUBCheck, or ``None``."""
+    """Return the command prefix that runs EPUBCheck, or ``None``.
+
+    An explicit ``EPUBCHECK_JAR`` wins so a user can point a packaged build at a
+    newer release; otherwise a bundled copy is preferred over anything installed
+    system-wide, because it is the version this build was tested against.
+    """
     jar = os.environ.get(ENV_JAR)
     if jar and os.path.isfile(jar):
-        return ["java", "-jar", jar]
+        return _java_command(jar)
+
+    bundled = resources.bundled_epubcheck_command()
+    if bundled:
+        return bundled
+
     executable = shutil.which("epubcheck")
     if executable:
         return [executable]
     for candidate in SEARCH_PATHS:
         if os.path.isfile(candidate):
-            return ["java", "-jar", candidate]
+            return _java_command(candidate)
     return None
+
+
+def _java_command(jar: str) -> list[str] | None:
+    """Run *jar* on the bundled JRE if there is one, else on the system's."""
+    java = resources.java_executable()
+    if java is not None:
+        return [str(java), "-jar", jar]
+    if shutil.which("java") is None:
+        return None
+    return ["java", "-jar", jar]
 
 
 def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
