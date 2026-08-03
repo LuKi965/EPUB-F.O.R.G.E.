@@ -311,6 +311,60 @@ class TestReportHonesty:
         assert rebuilt.report.count(Level.FIX) > 0
 
 
+class TestPublisherErrorRepair:
+    """Mistakes the browser already discards, so repairing restores intent."""
+
+    def stylesheet(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read("EPUB/styles/main.css").decode()
+
+    def test_invalid_font_style_value_is_corrected(self, rebuilt):
+        css = self.stylesheet(rebuilt)
+        assert "font-style: regular" not in css
+        assert "font-style: normal" in css
+        assert any(
+            "'regular'" in f.message for f in rebuilt.report.findings if f.level is Level.FIX
+        )
+
+    def test_out_of_flow_positioning_is_removed_from_reflowable_books(self, rebuilt):
+        css = self.stylesheet(rebuilt)
+        assert "position: absolute" not in css
+        # Only the positioning goes; the rest of the rule is left alone.
+        assert "width: 100%" in css
+        assert "text-align: center" in css
+
+    def test_removal_is_reported(self, rebuilt):
+        assert any(
+            "absolute/fixed position" in f.message
+            for f in rebuilt.report.findings
+            if f.level is Level.FIX
+        )
+
+    def test_fixed_layout_books_keep_their_positioning(self, legacy_epub, tmp_path):
+        """Absolute positioning is how fixed-layout books work; never strip it."""
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+        from epubforge.reader import read_epub
+        from epubforge.report import Report
+
+        # Re-read and mark the book pre-paginated, then run the stage directly.
+        from epubforge.stages import Context, StructureStage, StyleStage
+
+        report = Report()
+        book = read_epub(legacy_epub, report)
+        book.rendition["layout"] = "pre-paginated"
+        ctx = Context(book=book, policy=Policy.preset("preserve"), report=report)
+        StructureStage().run(ctx)
+        StyleStage().run(ctx)
+
+        css = next(r for r in book.by_type("style")).text()
+        assert "position: absolute" in css
+        assert any(
+            f.level is Level.PRESERVED and "fixed-layout" in (f.detail or "")
+            for f in report.findings
+        )
+
+
 class TestStylesheetLinting:
     def stylesheet(self, result) -> str:
         with zipfile.ZipFile(result.output_path) as archive:

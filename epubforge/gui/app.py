@@ -6,7 +6,7 @@ import os
 import sys
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QFont
+from PySide6.QtGui import QAction, QColor, QFont, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -34,21 +34,23 @@ from ..pipeline import rebuild
 from ..policy import Policy
 from ..report import Level, Report
 from ..validate import find_epubcheck, validate
+from . import theme
+from .strings import tr
 
-LEVEL_COLORS = {
-    Level.ERROR: QColor("#c0392b"),
-    Level.WARN: QColor("#b9770e"),
-    Level.PRESERVED: QColor("#1f6f8b"),
-    Level.FIX: QColor("#1e8449"),
-    Level.INFO: QColor("#7f8c8d"),
+LEVEL_KEYS = {
+    Level.FIX: "level.fix",
+    Level.PRESERVED: "level.preserved",
+    Level.WARN: "level.warn",
+    Level.ERROR: "level.error",
+    Level.INFO: "level.info",
 }
 
-STATUS_COLORS = {
-    "queued": QColor("#7f8c8d"),
-    "working": QColor("#2471a3"),
-    "done": QColor("#1e8449"),
-    "issues": QColor("#b9770e"),
-    "failed": QColor("#c0392b"),
+STATUS_KEYS = {
+    "queued": "status.queued",
+    "working": "status.working",
+    "done": "status.done",
+    "issues": "status.issues",
+    "failed": "status.failed",
 }
 
 
@@ -89,16 +91,18 @@ class Worker(QObject):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, palette: theme.Palette | None = None):
         super().__init__()
-        self.setWindowTitle(f"EPUB-Forge {__version__}")
-        self.resize(1100, 720)
+        self.palette_colors = palette or theme.LIGHT
+        self.setWindowTitle(tr("window.title", version=__version__))
+        self.resize(1180, 760)
         self.setAcceptDrops(True)
 
         self._sources: list[str] = []
         self._results: dict[int, object] = {}
         self._thread: QThread | None = None
         self._worker: Worker | None = None
+        self._epubcheck = find_epubcheck() is not None
 
         self._build_ui()
         self._build_menu()
@@ -107,6 +111,8 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         central = QWidget()
         layout = QVBoxLayout(central)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(10)
 
         layout.addWidget(self._build_source_row())
 
@@ -115,55 +121,81 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self._build_side_panel())
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
-        layout.addWidget(splitter, stretch=1)
+        splitter.setSizes([720, 440])
+        layout.addWidget(splitter, stretch=3)
 
         self.report_view = QTextEdit()
         self.report_view.setReadOnly(True)
-        self.report_view.setFont(QFont("monospace"))
-        self.report_view.setPlaceholderText("Select a book to see what the rebuild changed.")
+        self.report_view.setFont(QFont("Cascadia Mono, Consolas, monospace", 9))
+        self.report_view.setPlaceholderText(tr("report.placeholder"))
         layout.addWidget(self.report_view, stretch=2)
 
         self.progress = QProgressBar()
         self.progress.setVisible(False)
+        self.progress.setTextVisible(False)
         layout.addWidget(self.progress)
 
         self.setCentralWidget(central)
-        self.statusBar().showMessage(
-            "Drop EPUB files anywhere in this window."
-            + ("" if find_epubcheck() else "  ·  EPUBCheck not found — validation unavailable.")
-        )
+        hint = tr("status.hint")
+        if not self._epubcheck:
+            hint = f"{hint}   ·   {tr('status.hint.nocheck')}"
+        self.statusBar().showMessage(hint)
 
     def _build_source_row(self) -> QWidget:
         row = QWidget()
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
-        add = QPushButton("Add books…")
+        add = QPushButton(tr("toolbar.add"))
+        add.setToolTip(tr("toolbar.add.tip"))
         add.clicked.connect(self._choose_files)
         layout.addWidget(add)
 
-        clear = QPushButton("Clear")
+        clear = QPushButton(tr("toolbar.clear"))
+        clear.setToolTip(tr("toolbar.clear.tip"))
         clear.clicked.connect(self._clear)
         layout.addWidget(clear)
 
         layout.addSpacing(16)
-        layout.addWidget(QLabel("Output folder:"))
+        output_label = QLabel(tr("toolbar.output"))
+        output_label.setObjectName("sectionLabel")
+        layout.addWidget(output_label)
+
         self.output_edit = QLineEdit()
-        self.output_edit.setPlaceholderText("leave empty to write next to each source file")
+        self.output_edit.setPlaceholderText(tr("toolbar.output.placeholder"))
+        self.output_edit.setToolTip(tr("toolbar.output.tip"))
         layout.addWidget(self.output_edit, stretch=1)
 
-        browse = QPushButton("Browse…")
+        browse = QPushButton(tr("toolbar.browse"))
+        browse.setToolTip(tr("toolbar.browse.tip"))
         browse.clicked.connect(self._choose_output)
         layout.addWidget(browse)
         return row
 
     def _build_table(self) -> QWidget:
         self.table = QTableWidget(0, 5)
-        # "Kept" makes deliberate deviations visible without opening the report;
-        # a rebuild that fixed nothing but preserved something is not a no-op.
-        self.table.setHorizontalHeaderLabels(["Book", "Status", "Fixed", "Kept", "Issues"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        headers = [
+            (tr("table.book"), None),
+            (tr("table.status"), None),
+            (tr("table.fixed"), tr("table.fixed.tip")),
+            (tr("table.kept"), tr("table.kept.tip")),
+            (tr("table.issues"), tr("table.issues.tip")),
+        ]
+        self.table.setHorizontalHeaderLabels([label for label, _ in headers])
+        for column, (_, tip) in enumerate(headers):
+            if tip:
+                self.table.horizontalHeaderItem(column).setToolTip(tip)
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        for column in range(1, 5):
+            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.itemSelectionChanged.connect(self._show_selected_report)
         return self.table
@@ -171,69 +203,102 @@ class MainWindow(QMainWindow):
     def _build_side_panel(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        options = QGroupBox("Rebuild policy")
-        form = QVBoxLayout(options)
+        layout.addWidget(self._build_policy_box())
+        layout.addWidget(self._build_metadata_box())
 
-        form.addWidget(QLabel("When conformance and appearance conflict:"))
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItem("Preserve appearance, report deviations", "preserve")
-        self.mode_combo.addItem("Enforce the standard, even if it changes rendering", "strict")
-        self.mode_combo.addItem("Rebuild the container only, leave content alone", "minimal")
-        form.addWidget(self.mode_combo)
-
-        self.ncx_check = QCheckBox("Include a legacy NCX for older readers")
-        self.ncx_check.setChecked(True)
-        form.addWidget(self.ncx_check)
-
-        self.orphans_check = QCheckBox("Remove files nothing references")
-        self.orphans_check.setChecked(True)
-        form.addWidget(self.orphans_check)
-
-        self.layout_check = QCheckBox("Reorganise files into a typed folder layout")
-        self.layout_check.setChecked(True)
-        form.addWidget(self.layout_check)
-
-        self.scripts_check = QCheckBox("Strip all scripting")
-        form.addWidget(self.scripts_check)
-
-        self.validate_check = QCheckBox("Verify the result with EPUBCheck")
-        self.validate_check.setEnabled(find_epubcheck() is not None)
-        self.validate_check.setChecked(find_epubcheck() is not None)
-        form.addWidget(self.validate_check)
-
-        layout.addWidget(options)
-
-        overrides = QGroupBox("Metadata overrides (optional)")
-        override_layout = QVBoxLayout(overrides)
-        self.title_edit = self._labelled(override_layout, "Title")
-        self.author_edit = self._labelled(override_layout, "Author")
-        self.language_edit = self._labelled(override_layout, "Language (BCP 47)")
-        layout.addWidget(overrides)
-
-        self.run_button = QPushButton("Rebuild")
-        self.run_button.setMinimumHeight(38)
+        self.run_button = QPushButton(tr("action.run"))
+        self.run_button.setObjectName("primary")
+        self.run_button.setToolTip(tr("action.run.tip"))
+        self.run_button.setMinimumHeight(42)
         self.run_button.clicked.connect(self._run)
         layout.addWidget(self.run_button)
 
         layout.addStretch(1)
         return panel
 
-    def _labelled(self, layout, label: str) -> QLineEdit:
-        layout.addWidget(QLabel(label))
+    def _build_policy_box(self) -> QGroupBox:
+        box = QGroupBox(tr("policy.group"))
+        layout = QVBoxLayout(box)
+        layout.setSpacing(7)
+
+        label = QLabel(tr("policy.mode.label"))
+        label.setObjectName("sectionLabel")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.setToolTip(tr("policy.mode.tip"))
+        modes = (
+            ("preserve", "policy.mode.preserve"),
+            ("strict", "policy.mode.strict"),
+            ("minimal", "policy.mode.minimal"),
+        )
+        for index, (value, key) in enumerate(modes):
+            self.mode_combo.addItem(tr(key), value)
+            # Per-item tooltips let the consequences of each mode be read before
+            # committing to one, which is the whole point of the choice.
+            self.mode_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.mode_combo.currentIndexChanged.connect(self._mode_changed)
+        layout.addWidget(self.mode_combo)
+
+        self.ncx_check = self._checkbox(layout, "policy.ncx", checked=True)
+        self.orphans_check = self._checkbox(layout, "policy.orphans", checked=True)
+        self.layout_check = self._checkbox(layout, "policy.layout", checked=True)
+        self.scripts_check = self._checkbox(layout, "policy.scripts", checked=False)
+        self.validate_check = self._checkbox(
+            layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
+        )
+        if not self._epubcheck:
+            self.validate_check.setToolTip(tr("policy.validate.missing"))
+
+        self._mode_changed()
+        return box
+
+    def _checkbox(self, layout, key: str, *, checked: bool, enabled: bool = True) -> QCheckBox:
+        box = QCheckBox(tr(key))
+        box.setToolTip(tr(f"{key}.tip"))
+        box.setChecked(checked)
+        box.setEnabled(enabled)
+        layout.addWidget(box)
+        return box
+
+    def _build_metadata_box(self) -> QGroupBox:
+        box = QGroupBox(tr("meta.group"))
+        layout = QVBoxLayout(box)
+        layout.setSpacing(4)
+        self.title_edit = self._field(layout, "meta.title")
+        self.author_edit = self._field(layout, "meta.author")
+        self.language_edit = self._field(layout, "meta.language")
+        return box
+
+    def _field(self, layout, key: str) -> QLineEdit:
+        label = QLabel(tr(key))
+        label.setObjectName("fieldLabel")
+        label.setToolTip(tr(f"{key}.tip"))
+        layout.addWidget(label)
         edit = QLineEdit()
-        edit.setPlaceholderText("keep what the book already has")
+        edit.setPlaceholderText(tr("meta.placeholder"))
+        edit.setToolTip(tr(f"{key}.tip"))
         layout.addWidget(edit)
         return edit
 
+    def _mode_changed(self) -> None:
+        """Minimal mode regenerates only the container, so content knobs do nothing."""
+        content_mode = self.mode_combo.currentData() != "minimal"
+        for widget in (self.orphans_check, self.layout_check, self.scripts_check):
+            widget.setEnabled(content_mode)
+
     def _build_menu(self) -> None:
-        file_menu = self.menuBar().addMenu("&File")
-        for text, slot, shortcut in (
-            ("Add books…", self._choose_files, "Ctrl+O"),
-            ("Save report…", self._save_report, "Ctrl+S"),
-            ("Quit", self.close, "Ctrl+Q"),
+        file_menu = self.menuBar().addMenu(tr("menu.file"))
+        for label, slot, shortcut in (
+            (tr("toolbar.add"), self._choose_files, "Ctrl+O"),
+            (tr("action.save"), self._save_report, "Ctrl+S"),
+            (tr("menu.quit"), self.close, "Ctrl+Q"),
         ):
-            action = QAction(text, self)
+            action = QAction(label, self)
             action.triggered.connect(slot)
             action.setShortcut(shortcut)
             file_menu.addAction(action)
@@ -244,19 +309,22 @@ class MainWindow(QMainWindow):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        added = [
-            url.toLocalFile()
-            for url in event.mimeData().urls()
-            if url.toLocalFile().lower().endswith(".epub")
-        ]
-        self._add(added)
+        self._add(
+            [
+                url.toLocalFile()
+                for url in event.mimeData().urls()
+                if url.toLocalFile().lower().endswith(".epub")
+            ]
+        )
 
     def _choose_files(self) -> None:
-        files, _ = QFileDialog.getOpenFileNames(self, "Select EPUB files", "", "EPUB files (*.epub)")
+        files, _ = QFileDialog.getOpenFileNames(
+            self, tr("dialog.selectfiles"), "", tr("dialog.filter")
+        )
         self._add(files)
 
     def _choose_output(self) -> None:
-        directory = QFileDialog.getExistingDirectory(self, "Select output folder")
+        directory = QFileDialog.getExistingDirectory(self, tr("dialog.selectfolder"))
         if directory:
             self.output_edit.setText(directory)
 
@@ -266,11 +334,13 @@ class MainWindow(QMainWindow):
                 self._sources.append(path)
                 row = self.table.rowCount()
                 self.table.insertRow(row)
-                self.table.setItem(row, 0, QTableWidgetItem(os.path.basename(path)))
+                item = QTableWidgetItem(os.path.basename(path))
+                item.setToolTip(path)
+                self.table.setItem(row, 0, item)
                 self._set_status(row, "queued")
                 for column in (2, 3, 4):
                     self.table.setItem(row, column, QTableWidgetItem("—"))
-        self.statusBar().showMessage(f"{len(self._sources)} book(s) queued.")
+        self.statusBar().showMessage(tr("status.queued.count", count=len(self._sources)))
 
     def _clear(self) -> None:
         self._sources.clear()
@@ -279,17 +349,25 @@ class MainWindow(QMainWindow):
         self.report_view.clear()
 
     def _set_status(self, row: int, status: str) -> None:
-        item = QTableWidgetItem(status)
-        item.setForeground(STATUS_COLORS.get(status, QColor("#000000")))
+        item = QTableWidgetItem(tr(STATUS_KEYS[status]))
+        colors = {
+            "queued": self.palette_colors.text_muted,
+            "working": self.palette_colors.accent,
+            "done": self.palette_colors.fix,
+            "issues": self.palette_colors.warn,
+            "failed": self.palette_colors.error,
+        }
+        item.setForeground(QColor(colors[status]))
         self.table.setItem(row, 1, item)
 
     # ------------------------------------------------------------- execution
     def _policy(self) -> Policy:
         policy = Policy.preset(self.mode_combo.currentData())
         policy.write_ncx = self.ncx_check.isChecked()
-        policy.drop_orphans = self.orphans_check.isChecked()
-        policy.reorganize_files = self.layout_check.isChecked()
-        policy.strip_scripts = self.scripts_check.isChecked()
+        if self.mode_combo.currentData() != "minimal":
+            policy.drop_orphans = self.orphans_check.isChecked()
+            policy.reorganize_files = self.layout_check.isChecked()
+            policy.strip_scripts = self.scripts_check.isChecked()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),
@@ -304,7 +382,7 @@ class MainWindow(QMainWindow):
 
     def _run(self) -> None:
         if not self._sources:
-            QMessageBox.information(self, "Nothing to do", "Add at least one EPUB file first.")
+            QMessageBox.information(self, tr("dialog.nothing.title"), tr("dialog.nothing.body"))
             return
         if self._thread is not None:
             return
@@ -320,9 +398,8 @@ class MainWindow(QMainWindow):
             if os.path.abspath(destination) == os.path.abspath(source):
                 QMessageBox.warning(
                     self,
-                    "Output would overwrite the source",
-                    f"Choose a different output folder — {os.path.basename(source)} would be "
-                    "overwritten in place.",
+                    tr("dialog.overwrite.title"),
+                    tr("dialog.overwrite.body", name=os.path.basename(source)),
                 )
                 return
             jobs.append((source, destination))
@@ -343,11 +420,12 @@ class MainWindow(QMainWindow):
 
     def _on_progress(self, index: int, name: str) -> None:
         self._set_status(index, "working")
-        self.statusBar().showMessage(f"Rebuilding {name}…")
+        self.statusBar().showMessage(tr("status.working", name=name))
 
     def _on_one_finished(self, index: int, result) -> None:
         self._results[index] = result
         report = result.report
+
         if result.output_path is None:
             self._set_status(index, "failed")
         elif report.count(Level.ERROR):
@@ -375,9 +453,11 @@ class MainWindow(QMainWindow):
         self.run_button.setEnabled(True)
         self.progress.setVisible(False)
         failures = sum(1 for r in self._results.values() if r.output_path is None)
+        total = len(self._results)
         self.statusBar().showMessage(
-            f"Finished {len(self._results)} book(s)"
-            + (f" — {failures} could not be written." if failures else " — all written.")
+            tr("status.finished.failures", count=total, failures=failures)
+            if failures
+            else tr("status.finished", count=total)
         )
 
     # ---------------------------------------------------------------- output
@@ -388,31 +468,42 @@ class MainWindow(QMainWindow):
             self.report_view.clear()
             return
 
-        lines = [f"source: {result.report.source}"]
-        if result.output_path:
-            lines.append(f"output: {result.output_path}")
-        else:
-            lines.append("output: NOT WRITTEN")
-        lines.append("")
+        colors = {
+            Level.FIX: self.palette_colors.fix,
+            Level.PRESERVED: self.palette_colors.preserved,
+            Level.WARN: self.palette_colors.warn,
+            Level.ERROR: self.palette_colors.error,
+            Level.INFO: self.palette_colors.info,
+        }
+        default = QColor(self.palette_colors.text)
 
         self.report_view.clear()
-        self.report_view.setTextColor(QColor("#000000"))
-        self.report_view.append("\n".join(lines))
+        self.report_view.setTextColor(default)
+        self.report_view.append(f"{tr('report.source')}: {result.report.source}")
+        self.report_view.append(
+            f"{tr('report.output')}: {result.output_path or tr('report.notwritten')}\n"
+        )
+
+        width = max(len(tr(key)) for key in LEVEL_KEYS.values())
         for finding in result.report.sorted_findings():
-            self.report_view.setTextColor(LEVEL_COLORS[finding.level])
+            self.report_view.setTextColor(QColor(colors[finding.level]))
+            label = tr(LEVEL_KEYS[finding.level]).rjust(width)
             where = f"  [{finding.location}]" if finding.location else ""
-            self.report_view.append(f"{finding.level.value:>9}  {finding.stage}: {finding.message}{where}")
+            self.report_view.append(f"{label}  {finding.stage}: {finding.message}{where}")
             if finding.detail:
-                self.report_view.append(f"{'':>11}{finding.detail}")
-        self.report_view.setTextColor(QColor("#000000"))
+                self.report_view.append(f"{'':>{width + 2}}{finding.detail}")
+        self.report_view.setTextColor(default)
+        self.report_view.moveCursor(QTextCursor.MoveOperation.Start)
 
     def _save_report(self) -> None:
         row = self.table.currentRow()
         result = self._results.get(row)
         if result is None:
-            QMessageBox.information(self, "No report", "Rebuild a book first, then select it.")
+            QMessageBox.information(self, tr("dialog.noreport.title"), tr("dialog.noreport.body"))
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Save report", "report.json", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("dialog.savereport"), "raport.json", "JSON (*.json)"
+        )
         if path:
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(result.report.to_json())
@@ -422,8 +513,12 @@ def run(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
     app = QApplication(argv)
     app.setApplicationName("EPUB-Forge")
+    app.setStyle("Fusion")
 
-    window = MainWindow()
+    palette = theme.active_palette(app)
+    app.setStyleSheet(theme.stylesheet(palette))
+
+    window = MainWindow(palette)
     # Paths arrive this way from the installer's "Rebuild with EPUB-Forge"
     # shell verb and from dragging files onto the executable.
     queued = [
