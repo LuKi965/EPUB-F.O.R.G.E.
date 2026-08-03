@@ -7,3 +7,6 @@ build/
 dist/
 .pytest_cache/
 *.forged.epub
+
+# Staged Java runtime and EPUBCheck; recreated by packaging/build.py
+packaging/_bundle/
