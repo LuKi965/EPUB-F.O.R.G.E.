@@ -1,0 +1,227 @@
+"""Serialises a :class:`~epubforge.model.Book` into a conforming EPUB 3.3 file.
+
+The package document is generated from the model rather than edited from the
+source, which is what makes the output independent of however broken the input
+was. ZIP layout follows OCF: an uncompressed ``mimetype`` first, then
+``META-INF``, then content.
+"""
+
+from __future__ import annotations
+
+import posixpath
+import re
+import zipfile
+from xml.sax.saxutils import escape, quoteattr
+
+from . import paths
+from .model import Book
+from .report import Level, Report
+
+CONTAINER_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="{opf_path}" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+
+#: Media types that are already compressed; deflating them wastes time and space.
+_STORE_TYPES = (
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "font/woff", "font/woff2", "audio/mpeg", "audio/mp4", "video/mp4",
+)
+
+_ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def _make_id(path: str, taken: set[str]) -> str:
+    stem = posixpath.basename(path)
+    candidate = _ID_UNSAFE.sub("-", stem) or "item"
+    if not re.match(r"^[A-Za-z_]", candidate):
+        candidate = f"i-{candidate}"
+    unique = candidate
+    counter = 2
+    while unique in taken:
+        unique = f"{candidate}-{counter}"
+        counter += 1
+    taken.add(unique)
+    return unique
+
+
+def _element(tag: str, text: str | None = None, **attributes) -> str:
+    parts = [tag]
+    for key, value in attributes.items():
+        if value is None:
+            continue
+        parts.append(f"{key.replace('_', '-')}={quoteattr(str(value))}")
+    opened = " ".join(parts)
+    if text is None:
+        return f"<{opened}/>"
+    return f"<{opened}>{escape(text)}</{tag}>"
+
+
+def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str, str]]:
+    """Render the package document; also returns the path→manifest-id map."""
+    metadata = book.metadata
+    identifier = metadata.primary_identifier
+    lines: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
+    language = metadata.language or "en"
+    lines.append(
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}>'
+    )
+
+    # --- metadata -----------------------------------------------------------
+    lines.append('  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">')
+    if identifier:
+        lines.append(f"    {_element('dc:identifier', identifier.value, id='pub-id')}")
+        if identifier.scheme:
+            lines.append(
+                f'    <meta refines="#pub-id" property="identifier-type" '
+                f'scheme="onix:codelist5">{escape(identifier.scheme)}</meta>'
+            )
+    for index, extra in enumerate(i for i in metadata.identifiers if not i.primary):
+        lines.append(f"    {_element('dc:identifier', extra.value, id=f'id-{index}')}")
+
+    lines.append(f"    {_element('dc:title', metadata.title, id='title')}")
+    lines.append('    <meta refines="#title" property="title-type">main</meta>')
+    if metadata.sort_title:
+        lines.append(
+            f'    <meta refines="#title" property="file-as">{escape(metadata.sort_title)}</meta>'
+        )
+    if metadata.subtitle:
+        lines.append(f"    {_element('dc:title', metadata.subtitle, id='subtitle')}")
+        lines.append('    <meta refines="#subtitle" property="title-type">subtitle</meta>')
+
+    lines.append(f"    {_element('dc:language', language)}")
+    for extra_language in metadata.languages_extra:
+        lines.append(f"    {_element('dc:language', extra_language)}")
+
+    for index, creator in enumerate(metadata.creators):
+        tag = "dc:creator" if creator.role == "aut" else "dc:contributor"
+        creator_id = f"creator-{index}"
+        lines.append(f"    {_element(tag, creator.name, id=creator_id)}")
+        lines.append(
+            f'    <meta refines="#{creator_id}" property="role" '
+            f'scheme="marc:relators">{escape(creator.role)}</meta>'
+        )
+        if creator.file_as:
+            lines.append(
+                f'    <meta refines="#{creator_id}" property="file-as">{escape(creator.file_as)}</meta>'
+            )
+
+    if metadata.publisher:
+        lines.append(f"    {_element('dc:publisher', metadata.publisher)}")
+    if metadata.published:
+        lines.append(f"    {_element('dc:date', metadata.published)}")
+    if metadata.description:
+        lines.append(f"    {_element('dc:description', metadata.description)}")
+    for subject in dict.fromkeys(metadata.subjects):
+        lines.append(f"    {_element('dc:subject', subject)}")
+    if metadata.rights:
+        lines.append(f"    {_element('dc:rights', metadata.rights)}")
+    if metadata.source:
+        lines.append(f"    {_element('dc:source', metadata.source)}")
+
+    if metadata.series:
+        lines.append(
+            f'    <meta property="belongs-to-collection" id="series">{escape(metadata.series)}</meta>'
+        )
+        lines.append('    <meta refines="#series" property="collection-type">series</meta>')
+        if metadata.series_index:
+            lines.append(
+                f'    <meta refines="#series" property="group-position">'
+                f"{escape(metadata.series_index)}</meta>"
+            )
+
+    lines.append(f'    <meta property="dcterms:modified">{escape(metadata.modified or "")}</meta>')
+
+    for key, value in book.rendition.items():
+        lines.append(f'    <meta property="rendition:{escape(key)}">{escape(value)}</meta>')
+
+    for name, content in metadata.extra_meta:
+        if name.startswith("calibre:"):
+            continue
+        lines.append(f'    <meta name={quoteattr(name)} content={quoteattr(content)}/>')
+
+    if book.cover_path:
+        # Legacy hint: EPUB 2 readers only recognise the cover this way.
+        cover_id_placeholder = "__COVER_ID__"
+        lines.append(f'    <meta name="cover" content="{cover_id_placeholder}"/>')
+    lines.append("  </metadata>")
+
+    # --- manifest -----------------------------------------------------------
+    lines.append("  <manifest>")
+    taken_ids: set[str] = {"pub-id", "title", "subtitle", "series"}
+    id_by_path: dict[str, str] = {}
+    for path in sorted(book.resources):
+        resource = book.resources[path]
+        item_id = _make_id(path, taken_ids)
+        id_by_path[path] = item_id
+        href = paths.relative(opf_path, path)
+        properties = " ".join(sorted(resource.properties)) or None
+        attributes = {
+            "id": item_id,
+            "href": href,
+            "media-type": resource.media_type,
+            "properties": properties,
+        }
+        rendered = " ".join(
+            f"{key}={quoteattr(value)}" for key, value in attributes.items() if value is not None
+        )
+        lines.append(f"    <item {rendered}/>")
+    lines.append("  </manifest>")
+
+    # --- spine --------------------------------------------------------------
+    ncx_id = id_by_path.get(book.ncx_path) if book.ncx_path else None
+    spine_attributes = f' toc={quoteattr(ncx_id)}' if ncx_id else ""
+    lines.append(f"  <spine{spine_attributes}>")
+    for item in book.spine:
+        item_id = id_by_path.get(item.path)
+        if item_id is None:
+            report.add("writer", Level.ERROR, "spine item vanished before writing", location=item.path)
+            continue
+        attributes = [f"idref={quoteattr(item_id)}"]
+        if not item.linear:
+            attributes.append('linear="no"')
+        if item.properties:
+            attributes.append(f'properties={quoteattr(" ".join(sorted(item.properties)))}')
+        lines.append(f"    <itemref {' '.join(attributes)}/>")
+    lines.append("  </spine>")
+    lines.append("</package>")
+
+    opf = "\n".join(lines) + "\n"
+    if book.cover_path:
+        cover_id = id_by_path.get(book.cover_path)
+        if cover_id:
+            opf = opf.replace("__COVER_ID__", cover_id)
+        else:
+            opf = re.sub(r'\s*<meta name="cover" content="__COVER_ID__"/>\n', "\n", opf)
+    return opf, id_by_path
+
+
+def write_epub(book: Book, destination: str, report: Report, content_dir: str = "EPUB") -> None:
+    opf_path = f"{content_dir.strip('/')}/package.opf"
+    opf, _ = build_opf(book, opf_path, report)
+
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        # OCF requires 'mimetype' to be the first entry and stored uncompressed.
+        mimetype_info = zipfile.ZipInfo("mimetype")
+        mimetype_info.compress_type = zipfile.ZIP_STORED
+        archive.writestr(mimetype_info, b"application/epub+zip")
+
+        archive.writestr("META-INF/container.xml", CONTAINER_XML.format(opf_path=opf_path))
+        archive.writestr(opf_path, opf.encode("utf-8"))
+
+        for path in sorted(book.resources):
+            resource = book.resources[path]
+            compression = (
+                zipfile.ZIP_STORED if resource.media_type in _STORE_TYPES else zipfile.ZIP_DEFLATED
+            )
+            info = zipfile.ZipInfo(path)
+            info.compress_type = compression
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, resource.data)
+
+    report.stats["output_resources"] = len(book.resources) + 3
+    report.stats["output_spine_items"] = len(book.spine)
