@@ -66,9 +66,21 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     identifier = metadata.primary_identifier
     lines: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
     language = metadata.language or "en"
+    # "schema" only became a reserved prefix in EPUB 3.3. A reader built to
+    # 3.0 or 3.1 sees an undeclared prefix in every accessibility property and
+    # may reject the package document outright — which looks to the user like a
+    # book that will not open. Declaring it is redundant under 3.3 and legal,
+    # so it costs nothing and restores those readers.
+    prefixes = []
+    if metadata.accessibility or metadata.accessibility_summary:
+        prefixes.append("schema: http://schema.org/")
+    if metadata.conforms_to:
+        prefixes.append("a11y: http://www.idpf.org/epub/vocab/package/a11y/#")
+    prefix_attribute = f" prefix={quoteattr(' '.join(prefixes))}" if prefixes else ""
+
     lines.append(
         '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
-        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}>'
+        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}{prefix_attribute}>'
     )
 
     # --- metadata -----------------------------------------------------------
@@ -136,8 +148,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
 
     lines.append(f'    <meta property="dcterms:modified">{escape(metadata.modified or "")}</meta>')
 
-    # EPUB Accessibility 1.1. "schema" and "a11y" are reserved prefixes in
-    # EPUB 3.3, so no prefix declaration is needed on the package element.
+    # EPUB Accessibility 1.1. The prefixes are declared on <package> above so
+    # that readers predating EPUB 3.3 accept these properties.
     for property_name, values in metadata.accessibility.items():
         for value in values:
             lines.append(f'    <meta property="{property_name}">{escape(value)}</meta>')
