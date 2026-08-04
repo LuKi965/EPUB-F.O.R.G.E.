@@ -174,6 +174,9 @@ def stylesheet(palette: Palette) -> str:
         border: 1px solid {p.border_strong};
         border-radius: 6px;
         padding: 6px 10px;
+        /* Without a floor the box shrinks to the font's ascent and clips the
+           descenders — which in Polish means every ą, ę and g in the label. */
+        min-height: 20px;
         selection-background-color: {p.accent};
         selection-color: {p.accent_text};
     }}

@@ -7,6 +7,46 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.7.0
+
+### Added
+- Optional reader-family compatibility profiles: `--compat kindle`, `kobo`,
+  `apple`, `legacy`, and the matching checkboxes in the interface. All off by
+  default, because the product of this tool is a standards-clean book and each
+  profile is a deliberate step away from that.
+
+  Every measure is **additive** — it adds a file, a declaration or a legacy
+  element, and never removes or rewrites what the book already had. That is the
+  admission price: a concession that could damage the book on correct software
+  would be a regression, not a concession. With all four profiles enabled the
+  output still passes EPUBCheck with zero errors and zero warnings, and a test
+  pins that.
+
+  What the measures are: the EPUB 2 `<guide>`, which is where Amazon's
+  converter and RMSDK readers look for the cover and the start-reading
+  position; a stylesheet declaring the HTML5 sectioning elements as blocks,
+  because RMSDK renders an element it does not know as inline and collapses a
+  book built from `<section>` into one running paragraph; the legacy
+  `page-break-*` spelling mirrored beside each modern `break-*` declaration;
+  and `META-INF/com.apple.ibooks.display-options.xml`, without which Apple
+  Books substitutes its own font for every embedded face.
+- `epubforge compat` prints what each profile does, why a device needs it and
+  what it costs, so `--compat` is not a guess.
+
+### Fixed
+- `minimal` mode did not do what it promised. It was documented and described
+  as leaving content files byte for byte, but the XHTML and CSS stages ran
+  regardless, so every document came back reserialised. The two stages are now
+  skipped outright in that mode — parsing a document changes its bytes even
+  when nothing about it is wrong, so the only way to keep the promise is not to
+  open the file.
+- The About dialog's logo was a blur. `QPixmap` handed a multi-size `.ico`
+  loads the *first* directory entry, which is the 16×16 one, and scaling that
+  up to a 72-point badge is exactly as bad as it sounds. It now loads the
+  256×256 PNG and renders at the display's pixel ratio.
+- Combo boxes clipped the descenders of their own labels — which in Polish
+  means every ą, ę and g.
+
 ## 0.6.0
 
 ### Changed

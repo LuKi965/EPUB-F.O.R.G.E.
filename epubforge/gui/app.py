@@ -218,6 +218,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         layout.addWidget(self._build_policy_box())
+        layout.addWidget(self._build_compat_box())
         layout.addWidget(self._build_metadata_box())
 
         self.run_button = QPushButton(tr("action.run"))
@@ -274,6 +275,34 @@ class MainWindow(QMainWindow):
         box.setChecked(checked)
         box.setEnabled(enabled)
         layout.addWidget(box)
+        return box
+
+    def _build_compat_box(self) -> QGroupBox:
+        """Opt-in concessions to particular devices — none of them on by default."""
+        box = QGroupBox(tr("compat.group"))
+        layout = QVBoxLayout(box)
+        layout.setSpacing(7)
+
+        hint = QLabel(tr("compat.hint"))
+        hint.setObjectName("sectionLabel")
+        hint.setWordWrap(True)
+        hint.setToolTip(tr("compat.hint.tip"))
+        layout.addWidget(hint)
+
+        self.compat_checks: dict[str, QCheckBox] = {}
+        for profile in ("kindle", "kobo", "apple", "legacy"):
+            self.compat_checks[profile] = self._checkbox(
+                layout, f"compat.{profile}", checked=False
+            )
+
+        # Stated in the panel rather than only in a tooltip: it is the one
+        # consequence of ticking these boxes that outlives the run.
+        note = QLabel(tr("compat.note"))
+        note.setWordWrap(True)
+        note.setStyleSheet(
+            f"color: {self.palette_colors.text_muted}; font-size: 8.5pt; font-style: italic;"
+        )
+        layout.addWidget(note)
         return box
 
     def _build_metadata_box(self) -> QGroupBox:
@@ -403,6 +432,9 @@ class MainWindow(QMainWindow):
     def _policy(self) -> Policy:
         policy = Policy.preset(self.mode_combo.currentData())
         policy.write_ncx = self.ncx_check.isChecked()
+        policy.compat_profiles = tuple(
+            name for name, box in self.compat_checks.items() if box.isChecked()
+        )
         if self.mode_combo.currentData() != "minimal":
             policy.drop_orphans = self.orphans_check.isChecked()
             policy.reorganize_files = self.layout_check.isChecked()

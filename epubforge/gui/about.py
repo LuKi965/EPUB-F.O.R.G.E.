@@ -63,21 +63,50 @@ class AboutDialog(QDialog):
         buttons.accepted.connect(self.accept)
         layout.addWidget(buttons)
 
+    #: Logical size of the logo in the header.
+    BADGE = 72
+
+    def _badge(self) -> QLabel | None:
+        """The logo, drawn sharp at whatever the screen's pixel ratio is.
+
+        Two things went wrong here before and both are fixed by construction.
+        ``QPixmap`` given a multi-size ``.ico`` loads the *first* entry — the
+        16×16 one — so blowing it up to badge size produced a blur; asking
+        :func:`resources.app_image` for the single 256×256 PNG avoids that.
+        And scaling to logical pixels throws away half the detail on a HiDPI
+        display, so the bitmap is rendered at the device ratio and then told
+        what ratio it was rendered at.
+        """
+        icon_path = resources.app_image()
+        if icon_path is None:
+            return None
+        pixmap = QPixmap(str(icon_path))
+        if pixmap.isNull():
+            return None
+
+        ratio = max(1.0, self.devicePixelRatioF())
+        scaled = pixmap.scaled(
+            round(self.BADGE * ratio),
+            round(self.BADGE * ratio),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        scaled.setDevicePixelRatio(ratio)
+
+        badge = QLabel()
+        badge.setPixmap(scaled)
+        badge.setFixedSize(self.BADGE, self.BADGE)
+        badge.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        return badge
+
     def _header(self, colors: theme.Palette) -> QHBoxLayout:
         row = QHBoxLayout()
-        row.setSpacing(14)
+        row.setSpacing(16)
 
-        icon_path = resources.app_icon()
-        if icon_path is not None:
-            badge = QLabel()
-            pixmap = QPixmap(str(icon_path))
-            if not pixmap.isNull():
-                badge.setPixmap(
-                    pixmap.scaled(
-                        64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                    )
-                )
-            badge.setFixedSize(64, 64)
+        # Nothing is reserved when there is no icon to draw — an empty 72-pixel
+        # gutter looks like a failed image, which is worse than no image.
+        badge = self._badge()
+        if badge is not None:
             row.addWidget(badge, alignment=Qt.AlignTop)
 
         text = QVBoxLayout()

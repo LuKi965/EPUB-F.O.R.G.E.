@@ -7,11 +7,15 @@ Order is load-bearing:
   is what freezes the final path map;
 * structure before content — href rewriting needs that map;
 * navigation before accessibility — the latter counts what the former built;
-* accessibility last — it measures the finished book and must not guess.
+* accessibility before compatibility — it must measure the book proper, not the
+  device concessions layered on top of it;
+* compatibility last — every measure there is a step away from the standard,
+  taken for a named device, and nothing earlier should have to know about it.
 """
 
 from .accessibility import AccessibilityStage
 from .base import Context, Stage
+from .compat import CompatibilityStage
 from .content import ContentStage, StyleStage
 from .fonts import FontStage
 from .images import ImageStage
@@ -28,6 +32,7 @@ DEFAULT_STAGES = (
     StyleStage,
     NavigationStage,
     AccessibilityStage,
+    CompatibilityStage,
 )
 
 __all__ = [
@@ -42,4 +47,5 @@ __all__ = [
     "StyleStage",
     "NavigationStage",
     "AccessibilityStage",
+    "CompatibilityStage",
 ]

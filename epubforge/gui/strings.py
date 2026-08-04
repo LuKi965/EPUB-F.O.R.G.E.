@@ -118,6 +118,51 @@ PL: dict[str, str] = {
         "wskaż plik epubcheck.jar zmienną EPUBCHECK_JAR."
     ),
 
+    # --- reader compatibility -------------------------------------------
+    "compat.group": "Zgodność z czytnikami (opcjonalne)",
+    "compat.hint": "Ustępstwa na rzecz konkretnych urządzeń:",
+    "compat.hint.tip": (
+        "Domyślnie żadne z nich nie jest włączone, bo wynikiem tego narzędzia jest "
+        "książka zgodna ze standardem, a każde z tych ustępstw jest krokiem w bok.\n\n"
+        "Wszystkie są wyłącznie dokładające: dopisują plik, deklarację albo stary "
+        "element. Żadne nic nie usuwa ani nie przepisuje tego, co już w książce było, "
+        "i żadne nie zmienia wyglądu na czytniku trzymającym się standardu."
+    ),
+    "compat.kindle": "Kindle (Amazon)",
+    "compat.kindle.tip": (
+        "Dokłada element <guide>, po którym konwerter Amazona odnajduje okładkę i "
+        "miejsce rozpoczęcia lektury, arkusz deklarujący elementy HTML5 jako blokowe "
+        "oraz starą pisownię właściwości łamania stron obok nowej.\n\n"
+        "Jeśli okładka jest zawinięta w SVG, dostaniesz uwagę w raporcie: Kindle radzi "
+        "sobie z tym słabo, ale rozwinięcie tego zmieniłoby układ na każdym innym "
+        "czytniku, więc narzędzie tego nie rusza."
+    ),
+    "compat.kobo": "Kobo",
+    "compat.kobo.tip": (
+        "Pilnuje obecności NCX, dokłada <guide> i arkusz z blokowymi elementami HTML5.\n\n"
+        "Dotyczy sytuacji, w której Kobo czyta EPUB-a wprost, a nie przekonwertowanego "
+        "do KEPUB-a. To nie jest lekarstwo na czytnik, który w ogóle odmawia otwarcia "
+        "pliku — taka usterka leży gdzie indziej."
+    ),
+    "compat.apple": "Apple Books",
+    "compat.apple.tip": (
+        "Dokłada plik META-INF/com.apple.ibooks.display-options.xml.\n\n"
+        "Bez niego Apple Books ignoruje wszystkie osadzone kroje pisma i podstawia "
+        "własny. Plik powstaje tylko wtedy, gdy książka faktycznie zawiera czcionki — "
+        "w przeciwnym razie deklarowałby coś, czego nie ma."
+    ),
+    "compat.legacy": "Starsze czytniki (Adobe RMSDK)",
+    "compat.legacy.tip": (
+        "PocketBook, Nook, Sony, starsze Kobo i Onyx. Wszystkie powyższe ustępstwa "
+        "naraz: NCX, <guide>, blokowe elementy HTML5 i stara pisownia łamania stron.\n\n"
+        "Te czytniki renderują nieznany element jako liniowy, przez co książka "
+        "zbudowana z <section> zlewa się w jeden ciągły akapit."
+    ),
+    "compat.note": (
+        "Element <guide> nie należy już do EPUB 3.3 — EPUBCheck wciąż go akceptuje, "
+        "więc plik pozostaje poprawny, ale niesie coś, co standard porzucił."
+    ),
+
     # --- metadata overrides ---------------------------------------------
     "meta.group": "Nadpisanie metadanych (opcjonalne)",
     "meta.placeholder": "zostaw puste — użyj tego, co jest w książce",
@@ -280,6 +325,51 @@ EN: dict[str, str] = {
         "EPUBCheck was not found.\n\nThe installed build bundles it. Running from source, "
         "point EPUBCHECK_JAR at epubcheck.jar."
     ),
+    "compat.group": "Reader compatibility (optional)",
+    "compat.hint": "Concessions to particular devices:",
+    "compat.hint.tip": (
+        "All off by default, because the product of this tool is a standards-clean "
+        "book and each of these steps away from it.\n\n"
+        "Every one is additive: it adds a file, a declaration or a legacy element. "
+        "None removes or rewrites what the book already had, and none changes how a "
+        "reader that follows the specification renders it."
+    ),
+    "compat.kindle": "Kindle (Amazon)",
+    "compat.kindle.tip": (
+        "Adds the <guide> element Amazon's converter uses to find the cover and the "
+        "start-reading position, a stylesheet declaring the HTML5 sectioning elements "
+        "as blocks, and the legacy spelling of the page-break properties beside the "
+        "modern one.\n\n"
+        "If the cover is wrapped in SVG you get a note in the report: Kindle handles "
+        "that poorly, but unwrapping it would change the layout on every other reader, "
+        "so the tool leaves it alone."
+    ),
+    "compat.kobo": "Kobo",
+    "compat.kobo.tip": (
+        "Insists on the NCX, adds <guide> and the HTML5 block stylesheet.\n\n"
+        "For Kobo reading the EPUB directly rather than a converted KEPUB. It is not a "
+        "cure for a device that refuses to open a file at all — that fault lies "
+        "elsewhere."
+    ),
+    "compat.apple": "Apple Books",
+    "compat.apple.tip": (
+        "Adds META-INF/com.apple.ibooks.display-options.xml.\n\n"
+        "Without it Apple Books ignores every embedded face and substitutes its own. "
+        "Written only when the book actually embeds fonts — otherwise it would declare "
+        "something that is not there."
+    ),
+    "compat.legacy": "Older readers (Adobe RMSDK)",
+    "compat.legacy.tip": (
+        "PocketBook, Nook, Sony, older Kobo and Onyx. Everything above at once: NCX, "
+        "<guide>, HTML5 block declarations and the legacy page-break spelling.\n\n"
+        "These renderers treat an element they do not know as inline, which collapses "
+        "a book built from <section> into one running paragraph."
+    ),
+    "compat.note": (
+        "<guide> is no longer part of EPUB 3.3. EPUBCheck still accepts it, so the file "
+        "stays valid, but it carries something the specification dropped."
+    ),
+
     "meta.group": "Metadata overrides (optional)",
     "meta.placeholder": "leave empty — keep what the book has",
     "meta.title": "Title",

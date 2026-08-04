@@ -115,6 +115,18 @@ class ContentStage(Stage):
         self._watermark_notices: list[str] = []
 
     def run(self, ctx: Context) -> None:
+        if not ctx.policy.rewrite_content:
+            # Container-only rebuild. Parsing and reserialising a document
+            # changes its bytes even when nothing about it is wrong, so the way
+            # to keep that promise is not to open them at all.
+            self.note(
+                ctx,
+                Level.INFO,
+                "content documents left untouched; only the container was rebuilt",
+                detail="Every XHTML file comes out byte for byte as it went in.",
+            )
+            return
+
         documents: list[tuple[object, object, dict[str, str]]] = []
 
         for resource in ctx.book.content_docs():
@@ -875,6 +887,8 @@ class StyleStage(Stage):
     name = "css"
 
     def run(self, ctx: Context) -> None:
+        if not ctx.policy.rewrite_content:
+            return
         self._add_watermark_rule(ctx)
         for resource in ctx.book.by_type("style"):
             source_path = resource.original_path or resource.path

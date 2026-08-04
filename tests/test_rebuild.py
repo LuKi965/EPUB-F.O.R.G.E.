@@ -7,6 +7,8 @@ import zipfile
 import pytest
 from lxml import etree
 
+from epubforge.pipeline import rebuild
+from epubforge.policy import Policy
 from epubforge.report import Level
 
 OPF_PATH = "EPUB/package.opf"
@@ -696,3 +698,30 @@ def test_rebuild_is_idempotent(rebuilt, tmp_path):
         first_names = set(archive.namelist())
     assert names == first_names
     assert second.report.count(Level.ERROR) == 0
+
+
+# --------------------------------------------------------------- minimal mode
+def test_minimal_mode_leaves_content_files_byte_identical(legacy_epub, tmp_path):
+    """The mode's whole promise. Parsing and reserialising would break it."""
+    result = rebuild(legacy_epub, str(tmp_path / "minimal.epub"), Policy.preset("minimal"))
+    assert result.output_path, result.report.to_text()
+
+    with zipfile.ZipFile(legacy_epub) as source, zipfile.ZipFile(result.output_path) as output:
+        original = set(source.namelist())
+        # Content documents and stylesheets are what the promise covers. Fonts
+        # are excluded on purpose: deobfuscation is its own policy switch, and
+        # an obfuscated font is a container defect rather than content.
+        shared = [
+            name
+            for name in output.namelist()
+            if name in original and name.endswith((".xhtml", ".html", ".htm", ".css"))
+        ]
+        assert shared, "the fixture shares no files with its rebuild"
+        for name in shared:
+            assert source.read(name) == output.read(name), name
+
+
+def test_minimal_mode_still_produces_a_navigation_document(legacy_epub, tmp_path):
+    result = rebuild(legacy_epub, str(tmp_path / "minimal.epub"), Policy.preset("minimal"))
+    with zipfile.ZipFile(result.output_path) as archive:
+        assert any(name.endswith("nav.xhtml") for name in archive.namelist())

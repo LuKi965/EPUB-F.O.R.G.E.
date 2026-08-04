@@ -43,6 +43,11 @@ class Policy:
     #: Transcode non-core image formats (WebP, BMP, TIFF) to PNG.
     transcode_images: bool = True
 
+    #: Normalise the XHTML and CSS inside the book. Off only in ``minimal``,
+    #: where the promise is that content files come out byte for byte as they
+    #: went in and just the container is regenerated.
+    rewrite_content: bool = True
+
     #: Drop scripting. Off by default: some fixed-layout books need it.
     strip_scripts: bool = False
 
@@ -61,6 +66,11 @@ class Policy:
     #: Accessibility Act the claim is the publisher's to make, not the tool's.
     claim_conformance: str | None = None
 
+    #: Reader-family compatibility profiles to apply — see :mod:`epubforge.compat`.
+    #: Empty by default: the standards-clean output is the product, and every
+    #: profile is a concession to a device that does not follow it.
+    compat_profiles: tuple[str, ...] = ()
+
     #: Force a language tag when the source has none or an invalid one.
     default_language: str = "en"
 
@@ -74,12 +84,15 @@ class Policy:
         elif name == "preserve":
             base = cls(strict=False)
         elif name == "minimal":
-            # Container-only rebuild: keep content files byte-identical.
+            # Container-only rebuild: content files come out byte-identical.
+            # Nothing here may rename a file either, or the untouched documents
+            # would be left pointing at paths that no longer exist.
             base = cls(
                 strict=False,
                 reorganize_files=False,
                 transcode_images=False,
                 drop_orphans=False,
+                rewrite_content=False,
             )
         else:
             raise ValueError(f"unknown policy preset: {name!r}")
