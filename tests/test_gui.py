@@ -99,6 +99,28 @@ class TestPanels:
         for control in (panel.survey_choice, panel.inventory_choice, panel.with_names):
             assert control.toolTip(), control.text()
 
+    def test_switching_measurement_withdraws_the_previous_result(self, window):
+        """Save wrote whatever the last run produced, under whatever name the
+        radio buttons currently said. Running a survey, switching to inventory
+        and pressing Save handed over the survey called `spis.json`."""
+        panel = self._panel(window, 1)
+        panel._payload = '{"pretend": "survey"}'
+        panel.save_button.setEnabled(True)
+
+        panel.inventory_choice.setChecked(True)
+
+        assert not panel.save_button.isEnabled()
+        assert not panel._payload
+
+    def test_changing_the_folder_withdraws_it_too(self, window):
+        panel = self._panel(window, 1)
+        panel._payload = '{"pretend": "survey"}'
+        panel.save_button.setEnabled(True)
+
+        panel.folder.setText("/inna/polka")
+
+        assert not panel.save_button.isEnabled()
+
     def test_the_corpus_panel_takes_two_folders(self, window):
         panel = self._panel(window, 2)
         assert panel.books is not None and panel.signatures is not None

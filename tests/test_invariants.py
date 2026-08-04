@@ -223,6 +223,21 @@ def test_frozen_modified_makes_the_whole_file_reproducible(legacy_epub, tmp_path
     assert digest(one.output_path) == digest(two.output_path)
 
 
+def test_the_zip_does_not_record_which_system_built_it(legacy_epub, tmp_path):
+    """K2 across machines, not only across runs.
+
+    `zipfile` stamps every entry with its host system — 0 on Windows, 3
+    elsewhere — so one book built in two places produced different bytes and an
+    identical rendering. Nobody would ever have noticed except through a corpus
+    signature recorded on one machine and checked on another, which is the
+    normal case: it made every book in a shared corpus look changed.
+    """
+    result = rebuild(legacy_epub, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+    with zipfile.ZipFile(result.output_path) as archive:
+        systems = {info.create_system for info in archive.infolist()}
+    assert systems == {3}, systems
+
+
 # ------------------------------------------------------------------------ K3
 def test_second_pass_changes_nothing_but_the_timestamp(legacy_epub, tmp_path):
     """K3. Idempotence at the level of file *contents*, not of file names.

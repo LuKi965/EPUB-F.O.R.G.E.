@@ -46,6 +46,36 @@ def normalise(message: str) -> str:
     return _NUMBER_RE.sub("N", _QUOTED_RE.sub("…", message)).strip()
 
 
+#: Anything with a path separator in it. An exception message often quotes the
+#: file it failed on, and that filename is the one thing a survey promises not
+#: to carry.
+_PATHLIKE_RE = re.compile(r"(?:[A-Za-z]:)?[^\s'\"]*[\\/][^\s'\"]*")
+
+
+def redact(reason: str) -> str:
+    """A failure message with any path taken out of it."""
+    return _PATHLIKE_RE.sub("…", reason).strip()
+
+
+def _reasons(entries: list[tuple[str, str]], *, with_names: bool) -> list[dict]:
+    """Group failures by what went wrong, and count them.
+
+    Two books failing the same way is one problem, not two, and the grouping
+    says which. Names ride along only when they were asked for.
+    """
+    grouped: dict[str, list[str]] = {}
+    for name, reason in entries:
+        grouped.setdefault(redact(reason), []).append(name)
+    return [
+        {
+            "reason": reason,
+            "books": len(names),
+            **({"examples": sorted(names)[:3]} if with_names else {}),
+        }
+        for reason, names in sorted(grouped.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    ]
+
+
 @dataclass
 class Finding:
     stage: str
@@ -76,11 +106,25 @@ class Survey:
 
     def to_dict(self, *, with_names: bool) -> dict:
         return {
-            "schema": 1,
+            "schema": 2,
             "books": self.books,
             "unreadable": len(self.unreadable),
             "crashed": len(self.crashed),
             "drm": len(self.drm),
+            # A count on its own is unusable: "crashed: 3" says something is
+            # wrong and gives nobody a way to find out what. The reason is the
+            # part worth having, and it is not private the way a title is —
+            # so the reasons travel and the filenames still do not.
+            **(
+                {"crash_reasons": _reasons(self.crashed, with_names=with_names)}
+                if self.crashed
+                else {}
+            ),
+            **(
+                {"unreadable_reasons": _reasons(self.unreadable, with_names=with_names)}
+                if self.unreadable
+                else {}
+            ),
             "source_versions": dict(self.source_versions.most_common()),
             "findings": [
                 {

@@ -60,9 +60,18 @@ def identifier_for(book: pathlib.Path) -> str:
 
 
 def books_in(folder: pathlib.Path) -> list[pathlib.Path]:
+    """Every book under *folder*, subfolders included.
+
+    Libraries are filed — by author, by series, by shop — and a corpus that
+    only read the top level silently measured one book out of a shelf of
+    hundreds while reporting success. The survey has always walked the tree;
+    this now agrees with it.
+    """
     if not folder.is_dir():
         return []
-    return sorted(p for p in folder.glob("*.epub") if p.is_file())
+    return sorted(
+        p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() == ".epub"
+    )
 
 
 def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
@@ -87,9 +96,13 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
 
     before = inventory_measure(book).fields
     after = inventory_measure(output).fields
-    measurement["text_characters"] = after.get("text_characters", 0)
-    measurement["text_invariant"] = before.get("text_characters") == after.get(
-        "text_characters"
+    # Spine text only. The rebuild generates a navigation document when the
+    # source had none, and its chapter titles are text — counting them made
+    # every EPUB 2 book in a corpus report that its text had changed, which is
+    # the one thing this field exists to be believed about.
+    measurement["text_characters"] = after.get("spine_text_characters", 0)
+    measurement["text_invariant"] = before.get("spine_text_characters") == after.get(
+        "spine_text_characters"
     )
     # K1 compares a stream of characters and cannot see two paragraphs merged
     # into one. Recording the count gives that change its own line in the diff.
@@ -145,8 +158,11 @@ def compare(
 
     with tempfile.TemporaryDirectory(prefix="epubforge-corpus-") as scratch:
         for index, book in enumerate(books_in(books)):
+            # Relative to the corpus root: two shelves may hold a file of the
+            # same name, and "changed: ksiazka.epub" would then be ambiguous.
+            label = str(book.relative_to(books)) if book.is_relative_to(books) else book.name
             if on_book is not None:
-                on_book(index, book.name)
+                on_book(index, label)
 
             identifier = identifier_for(book)
             reference = signatures / f"{identifier}.json"
@@ -160,7 +176,7 @@ def compare(
                 current = signature(book, pathlib.Path(scratch))
             except Exception as exc:  # noqa: BLE001 — one bad book is a finding
                 results.append(
-                    Comparison(book.name, identifier, "failed", [f"{type(exc).__name__}: {exc}"])
+                    Comparison(label, identifier, "failed", [f"{type(exc).__name__}: {exc}"])
                 )
                 continue
 
@@ -175,7 +191,7 @@ def compare(
                     json.dumps(current, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
                 )
-            results.append(Comparison(book.name, identifier, status, changes))
+            results.append(Comparison(label, identifier, status, changes))
     return results
 
 

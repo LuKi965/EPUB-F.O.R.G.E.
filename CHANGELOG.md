@@ -23,6 +23,61 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.5 — pre-alpha
+
+Everything here came out of one afternoon's data from somebody else's shelf: a
+65-book survey, an inventory, one corpus signature and five EPUBs. Nothing in
+this release was found by the test suite.
+
+### Fixed
+- **A cover that was already centred got "centred" anyway — and a cover the
+  publisher had aligned on purpose got overruled.** `text-align` and
+  `text-indent` are inherited, and the repair only ever looked at the paragraph
+  itself. A page built as `body.cover { text-align: center }` around a bare
+  `<div><img/></div>` shows nothing on the `<div>`, so the tool concluded
+  nobody had chosen an alignment and wrote its own — a reported fix that
+  changed nothing. The same blindness runs the other way and is the reason this
+  is a defect rather than noise: a rule naming the container is a decision
+  about the image inside it, and it was being overwritten. Both properties now
+  resolve along the ancestor chain, and a decision made a level up counts as a
+  decision. Where the alignment was chosen but a running-text indent still
+  leaks in, only the indent is removed, and that is reported as what it is.
+- **`text_invariant` in a corpus signature was false on books whose text was
+  untouched.** The rebuild generates the navigation document EPUB 3 requires,
+  and that document is a list of chapter titles — text, to anything counting
+  characters across content documents. Every EPUB 2 book in a corpus therefore
+  reported that its text had changed. The comparison is now over spine
+  documents only, which is what K1 has always meant.
+- **The same book built on Windows and on Linux came out with different
+  bytes.** `zipfile` stamps every entry with the system it ran on — 0 for
+  Windows, 3 for everything else — in both the local header and the central
+  directory. Nothing about the book differed; every file inside was identical.
+  It surfaced the only way it could: a corpus signature recorded on one machine
+  and checked on another reported that the output had changed, for every book,
+  forever. Proven rather than guessed — forcing the field to 0 here reproduces
+  the Windows hash exactly, in both modes. Now pinned to 3, matching the Unix
+  permission bits the writer already sets.
+
+  **Signatures recorded on Windows before 0.1.5 will show `output` changed
+  once.** That change is this fix and nothing else.
+- **The corpus read only the top level of a folder.** Libraries are filed in
+  subfolders, so a shelf of hundreds was measured as one book and reported as a
+  success. The survey has always walked the tree; the corpus now agrees with
+  it, and books are labelled by their path so two shelves may hold the same
+  filename.
+- **Save in the library tab wrote the previous result under the new name.**
+  Running a survey, switching to inventory and pressing Save produced the
+  survey called `spis.json`. Changing anything that would alter the answer now
+  withdraws the old one.
+
+### Changed
+- A survey reports **why** books failed, not just how many. `crashed: 3` with
+  nothing else is an alarm nobody can act on. Reasons are grouped by what went
+  wrong and counted; paths are stripped out of them, and filenames still travel
+  only with `--with-names`. The window shows them too, which is where they were
+  missing.
+- `schema` in a survey JSON is now `2`.
+
 ## 0.1.4 — pre-alpha
 
 ### Fixed

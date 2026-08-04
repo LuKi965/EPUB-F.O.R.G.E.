@@ -171,6 +171,18 @@ class Panel(QWidget):
     def handle(self, result) -> None:  # pragma: no cover - overridden
         raise NotImplementedError
 
+    def invalidate(self) -> None:
+        """Forget a result that no longer describes what the panel is set to.
+
+        Saving is offered separately from running, so the two can drift: pick
+        survey, run it, switch to inventory, press Save, and out comes the
+        survey under the inventory's name. It looked like a bug in the
+        inventory and was a bug in this button.
+        """
+        self._payload = ""
+        if hasattr(self, "save_button"):
+            self.save_button.setEnabled(False)
+
     def save_payload(self, suggestion: str) -> None:
         if not self._payload:
             return
@@ -206,6 +218,13 @@ class LibraryPanel(Panel):
         self.with_names = QCheckBox(tr("library.withnames"))
         self.with_names.setToolTip(tr("library.withnames.tip"))
         self.layout_.addWidget(self.with_names)
+
+        # Anything that changes what a run would produce invalidates the last
+        # one, so Save cannot offer yesterday's answer under today's question.
+        for widget in (self.survey_choice, self.inventory_choice):
+            widget.toggled.connect(lambda _checked: self.invalidate())
+        self.with_names.toggled.connect(lambda _checked: self.invalidate())
+        self.folder.textChanged.connect(lambda _text: self.invalidate())
 
         buttons = QWidget()
         row = QHBoxLayout(buttons)
@@ -279,10 +298,17 @@ class LibraryPanel(Panel):
         versions = ", ".join(f"{v}: {n}" for v, n in survey.source_versions.most_common())
         if versions:
             lines.append(f"wersje źródła: {versions}")
-        if survey.unreadable:
-            lines.append(f"nieodczytanych: {len(survey.unreadable)}")
-        if survey.crashed:
-            lines.append(f"awarii etapu: {len(survey.crashed)}")
+        # The reason, not just the count. "awarii etapu: 3" on screen and
+        # nothing else is a dead end for whoever has the three books.
+        for label, entries in (
+            ("nieodczytanych", survey.unreadable),
+            ("awarii etapu", survey.crashed),
+        ):
+            if not entries:
+                continue
+            lines.append(f"{label}: {len(entries)}")
+            for name, reason in entries[:5]:
+                lines.append(f"    {name}: {reason}")
         if survey.drm:
             lines.append(f"z DRM (odrzucone): {len(survey.drm)}")
         lines += ["", f"{'ksiąg':>6} {'razem':>6}  {'poziom':<10} {'etap':<14} znalezisko", ""]

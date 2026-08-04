@@ -112,14 +112,25 @@ zostanie wycentrowany, czytana jest kaskada CSS:
 
 - `p.ilustracja { text-align: right }` — reguła celuje w ten akapit klasą, więc
   jest **decyzją o tym obrazku**. Zostaje.
+- `body.cover { text-align: center }` — reguła celuje w pojemnik, a wyrównanie
+  jest dziedziczone. To wciąż decyzja o tym, gdzie stoi ta grafika, więc też
+  zostaje; obraz **już jest** wyśrodkowany i dopisywanie czegokolwiek byłoby
+  meldunkiem o pracy, której nie wykonano.
 - `p { text-align: justify }` — reguła pisana pod prozę, która przypadkiem
   spadła na grafikę przez dziedziczenie. Akapit jest z niej wyłączany.
 - styl inline — zawsze respektowany.
 - selektor zbyt złożony, żeby go jednoznacznie odczytać — traktowany jak
   celowany. Przy niepewności narzędzie **nie rusza**.
 
+Obie właściwości — `text-align` i `text-indent` — są dziedziczone, więc
+rozstrzyga je najbliższy przodek, który cokolwiek o nich mówi. Bywa, że
+wyrównanie było wyborem, a wcięcie akapitowe wsiąkło z reguły o tekście
+ciągłym: wtedy znika samo wcięcie, a wyrównanie zostaje takie, jakie było.
+
 Dlatego książki, które stylują swoje ilustracje świadomie, wychodzą nietknięte,
 a poprawiane są tylko strony, na których o wyrównaniu nie zdecydował nikt.
+W przeglądzie 65 książek reguła zostawiła układ w spokoju 485 razy, a ruszyła
+54 — dziewięć razy częściej nie robi nic, niż robi cokolwiek.
 
 ---
 
@@ -519,7 +530,7 @@ To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
 wersję:
 
 ```
-epub-forge 0.1.4 (pre-alpha)
+epub-forge 0.1.5 (pre-alpha)
 ```
 
 Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —

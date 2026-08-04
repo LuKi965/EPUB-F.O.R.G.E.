@@ -97,8 +97,50 @@ class TestPrivacy:
 
     def test_the_json_declares_its_schema(self, library):
         payload = json.loads(to_json(survey_library(library, deep=False)))
-        assert payload["schema"] == 1
+        assert payload["schema"] == 2
         assert set(payload) >= {"books", "unreadable", "findings", "source_versions"}
+
+
+class TestFailuresExplainThemselves:
+    """A survey came back with `crashed: 3` and no way to learn anything more.
+
+    The count is the alarm; the reason is the only part anybody can act on. It
+    travels because a stack trace says nothing about a shelf — but the filename
+    it happened on does, so that stays behind unless it was asked for.
+    """
+
+    def test_the_reason_is_recorded_not_just_the_count(self, library):
+        payload = json.loads(to_json(survey_library(library, deep=False)))
+        assert payload["unreadable"] == 1
+        reasons = payload["unreadable_reasons"]
+        assert reasons and reasons[0]["books"] == 1
+        assert reasons[0]["reason"]
+
+    def test_identical_failures_are_grouped(self, tmp_path):
+        folder = tmp_path / "bad"
+        folder.mkdir()
+        for index in range(3):
+            (folder / f"broken{index}.epub").write_bytes(b"this is not a zip")
+        payload = json.loads(
+            to_json(survey_library([str(p) for p in sorted(folder.glob("*.epub"))]))
+        )
+        assert len(payload["unreadable_reasons"]) == 1
+        assert payload["unreadable_reasons"][0]["books"] == 3
+
+    def test_a_path_inside_the_message_is_taken_out(self):
+        from epubforge.survey import redact
+
+        redacted = redact("failed on C:\\Users\\Ktos\\Ebooki\\Tytul.epub while parsing")
+        assert "Tytul" not in redacted
+        assert "while parsing" in redacted
+
+    def test_the_names_still_need_asking_for(self, library):
+        payload = json.loads(to_json(survey_library(library, deep=False)))
+        assert "broken.epub" not in json.dumps(payload)
+        with_names = json.loads(
+            to_json(survey_library(library, deep=False, with_names=True), with_names=True)
+        )
+        assert "broken.epub" in json.dumps(with_names)
 
 
 def test_levels_survive_into_the_summary(library):
