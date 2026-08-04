@@ -21,7 +21,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -37,6 +39,7 @@ from ..report import Level, Report
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog
+from .tabs import CorpusPanel, LibraryPanel
 from .strings import LANGUAGES, language, set_language, tr
 
 LEVEL_KEYS = {
@@ -104,7 +107,21 @@ class MainWindow(QMainWindow):
         self.restart_requested = False
         self.palette_colors = palette or theme.LIGHT
         self.setWindowTitle(tr("window.title", version=version_string()))
-        self.resize(1180, 760)
+        # A fixed 1180×760 is a comfortable size on the machine it was written
+        # on and an unusable one on a 1366×768 laptop, where it opens taller
+        # than the screen. Ask for four fifths of the available desktop instead,
+        # capped so it does not sprawl on a large monitor, and set a floor low
+        # enough that the layout still works at the bottom of that range.
+        self.setMinimumSize(880, 560)
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            self.resize(
+                min(1280, int(available.width() * 0.8)),
+                min(860, int(available.height() * 0.85)),
+            )
+        else:  # pragma: no cover - only when Qt reports no screen at all
+            self.resize(1100, 720)
         self.setAcceptDrops(True)
 
         self._sources: list[str] = []
@@ -120,37 +137,68 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- layout
     def _build_ui(self) -> None:
-        central = QWidget()
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(14, 10, 14, 10)
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.addTab(self._build_rebuild_tab(), tr("tab.rebuild"))
+        self.tabs.addTab(LibraryPanel(self.palette_colors), tr("tab.library"))
+        self.tabs.addTab(CorpusPanel(self.palette_colors), tr("tab.corpus"))
+        self.tabs.currentChanged.connect(self._tab_changed)
+        self.setCentralWidget(self.tabs)
+        self._tab_changed(0)
+
+    def _tab_changed(self, index: int) -> None:
+        """The status line belongs to the tab, not to the window.
+
+        "Drop EPUB files anywhere in this window" is good advice on the rebuild
+        tab and simply untrue on the other two, which take a folder.
+        """
+        if index == 0:
+            hint = tr("status.hint")
+            if not self._epubcheck:
+                hint = f"{hint}   ·   {tr('status.hint.nocheck')}"
+        else:
+            hint = tr("library.intro") if index == 1 else tr("corpus.intro")
+        self.statusBar().showMessage(hint)
+
+    def _build_rebuild_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 12, 14, 10)
         layout.setSpacing(10)
 
         layout.addWidget(self._build_source_row())
 
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self._build_table())
-        splitter.addWidget(self._build_side_panel())
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([720, 440])
-        layout.addWidget(splitter, stretch=3)
+        # Vertical first: the queue and its report belong together, and giving
+        # the options their own column at every width is what left a third of
+        # the window empty on the screenshot that started this.
+        work = QSplitter(Qt.Vertical)
+        work.addWidget(self._build_table())
+        work.addWidget(self._build_report_view())
+        work.setStretchFactor(0, 3)
+        work.setStretchFactor(1, 2)
+        work.setChildrenCollapsible(False)
 
-        self.report_view = QTextEdit()
-        self.report_view.setReadOnly(True)
-        self.report_view.setFont(QFont("Cascadia Mono, Consolas, monospace", 9))
-        self.report_view.setPlaceholderText(tr("report.placeholder"))
-        layout.addWidget(self.report_view, stretch=2)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(work)
+        splitter.addWidget(self._build_side_panel())
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setChildrenCollapsible(False)
+        layout.addWidget(splitter, stretch=1)
 
         self.progress = QProgressBar()
         self.progress.setVisible(False)
         self.progress.setTextVisible(False)
         layout.addWidget(self.progress)
+        return page
 
-        self.setCentralWidget(central)
-        hint = tr("status.hint")
-        if not self._epubcheck:
-            hint = f"{hint}   ·   {tr('status.hint.nocheck')}"
-        self.statusBar().showMessage(hint)
+    def _build_report_view(self) -> QWidget:
+        self.report_view = QTextEdit()
+        self.report_view.setReadOnly(True)
+        self.report_view.setFont(QFont("Cascadia Mono, Consolas, monospace", 9))
+        self.report_view.setPlaceholderText(tr("report.placeholder"))
+        self.report_view.setMinimumHeight(120)
+        return self.report_view
 
     def _build_source_row(self) -> QWidget:
         row = QWidget()
@@ -212,23 +260,46 @@ class MainWindow(QMainWindow):
         return self.table
 
     def _build_side_panel(self) -> QWidget:
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
+        """The options, in a column that scrolls rather than being cut off.
+
+        Three stacked cards plus a button need more height than a 768-pixel
+        laptop has once the title bar, the tab strip and the status bar are
+        taken out. Without the scroll area the bottom card simply vanishes, and
+        the run button with it.
+        """
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(0, 0, 4, 0)
         layout.setSpacing(10)
 
         layout.addWidget(self._build_policy_box())
         layout.addWidget(self._build_compat_box())
         layout.addWidget(self._build_metadata_box())
+        layout.addStretch(1)
+
+        scroller = QScrollArea()
+        scroller.setWidget(inner)
+        scroller.setWidgetResizable(True)
+        scroller.setFrameShape(QScrollArea.NoFrame)
+        scroller.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        panel = QWidget()
+        column = QVBoxLayout(panel)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(10)
+        column.addWidget(scroller, stretch=1)
 
         self.run_button = QPushButton(tr("action.run"))
         self.run_button.setObjectName("primary")
         self.run_button.setToolTip(tr("action.run.tip"))
         self.run_button.setMinimumHeight(42)
         self.run_button.clicked.connect(self._run)
-        layout.addWidget(self.run_button)
+        column.addWidget(self.run_button)
 
-        layout.addStretch(1)
+        # Wide enough for the longest option label, narrow enough to leave the
+        # queue the majority of any window.
+        panel.setMinimumWidth(330)
+        panel.setMaximumWidth(460)
         return panel
 
     def _build_policy_box(self) -> QGroupBox:
@@ -594,7 +665,8 @@ def run(argv: list[str] | None = None) -> int:
 
     app = QApplication(argv)
     app.setApplicationName("EPUB F.O.R.G.E.")
-    app.setApplicationDisplayName("EPUB F.O.R.G.E.")
+    # Not setApplicationDisplayName: Qt appends it to every window title, and
+    # the result read "EPUB F.O.R.G.E. 0.1.1 (pre-alpha) - EPUB F.O.R.G.E.".
     app.setStyle("Fusion")
 
     icon_path = resources.app_icon()

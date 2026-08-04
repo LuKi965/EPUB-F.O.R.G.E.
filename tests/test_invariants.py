@@ -122,10 +122,16 @@ def body_text(path: str) -> str:
     and reported false differences, because `text_content()` pulls in `<title>`
     from the head — and the rebuild writes the chapter title there.
     """
+    from epubforge import xhtml as xhtml_module
+
     parts: list[str] = []
     with zipfile.ZipFile(path) as archive:
         for name in spine_documents(archive):
-            document = lxml.html.fromstring(archive.read(name))
+            # The DOCTYPE goes first. `lxml.html` loses its footing on an
+            # internal subset: it fails to find `<body>` and hands back the
+            # stray `]>` as text, so a source document carrying one compares
+            # unequal to its own rebuild over punctuation rather than content.
+            document = lxml.html.fromstring(xhtml_module.strip_doctype(archive.read(name)))
             body = document.xpath('//*[local-name()="body"]')
             parts.append((body[0] if body else document).text_content())
     folded = re.sub(r"\s+", " ", " ".join(parts))

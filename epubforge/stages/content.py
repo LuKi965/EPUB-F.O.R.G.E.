@@ -129,9 +129,17 @@ class ContentStage(Stage):
 
         documents: list[tuple[object, object, dict[str, str]]] = []
 
+        expanded_entities: dict[str, list[str]] = {}
+        refused_entities: dict[str, list[str]] = {}
+
         for resource in ctx.book.content_docs():
             try:
-                root, mode = xhtml.parse(resource.data)
+                parsed = xhtml.parse_document(resource.data)
+                root, mode = parsed.root, parsed.mode
+                if parsed.entities_expanded:
+                    expanded_entities[resource.path] = parsed.entities_expanded
+                if parsed.entities_refused:
+                    refused_entities[resource.path] = parsed.entities_refused
             except Exception as exc:
                 self.note(
                     ctx,
@@ -182,7 +190,42 @@ class ContentStage(Stage):
             }
             resource.data = xhtml.serialize(root)
 
+        self._report_entities(ctx, expanded_entities, refused_entities)
         self._report_watermarks(ctx)
+
+    def _report_entities(
+        self,
+        ctx: Context,
+        expanded: dict[str, list[str]],
+        refused: dict[str, list[str]],
+    ) -> None:
+        """Custom entities are a content change, so K6 requires saying so."""
+        if expanded:
+            names = sorted({name for names in expanded.values() for name in names})
+            self.note(
+                ctx,
+                Level.FIX,
+                f"resolved {len(names)} entity/entities declared in the document's own DTD",
+                location=next(iter(expanded)) if len(expanded) == 1 else f"{len(expanded)} documents",
+                detail=(
+                    f"{', '.join(names[:8])}. The declarations lived in the DOCTYPE, which "
+                    "EPUB 3 replaces with one that declares nothing — so without this the "
+                    "references would have appeared on the page as literal text."
+                ),
+            )
+        if refused:
+            names = sorted({name for names in refused.values() for name in names})
+            self.note(
+                ctx,
+                Level.WARN,
+                f"refused to resolve {len(names)} entity/entities and left the references as they were",
+                location=next(iter(refused)) if len(refused) == 1 else f"{len(refused)} documents",
+                detail=(
+                    f"{', '.join(names[:8])}. Either they point outside the file, which this "
+                    "tool will not fetch, or expanding them would have grown the document "
+                    "past any plausible size."
+                ),
+            )
 
     def _report_watermarks(self, ctx: Context) -> None:
         if self._watermarks_consolidated:

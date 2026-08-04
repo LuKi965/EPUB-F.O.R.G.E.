@@ -118,6 +118,82 @@ PL: dict[str, str] = {
         "wskaż plik epubcheck.jar zmienną EPUBCHECK_JAR."
     ),
 
+    # --- tabs and shared ------------------------------------------------
+    "tab.rebuild": "Przebudowa",
+    "tab.library": "Biblioteka",
+    "tab.corpus": "Korpus",
+    "common.folder": "Folder:",
+    "common.browse": "Przeglądaj…",
+    "common.run": "Uruchom",
+    "common.stop": "Przerwij",
+    "common.save": "Zapisz wynik…",
+    "common.saved": "Zapisano: {path}",
+    "common.pickfolder": "Wybierz folder",
+    "common.nofolder": "Najpierw wskaż folder z książkami.",
+    "common.working": "Pracuję: {name}",
+    "common.done": "Gotowe — {count} książek",
+
+    # --- library tab ----------------------------------------------------
+    "library.intro": (
+        "Dwa różne pytania o całą bibliotekę naraz. Nic nie jest zapisywane obok "
+        "Twoich książek i nic ich nie zmienia."
+    ),
+    "library.mode": "Co policzyć:",
+    "library.survey": "Przegląd — co narzędzie naprawia i jak często",
+    "library.survey.tip": (
+        "Przepuszcza każdą książkę przez pełne przetwarzanie i zlicza znaleziska.\n\n"
+        "Odpowiada na pytanie „co się psuje najczęściej”, a nie „co jest w tej jednej "
+        "książce”. Reguła napisana z jednego pliku jest zgadywaniem; ta sama usterka "
+        "w czterdziestu plikach jest faktem.\n\n"
+        "Wynik nie jest nigdzie zapisywany poza plikiem, który sam wskażesz."
+    ),
+    "library.inventory": "Inwentarz — czym te książki są",
+    "library.inventory.tip": (
+        "Mierzy pochodzenie (ślady Calibre, InDesigna, Worda, konwersji z PDF-u), "
+        "uszkodzenia (eksplozja klas, zupa spanów, martwy CSS) i typografię "
+        "(cudzysłowy, pauzy, wielokropki, mojibake).\n\n"
+        "Przegląd potrafi wymienić tylko te usterki, które narzędzie już umie nazwać — "
+        "więc sam siebie nie zaskoczy. Inwentarz mówi, czego jeszcze nie widzi."
+    ),
+    "library.withnames": "Dołącz nazwy plików do wyniku",
+    "library.withnames.tip": (
+        "Domyślnie wyłączone. Wynik ma się dać komuś pokazać, a lista tytułów mówi "
+        "więcej o Twojej półce niż o narzędziu.\n\n"
+        "Włącz, jeśli chcesz móc odnaleźć konkretną książkę stojącą za liczbą."
+    ),
+    "library.empty": "Wskaż folder z ebookami i naciśnij „Uruchom”.",
+
+    # --- corpus tab -----------------------------------------------------
+    "corpus.intro": (
+        "Zapisuje dla każdej książki podpis — same liczby — i przy kolejnym "
+        "uruchomieniu mówi, czy coś się zmieniło. Dzięki temu Twoja biblioteka pilnuje "
+        "narzędzia, mimo że nikt jej nie udostępnia."
+    ),
+    "corpus.books": "Książki:",
+    "corpus.signatures": "Podpisy:",
+    "corpus.signatures.placeholder": "puste — folder „expected” obok książek",
+    "corpus.check": "Sprawdź",
+    "corpus.check.tip": (
+        "Porównuje każdą książkę z zapisanym podpisem i wypisuje, co się różni.\n\n"
+        "Nic nie nadpisuje."
+    ),
+    "corpus.record": "Nagraj podpisy",
+    "corpus.record.tip": (
+        "Zapisuje podpisy z tego przebiegu jako nowy punkt odniesienia — i najpierw "
+        "pokazuje, co się zmieniło.\n\n"
+        "Rób to wtedy, gdy zmiana w narzędziu była zamierzona."
+    ),
+    "corpus.what": (
+        "Podpis zawiera: liczbę znalezisk, czy tekst przeżył przebudowę, liczbę bloków, "
+        "wynik EPUBCheck i skrót pliku wyjściowego. Ani tytułu, ani autora, ani jednego "
+        "zdania treści."
+    ),
+    "corpus.empty": "Wskaż folder z książkami i naciśnij „Sprawdź”.",
+    "corpus.status.unchanged": "bez zmian",
+    "corpus.status.changed": "zmieniona",
+    "corpus.status.new": "nowa",
+    "corpus.status.failed": "błąd",
+
     # --- reader compatibility -------------------------------------------
     "compat.group": "Zgodność z czytnikami (opcjonalne)",
     "compat.hint": "Ustępstwa na rzecz konkretnych urządzeń:",
@@ -325,6 +401,74 @@ EN: dict[str, str] = {
         "EPUBCheck was not found.\n\nThe installed build bundles it. Running from source, "
         "point EPUBCHECK_JAR at epubcheck.jar."
     ),
+    "tab.rebuild": "Rebuild",
+    "tab.library": "Library",
+    "tab.corpus": "Corpus",
+    "common.folder": "Folder:",
+    "common.browse": "Browse…",
+    "common.run": "Run",
+    "common.stop": "Stop",
+    "common.save": "Save result…",
+    "common.saved": "Saved: {path}",
+    "common.pickfolder": "Choose a folder",
+    "common.nofolder": "Point at a folder of books first.",
+    "common.working": "Working: {name}",
+    "common.done": "Done — {count} book(s)",
+
+    "library.intro": (
+        "Two different questions about a whole library. Nothing is written beside your "
+        "books and nothing changes them."
+    ),
+    "library.mode": "What to measure:",
+    "library.survey": "Survey — what the tool repairs, and how often",
+    "library.survey.tip": (
+        "Runs every book through the full pipeline and counts the findings.\n\n"
+        "It answers \"what breaks most often\", not \"what is in this one book\". A rule "
+        "written from a single file is a guess; the same defect in forty files is a "
+        "fact.\n\nNothing is written anywhere except the file you choose."
+    ),
+    "library.inventory": "Inventory — what the books are made of",
+    "library.inventory.tip": (
+        "Measures provenance (traces of Calibre, InDesign, Word, a PDF conversion), "
+        "damage (class explosion, span soup, dead CSS) and typography (quotes, dashes, "
+        "ellipses, mojibake).\n\n"
+        "A survey can only name defects the tool already knows about, so it never "
+        "surprises anybody. An inventory says what it cannot yet see."
+    ),
+    "library.withnames": "Include filenames in the result",
+    "library.withnames.tip": (
+        "Off by default. The result is meant to be shareable, and a list of titles says "
+        "more about your shelf than about the tool.\n\n"
+        "Turn on if you need to find the book behind a number."
+    ),
+    "library.empty": "Point at a folder of e-books and press Run.",
+
+    "corpus.intro": (
+        "Records a signature for each book — counts only — and tells you next time "
+        "whether anything moved. Your library keeps the tool honest without anybody "
+        "having to hand it over."
+    ),
+    "corpus.books": "Books:",
+    "corpus.signatures": "Signatures:",
+    "corpus.signatures.placeholder": "empty — an \"expected\" folder beside the books",
+    "corpus.check": "Check",
+    "corpus.check.tip": "Compares each book with its signature and lists what differs. Overwrites nothing.",
+    "corpus.record": "Record signatures",
+    "corpus.record.tip": (
+        "Writes this run's signatures as the new baseline — showing first what moved.\n\n"
+        "Do this when the change in the tool was intended."
+    ),
+    "corpus.what": (
+        "A signature holds: how many findings, whether the text survived, the block "
+        "count, the EPUBCheck verdict and a hash of the output. No title, no author, "
+        "not a word of the text."
+    ),
+    "corpus.empty": "Point at a folder of books and press Check.",
+    "corpus.status.unchanged": "unchanged",
+    "corpus.status.changed": "changed",
+    "corpus.status.new": "new",
+    "corpus.status.failed": "failed",
+
     "compat.group": "Reader compatibility (optional)",
     "compat.hint": "Concessions to particular devices:",
     "compat.hint.tip": (

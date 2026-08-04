@@ -92,9 +92,29 @@ def _checkmark(color: str) -> str:
     return target.as_posix()
 
 
+def _dot(color: str) -> str:
+    """A filled circle for the radio indicator.
+
+    Qt draws a border-radius on a QSS radio indicator, but a thick border on a
+    small circle comes out square-cornered under Fusion. An image is the only
+    way to get a dot that actually looks like one.
+    """
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+        f'<circle cx="8" cy="8" r="4" fill="{color}"/></svg>'
+    )
+    directory = pathlib.Path(tempfile.gettempdir()) / "epubforge-ui"
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / f"dot-{hashlib.md5(svg.encode()).hexdigest()[:8]}.svg"
+    if not target.exists():
+        target.write_text(svg, encoding="utf-8")
+    return target.as_posix()
+
+
 def stylesheet(palette: Palette) -> str:
     p = palette
     tick = _checkmark(p.accent_text)
+    dot = _dot(p.accent_text)
     return f"""
     QWidget {{
         background-color: {p.window};
@@ -134,12 +154,49 @@ def stylesheet(palette: Palette) -> str:
         subcontrol-origin: margin;
         subcontrol-position: top left;
         left: 12px;
-        padding: 0 4px;
+        /* Painted on the window colour, not transparent: the card's top border
+           runs behind the title, and without this it strikes through it. */
+        background-color: {p.window};
+        padding: 0 6px;
         color: {p.text_muted};
         font-size: 9pt;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }}
+
+    /* Tabs -------------------------------------------------------------- */
+    QTabWidget::pane {{ border: none; background: transparent; }}
+    QTabBar {{ qproperty-drawBase: 0; }}
+    QTabBar::tab {{
+        background: transparent;
+        color: {p.text_muted};
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 9px 18px;
+        margin-right: 2px;
+        font-weight: 600;
+    }}
+    QTabBar::tab:hover {{ color: {p.text}; }}
+    QTabBar::tab:selected {{
+        color: {p.text};
+        border-bottom: 2px solid {p.accent};
+    }}
+
+    QRadioButton {{ spacing: 8px; padding: 4px 0; }}
+    QRadioButton::indicator {{ width: 17px; height: 17px; border-radius: 9px; }}
+    QRadioButton::indicator:unchecked {{
+        border: 1.5px solid {p.border_strong};
+        background: {p.surface};
+    }}
+    QRadioButton::indicator:checked {{
+        border: 1.5px solid {p.accent};
+        background: {p.accent};
+        image: url({dot});
+    }}
+    QRadioButton::indicator:hover {{ border-color: {p.accent}; }}
+
+    QScrollArea {{ background: transparent; border: none; }}
+    QScrollArea > QWidget > QWidget {{ background: transparent; }}
 
     /* Buttons ---------------------------------------------------------- */
     QPushButton {{
@@ -218,6 +275,7 @@ def stylesheet(palette: Palette) -> str:
     }}
     QTableWidget::item {{ padding: 7px 8px; border: none; }}
     QTableWidget::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
+    QTableWidget {{ border: 1px solid {p.border}; border-radius: 8px; }}
     QHeaderView::section {{
         background-color: transparent;
         color: {p.text_muted};

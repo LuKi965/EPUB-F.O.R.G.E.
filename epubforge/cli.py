@@ -323,6 +323,42 @@ def command_survey(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_corpus(args: argparse.Namespace) -> int:
+    """Check a folder of books against recorded signatures, or record them."""
+    import pathlib
+
+    from .corpus import books_in, compare, summarise
+
+    console = Console()
+    books = pathlib.Path(args.books)
+    signatures = pathlib.Path(args.signatures or (books / "expected"))
+    if not books_in(books):
+        console.print(f"[yellow]No .epub files in {books}[/]")
+        return 1
+
+    def announce(index: int, name: str) -> None:
+        console.print(f"[dim][{index + 1}] {name[:60]}[/]", highlight=False)
+
+    results = compare(books, signatures, record=args.record, on_book=announce)
+    console.print()
+    for result in results:
+        if result.status == "changed":
+            console.print(f"  [yellow]changed[/]  {result.book}")
+            for line in result.differences:
+                console.print(f"    [dim]{line}[/]")
+        elif result.status == "failed":
+            console.print(f"  [bold red]failed[/]   {result.book}")
+            for line in result.differences:
+                console.print(f"    [dim]{line}[/]")
+        elif result.status == "new":
+            console.print(f"  [cyan]new[/]      {result.book}")
+    console.print(f"\n  {summarise(results)}")
+    if args.record:
+        console.print(f"  [green]signatures written to[/] {signatures}")
+        return 0
+    return 0 if all(r.ok for r in results) else 2
+
+
 def command_inventory(args: argparse.Namespace) -> int:
     """What the books are, as opposed to what the tool does to them."""
     import pathlib
@@ -514,6 +550,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     survey.add_argument("--strict", action="store_true", help="survey what strict mode would do")
     survey.set_defaults(func=command_survey)
+
+    corpus = subparsers.add_parser(
+        "corpus",
+        help="check a folder of books against recorded signatures, or record them",
+    )
+    corpus.add_argument("books", help="folder holding the books")
+    corpus.add_argument(
+        "--signatures",
+        help="where the signatures live (default: an 'expected' folder beside the books)",
+    )
+    corpus.add_argument(
+        "--record",
+        action="store_true",
+        help="rewrite the signatures from this run, after showing what moved",
+    )
+    corpus.set_defaults(func=command_corpus)
 
     inventory = subparsers.add_parser(
         "inventory",
