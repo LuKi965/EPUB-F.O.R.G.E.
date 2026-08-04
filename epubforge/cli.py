@@ -9,7 +9,7 @@ import sys
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__
+from . import __version__, compat
 from .pipeline import rebuild
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -58,6 +58,10 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.accessibility_metadata = False
     if args.claim_conformance:
         policy.claim_conformance = args.claim_conformance
+    if args.compat:
+        # Accept both --compat kindle --compat kobo and --compat kindle,kobo.
+        names = [part for entry in args.compat for part in entry.split(",") if part.strip()]
+        policy.compat_profiles = tuple(dict.fromkeys(name.strip().lower() for name in names))
     if args.language:
         policy.default_language = args.language
         policy.metadata_overrides["language"] = args.language
@@ -219,6 +223,28 @@ def command_check(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def command_compat(args: argparse.Namespace) -> int:
+    """Print what each profile actually does, so --compat is not a guess."""
+    console = Console()
+    console.print(
+        "Compatibility profiles are [bold]off by default[/]. Every measure is additive: "
+        "it adds a file, a declaration or a legacy element, and never removes or "
+        "rewrites what the book already had.\n"
+    )
+    for key in sorted(compat.PROFILES):
+        profile = compat.PROFILES[key]
+        console.rule(f"[bold]--compat {key}")
+        console.print(f"  [dim]{profile.devices}[/]\n")
+        for measure_key in profile.measures:
+            measure = compat.MEASURES[measure_key]
+            console.print(f"  [green]•[/] {measure.what}")
+            console.print(f"    [dim]{measure.why}[/]")
+            if measure.cost:
+                console.print(f"    [yellow]costs:[/] {measure.cost}")
+        console.print()
+    return 0
+
+
 def command_gui(args: argparse.Namespace) -> int:
     try:
         from .gui.app import run
@@ -280,6 +306,17 @@ def build_parser() -> argparse.ArgumentParser:
             "WCAG mechanically, so this records YOUR claim as publisher"
         ),
     )
+    build.add_argument(
+        "--compat",
+        action="append",
+        metavar="PROFILE",
+        help=(
+            "add concessions for a reader family: "
+            + ", ".join(sorted(compat.PROFILES))
+            + ". Repeatable, or comma-separated. Off by default, and every measure "
+            "is additive — see 'epubforge compat' for what each one does"
+        ),
+    )
     build.add_argument("--title", help="override dc:title")
     build.add_argument("--author", help="override the main dc:creator")
     build.add_argument("--publisher", help="override dc:publisher")
@@ -295,6 +332,11 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="run EPUBCheck against existing files")
     check.add_argument("inputs", nargs="+")
     check.set_defaults(func=command_check)
+
+    compat_parser = subparsers.add_parser(
+        "compat", help="explain the reader-compatibility profiles and what each costs"
+    )
+    compat_parser.set_defaults(func=command_compat)
 
     gui = subparsers.add_parser("gui", help="launch the desktop interface")
     gui.set_defaults(func=command_gui)

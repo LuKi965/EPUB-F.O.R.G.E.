@@ -13,7 +13,7 @@ import re
 import zipfile
 from xml.sax.saxutils import escape, quoteattr
 
-from . import paths
+from . import compat, paths
 from .model import Book
 from .report import Level, Report
 
@@ -217,6 +217,26 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             attributes.append(f'properties={quoteattr(" ".join(sorted(item.properties)))}')
         lines.append(f"    <itemref {' '.join(attributes)}/>")
     lines.append("  </spine>")
+
+    # --- guide (opt-in) -----------------------------------------------------
+    # EPUB 3.3 removed this element. It is emitted only when a compatibility
+    # profile asked for it, because Amazon's converter and RMSDK-based readers
+    # locate the cover and the start-reading position here and nowhere else.
+    if "guide" in book.compat:
+        references = compat.guide_references(book)
+        if references:
+            lines.append("  <guide>")
+            for guide_type, title, target in references:
+                target_path, _, fragment = target.partition("#")
+                href = paths.relative(opf_path, target_path)
+                if fragment:
+                    href = f"{href}#{fragment}"
+                lines.append(
+                    f"    <reference type={quoteattr(guide_type)} "
+                    f"title={quoteattr(title)} href={quoteattr(href)}/>"
+                )
+            lines.append("  </guide>")
+
     lines.append("</package>")
 
     opf = "\n".join(lines) + "\n"
@@ -240,6 +260,11 @@ def write_epub(book: Book, destination: str, report: Report, content_dir: str = 
         archive.writestr(mimetype_info, b"application/epub+zip")
 
         archive.writestr("META-INF/container.xml", CONTAINER_XML.format(opf_path=opf_path))
+        # Reader-specific container entries, added only by a compatibility
+        # profile. Written next to container.xml because that is where the
+        # readers that look for them look.
+        for extra_path in sorted(book.container_files):
+            archive.writestr(extra_path, book.container_files[extra_path])
         archive.writestr(opf_path, opf.encode("utf-8"))
 
         for path in sorted(book.resources):
@@ -252,5 +277,7 @@ def write_epub(book: Book, destination: str, report: Report, content_dir: str = 
             info.external_attr = 0o644 << 16
             archive.writestr(info, resource.data)
 
-    report.stats["output_resources"] = len(book.resources) + 3
+    # mimetype, container.xml and the package document, plus anything a
+    # compatibility profile added beside them.
+    report.stats["output_resources"] = len(book.resources) + 3 + len(book.container_files)
     report.stats["output_spine_items"] = len(book.spine)

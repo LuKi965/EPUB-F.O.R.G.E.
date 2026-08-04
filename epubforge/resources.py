@@ -43,18 +43,36 @@ def epubcheck_jar() -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def _resource_candidates(*names: str) -> list[Path]:
+    root = bundle_root()
+    packaging = Path(__file__).resolve().parent.parent / "packaging"
+    directories = [d for d in (root, packaging) if d is not None]
+    return [directory / name for directory in directories for name in names]
+
+
 def app_icon() -> Path | None:
     """The application icon, whether frozen or running from a checkout.
 
     PyInstaller's ``icon=`` only stamps the executable's Windows resource, which
     Explorer reads. The window and taskbar icons come from the toolkit at
     runtime and need the actual file.
+
+    The ``.ico`` comes first here because ``QIcon`` reads every size it holds and
+    picks the one that fits the slot being drawn. Use :func:`app_image` instead
+    for anything that renders a single fixed-size bitmap.
     """
-    root = bundle_root()
-    candidates = [root / "epubforge.ico", root / "epubforge.png"] if root else []
-    packaging = Path(__file__).resolve().parent.parent / "packaging"
-    candidates += [packaging / "epubforge.ico", packaging / "epubforge.png"]
-    return next((path for path in candidates if path.is_file()), None)
+    return next((path for path in _resource_candidates("epubforge.ico", "epubforge.png") if path.is_file()), None)
+
+
+def app_image() -> Path | None:
+    """The icon as a single high-resolution bitmap, for drawing at one size.
+
+    ``QPixmap`` loading a multi-size ``.ico`` takes the *first* directory entry,
+    which is the 16×16 one — scaling that up to a 64-point badge is what made
+    the About dialog's logo a blur. The PNG is a single 256×256 image, so it
+    scales down cleanly to whatever size is asked for.
+    """
+    return next((path for path in _resource_candidates("epubforge.png", "epubforge.ico") if path.is_file()), None)
 
 
 def set_windows_app_id(app_id: str = "EpubForge.EpubForge") -> None:

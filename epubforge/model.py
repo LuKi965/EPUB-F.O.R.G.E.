@@ -237,6 +237,13 @@ class Book:
     #: Fixed-layout and other rendering hints from the source OPF.
     rendition: dict[str, str] = field(default_factory=dict)
 
+    #: Reader-family concessions applied to this book, as measure keys from
+    #: :mod:`epubforge.compat`. The writer consults these; nothing else does.
+    compat: set[str] = field(default_factory=set)
+    #: Files placed in the container outside the content directory, by
+    #: container-absolute path. Reader-specific META-INF entries live here.
+    container_files: dict[str, bytes] = field(default_factory=dict)
+
     def add(self, resource: Resource) -> Resource:
         self.resources[resource.path] = resource
         return resource
