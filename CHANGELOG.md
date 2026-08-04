@@ -23,6 +23,45 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.3 — pre-alpha
+
+The first release driven by data from a real library rather than from reasoning
+about one. A survey of 32 books arrived, and it immediately said two things.
+
+### Added
+- `epubforge inventory` — what the books *are*, as against what the tool does to
+  them. Provenance (traces of Calibre, InDesign, Word, a PDF conversion — as a
+  list, since files are layered), damage counts, and a typographic census.
+  A survey can only name defects the tool already knows about, so it cannot
+  surprise anybody; an inventory is what says which rules are worth writing at
+  all. Output is counts and character frequencies, keyed by a hash; `--map`
+  writes the hash-to-filename mapping separately and is the only file that names
+  anything.
+
+  It reads through `read_epub` rather than scanning bytes, and that is the whole
+  design. Three measurements are wrong by construction on raw markup and wrong
+  in a way nobody notices, because a number that is too high still looks like a
+  number: `&nbsp;` counted as six characters instead of one non-breaking space,
+  source indentation counted as doubled spacing, and a hyphen before a line
+  break read as evidence of the very thing that would license the riskiest rule
+  we have planned. Tests pin each one.
+- `Book.source_package` keeps the package document as it arrived. Half of what
+  identifies a generator is written there — `calibre:series`, InDesign's
+  identifiers — and the model has normalised it away by the time anything else
+  could look.
+
+### Removed
+- The report no longer says a book has no print page numbers. Across 32 real
+  books it fired on all 32, which is what an absence looks like when it is the
+  norm rather than a defect: the publisher is the only one who can supply them,
+  so the entry named a fact nobody could act on and pushed the findings that
+  mattered further down the page. A finding that is always true is not a
+  finding.
+- The inventory does not count runs of ordinary spaces, though the sketch it
+  grew from did. HTML collapses whitespace, so a double space is invisible to a
+  reader and cannot be damage; counting it on markup measures how the file was
+  indented and nothing else.
+
 ## 0.1.2 — pre-alpha
 
 ### Fixed

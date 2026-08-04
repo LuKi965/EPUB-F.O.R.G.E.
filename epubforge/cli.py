@@ -323,6 +323,53 @@ def command_survey(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_inventory(args: argparse.Namespace) -> int:
+    """What the books are, as opposed to what the tool does to them."""
+    import pathlib
+
+    from .inventory import measure, summarise, to_json
+
+    console = Console()
+    inputs = collect_inputs(args.inputs)
+    if not inputs:
+        console.print("[yellow]No .epub files found.[/]")
+        return 1
+
+    books = []
+    mapping = []
+    for index, source in enumerate(inputs, 1):
+        console.print(
+            f"[dim][{index}/{len(inputs)}] {os.path.basename(source)[:60]}[/]", highlight=False
+        )
+        try:
+            book = measure(pathlib.Path(source))
+        except Exception as exc:  # noqa: BLE001 — one bad book must not stop the inventory
+            import hashlib
+
+            digest = hashlib.sha256(open(source, "rb").read()).hexdigest()[:16]
+            from .inventory import Book
+
+            book = Book(digest, 0.0, {"error": f"{type(exc).__name__}: {exc}"})
+        books.append(book)
+        mapping.append(f"{book.identifier}  {source}")
+
+    console.print()
+    console.print(summarise(books))
+
+    with open(args.json, "w", encoding="utf-8") as handle:
+        handle.write(to_json(books) + "\n")
+    console.print(f"\n  [green]written[/] {args.json}  [dim](safe to share — counts only)[/]")
+
+    if args.map:
+        with open(args.map, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(mapping) + "\n")
+        console.print(
+            f"  [green]written[/] {args.map}  "
+            f"[yellow]keep this one[/][dim] — it is the only file tying a hash to a title[/]"
+        )
+    return 0
+
+
 def command_compat(args: argparse.Namespace) -> int:
     """Print what each profile actually does, so --compat is not a guess."""
     console = Console()
@@ -467,6 +514,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     survey.add_argument("--strict", action="store_true", help="survey what strict mode would do")
     survey.set_defaults(func=command_survey)
+
+    inventory = subparsers.add_parser(
+        "inventory",
+        help="measure what a library is made of: origins, damage and typography",
+    )
+    inventory.add_argument("inputs", nargs="+", help="EPUB files or directories")
+    inventory.add_argument(
+        "--json", default="spis.json", metavar="FILE", help="where to write the measurements"
+    )
+    inventory.add_argument(
+        "--map",
+        metavar="FILE",
+        help=(
+            "also write hash→filename, so you can find a book the measurements point at. "
+            "This is the one file that names your books; it is not written unless asked for"
+        ),
+    )
+    inventory.set_defaults(func=command_inventory)
 
     compat_parser = subparsers.add_parser(
         "compat", help="explain the reader-compatibility profiles and what each costs"

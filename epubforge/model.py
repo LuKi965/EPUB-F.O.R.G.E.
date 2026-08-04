@@ -249,6 +249,11 @@ class Book:
     #: Diagnostics carried over from the reader.
     source_version: str = "unknown"
     source_opf_path: str | None = None
+    #: The package document exactly as it arrived. Kept because half of what
+    #: identifies a generator is written there — `calibre:series`, InDesign's
+    #: identifiers — and it is normalised away by the time anything else can
+    #: look. Diagnostic only; the writer never reads it.
+    source_package: bytes | None = None
     #: Container paths that were encrypted, mapped to their algorithm URI.
     encrypted: dict[str, str] = field(default_factory=dict)
     #: True when the source declares DRM we must not attempt to strip.

@@ -303,10 +303,9 @@ class AccessibilityStage(Stage):
                 detail="Screen readers cannot announce what a cell relates to without <th>.",
             )
 
-        if not ctx.book.page_list:
-            self.note(
-                ctx,
-                Level.INFO,
-                "no print page numbers; readers cannot cite print pagination",
-                detail="Only the publisher can supply these — they cannot be inferred.",
-            )
+        # Deliberately not reported: the absence of print page numbers. A survey
+        # of 32 real books had it firing on all 32, which is what an absence
+        # looks like when it is the norm rather than a defect — the publisher is
+        # the only one who can supply them, so the entry named a fact nobody
+        # could act on and pushed the findings that mattered further down the
+        # page. A finding that is always true is not a finding.
