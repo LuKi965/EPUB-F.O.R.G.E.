@@ -207,6 +207,11 @@ epubforge build ksiazka.epub --compat kindle,apple
 Czego to **nie** jest: lekarstwa na czytnik, który odmawia otwarcia pliku
 w ogóle. Taka usterka leży gdzie indziej i profil jej nie naprawi.
 
+Profile są opcjonalne, bo w praktyce często nie są potrzebne: na Kobo pełna
+przebudowa **bez żadnego profilu** otwiera się normalnie — zmierzone, zapisane
+w [`docs/URZADZENIA.md`](docs/URZADZENIA.md). Włącz profil, gdy Twoje urządzenie
+pokaże, że go potrzebuje, a nie na zapas.
+
 ---
 
 ## Dostępność cyfrowa
@@ -504,6 +509,9 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
   akurat takiej.
 - [`docs/KORPUS.md`](docs/KORPUS.md) — **instrukcja krok po kroku** dla właściciela
   biblioteki: jak pomóc projektowi, nie wypuszczając z dysku ani jednej książki.
+- [`docs/URZADZENIA.md`](docs/URZADZENIA.md) — dziennik prób na prawdziwych
+  czytnikach. Walidator mówi, czy plik jest zgodny; nie mówi, czy Kobo go
+  otworzy.
 
 ### Wersja i dojrzałość to dwie różne rzeczy
 
@@ -511,7 +519,7 @@ To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
 wersję:
 
 ```
-epub-forge 0.1.0 (pre-alpha)
+epub-forge 0.1.4 (pre-alpha)
 ```
 
 Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —

@@ -206,6 +206,11 @@ epubforge build book.epub --compat kindle,apple
 What this is **not**: a cure for a device that refuses to open a file at all.
 That fault lies elsewhere and no profile will fix it.
 
+The profiles are optional because in practice they are often unnecessary: on a
+Kobo the full rebuild opens normally with **no profile at all** — measured, and
+recorded in [`docs/URZADZENIA.md`](docs/URZADZENIA.md). Turn a profile on when
+your device shows it needs one, not in advance.
+
 ---
 
 ## Accessibility
@@ -437,6 +442,9 @@ Windows installers are produced by `.github/workflows/build-windows.yml`. Push a
   that order.
 - [`docs/KORPUS.md`](docs/KORPUS.md) *(Polish)* — how to put your own library to
   work without a single book leaving your disk.
+- [`docs/URZADZENIA.md`](docs/URZADZENIA.md) *(Polish)* — the log of trials on
+  real readers. A validator says whether a file conforms; it does not say
+  whether a Kobo will open it.
 
 ### Version and maturity are different things
 
@@ -444,7 +452,7 @@ This is **pre-alpha**, and the program says so itself wherever it reports its
 version:
 
 ```
-epub-forge 0.1.0 (pre-alpha)
+epub-forge 0.1.4 (pre-alpha)
 ```
 
 The number no longer tries to carry that information, because it cannot: a
