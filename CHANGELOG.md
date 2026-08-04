@@ -23,6 +23,48 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.4 — pre-alpha
+
+### Fixed
+- **Entities a book declared for itself became visible text on the page.** A
+  document may declare its own entities in the DOCTYPE's internal subset — a
+  habit of DocBook and TeX pipelines, and of some publishers. EPUB 3 replaces
+  that DOCTYPE with one declaring nothing, so the subset has to go; but the
+  references stayed behind, resolved to nothing, and the ampersand was escaped.
+  The reader saw `&mypauza;` where a dash belonged. Silently, in `preserve`
+  mode, with a report entry about a different kind of entity entirely.
+
+  They are now resolved before the subset is dropped, and by this tool rather
+  than by the parser: handing it to libxml2 means turning `resolve_entities`
+  back on, which is what shuts XXE and runaway expansion. External declarations
+  are never resolved, nesting is bounded, and a document that tries to grow
+  tenfold is refused whole. Both outcomes are reported.
+- The K1 helper mis-parsed a *source* document carrying an internal subset:
+  `lxml.html` cannot find `<body>` past one and returns the stray `]>` as text,
+  so the invariant would have failed over punctuation while the real damage was
+  identical on both sides and invisible.
+
+### Added
+- **The library, survey, inventory and corpus features are in the window**, not
+  only on the command line. Three tabs: rebuild, library (survey or inventory
+  over a folder), and corpus (record signatures, or check against them). The
+  long jobs run off the UI thread with progress, and nothing is written beside
+  anybody's books.
+- `epubforge/corpus.py` and `epubforge corpus` — the corpus was previously a
+  pytest fixture, which meant the person holding the books needed a checkout to
+  help. It is a feature now; the test suite is a thin wrapper over it.
+
+### Changed
+- **The window scales.** It asked for a fixed 1180×760, which opens taller than
+  a 1366×768 laptop screen; it now takes a share of the available desktop with
+  a floor low enough for the layout to survive. The options column sits in a
+  scroll area rather than being cut off — with the run button inside it — and
+  neither splitter can collapse a panel to nothing.
+- The title said "EPUB F.O.R.G.E. 0.1.1 (pre-alpha) - EPUB F.O.R.G.E.", because
+  Qt appends `applicationDisplayName` to a title that already carried the name.
+- The status line follows the tab. "Drop EPUB files anywhere in this window" is
+  good advice on one tab and untrue on the other two.
+
 ## 0.1.3 — pre-alpha
 
 The first release driven by data from a real library rather than from reasoning

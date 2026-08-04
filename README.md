@@ -298,9 +298,20 @@ Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout
 
 ### Interfejs
 
+Trzy zakładki, bo to trzy różne pytania:
+
+| Zakładka | Do czego |
+|---|---|
+| **Przebudowa** | pojedyncze książki: przeciągasz, oglądasz raport, zapisujesz wynik |
+| **Biblioteka** | cały folder naraz — przegląd (co się psuje) albo inwentarz (czym te książki są) |
+| **Korpus** | podpisy Twojej biblioteki, żeby pilnowała narzędzia przy każdej kolejnej zmianie |
+
 Polski lub angielski, przełączany w menu **Ustawienia → Język interfejsu**
 (wybór jest zapamiętywany). Każda opcja ma dymek opisujący, co zrobi z książką —
 nie powtarzający jej nazwy. Motyw jasny i ciemny dobiera się z ustawień systemu.
+
+Okno bierze część dostępnego pulpitu zamiast stałego rozmiaru, a kolumna opcji
+przewija się, zamiast być ucinana na niższych ekranach.
 
 ### Jako biblioteka
 

@@ -188,3 +188,108 @@ class TestSeriesNumberComesFromTheRightCollection:
         opf = package_document(second.output_path)
         assert "Kroniki" in opf
         assert re.search(r'property="group-position">7<', opf), opf
+
+
+# ------------------------------------------------- entities from a DTD subset
+class TestEntitiesDeclaredByTheDocumentItself:
+    """A textbook K11: the file declared something, we threw the declaration
+    away, and left the references pointing at nothing.
+
+    EPUB 3 replaces the DOCTYPE with one that declares no entities, so the
+    subset has to go. But the references live in the text, and once the
+    declaration is gone the ampersand gets escaped: the reader sees `&mypauza;`
+    on the page where a dash belongs. Silently, in `preserve` mode, with a
+    report entry about something else entirely.
+    """
+
+    DOCUMENT = """<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html [
+  <!ENTITY mypauza "&#8212;">
+  <!ENTITY wydawca "Wydawnictwo Przyklad">
+]>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pl">
+<head><meta charset="utf-8"/><title>R</title></head>
+<body><p>Tekst &mypauza; z pauza.</p><p>&wydawca;, Krakow.</p></body>
+</html>"""
+
+    EXTERNAL = """<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html [
+  <!ENTITY zewnetrzna SYSTEM "http://example.invalid/secret.txt">
+]>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pl">
+<head><meta charset="utf-8"/><title>R</title></head>
+<body><p>A &zewnetrzna; B</p></body>
+</html>"""
+
+    def build(self, tmp_path, document: str) -> str:
+        import zipfile
+
+        from .factory import CONTAINER, MODERN_NAV, MODERN_OPF, png_bytes
+
+        path = str(tmp_path / "dtd.epub")
+        with zipfile.ZipFile(path, "w") as archive:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, b"application/epub+zip")
+            archive.writestr(
+                "META-INF/container.xml",
+                CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf"),
+            )
+            archive.writestr(
+                "OEBPS/package.opf", MODERN_OPF.format(title="T", extra_metadata="")
+            )
+            archive.writestr("OEBPS/nav.xhtml", MODERN_NAV)
+            archive.writestr("OEBPS/chapter.xhtml", document)
+            archive.writestr("OEBPS/picture.png", png_bytes())
+        return path
+
+    def rebuilt_text(self, tmp_path, document: str, name: str = "out.epub"):
+        source = self.build(tmp_path, document)
+        result = rebuild(source, str(tmp_path / name), Policy.preset("preserve"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            chapter = next(
+                n for n in archive.namelist() if n.endswith(".xhtml") and "nav" not in n
+            )
+            return archive.read(chapter).decode(), result
+
+    def test_the_entity_becomes_the_character_it_stood_for(self, tmp_path):
+        text, _ = self.rebuilt_text(tmp_path, self.DOCUMENT)
+        assert "Tekst — z pauza." in text
+
+    def test_no_reference_survives_as_visible_text(self, tmp_path):
+        text, _ = self.rebuilt_text(tmp_path, self.DOCUMENT)
+        assert "&amp;mypauza;" not in text
+        assert "&amp;wydawca;" not in text
+
+    def test_a_text_entity_is_expanded_too(self, tmp_path):
+        text, _ = self.rebuilt_text(tmp_path, self.DOCUMENT)
+        assert "Wydawnictwo Przyklad, Krakow." in text
+
+    def test_the_change_is_reported(self, tmp_path):
+        """K6: it is a change to the text, so it needs an entry of its own."""
+        _, result = self.rebuilt_text(tmp_path, self.DOCUMENT)
+        assert any("own DTD" in f.message for f in result.report.findings)
+
+    def test_an_external_entity_is_refused_not_fetched(self, tmp_path):
+        """The file does not get to make this tool go and read something."""
+        from epubforge.report import Level
+
+        _, result = self.rebuilt_text(tmp_path, self.EXTERNAL, name="ext.epub")
+        warnings = [f for f in result.report.findings if f.level is Level.WARN]
+        assert any("refused to resolve" in f.message for f in warnings), [
+            f.message for f in result.report.findings
+        ]
+
+    def test_the_text_invariant_holds_across_the_expansion(self, tmp_path):
+        """K1 must not report a false difference on a source carrying a subset.
+
+        `lxml.html` cannot find `<body>` past an internal subset and hands back
+        the stray `]>`, so the comparison used to fail over punctuation while
+        the real damage was identical on both sides and invisible.
+        """
+        from .test_invariants import body_text
+
+        source = self.build(tmp_path, self.DOCUMENT)
+        result = rebuild(source, str(tmp_path / "k1.epub"), Policy.preset("preserve"))
+        assert "]>" not in body_text(source)
+        assert "Wydawnictwo Przyklad" in body_text(result.output_path)

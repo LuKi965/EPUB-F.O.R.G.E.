@@ -1,0 +1,202 @@
+"""Regression against real books, without holding anybody's book.
+
+A corpus is a folder of EPUBs and a folder of *signatures*. A signature is what
+we are willing to remember about somebody else's book: how many findings the
+rebuild produced, whether the text survived, how many blocks it has, what
+EPUBCheck said, and the hash of the result. No title, no author, not a word of
+the text. Files are named by the hash of the book, because a listing of titles
+in a public place says more about a shelf than about a tool.
+
+The point is the last field. If a change to this tool alters the output for a
+book, the hash moves and the comparison says so — a hard regression across a
+library nobody had to hand over.
+
+This lives in the package rather than in the test suite because it is a feature,
+not a fixture: the person with the books is not necessarily the person with a
+checkout, and asking them to install Python to help is asking too much. The
+tests are a thin wrapper over what is here.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import pathlib
+from dataclasses import dataclass, field
+
+from .pipeline import rebuild
+from .policy import Policy
+from .report import Level
+from .validate import find_epubcheck, validate
+
+#: Pinned, so a signature is a function of the book and not of the day it ran.
+FROZEN_MODIFIED = "2020-01-01T00:00:00Z"
+
+#: Both modes are measured. `preserve` is what people actually get, and
+#: measuring only `strict` would leave the default path unwatched.
+MODES = ("preserve", "strict")
+
+
+@dataclass
+class Comparison:
+    """What changed for one book between the recorded run and this one."""
+
+    book: str
+    identifier: str
+    status: str  # "new" | "unchanged" | "changed" | "failed"
+    differences: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.status in ("new", "unchanged")
+
+
+def digest(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def identifier_for(book: pathlib.Path) -> str:
+    return hashlib.sha256(book.read_bytes()).hexdigest()[:16]
+
+
+def books_in(folder: pathlib.Path) -> list[pathlib.Path]:
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.glob("*.epub") if p.is_file())
+
+
+def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
+    from .inventory import measure as inventory_measure  # local: avoids a cycle
+
+    policy = Policy.preset(mode, modified_override=FROZEN_MODIFIED)
+    result = rebuild(str(book), str(destination), policy)
+
+    measurement: dict = {
+        "written": result.output_path is not None,
+        "report": {
+            level.value: result.report.count(level)
+            for level in Level
+            if result.report.count(level)
+        },
+    }
+    if result.output_path is None:
+        return measurement
+
+    output = pathlib.Path(result.output_path)
+    measurement["output"] = digest(output.read_bytes())
+
+    before = inventory_measure(book).fields
+    after = inventory_measure(output).fields
+    measurement["text_characters"] = after.get("text_characters", 0)
+    measurement["text_invariant"] = before.get("text_characters") == after.get(
+        "text_characters"
+    )
+    # K1 compares a stream of characters and cannot see two paragraphs merged
+    # into one. Recording the count gives that change its own line in the diff.
+    measurement["blocks"] = after.get("blocks", 0)
+
+    if find_epubcheck() is not None:
+        check = validate(result.output_path)
+        measurement["epubcheck"] = {
+            "errors": check.errors,
+            "warnings": check.warnings,
+            "fatal": check.fatal,
+        }
+    return measurement
+
+
+def signature(book: pathlib.Path, scratch: pathlib.Path) -> dict:
+    record: dict = {"source": digest(book.read_bytes())}
+    for mode in MODES:
+        record[mode] = _measure(book, scratch / f"{mode}.epub", mode)
+    return record
+
+
+def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
+    """Field-level diff, so a change reads as a sentence and not as two hashes."""
+    lines: list[str] = []
+    for key in sorted(set(recorded) | set(measured)):
+        here = f"{path}.{key}" if path else key
+        old, new = recorded.get(key), measured.get(key)
+        if isinstance(old, dict) and isinstance(new, dict):
+            lines.extend(differences(old, new, here))
+        elif old != new:
+            lines.append(f"{here}: {old!r} → {new!r}")
+    return lines
+
+
+def compare(
+    books: pathlib.Path,
+    signatures: pathlib.Path,
+    *,
+    record: bool = False,
+    on_book=None,
+) -> list[Comparison]:
+    """Check every book against its signature, optionally rewriting them.
+
+    With ``record`` off this is a regression test. With it on, it is how a
+    deliberate change gets accepted — and it still reports what moved, because
+    "40 hashes changed" is not something anybody can review.
+    """
+    import tempfile
+
+    signatures.mkdir(parents=True, exist_ok=True)
+    results: list[Comparison] = []
+
+    with tempfile.TemporaryDirectory(prefix="epubforge-corpus-") as scratch:
+        for index, book in enumerate(books_in(books)):
+            if on_book is not None:
+                on_book(index, book.name)
+
+            identifier = identifier_for(book)
+            reference = signatures / f"{identifier}.json"
+            previous = (
+                json.loads(reference.read_text(encoding="utf-8"))
+                if reference.is_file()
+                else None
+            )
+
+            try:
+                current = signature(book, pathlib.Path(scratch))
+            except Exception as exc:  # noqa: BLE001 — one bad book is a finding
+                results.append(
+                    Comparison(book.name, identifier, "failed", [f"{type(exc).__name__}: {exc}"])
+                )
+                continue
+
+            if previous is None:
+                status, changes = "new", []
+            else:
+                changes = differences(previous, current)
+                status = "unchanged" if not changes else "changed"
+
+            if record:
+                reference.write_text(
+                    json.dumps(current, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+            results.append(Comparison(book.name, identifier, status, changes))
+    return results
+
+
+def summarise(results: list[Comparison]) -> str:
+    counts = {status: 0 for status in ("new", "unchanged", "changed", "failed")}
+    for result in results:
+        counts[result.status] += 1
+    return (
+        f"{len(results)} book(s): {counts['unchanged']} unchanged, "
+        f"{counts['changed']} changed, {counts['new']} new, {counts['failed']} failed"
+    )
+
+
+__all__ = [
+    "Comparison",
+    "FROZEN_MODIFIED",
+    "MODES",
+    "books_in",
+    "compare",
+    "differences",
+    "identifier_for",
+    "signature",
+    "summarise",
+]

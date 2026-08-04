@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from html.entities import html5
 
+from typing import NamedTuple
+
 from lxml import etree, html as lxml_html
 
 XHTML_NS = "http://www.w3.org/1999/xhtml"
@@ -72,6 +74,81 @@ def _strip_internal_dtd(data: bytes) -> bytes:
     return _DOCTYPE_RE.sub(b"", data, count=1)
 
 
+#: Entity declarations in an internal subset, in the only form worth expanding:
+#: a name and a quoted literal. `SYSTEM` and `PUBLIC` declarations deliberately
+#: do not match — a file does not get to tell this tool to fetch something.
+_ENTITY_DECL_RE = re.compile(rb"""<!ENTITY\s+([A-Za-z_][\w.\-]*)\s+(["'])(.*?)\2\s*>""", re.S)
+_EXTERNAL_ENTITY_RE = re.compile(rb"<!ENTITY\s+([A-Za-z_][\w.\-]*)\s+(?:SYSTEM|PUBLIC)\b", re.I)
+_INTERNAL_SUBSET_RE = re.compile(rb"<!DOCTYPE[^>\[]*\[(.*?)\]", re.S | re.I)
+
+#: An entity may name another entity. Four levels is far past anything a real
+#: book uses and far short of anything that could run away.
+_MAX_ENTITY_DEPTH = 4
+#: A document that expands tenfold is not a document, it is an attack.
+_MAX_ENTITY_GROWTH = 10
+
+
+def expand_internal_entities(data: bytes) -> tuple[bytes, list[str], list[str]]:
+    """Resolve entities declared in the internal subset, before it is thrown away.
+
+    Returns the rewritten bytes, the names expanded, and the names refused.
+
+    The subset has to go — it can declare anything, and the EPUB 3 `<!DOCTYPE
+    html>` that replaces it declares nothing. But the *references* to those
+    entities live in the text, and once the declaration is gone they resolve to
+    nothing: the ampersand gets escaped and `&mypauza;` appears on the page as
+    six literal characters. The reader sees markup where a dash should be.
+
+    Expanded here rather than by the parser, and that is the whole point.
+    Handing this to libxml2 means turning `resolve_entities` back on, which is
+    what closes XXE and the billion-laughs expansion in the first place. Doing
+    it here keeps both shut: external declarations are never resolved, nesting
+    is bounded, and a document that tries to grow tenfold is refused outright.
+    """
+    subset = _INTERNAL_SUBSET_RE.search(data)
+    if not subset:
+        return data, [], []
+
+    declarations = subset.group(1)
+    refused = [
+        name.decode("ascii", "replace")
+        for name, in (m.groups()[:1] for m in _EXTERNAL_ENTITY_RE.finditer(declarations))
+    ]
+
+    values: dict[bytes, bytes] = {}
+    for match in _ENTITY_DECL_RE.finditer(declarations):
+        values[match.group(1)] = match.group(3)
+    if not values:
+        return data, [], refused
+
+    body = data[subset.end():]
+    limit = len(data) * _MAX_ENTITY_GROWTH
+    used: set[str] = set()
+
+    for _ in range(_MAX_ENTITY_DEPTH):
+        replaced = False
+
+        def substitute(match: re.Match) -> bytes:
+            nonlocal replaced
+            name = match.group(1)
+            if name not in values:
+                return match.group(0)
+            replaced = True
+            used.add(name.decode("ascii", "replace"))
+            return values[name]
+
+        expanded = _ENTITY_RE.sub(substitute, body)
+        if len(expanded) > limit:
+            # Refuse the lot rather than half of it: a partially expanded
+            # document is harder to reason about than an untouched one.
+            return data, [], refused + sorted(used)
+        body = expanded
+        if not replaced:
+            break
+
+    return data[: subset.end()] + body, sorted(used), refused
+
+
 def _namespacify(element, default_ns: str = XHTML_NS):
     """Rebuild a namespace-less (HTML-parsed) tree into a namespaced XHTML tree."""
     tag = element.tag
@@ -112,14 +189,32 @@ def _namespacify(element, default_ns: str = XHTML_NS):
     return new
 
 
-def parse(data: bytes) -> tuple[etree._Element, str]:
-    """Parse an XHTML document.
+class ParseResult(NamedTuple):
+    """A parsed document plus what had to be done to it on the way in."""
 
-    Returns the root element and the recovery mode used: ``"xml"`` when the
-    source was already well-formed, ``"xml-entities"`` when only entity
-    rewriting was needed, or ``"html"`` when a full tag-soup recovery ran.
+    root: etree._Element
+    #: ``"xml"`` when the source was already well-formed, ``"xml-entities"``
+    #: when only entity rewriting was needed, ``"html"`` after a tag-soup
+    #: recovery.
+    mode: str
+    #: Entities declared in the internal subset and resolved before it was
+    #: dropped. A content change, so the caller has to report it.
+    entities_expanded: list[str] = []
+    #: Entity declarations refused — external, or past the expansion limits.
+    entities_refused: list[str] = []
+
+
+def parse_document(data: bytes) -> ParseResult:
+    """Parse an XHTML document and say what it cost.
+
+    Most callers only want the tree; :func:`parse` is the two-value form for
+    them. This is for the one that has to report what changed.
     """
     prepared = _STYLESHEET_PI_RE.sub(b"", data)
+
+    # Before the DOCTYPE is dropped, because dropping it is what strands the
+    # references to anything it declared.
+    prepared, expanded, refused = expand_internal_entities(prepared)
 
     # Entities must be rewritten *before* the strict parse, not as a fallback
     # after it. With resolve_entities=False lxml accepts an undeclared &nbsp;
@@ -137,12 +232,30 @@ def parse(data: bytes) -> tuple[etree._Element, str]:
     if root is not None and isinstance(root.tag, str):
         # Well-formed but namespace-less documents parse cleanly as XML and
         # would then fail every namespaced lookup downstream.
-        return (root if root.tag.startswith("{") else _namespacify(root)), mode
+        tree = root if root.tag.startswith("{") else _namespacify(root)
+        return ParseResult(tree, mode, expanded, refused)
 
     html_root = lxml_html.document_fromstring(
         normalized or b"<html><body></body></html>", parser=HTML_PARSER
     )
-    return _namespacify(html_root), "html"
+    return ParseResult(_namespacify(html_root), "html", expanded, refused)
+
+
+def parse(data: bytes) -> tuple[etree._Element, str]:
+    """The tree and the recovery mode, for callers that need nothing else."""
+    result = parse_document(data)
+    return result.root, result.mode
+
+
+def strip_doctype(data: bytes) -> bytes:
+    """Public form of the DOCTYPE removal, for tools that parse a *source* file.
+
+    `lxml.html` loses its footing on an internal subset — it fails to find
+    `<body>` and hands back the stray `]>` as text. Anything comparing a source
+    document with a rebuilt one has to remove the subset from the source first,
+    or the difference it reports is the DOCTYPE rather than the content.
+    """
+    return _DOCTYPE_RE.sub(b"", data, count=1)
 
 
 def qname(local: str, ns: str = XHTML_NS) -> str:
