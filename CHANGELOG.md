@@ -23,6 +23,22 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.2 — pre-alpha
+
+### Fixed
+- `docs/KORPUS.md` told the reader to run `epubforge survey`, which does not
+  work after installing: the application directory is not on `PATH`, so the
+  command that the whole document is built around fails with "not recognised".
+  The document also interleaved two different procedures — one needing only the
+  installed application, one needing a Python checkout — without saying which
+  was which, so there was no way to follow it end to end. It is now split into
+  two labelled paths with numbered steps, and every command is one that works
+  as written.
+- The installer adds a Start-menu shortcut opening a prompt with the
+  application on `PATH` for that window. Scoped to the session deliberately:
+  editing the real `PATH` is a change to somebody's machine and this needs no
+  such thing.
+
 ## 0.1.1 — pre-alpha
 
 A third audit, and the structural conclusion it reached is worth more than any

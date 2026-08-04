@@ -54,6 +54,14 @@ Source: "..\dist\EPUB-Forge\*"; DestDir: "{app}"; Flags: ignoreversion recursesu
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+; Opens a prompt with the application on PATH for that window only. The
+; command-line tool has features the window does not — `epubforge survey` above
+; all — and telling somebody to type a path under AppData is not a usable
+; instruction. Scoped to the session on purpose: editing the user's real PATH is
+; a change to their machine, and this needs no such thing.
+Name: "{group}\Wiersz polecen {#MyAppName}"; Filename: "{cmd}"; \
+    Parameters: "/K set ""PATH={app};%PATH%"" && epubforge --version"; \
+    WorkingDir: "{userdocs}"; Comment: "Command prompt with epubforge available"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 

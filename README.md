@@ -394,6 +394,10 @@ Nazwy plików **nie trafiają** do wyniku, chyba że poprosisz o to przez
 `--with-names`. Przegląd ma się dać komuś pokazać, a lista tytułów mówi więcej
 o Twojej półce niż o narzędziu.
 
+W wersji instalowanej najprościej użyć skrótu **Menu Start → EPUB F.O.R.G.E. →
+„Wiersz polecen"** — otwiera konsolę z `epubforge` już dostępnym. Krok po kroku:
+[`docs/KORPUS.md`](docs/KORPUS.md).
+
 ### Testy
 
 ```bash
@@ -462,8 +466,8 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
   złamać, każda ze wskazaniem testu, który jej pilnuje.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
   akurat takiej.
-- [`docs/KORPUS.md`](docs/KORPUS.md) — jak użyć własnej biblioteki, żeby pomóc
-  projektowi, nie wypuszczając z dysku ani jednej książki.
+- [`docs/KORPUS.md`](docs/KORPUS.md) — **instrukcja krok po kroku** dla właściciela
+  biblioteki: jak pomóc projektowi, nie wypuszczając z dysku ani jednej książki.
 
 ### Wersja i dojrzałość to dwie różne rzeczy
 
