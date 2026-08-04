@@ -275,6 +275,9 @@ epubforge build ~/Ebooki -o ~/Ebooki/czyste --check
 # Co się psuje w całej bibliotece — rankingowo, nic nie zapisując
 epubforge survey ~/Ebooki
 
+# Czym te książki są: pochodzenie, uszkodzenia, typografia
+epubforge inventory ~/Ebooki --json spis.json
+
 # Pełna zgodność, wygląd na drugim miejscu
 epubforge build ksiazka.epub --strict -o czysta.epub
 
@@ -397,6 +400,28 @@ o Twojej półce niż o narzędziu.
 W wersji instalowanej najprościej użyć skrótu **Menu Start → EPUB F.O.R.G.E. →
 „Wiersz polecen"** — otwiera konsolę z `epubforge` już dostępnym. Krok po kroku:
 [`docs/KORPUS.md`](docs/KORPUS.md).
+
+### Inwentarz biblioteki
+
+```bash
+epubforge inventory ~/Ebooki --json spis.json --map mapa.txt
+```
+
+Przegląd mówi, **co narzędzie zrobiło**; inwentarz mówi, **czym te książki są**.
+To pytanie wcześniejsze i mniej oczywiste: przegląd potrafi wymienić wyłącznie te
+usterki, które narzędzie już umie nazwać, więc sam siebie nie zaskoczy.
+
+Mierzone jest pochodzenie (ślady Calibre, InDesigna, Worda, konwersji z PDF-u —
+jako **lista**, bo pliki bywają warstwowe), uszkodzenia (eksplozja klas, zupa
+spanów, martwy CSS, atrybuty prezentacyjne) i typografia (formy cudzysłowów
+i pauz, wielokropki, twarde spacje, mojibake, dywizy zostawione przez łamanie
+wierszy). To jest materiał, na którym dopiero da się rozstrzygnąć, **które reguły
+w ogóle warto pisać** — biblioteka w 70% po Calibre potrzebuje czego innego niż
+taka, w której połowa to konwersje z PDF-u.
+
+Wynik to same liczby i częstości znaków. `--map` zapisuje osobno powiązanie
+skrótu z nazwą pliku i **jest jedynym plikiem, który nazywa Twoje książki** —
+nie powstaje, dopóki o niego nie poprosisz.
 
 ### Testy
 

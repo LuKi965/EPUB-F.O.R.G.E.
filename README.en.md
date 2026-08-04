@@ -266,6 +266,7 @@ EPUBCheck is optional here: point `EPUBCHECK_JAR` at `epubcheck.jar`, or put
 epubforge build book.epub                        # next to the original
 epubforge build ~/Books -o ~/Books/clean --check # a library, verified
 epubforge survey ~/Books                         # what breaks across it, ranked
+epubforge inventory ~/Books --json survey.json   # what the books are made of
 epubforge build book.epub --strict -o clean.epub # conformance first
 epubforge build book.epub --compat kobo          # concessions for one device
 epubforge inspect book.epub                      # diagnose without writing
@@ -371,6 +372,14 @@ zero errors and zero warnings, with every compatibility profile enabled too.
 `epubforge survey` reports what breaks across a whole library, ranked by how many
 books show each defect, writing nothing. Filenames are omitted unless
 `--with-names` is passed.
+
+`epubforge inventory` answers the prior question — what the books *are*: their
+provenance (traces of Calibre, InDesign, Word, a PDF conversion, as a list rather
+than one value, because files are layered), the damage they carry, and their
+typographic conventions. A survey can only name defects the tool already knows
+about; an inventory is what tells you which rules are worth writing. Output is
+counts and character frequencies; `--map` writes the hash-to-filename mapping
+separately and is the only file that names anything.
 
 Regression against real books runs separately. They cannot go into a public
 repository, so they live in a gitignored directory and only **metrics** are

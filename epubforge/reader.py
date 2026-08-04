@@ -756,6 +756,7 @@ def read_epub(source: str, report: Report) -> Book:
     for resource in by_id.values():
         book.add(resource)
 
+    book.source_package = entries.get(opf_path)
     book.spine, book.ncx_path, book.page_progression_direction = _parse_spine(
         package, by_id, report
     )
