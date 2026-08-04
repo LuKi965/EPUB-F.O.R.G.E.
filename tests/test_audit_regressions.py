@@ -293,3 +293,116 @@ class TestEntitiesDeclaredByTheDocumentItself:
         result = rebuild(source, str(tmp_path / "k1.epub"), Policy.preset("preserve"))
         assert "]>" not in body_text(source)
         assert "Wydawnictwo Przyklad" in body_text(result.output_path)
+
+
+# ---------------------------------------------- inherited alignment
+class TestAlignmentInheritedFromAContainer:
+    """Found in a real shop EPUB: the cover was already centred, and the tool
+    said it had centred it.
+
+    `body.cover { text-align: center }` wrapping a bare `<div><img/></div>` is
+    the ordinary way to build a cover page. Reading only the `<div>` finds no
+    alignment at all, concludes nobody chose one, and writes an inline
+    declaration that changes nothing — a fix reported for work not done.
+
+    The same blindness has a destructive form, which is the reason this is a
+    defect and not a cosmetic complaint: a publisher who aligns a container
+    deliberately gets overruled, because the rule naming that container is
+    invisible from inside it.
+    """
+
+    SHEET = "body {{ text-align: justify; }} p {{ text-indent: 2%; }} {extra}"
+
+    DOCUMENT = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pl">
+<head><meta charset="utf-8"/><title>R</title>
+<link rel="stylesheet" href="style.css" type="text/css"/></head>
+<body class="{body_class}">
+<div class="{wrapper}"><img src="picture.png" alt="okladka"/></div>
+</body>
+</html>"""
+
+    def build(self, tmp_path, *, body_class: str, wrapper: str, extra: str) -> str:
+        import zipfile
+
+        from .factory import CONTAINER, MODERN_NAV, png_bytes
+
+        opf = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>Okladka</dc:title>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch1" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="css" href="style.css" media-type="text/css"/>
+    <item id="img" href="picture.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="ch1"/></spine>
+</package>
+"""
+        path = str(tmp_path / f"{body_class}-{wrapper}.epub")
+        with zipfile.ZipFile(path, "w") as archive:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, b"application/epub+zip")
+            archive.writestr(
+                "META-INF/container.xml",
+                CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf"),
+            )
+            archive.writestr("OEBPS/package.opf", opf)
+            archive.writestr("OEBPS/nav.xhtml", MODERN_NAV)
+            archive.writestr(
+                "OEBPS/chapter.xhtml",
+                self.DOCUMENT.format(body_class=body_class, wrapper=wrapper),
+            )
+            archive.writestr("OEBPS/style.css", self.SHEET.format(extra=extra))
+            archive.writestr("OEBPS/picture.png", png_bytes())
+        return path
+
+    def rebuild_with(self, tmp_path, *, body_class="zwykly", wrapper="obraz", extra=""):
+        source = self.build(tmp_path, body_class=body_class, wrapper=wrapper, extra=extra)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
+            return archive.read(name).decode(), result
+
+    def test_a_centred_container_is_left_alone(self, tmp_path):
+        html, result = self.rebuild_with(
+            tmp_path,
+            body_class="cover",
+            extra="body.cover { text-align: center; }",
+        )
+        assert "text-align: center;" not in html, "it was already centred"
+        assert not any("image-only paragraph" in f.message for f in result.report.findings)
+
+    def test_a_deliberately_aligned_container_is_not_overruled(self, tmp_path):
+        """`body.prawa { text-align: right }` decides where the image goes.
+
+        The rule names the container, not the image, so nothing inside the
+        `<div>` reveals it — which is exactly how it used to get overwritten.
+        """
+        html, _ = self.rebuild_with(
+            tmp_path, body_class="prawa", extra="body.prawa { text-align: right; }"
+        )
+        assert "text-align: center" not in html
+
+    def test_an_inherited_indent_is_still_removed(self, tmp_path):
+        """The alignment was chosen; the indent still leaked in from body text."""
+        html, result = self.rebuild_with(
+            tmp_path,
+            body_class="prawa",
+            extra="body.prawa { text-align: right; } html { text-indent: 2em; }",
+        )
+        assert "text-indent: 0" in html
+        assert "text-align: center" not in html
+        assert any("running-text indent" in f.message for f in result.report.findings)
+
+    def test_an_image_nobody_aligned_is_still_centred(self, tmp_path):
+        """The behaviour this whole repair exists for, unchanged."""
+        html, result = self.rebuild_with(tmp_path, extra="body { text-indent: 1em; }")
+        assert "text-indent: 0; text-align: center;" in html
+        assert any("image-only paragraph" in f.message for f in result.report.findings)

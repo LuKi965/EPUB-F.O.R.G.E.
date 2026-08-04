@@ -112,14 +112,25 @@ image-only paragraph is centred, the CSS cascade is read:
 
 - `p.ilustracja { text-align: right }` — the rule targets this paragraph by
   class, so it is a **decision about this image**. Obeyed.
+- `body.cover { text-align: center }` — the rule targets the container and the
+  alignment is inherited. Still a decision about where that artwork sits, so it
+  is obeyed too; the image **is already** centred, and writing anything would be
+  a fix reported for work not done.
 - `p { text-align: justify }` — a rule written for prose that happens to land on
   artwork through inheritance. The paragraph is opted out of it.
 - inline styles — always respected.
 - a selector too complex to read unambiguously — treated as targeted. In doubt,
   the tool **does not touch it**.
 
+Both properties — `text-align` and `text-indent` — are inherited, so the
+nearest ancestor that says anything about them decides. Where the alignment was
+chosen but a paragraph indent leaked in from a rule about running text, only
+the indent goes and the alignment stays as written.
+
 Books that style their illustrations deliberately therefore come out untouched;
-only pages where nothing decided the alignment are centred.
+only pages where nothing decided the alignment are centred. Across a 65-book
+survey the rule stood aside 485 times and acted 54 — nine times more often it
+does nothing at all.
 
 ---
 
@@ -452,7 +463,7 @@ This is **pre-alpha**, and the program says so itself wherever it reports its
 version:
 
 ```
-epub-forge 0.1.4 (pre-alpha)
+epub-forge 0.1.5 (pre-alpha)
 ```
 
 The number no longer tries to carry that information, because it cannot: a

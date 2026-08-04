@@ -134,6 +134,7 @@ def measure(path: pathlib.Path) -> Book:
         return book
 
     documents = [r for r in parsed.content_docs()]
+    spine_paths = {item.path for item in parsed.spine}
     styles = parsed.by_type("style")
     css = "\n".join(sheet.text() for sheet in styles)
     markup = "\n".join(document.text() for document in documents)
@@ -188,13 +189,17 @@ def measure(path: pathlib.Path) -> Book:
     images_without_alt = 0
     images_empty_alt = 0
     text_parts: list[str] = []
+    spine_text_parts: list[str] = []
 
     for document in documents:
         try:
             root, _ = xhtml.parse(document.data)
         except Exception:  # noqa: BLE001 — one bad document must not stop the count
             continue
-        text_parts.append(_rendered_text(root))
+        rendered = _rendered_text(root)
+        text_parts.append(rendered)
+        if document.path in spine_paths:
+            spine_text_parts.append(rendered)
         for element in xhtml.iter_elements(root):
             tag = xhtml.local_name(element).lower()
             if tag in _BLOCK_TAGS:
@@ -246,6 +251,12 @@ def measure(path: pathlib.Path) -> Book:
     characters = len(text)
     book.fields.update(
         text_characters=characters,
+        # The reader's text, excluding anything not in the spine. A rebuild
+        # legitimately adds a navigation document, and that document is full of
+        # chapter titles: comparing the total before and after would report the
+        # table of contents as text that appeared from nowhere. This is the
+        # figure K1 is about — what a person actually reads, in reading order.
+        spine_text_characters=len(" ".join(spine_text_parts)),
         quotes={label: text.count(mark) for mark, label in QUOTE_FORMS.items() if text.count(mark)},
         dashes={label: text.count(mark) for mark, label in DASH_FORMS.items()},
         ellipsis_character=text.count("…"),

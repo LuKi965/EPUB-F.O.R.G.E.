@@ -1,0 +1,135 @@
+"""The corpus machinery itself, on books the suite can make.
+
+`test_corpus.py` runs the same code against somebody's real library and skips
+when there is none — which is everywhere except one machine. That left the
+machinery it depends on with no test at all, and both defects pinned here were
+found by a person running it on a real shelf rather than by this suite.
+"""
+
+from __future__ import annotations
+
+import pathlib
+
+import pytest
+
+from epubforge.corpus import books_in, compare, signature, summarise
+
+from .factory import make_legacy_epub, make_modern_epub
+
+
+@pytest.fixture(autouse=True)
+def without_epubcheck(monkeypatch):
+    """Signatures record what EPUBCheck said, and asking it costs a JVM start
+    per book per mode. Nothing here is about the validator — `test_epubcheck.py`
+    is — and a suite nobody waits for is a suite nobody runs."""
+    monkeypatch.setattr("epubforge.corpus.find_epubcheck", lambda: None)
+
+
+def shelf(root: pathlib.Path) -> pathlib.Path:
+    """A library filed the way people file libraries: in folders."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "jednego wydawcy").mkdir()
+    (root / "jednego wydawcy" / "Fundacja").mkdir()
+    make_modern_epub(str(root / "na wierzchu.epub"), title="Pierwsza")
+    make_modern_epub(str(root / "jednego wydawcy" / "druga.epub"), title="Druga")
+    make_legacy_epub(str(root / "jednego wydawcy" / "Fundacja" / "trzecia.epub"))
+    return root
+
+
+class TestFindingTheBooks:
+    def test_subfolders_are_searched(self, tmp_path):
+        """It read the top level only, and reported success on 1 of 3 books."""
+        assert len(books_in(shelf(tmp_path / "lib"))) == 3
+
+    def test_a_folder_with_no_books_is_not_an_error(self, tmp_path):
+        empty = tmp_path / "pusto"
+        empty.mkdir()
+        assert books_in(empty) == []
+
+    def test_a_missing_folder_is_not_an_error(self, tmp_path):
+        assert books_in(tmp_path / "nie ma") == []
+
+    def test_books_are_labelled_by_where_they_sit(self, tmp_path):
+        """Two shelves may hold the same filename; the bare name would lie."""
+        results = compare(shelf(tmp_path / "lib"), tmp_path / "sig", record=True)
+        labels = {result.book for result in results}
+        assert str(pathlib.Path("jednego wydawcy/druga.epub")) in labels
+
+
+class TestTheTextInvariantMeansWhatItSays:
+    """A real signature came back `text_invariant: false` on a book whose text
+    was untouched.
+
+    The rebuild generates the navigation document EPUB 3 requires, and that
+    document is a list of chapter titles — text, by any measure that counts
+    characters in content documents. Comparing the totals therefore reported
+    the table of contents as text that had appeared from nowhere, on every
+    EPUB 2 book anybody owns. A field that cries wolf on the majority of a
+    corpus is worse than no field.
+    """
+
+    def test_generating_a_table_of_contents_is_not_a_change_to_the_text(self, tmp_path):
+        book = pathlib.Path(make_legacy_epub(str(tmp_path / "stara.epub")))
+        record = signature(book, tmp_path)
+        assert record["preserve"]["written"]
+        assert record["preserve"]["text_invariant"], record["preserve"]
+        assert record["strict"]["text_invariant"]
+
+    def test_the_recorded_count_is_the_reader_s_text(self, tmp_path):
+        from epubforge.inventory import measure
+
+        book = pathlib.Path(make_legacy_epub(str(tmp_path / "stara.epub")))
+        record = signature(book, tmp_path)
+        assert record["preserve"]["text_characters"] == measure(book).fields[
+            "spine_text_characters"
+        ]
+
+
+class TestComparing:
+    def test_a_first_run_records_and_a_second_agrees(self, tmp_path):
+        books = shelf(tmp_path / "lib")
+        signatures = tmp_path / "sig"
+
+        first = compare(books, signatures, record=True)
+        assert all(result.status == "new" for result in first)
+
+        second = compare(books, signatures)
+        assert all(result.status == "unchanged" for result in second), [
+            (r.book, r.differences) for r in second
+        ]
+        assert "3 unchanged" in summarise(second)
+
+    def test_a_changed_signature_is_reported_field_by_field(self, tmp_path):
+        import json
+
+        books = shelf(tmp_path / "lib")
+        signatures = tmp_path / "sig"
+        compare(books, signatures, record=True)
+
+        reference = next(signatures.glob("*.json"))
+        recorded = json.loads(reference.read_text(encoding="utf-8"))
+        recorded["preserve"]["blocks"] = 999_999
+        reference.write_text(json.dumps(recorded), encoding="utf-8")
+
+        changed = [r for r in compare(books, signatures) if r.status == "changed"]
+        assert len(changed) == 1
+        assert any("blocks" in line for line in changed[0].differences)
+
+    def test_the_same_book_filed_twice_keeps_one_signature(self, tmp_path):
+        """Signatures are named by content, so a duplicate is not a new book —
+        which is the right answer for a library that has one."""
+        books = tmp_path / "lib"
+        (books / "A").mkdir(parents=True)
+        (books / "B").mkdir()
+        make_modern_epub(str(books / "A" / "ta sama.epub"), title="Ta sama")
+        make_modern_epub(str(books / "B" / "ta sama.epub"), title="Ta sama")
+
+        signatures = tmp_path / "sig"
+        compare(books, signatures, record=True)
+        assert len(list(signatures.glob("*.json"))) == 1
+
+    def test_nothing_is_written_next_to_the_books(self, tmp_path):
+        books = shelf(tmp_path / "lib")
+        before = {p for p in books.rglob("*")}
+        compare(books, tmp_path / "sig", record=True)
+        assert {p for p in books.rglob("*")} == before

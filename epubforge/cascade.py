@@ -146,6 +146,34 @@ class Cascade:
             for rule in self.rules
         )
 
+    def resolve(self, prop: str, chain: list[tuple[str, frozenset[str], str | None]]):
+        """Resolve an inherited property along an element's ancestor chain.
+
+        ``chain`` runs from the element itself outwards. The nearest ancestor
+        that declares the property decides it, which is how inheritance works
+        and — until this existed — was the gap that made the tool misread a
+        page like ``body.cover { text-align: center } … <div><img/></div>``.
+        Looking at the ``<div>`` alone finds nothing, concludes the image was
+        never aligned, and centres something that was already centred.
+
+        The same gap has a worse form. A publisher who writes
+        ``div.right { text-align: right }`` around an image has decided where
+        that image goes; a lookup that cannot see the ancestor calls it an
+        accident and overrides it. So the answer carries ``targeted`` from the
+        rule that won, wherever in the chain it sat, and ``distance`` — 0 when
+        it was the element's own rule — because "the publisher aimed at this
+        image" and "the publisher aimed at the chapter that contains it" are
+        not the same claim and the caller may want to tell them apart.
+
+        Returns ``(value, targeted, distance)``; ``(None, False, -1)`` when
+        nothing in the chain says anything.
+        """
+        for distance, (tag, classes, element_id) in enumerate(chain):
+            value, targeted = self.lookup(prop, tag, classes, element_id)
+            if value is not None:
+                return value, targeted, distance
+        return None, False, -1
+
 
 def is_zero_length(value: str | None) -> bool:
     """True for ``0``, ``0%``, ``0px`` and friends — anything with no effect."""

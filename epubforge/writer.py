@@ -44,6 +44,14 @@ def _entry(path: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipInf
     info = zipfile.ZipInfo(path, date_time=EPOCH)
     info.compress_type = compression
     info.external_attr = 0o644 << 16
+    # `zipfile` stamps every entry with the operating system it ran on — 0 for
+    # Windows, 3 for everything else — in both headers. One book built in two
+    # places therefore came out with different bytes and an identical
+    # rendering, which is precisely the false alarm a corpus signature must not
+    # raise: the person recording signatures and the person checking them are
+    # rarely on the same system. Pinned to 3, which is what the Unix permission
+    # bits set above already assume.
+    info.create_system = 3
     return info
 
 

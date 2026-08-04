@@ -91,6 +91,26 @@ def _css_length(value: str) -> str | None:
     return None
 
 
+def _ancestry(element) -> list[tuple[str, frozenset[str], str | None]]:
+    """The element and its ancestors, as the cascade wants to see them.
+
+    Nearest first, because that is the order inheritance resolves in: the
+    closest declaration wins.
+    """
+    chain: list[tuple[str, frozenset[str], str | None]] = []
+    current = element
+    while current is not None and isinstance(current.tag, str):
+        chain.append(
+            (
+                xhtml.local_name(current).lower(),
+                frozenset((current.get("class") or "").split()),
+                current.get("id"),
+            )
+        )
+        current = current.getparent()
+    return chain
+
+
 def _append_style(element, declarations: str) -> None:
     if not declarations:
         return
@@ -530,6 +550,7 @@ class ContentStage(Stage):
         cascade = self._document_cascade(ctx, root, resource)
         adjusted = 0
         respected = 0
+        unindented = 0
 
         for element in candidates:
             tag = xhtml.local_name(element).lower()
@@ -547,12 +568,31 @@ class ContentStage(Stage):
                 respected += 1
                 continue
 
-            align, _ = cascade.lookup("text-align", tag, classes, element_id)
-            indent, _ = cascade.lookup("text-indent", tag, classes, element_id)
+            # Both properties are inherited, so the answer may be several
+            # elements up. `body.cover { text-align: center }` around a bare
+            # <div><img/></div> is a centred cover page; reading the <div>
+            # alone sees nothing and "fixes" what was never broken.
+            chain = _ancestry(element)
+            align, align_targeted, _ = cascade.resolve("text-align", chain)
+            indent, indent_targeted, indent_distance = cascade.resolve("text-indent", chain)
             centred = (align or "").strip().lower() in {"center", "-webkit-center"}
             if centred and css_cascade.is_zero_length(indent):
-                # Already centred by a generic rule; restating it would only add
-                # noise to the markup and to the report.
+                # Already centred, wherever that was decided. Restating it would
+                # add noise to the markup and claim a fix that changed nothing.
+                continue
+
+            # An ancestor the publisher aimed at — `div.right`, `body.cover` —
+            # is still a statement about where this image sits, and moving it
+            # to the middle would overrule a decision.
+            if align_targeted and not centred:
+                if indent_targeted or css_cascade.is_zero_length(indent):
+                    respected += 1
+                    continue
+                # The alignment was chosen, but a running-text indent still
+                # leaks in from a generic rule. Take the indent, leave the
+                # alignment: only one of the two was decided.
+                _append_style(element, "text-indent: 0;")
+                unindented += 1
                 continue
 
             # Nothing decided this paragraph's alignment. Either running-text
@@ -573,13 +613,28 @@ class ContentStage(Stage):
                     "paragraphs specifically, so the layout was inherited rather than chosen."
                 ),
             )
+        if unindented:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"removed a running-text indent from {unindented} image paragraph(s), "
+                "keeping the alignment the publisher chose",
+                location=resource.path,
+                detail=(
+                    "A rule aimed at these paragraphs or their container decides where the "
+                    "image sits; the indent reached them from a rule about body text."
+                ),
+            )
         if respected:
             self.note(
                 ctx,
                 Level.PRESERVED,
                 f"left {respected} image paragraph(s) as the publisher styled them",
                 location=resource.path,
-                detail="A rule aimed at these paragraphs sets their alignment or indent.",
+                detail=(
+                    "A rule aimed at these paragraphs, or at an element containing them, "
+                    "sets their alignment or indent."
+                ),
             )
 
     def _block_in_inline(self, ctx: Context, root, resource) -> None:
