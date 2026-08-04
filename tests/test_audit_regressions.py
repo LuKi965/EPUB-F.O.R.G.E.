@@ -406,3 +406,85 @@ class TestAlignmentInheritedFromAContainer:
         html, result = self.rebuild_with(tmp_path, extra="body { text-indent: 1em; }")
         assert "text-indent: 0; text-align: center;" in html
         assert any("image-only paragraph" in f.message for f in result.report.findings)
+
+
+# ------------------------------------------- a comment inside <metadata>
+class TestACommentInsideTheMetadata:
+    """Three books out of a shelf of 64 died before anything could run.
+
+        ValueError: Input object is not an XML element: lxml.etree._Comment
+
+    A comment is not an element and lxml refuses to walk one. Nothing about
+    these books was unusual otherwise; one Polish shop simply writes its order
+    number into the package metadata as a comment, and Sigil leaves it there.
+
+    The number is a watermark by any other name, so it survives the rebuild —
+    removing those is not something this tool does.
+    """
+
+    COMMENT = "Wygenerowane przez sklep dla zamowienia numer 1659"
+
+    def build(self, tmp_path, comment: str) -> str:
+        import zipfile
+
+        from .factory import CONTAINER, MODERN_NAV, MODERN_CHAPTER, png_bytes
+
+        opf = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>Z komentarzem</dc:title>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+    <meta name="x-shop-trans-id" content="75c8dd7346b0aa3f8d164b8a"/><!--{comment}-->
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch1" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="img" href="picture.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="ch1"/></spine>
+</package>
+"""
+        path = str(tmp_path / "komentarz.epub")
+        with zipfile.ZipFile(path, "w") as archive:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, b"application/epub+zip")
+            archive.writestr(
+                "META-INF/container.xml",
+                CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf"),
+            )
+            archive.writestr("OEBPS/package.opf", opf)
+            archive.writestr("OEBPS/nav.xhtml", MODERN_NAV)
+            archive.writestr(
+                "OEBPS/chapter.xhtml",
+                MODERN_CHAPTER.format(image='<img src="picture.png" alt="x"/>'),
+            )
+            archive.writestr("OEBPS/picture.png", png_bytes())
+        return path
+
+    def test_the_book_rebuilds_at_all(self, tmp_path):
+        source = self.build(tmp_path, self.COMMENT)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.output_path, result.report.to_text()
+
+    def test_the_shop_s_note_survives(self, tmp_path):
+        source = self.build(tmp_path, self.COMMENT)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert self.COMMENT in package_document(result.output_path)
+
+    def test_the_title_is_still_read_correctly(self, tmp_path):
+        """The comment sits among the elements the loop was reading."""
+        source = self.build(tmp_path, self.COMMENT)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert "<dc:title" in package_document(result.output_path)
+        assert "Z komentarzem" in package_document(result.output_path)
+
+    def test_a_comment_that_cannot_be_written_back_is_dropped_not_mangled(self, tmp_path):
+        """`--` has no escape inside an XML comment, and a broken package is
+        worse than a lost note."""
+        source = self.build(tmp_path, "zamowienie -- numer 1659")
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.output_path
+        assert "zamowienie" not in package_document(result.output_path)

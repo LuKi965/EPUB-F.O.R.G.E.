@@ -228,6 +228,14 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             continue
         lines.append(f'    <meta name={quoteattr(name)} content={quoteattr(content)}/>')
 
+    for comment in metadata.metadata_comments:
+        # `--` cannot appear inside an XML comment and there is no escape for
+        # it, so one that contains a pair is dropped rather than mangled. No
+        # watermark seen in the wild has looked like that.
+        if "--" in comment or comment.endswith("-"):
+            continue
+        lines.append(f"    <!--{comment}-->")
+
     if book.cover_path:
         # Legacy hint: EPUB 2 readers only recognise the cover this way.
         cover_id_placeholder = "__COVER_ID__"

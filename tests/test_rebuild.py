@@ -725,3 +725,118 @@ def test_minimal_mode_still_produces_a_navigation_document(legacy_epub, tmp_path
     result = rebuild(legacy_epub, str(tmp_path / "minimal.epub"), Policy.preset("minimal"))
     with zipfile.ZipFile(result.output_path) as archive:
         assert any(name.endswith("nav.xhtml") for name in archive.namelist())
+
+
+class TestTheCoverFitsThePage:
+    """A cover with no rule sizing it is shown at its own pixel dimensions.
+
+    Seen after a Calibre edit that wrote the cover stylesheet to the archive
+    root while the page went on linking `../Styles/cover.css`: the link
+    dangles, no rule reaches the image, and the reader falls back to 1600px of
+    artwork on a six-inch screen.
+
+    Only when nothing sizes it. Both limits can only ever shrink an image below
+    its natural size, so the worst outcome is a reader ignoring them.
+    """
+
+    COVER_PAGE = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pl">
+<head><meta charset="utf-8"/><title>Okladka</title>{link}</head>
+<body><div><img src="picture.png" alt="okladka"/></div></body>
+</html>"""
+
+    def build(self, tmp_path, *, sheet: str | None) -> str:
+        import zipfile
+
+        from .factory import CONTAINER, MODERN_NAV, png_bytes
+
+        stylesheet_item = (
+            '    <item id="css" href="style.css" media-type="text/css"/>\n' if sheet else ""
+        )
+        opf = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>Okladka</dc:title>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch1" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+{stylesheet_item}    <item id="img" href="picture.png" media-type="image/png" properties="cover-image"/>
+  </manifest>
+  <spine><itemref idref="ch1"/></spine>
+</package>
+"""
+        path = str(tmp_path / f"cover-{'styled' if sheet else 'bare'}.epub")
+        with zipfile.ZipFile(path, "w") as archive:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, b"application/epub+zip")
+            archive.writestr(
+                "META-INF/container.xml",
+                CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf"),
+            )
+            archive.writestr("OEBPS/package.opf", opf)
+            archive.writestr("OEBPS/nav.xhtml", MODERN_NAV)
+            archive.writestr(
+                "OEBPS/chapter.xhtml",
+                self.COVER_PAGE.format(
+                    link='<link rel="stylesheet" href="style.css" type="text/css"/>'
+                    if sheet
+                    else ""
+                ),
+            )
+            if sheet:
+                archive.writestr("OEBPS/style.css", sheet)
+            archive.writestr("OEBPS/picture.png", png_bytes())
+        return path
+
+    def cover_markup(self, tmp_path, *, sheet: str | None):
+        import re
+
+        source = self.build(tmp_path, sheet=sheet)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
+            html = archive.read(name).decode()
+        return re.search(r"<img[^>]*>", html).group(), result
+
+    def test_an_unsized_cover_is_given_limits(self, tmp_path):
+        markup, result = self.cover_markup(tmp_path, sheet=None)
+        assert "max-width: 100%" in markup and "max-height: 100%" in markup
+        assert any("page-fitting" in f.message for f in result.report.findings)
+
+    def test_a_cover_the_publisher_sized_is_left_alone(self, tmp_path):
+        markup, result = self.cover_markup(
+            tmp_path, sheet="img { max-height: 98%; max-width: 100%; }"
+        )
+        assert "style=" not in markup
+        assert not any("page-fitting" in f.message for f in result.report.findings)
+
+    def test_a_width_attribute_counts_as_sizing(self, tmp_path):
+        """Old books size images in HTML, and that is still a decision."""
+        original = self.COVER_PAGE
+        try:
+            type(self).COVER_PAGE = original.replace(
+                '<img src="picture.png"', '<img width="600" src="picture.png"'
+            )
+            source = self.build(tmp_path, sheet=None)
+        finally:
+            type(self).COVER_PAGE = original
+        result = rebuild(source, str(tmp_path / "attr.epub"), Policy.preset("preserve"))
+        assert not any("page-fitting" in f.message for f in result.report.findings)
+
+    def test_only_one_image_is_touched(self, tmp_path):
+        """Only the cover. An illustration mid-chapter is a different question,
+        and the cover page this tool generates already sizes its own."""
+        import re
+
+        source = self.build(tmp_path, sheet=None)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            names = [n for n in archive.namelist() if n.endswith(".xhtml")]
+            markup = "".join(archive.read(n).decode() for n in names)
+        styled = [tag for tag in re.findall(r"<img[^>]*>", markup) if "style=" in tag]
+        assert len(styled) == 1, styled

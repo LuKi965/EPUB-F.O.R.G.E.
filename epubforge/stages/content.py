@@ -198,6 +198,7 @@ class ContentStage(Stage):
             self._rewrite_references(ctx, root, resource, global_ids)
             self._modernise(ctx, root, resource)
             self._image_paragraphs(ctx, root, resource)
+            self._cover_fits_the_page(ctx, root, resource)
             self._block_in_inline(ctx, root, resource)
             self._watermarks(ctx, root, resource)
             self._accessibility(ctx, root, resource)
@@ -634,6 +635,65 @@ class ContentStage(Stage):
                 detail=(
                     "A rule aimed at these paragraphs, or at an element containing them, "
                     "sets their alignment or indent."
+                ),
+            )
+
+    def _cover_fits_the_page(self, ctx: Context, root, resource) -> None:
+        """Keep a cover from being shown at its pixel size for want of a rule.
+
+        A cover page normally carries ``img { max-width: 100%; max-height: 100% }``
+        and nothing else. When that rule goes missing — a stylesheet link the
+        publisher's tooling broke, a page that links no stylesheet at all — the
+        reader falls back to the image's own dimensions, and a 1600px cover on a
+        six-inch screen is cropped or shrunk to a stamp depending on the device.
+
+        Only applied when **nothing** sizes the image: no inline style, no rule
+        of any kind reaching it for width, height or their maxima. Both
+        properties can only ever make an image smaller than its natural size, so
+        the worst case is that a reader ignores them.
+        """
+        cover = ctx.book.cover_path
+        if not cover:
+            return
+
+        source_path = resource.original_path or resource.path
+        cascade = None
+        adjusted = 0
+
+        for element in root.iter(xhtml.qname("img")):
+            source = (element.get("src") or "").strip()
+            if not source:
+                continue
+            target = paths.resolve(source_path, source)
+            if target != cover and ctx.path_map.get(target) != ctx.path_map.get(cover):
+                continue
+            inline = (element.get("style") or "").lower()
+            if any(prop in inline for prop in ("width", "height")):
+                continue
+            if element.get("width") or element.get("height"):
+                continue
+
+            if cascade is None:
+                cascade = self._document_cascade(ctx, root, resource)
+            chain = _ancestry(element)
+            if any(
+                cascade.resolve(prop, chain[:1])[0] is not None
+                for prop in ("width", "height", "max-width", "max-height")
+            ):
+                continue
+
+            _append_style(element, "max-width: 100%; max-height: 100%;")
+            adjusted += 1
+
+        if adjusted:
+            self.note(
+                ctx,
+                Level.FIX,
+                "gave the cover image page-fitting limits; nothing in the book set any",
+                location=resource.path,
+                detail=(
+                    "No stylesheet rule and no attribute sized this image, so a reader "
+                    "would show it at its own pixel dimensions."
                 ),
             )
 

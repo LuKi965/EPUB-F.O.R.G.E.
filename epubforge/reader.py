@@ -84,6 +84,12 @@ def attr(element, name: str, *namespaces: str) -> str | None:
 
 
 def text_of(element) -> str:
+    # A comment or a processing instruction is not an element, and lxml refuses
+    # to walk one. Three books in a shelf of 64 carried a comment inside
+    # <metadata> — Sigil and InDesign both leave them there — and the whole
+    # rebuild died on it before anything else had a chance to run.
+    if not isinstance(element.tag, str):
+        return ""
     return re.sub(r"\s+", " ", "".join(element.itertext())).strip()
 
 
@@ -345,6 +351,13 @@ def _parse_metadata(package, report: Report) -> Metadata:
 
     for child in node:
         tag = lname(child).lower()
+        if not tag:
+            # A comment or a processing instruction. Not metadata — but one
+            # Polish shop writes its order number into exactly this position,
+            # and removing a watermark is not something this tool does.
+            if child.tag is etree.Comment and (child.text or "").strip():
+                metadata.metadata_comments.append(child.text.strip())
+            continue
         value = text_of(child)
         if tag == "title" and value:
             title_type = refinement(child, "title-type")

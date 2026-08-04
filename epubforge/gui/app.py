@@ -63,6 +63,10 @@ class Worker(QObject):
     """Runs the rebuild off the UI thread."""
 
     progress = Signal(int, str)
+    #: Emitted when the rebuild is done and the validator takes over. Without
+    #: it the window says "rebuilding" for the seconds a JVM needs to start,
+    #: which is the longest part of the job and looked like a freeze.
+    validating = Signal(int, str)
     finished_one = Signal(int, object)
     finished_all = Signal()
 
@@ -84,6 +88,7 @@ class Worker(QObject):
             try:
                 result = rebuild(source, destination, self._policy)
                 if self._run_check and result.output_path:
+                    self.validating.emit(index, os.path.basename(source))
                     validate(result.output_path, result.report)
             except Exception as exc:  # noqa: BLE001 - surfaced in the UI
                 report = Report(source=source, output=destination)
@@ -556,6 +561,7 @@ class MainWindow(QMainWindow):
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._on_progress)
+        self._worker.validating.connect(self._on_validating)
         self._worker.finished_one.connect(self._on_one_finished)
         self._worker.finished_all.connect(self._on_all_finished)
         self._thread.start()
@@ -563,6 +569,9 @@ class MainWindow(QMainWindow):
     def _on_progress(self, index: int, name: str) -> None:
         self._set_status(index, "working")
         self.statusBar().showMessage(tr("status.working", name=name))
+
+    def _on_validating(self, index: int, name: str) -> None:
+        self.statusBar().showMessage(tr("status.validating", name=name))
 
     def _on_one_finished(self, index: int, result) -> None:
         self._results[index] = result

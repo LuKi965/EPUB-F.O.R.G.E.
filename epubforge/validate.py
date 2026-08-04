@@ -72,6 +72,28 @@ def _java_command(jar: str) -> list[str] | None:
     return ["java", "-jar", jar]
 
 
+def _no_console() -> dict:
+    """Keep Windows from opening a console window for the validator.
+
+    A GUI process on Windows has no console, so starting one is starting a
+    new window: a black rectangle appears, sits there for as long as the JVM
+    runs, and disappears. It does nothing, explains nothing, and the progress
+    it looks like it should be showing is in the application window already.
+
+    `CREATE_NO_WINDOW` is the documented way to say no. It exists only on
+    Windows, hence the guard; everywhere else this returns nothing and the call
+    is unchanged.
+    """
+    if os.name != "nt":
+        return {}
+    options: dict = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = subprocess.SW_HIDE
+    options["startupinfo"] = startupinfo
+    return options
+
+
 def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
     command = find_epubcheck()
     if command is None:
@@ -92,6 +114,7 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
             capture_output=True,
             timeout=300,
             check=False,
+            **_no_console(),
         )
         with open(json_path, encoding="utf-8") as handle:
             payload = json.load(handle)

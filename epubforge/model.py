@@ -193,6 +193,10 @@ class Metadata:
     series_index: str | None = None
     #: Vendor metadata worth carrying over, as ``(name, content)`` pairs.
     extra_meta: list[tuple[str, str]] = field(default_factory=list)
+    #: Comments found inside ``<metadata>``. Kept because at least one shop
+    #: writes its order number there — a watermark by any other name, and this
+    #: tool does not remove watermarks.
+    metadata_comments: list[str] = field(default_factory=list)
     #: Dublin Core elements with no dedicated field, as ``(element, value)``.
     #: Carried through verbatim: they are the publisher's statements about the
     #: work, and having no slot in this model is not a reason to discard them.

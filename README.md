@@ -530,7 +530,7 @@ To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
 wersję:
 
 ```
-epub-forge 0.1.5 (pre-alpha)
+epub-forge 0.1.6 (pre-alpha)
 ```
 
 Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —

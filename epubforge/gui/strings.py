@@ -56,9 +56,12 @@ PL: dict[str, str] = {
     "policy.group": "Zasady przebudowy",
     "policy.mode.label": "Gdy zgodność ze standardem kłóci się z wyglądem:",
     "policy.mode.tip": (
-        "Decyduje, co ma pierwszeństwo w sytuacjach spornych — na przykład gdy "
-        "książka używa hacków CSS pod konkretny czytnik albo zawiera linki do "
-        "plików, których nigdy w niej nie było."
+        "Każdy tryb buduje książkę od nowa: pakiet, nawigację, nazwy plików i "
+        "strukturę ZIP. Tak działa to narzędzie — nie łata pliku, tylko wczytuje "
+        "książkę i składa nowy, poprawny kontener.\n\n"
+        "Ten wybór dotyczy wyłącznie tego, co zrobić z *treścią* w sytuacjach "
+        "spornych — na przykład gdy książka używa hacków CSS pod konkretny czytnik "
+        "albo zawiera linki do plików, których nigdy w niej nie było."
     ),
     "policy.mode.preserve": "Zachowaj wygląd, zgłoś odstępstwa",
     "policy.mode.strict": "Wymuś standard, nawet kosztem wyglądu",
@@ -165,9 +168,12 @@ PL: dict[str, str] = {
 
     # --- corpus tab -----------------------------------------------------
     "corpus.intro": (
-        "Zapisuje dla każdej książki podpis — same liczby — i przy kolejnym "
-        "uruchomieniu mówi, czy coś się zmieniło. Dzięki temu Twoja biblioteka pilnuje "
-        "narzędzia, mimo że nikt jej nie udostępnia."
+        "Sieć bezpieczeństwa dla tego programu, nie dla Twoich plików.\n\n"
+        "Dla każdej książki zapisuje, co przebudowa z niej zrobiła — same liczby "
+        "i skrót wyniku. Gdy jutro zmienię w narzędziu regułę, a ta zmiana zepsuje "
+        "którąkolwiek z Twoich książek, ten test to zauważy — mimo że tych książek "
+        "nigdy nie widziałem i nie zobaczę. „Inny wynik” znaczy więc: przebudowana "
+        "inaczej niż ostatnim razem. Twój plik na dysku pozostaje nietknięty."
     ),
     "corpus.books": "Książki:",
     "corpus.signatures": "Podpisy:",
@@ -190,7 +196,7 @@ PL: dict[str, str] = {
     ),
     "corpus.empty": "Wskaż folder z książkami i naciśnij „Sprawdź”.",
     "corpus.status.unchanged": "bez zmian",
-    "corpus.status.changed": "zmieniona",
+    "corpus.status.changed": "inny wynik",
     "corpus.status.new": "nowa",
     "corpus.status.failed": "błąd",
 
@@ -281,6 +287,7 @@ PL: dict[str, str] = {
     "status.hint.nocheck": "EPUBCheck niedostępny — weryfikacja wyłączona.",
     "status.queued.count": "W kolejce: {count}",
     "status.working": "Przebudowuję {name}…",
+    "status.validating": "Sprawdzam {name} programem EPUBCheck…",
     "status.finished": "Zakończono {count} książek — wszystkie zapisane.",
     "status.finished.failures": "Zakończono {count} książek — {failures} nie udało się zapisać.",
     "dialog.nothing.title": "Nie ma czego przebudowywać",
@@ -354,8 +361,12 @@ EN: dict[str, str] = {
     "policy.group": "Rebuild policy",
     "policy.mode.label": "When conformance and appearance conflict:",
     "policy.mode.tip": (
-        "Decides what wins in disputed cases — reader-specific CSS hacks, or links to files "
-        "the book never contained."
+        "Every mode builds the book anew: package, navigation, filenames, ZIP "
+        "layout. That is how this tool works — it does not patch a file, it reads "
+        "the book and assembles a correct container.\n\n"
+        "This choice is only about what to do with the *content* in disputed "
+        "cases — reader-specific CSS hacks, or links to files the book never "
+        "contained."
     ),
     "policy.mode.preserve": "Preserve appearance, report deviations",
     "policy.mode.strict": "Enforce the standard, even if rendering changes",
@@ -444,9 +455,12 @@ EN: dict[str, str] = {
     "library.empty": "Point at a folder of e-books and press Run.",
 
     "corpus.intro": (
-        "Records a signature for each book — counts only — and tells you next time "
-        "whether anything moved. Your library keeps the tool honest without anybody "
-        "having to hand it over."
+        "A safety net for this program, not for your files.\n\n"
+        "For each book it records what the rebuild did to it — counts only, plus a "
+        "hash of the result. When a rule changes tomorrow and that change breaks one "
+        "of your books, this notices — even though nobody ever handed the books over. "
+        "\"Different\" therefore means: rebuilt differently than last time. Your file "
+        "on disk is untouched."
     ),
     "corpus.books": "Books:",
     "corpus.signatures": "Signatures:",
@@ -465,7 +479,7 @@ EN: dict[str, str] = {
     ),
     "corpus.empty": "Point at a folder of books and press Check.",
     "corpus.status.unchanged": "unchanged",
-    "corpus.status.changed": "changed",
+    "corpus.status.changed": "different result",
     "corpus.status.new": "new",
     "corpus.status.failed": "failed",
 
@@ -544,6 +558,7 @@ EN: dict[str, str] = {
     "status.hint.nocheck": "EPUBCheck unavailable — validation disabled.",
     "status.queued.count": "Queued: {count}",
     "status.working": "Rebuilding {name}…",
+    "status.validating": "Checking {name} with EPUBCheck…",
     "status.finished": "Finished {count} book(s) — all written.",
     "status.finished.failures": "Finished {count} book(s) — {failures} could not be written.",
     "dialog.nothing.title": "Nothing to do",

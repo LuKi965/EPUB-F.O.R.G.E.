@@ -23,6 +23,49 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.6 — pre-alpha
+
+The other half of the same afternoon's data: the three books a 64-book survey
+could not read, and the three complaints from the person running it.
+
+### Fixed
+- **Three books died on a comment.** `ValueError: Input object is not an XML
+  element: lxml.etree._Comment` — one Polish shop writes its order number into
+  `<metadata>` as an XML comment, Sigil leaves it there, and the metadata loop
+  called `itertext()` on it. lxml refuses to walk a comment, so the rebuild
+  ended before anything else could run. Nothing else about those books was
+  unusual.
+
+  The comment now **survives the rebuild**, which is the only consistent answer:
+  it carries an order number, that is a watermark by any other name, and this
+  tool does not remove watermarks. One containing `--` is dropped instead of
+  mangled — XML has no escape for it — and nothing else in the package changes.
+- **The cover was shown at its own pixel size when nothing sized it.** Found in
+  a book a Calibre edit had left with the cover stylesheet in the archive root
+  and the cover page still linking `../Styles/cover.css`: the link dangles, no
+  rule reaches the image, and a 1600px cover meets a six-inch screen. Where
+  **nothing** sizes the cover — no rule anywhere in the chain, no `width`
+  attribute, no inline style — it now gets `max-width: 100%; max-height: 100%`.
+  Both can only ever shrink an image below its natural size, so the worst case
+  is a reader ignoring them. A cover the publisher did size is untouched.
+
+### Changed
+- **No more console window on Windows.** Ticking "check with EPUBCheck" starts
+  a JVM, and a GUI process starting a console binary gets a console: a black
+  rectangle that appears, does nothing, and disappears — once per book, so 64
+  times on a library run. Started with `CREATE_NO_WINDOW` now. The progress it
+  looked like it should be showing is in the window, and the status line says
+  when the validator is the thing taking the time.
+- **The corpus tab explains what it is for.** It was described in terms of what
+  it stores rather than what it does, and it read as though it were signing the
+  user's files. It is a safety net for this program: it notices when a change
+  here alters what the rebuild produces for books nobody ever handed over. The
+  status word for that is now "inny wynik" — a different result — because
+  "changed" sounded like the book had been changed.
+- The mode tooltip says outright that **every mode rebuilds the container**, and
+  that the choice is only about what happens to the content. "Keep the
+  appearance" reads like "leave the file alone", and it never meant that.
+
 ## 0.1.5 — pre-alpha
 
 Everything here came out of one afternoon's data from somebody else's shelf: a
