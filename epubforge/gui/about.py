@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from .. import __version__, resources
+from .. import resources, version_string
 from . import theme
 from .strings import tr
 
@@ -121,7 +121,7 @@ class AboutDialog(QDialog):
         subtitle.setStyleSheet(f"color: {colors.accent}; font-size: 9.5pt; font-style: italic;")
         text.addWidget(subtitle)
 
-        version = QLabel(tr("about.version", version=__version__))
+        version = QLabel(tr("about.version", version=version_string()))
         version.setStyleSheet(f"color: {colors.text_muted};")
         text.addWidget(version)
 

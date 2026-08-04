@@ -9,7 +9,7 @@ import sys
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, compat
+from . import compat, version_string
 from .pipeline import rebuild
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -280,7 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="epubforge",
         description="Rebuild EPUB files into clean EPUB 3.3 while preserving their appearance.",
     )
-    parser.add_argument("--version", action="version", version=f"epub-forge {__version__}")
+    parser.add_argument("--version", action="version", version=f"epub-forge {version_string()}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build = subparsers.add_parser("build", help="rebuild one or more EPUB files")

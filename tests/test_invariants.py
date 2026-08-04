@@ -12,6 +12,7 @@ the ones used there.
 from __future__ import annotations
 
 import hashlib
+import pathlib
 import re
 import unicodedata
 import zipfile
@@ -284,3 +285,40 @@ class TestDocumentSelection:
         with zipfile.ZipFile(path, "w") as handle:
             handle.writestr("OEBPS/ch.xhtml", self.DOCUMENT % b"DELTA")
         assert "DELTA" in body_text(str(path))
+
+
+# ------------------------------------------------------------------ the source
+class TestTheSourceIsNeverDestroyed:
+    """The one file the tool must not be able to ruin.
+
+    Everything it writes can be produced again from the source; the source
+    cannot. The guard lives in `rebuild()` rather than only in the CLI and the
+    window, so a library caller gets it too — and so this can be asserted once
+    instead of once per front end.
+    """
+
+    def test_writing_over_the_source_is_refused(self, legacy_epub):
+        from epubforge.report import Level
+
+        before = pathlib.Path(legacy_epub).read_bytes()
+        result = rebuild(legacy_epub, legacy_epub, Policy.preset("preserve"))
+
+        assert result.output_path is None
+        assert pathlib.Path(legacy_epub).read_bytes() == before
+        assert any(
+            f.level is Level.ERROR and "source" in f.message for f in result.report.findings
+        )
+
+    def test_an_equivalent_path_is_refused_too(self, legacy_epub, tmp_path):
+        """Same file, spelled differently, is still the same file."""
+        indirect = str(pathlib.Path(legacy_epub).parent / "." / pathlib.Path(legacy_epub).name)
+        before = pathlib.Path(legacy_epub).read_bytes()
+        result = rebuild(legacy_epub, indirect, Policy.preset("preserve"))
+
+        assert result.output_path is None
+        assert pathlib.Path(legacy_epub).read_bytes() == before
+
+    def test_an_ordinary_rebuild_leaves_the_source_untouched(self, legacy_epub, tmp_path):
+        before = pathlib.Path(legacy_epub).read_bytes()
+        rebuild(legacy_epub, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert pathlib.Path(legacy_epub).read_bytes() == before

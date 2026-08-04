@@ -443,17 +443,30 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
   akurat takiej.
 
-### Numer wersji nie jest paskiem postępu
+### Wersja i dojrzałość to dwie różne rzeczy
 
-Schemat to `0.MINOR.PATCH`. **MINOR** rośnie, gdy narzędzie robi coś nowego albo
-inaczej i użytkownik to zobaczy; **PATCH** obejmuje resztę, łącznie z naprawą
-poważnych defektów — numer opisuje zakres zmiany, nie jej wagę. Od wagi jest
-[`CHANGELOG.md`](CHANGELOG.md).
+To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
+wersję:
 
-MINOR nie jest ułamkiem dziesiętnym: po 0.9 idzie 0.10, potem 0.11, a 0.42 jest
-najzupełniej poprawną wersją tego programu. **1.0 nie wychodzi „bo doszliśmy"** —
-warunki są wypisane w [`CONTRIBUTING.md`](CONTRIBUTING.md) i dotyczą korpusu,
-niezmienników i stabilności API, a nie stanu licznika.
+```
+epub-forge 0.1.0 (pre-alpha)
+```
+
+Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —
+liczba rosnąca w stronę 1.0 czyta się jako postęp ku wydaniu niezależnie od tego,
+co ktoś miał na myśli. PATCH podbija się przy każdym wydaniu, cokolwiek zawiera;
+MINOR wyłącznie razem z etapem dojrzałości, po odhaczeniu wypisanych warunków.
+
+| Etap | | |
+|---|---|---|
+| **pre-alpha** | `0.1.x` | prototyp; działa na książkach autora, korpusu nie ma |
+| **alpha** | `0.2.x` | poprawność sprawdzana na 30+ prawdziwych książkach, raport przetłumaczony |
+| **beta** | `0.3.x` | kompletne, używane przez kogoś poza autorem |
+| **1.0** | | stabilne — pełne warunki w [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+
+Co to znaczy w praktyce: narzędzie **nigdy nie nadpisuje pliku źródłowego** i to
+jest własność pilnowana testem, ale poza tym trzymaj oryginały. To jest prototyp
+i tak się nazywa.
 
 ---
 

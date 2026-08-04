@@ -71,6 +71,20 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     if book.has_drm:
         return Result(report, book, None)
 
+    # Checked here rather than only in the front ends, so the guarantee holds
+    # for a library caller too. The source is the one file this tool must never
+    # be able to destroy: everything else it writes can be produced again from
+    # it, and it cannot.
+    if os.path.abspath(destination) == os.path.abspath(source):
+        report.add(
+            "writer",
+            Level.ERROR,
+            "refusing to write over the source file",
+            location=source,
+            detail="Nothing was written. Choose a different destination.",
+        )
+        return Result(report, book, None)
+
     parent = os.path.dirname(os.path.abspath(destination))
     if parent:
         os.makedirs(parent, exist_ok=True)

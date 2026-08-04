@@ -1,19 +1,46 @@
 # Changelog
 
-The scheme is `0.MINOR.PATCH`. **MINOR** goes up when the tool does something
-new or different that a user would notice — a stage, a flag, a change in what
-the output contains. **PATCH** covers everything else, defect fixes included:
-the number describes the scope of a change, not its importance. Importance is
-what this file is for.
+Maturity is stated in words, not encoded in the number: `__stage__` sits beside
+`__version__` and appears wherever the version does — `pre-alpha` today. MINOR
+moves only when the stage does, against the entry conditions in
+`CONTRIBUTING.md`. PATCH moves on every release, whatever it contains, so there
+is no judgement call to make and therefore no way for one to drift upwards.
 
-MINOR is not a decimal fraction. 0.9 is followed by 0.10, then 0.11, and 0.42 is
-a perfectly ordinary version of this program. Reaching 1.0 is not something that
-happens by counting — the conditions for it are listed in `CONTRIBUTING.md`, and
-they are about the corpus, the invariants and the API, not about the tally.
+The number says nothing about how significant a change was. That is what the
+entries below are for.
 
 The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
+
+---
+
+### A note on the numbers below
+
+Releases 0.2.0 through 0.8.1 were numbered under two earlier schemes, both of
+which used MINOR as a rough measure of "how much got done". Nothing was ever
+tagged or published under those numbers, so they were renumbered rather than
+left to imply a maturity the software does not have. The history is kept as
+written; only the current version was reset.
+
+## 0.1.0 — pre-alpha
+
+### Changed
+- **Version reset to 0.1.0, and maturity moved out of the number.** Two earlier
+  schemes both used MINOR as a measure of how much had been built, so a day's
+  work put the tool at 0.8 — which reads as four fifths of the way to a release
+  it is nowhere near. The second attempt slowed the increments and left the
+  inflated number in place, which fixed the symptom.
+
+  The number now counts releases and nothing else: PATCH moves on every one,
+  with no judgement call to make. Maturity is a separate word, `__stage__`,
+  shown wherever the version is shown — `epub-forge 0.1.0 (pre-alpha)` — and
+  MINOR moves only when that word does, against written entry conditions for
+  alpha, beta and 1.0. Nothing had been tagged or released under the old
+  numbers, so nothing points at them.
+
+  Everything below this line was built during 0.1.x; the old headings are kept
+  as written rather than rewritten, since they are a record of what happened.
 
 ## 0.8.1
 

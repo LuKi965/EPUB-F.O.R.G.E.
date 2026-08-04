@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import __version__, resources
+from .. import resources, version_string
 from ..pipeline import rebuild
 from ..policy import Policy
 from ..quips import quip_for
@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
         #: label is retranslated, carrying the queue across.
         self.restart_requested = False
         self.palette_colors = palette or theme.LIGHT
-        self.setWindowTitle(tr("window.title", version=__version__))
+        self.setWindowTitle(tr("window.title", version=version_string()))
         self.resize(1180, 760)
         self.setAcceptDrops(True)
 
