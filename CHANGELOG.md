@@ -22,6 +22,19 @@ installer — bump it there and everything follows.
   the interface; a wisecrack after every book stops being funny by the third
   one, and one beside a warning or an error is simply in the way.
 
+### Fixed
+- The Windows build stopped working the moment the repository itself was
+  renamed to `EPUB-F.O.R.G.E.`. A trailing dot is legal in a repository name
+  and illegal in a Windows directory name, so the runner's workspace —
+  `D:\a\<repo>\<repo>` — became a path that cannot exist. `actions/checkout`
+  aborts on it while validating `GITHUB_WORKSPACE`, which happens before it
+  reads its own inputs, so its `path:` option cannot help; and every `run:`
+  step would fail identically, that directory being their default working
+  directory. The job now clones into a fixed dot-free path and never touches
+  the workspace. Renaming the repository without the trailing dot remains the
+  real fix and would let the workflow go back to a plain checkout — the
+  displayed name can keep its dots regardless.
+
 ## 0.5.1
 
 ### Fixed

@@ -1,5 +1,22 @@
 name: Build Windows
 
+# The repository is named "EPUB-F.O.R.G.E." — with a trailing dot — and Windows
+# cannot hold a directory whose name ends in one. That makes the runner's own
+# workspace, D:\a\<repo>\<repo>, a path that cannot exist, and everything
+# downstream of it fails before it does any work:
+#
+#   ##[error]Directory 'D:\a\EPUB-F.O.R.G.E.\EPUB-F.O.R.G.E.' does not exist
+#
+# actions/checkout raises that while validating GITHUB_WORKSPACE, which happens
+# before it looks at its own inputs — so its `path:` option cannot rescue it.
+# Every `run:` step would fail the same way, since that same directory is their
+# default working directory.
+#
+# So this job never touches the workspace. It clones into a fixed, dot-free
+# path and works from there. Renaming the repository to a name without a
+# trailing dot is the real fix, and would let all of this collapse back to a
+# plain `actions/checkout@v4`; the display name can keep its dots either way.
+
 on:
   workflow_dispatch:
   push:
@@ -9,12 +26,32 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    # Literal, not an expression: the `env` context is not available here.
+    working-directory: D:\forge
+
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Stands in for actions/checkout. Runs from D:\, which does exist,
+      # because D:\forge is what this step is about to create.
+      - name: Check out into a path Windows can represent
+        working-directory: D:\
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $ref = "${{ github.ref_name }}"
+          if (Test-Path D:\forge) { Remove-Item D:\forge -Recurse -Force }
+          git clone --depth 1 --branch $ref `
+            "https://x-access-token:$env:GH_TOKEN@github.com/$repo.git" D:\forge
+          # Drop the token from the clone's config; nothing later needs to push.
+          git -C D:\forge remote set-url origin "https://github.com/$repo.git"
+          git -C D:\forge log --oneline -1
 
       - uses: actions/setup-python@v5
         with:
@@ -68,12 +105,14 @@ jobs:
           Compress-Archive -Path dist\EPUB-Forge\* `
             -DestinationPath "dist\EPUB-Forge-${{ steps.version.outputs.version }}-portable.zip"
 
+      # Absolute paths: artifact globs resolve against the workspace, which is
+      # the directory this whole job exists to avoid.
       - uses: actions/upload-artifact@v4
         with:
           name: EPUB-Forge-windows
           path: |
-            dist/installer/*.exe
-            dist/*-portable.zip
+            D:\forge\dist\installer\*.exe
+            D:\forge\dist\*-portable.zip
           retention-days: 30
 
       - name: Attach to the release
@@ -81,5 +120,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/installer/*.exe
-            dist/*-portable.zip
+            D:\forge\dist\installer\*.exe
+            D:\forge\dist\*-portable.zip
