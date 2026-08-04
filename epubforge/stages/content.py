@@ -796,7 +796,6 @@ class ContentStage(Stage):
             elif alt is None:
                 image.set("alt", "")
                 missing_alt += 1
-                ctx.auto_alt_locations.append(resource.path)
 
         if described:
             self.note(
@@ -811,7 +810,11 @@ class ContentStage(Stage):
                 Level.FIX,
                 f"added an empty alt attribute to {missing_alt} image(s)",
                 location=resource.path,
-                detail="Required for valid markup; empty declares them decorative.",
+                detail=(
+                    "Required for valid markup. It is not treated as a description: "
+                    "the accessibility stage still counts these images as undescribed, "
+                    "so nothing is claimed on their behalf."
+                ),
             )
 
     def _scripting(self, ctx: Context, root, resource) -> None:

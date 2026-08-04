@@ -199,3 +199,63 @@ ENCRYPTION_XML = """<?xml version="1.0" encoding="UTF-8"?>
 def fake_ttf(size: int = 2048) -> bytes:
     """Enough of a TrueType header for signature sniffing to accept it."""
     return b"\x00\x01\x00\x00" + bytes(range(256)) * ((size - 4) // 256 + 1)
+
+
+MODERN_OPF = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>{title}</dc:title>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+{extra_metadata}
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch1" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="img" href="picture.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="ch1"/></spine>
+</package>
+"""
+
+MODERN_NAV = """<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="pl">
+  <head><meta charset="utf-8"/><title>Spis</title></head>
+  <body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Rozdzia&#x142;</a></li></ol></nav></body>
+</html>
+"""
+
+MODERN_CHAPTER = """<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pl">
+  <head><meta charset="utf-8"/><title>Rozdzia&#x142;</title></head>
+  <body>
+    <h1>Rozdzia&#x142;</h1>
+    <p>Tekst rozdzia&#x142;u.</p>
+    <p>{image}</p>
+  </body>
+</html>
+"""
+
+
+def make_modern_epub(path: str, *, image: str = '<img src="picture.png" alt=""/>',
+                     extra_metadata: str = "", title: str = "Nowa Ksi&#x105;&#x17c;ka") -> str:
+    """A small, already-valid EPUB 3, for testing one thing at a time.
+
+    ``make_legacy_epub`` carries every defect at once, which is what makes it
+    useful for end-to-end checks and useless for isolating a single behaviour.
+    """
+    return write_zip(
+        path,
+        {
+            "META-INF/container.xml": CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf").encode(),
+            "OEBPS/package.opf": MODERN_OPF.format(
+                title=title, extra_metadata=extra_metadata
+            ).encode(),
+            "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+            "OEBPS/chapter.xhtml": MODERN_CHAPTER.format(image=image).encode(),
+            "OEBPS/picture.png": png_bytes(),
+        },
+    )

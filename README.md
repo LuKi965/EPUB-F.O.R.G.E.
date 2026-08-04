@@ -24,7 +24,8 @@ sobą — okładki, grafik, czcionek, układu i typografii.
 11. [Jak to jest zbudowane](#jak-to-jest-zbudowane)
 12. [Budowanie paczki](#budowanie-paczki)
 13. [Ograniczenia](#ograniczenia)
-14. [Autorzy i licencja](#autorzy-i-licencja)
+14. [Rozwój](#rozwój)
+15. [Autorzy i licencja](#autorzy-i-licencja)
 
 ---
 
@@ -286,7 +287,7 @@ epubforge gui
 
 Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
 `--keep-watermark-markup`, `--no-a11y-metadata`, `--claim-conformance wcag-aa`,
-`--compat`, `--title/--author/--publisher/--series/--language`,
+`--compat`, `--modified`, `--title/--author/--publisher/--series/--language`,
 `--report raport.json`, `-v`.
 
 ### Interfejs
@@ -358,6 +359,22 @@ Warstwy: `reader.py` sprowadza dowolny plik do modelu (`model.py`), etapy w
 `stages/` go przekształcają, `writer.py` składa z niego kontener. Nic w modelu
 nie wie o ZIP-ie ani o składni OPF.
 
+### Gwarancje
+
+Trzy własności wyniku są sprawdzane jako całość, niezależnie od tego, co robi
+którykolwiek etap. Mają własny plik testów, bo są innej kategorii niż testy
+zachowania: test zachowania mówi „ta usterka jest naprawiana", te mówią
+„cokolwiek dołożysz, wynik nadal to spełnia".
+
+| | Własność |
+|---|---|
+| **K1** | Ani jeden znak tekstu czytelnego nie ginie. Zawartość `<body>` w kolejności spine jest identyczna przed i po. |
+| **K2** | Wynik jest funkcją wejścia. Dwa uruchomienia dają te same bajty — jedyna ruchoma część, `dcterms:modified`, daje się przypiąć przez `--modified` albo `SOURCE_DATE_EPOCH`. |
+| **K3** | Drugi przebieg nic nie zmienia. Idempotencja na poziomie zawartości plików, nie ich nazw. |
+
+Komplet zasad, wraz z testami, które ich pilnują, jest w
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ### Testy
 
 ```bash
@@ -368,6 +385,12 @@ Zestaw przebudowuje plik testowy zawierający opisane wyżej uszkodzenia
 i sprawdza wynik — w tym, jeśli EPUBCheck jest zainstalowany, że tryb `strict`
 waliduje się z zerem błędów i zerem ostrzeżeń, również z włączonymi wszystkimi
 profilami zgodności.
+
+Osobno działa regresja na prawdziwych książkach. Nie mogą one trafić do
+publicznego repozytorium, więc leżą w katalogu z `.gitignore`, a wersjonowane są
+wyłącznie **metryki**: liczby błędów EPUBCheck, dotrzymanie niezmiennika tekstu,
+kształt raportu i skrót wyniku. Test pomija się sam, gdy katalogu nie ma.
+Szczegóły w [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
@@ -397,9 +420,25 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
   i raportowane.
 - Książki o stałym układzie przechodzą z zachowanymi właściwościami
   `rendition:*`, ale ich pozycjonowanie nie jest przeliczane.
-- Nazwy plików są sprowadzane do ASCII. Polskie `ł` nie ma rozkładu unikodowego
-  i wypada (`okładka.png` → `okadka.png`); odnośniki są przepisywane.
+- Nazwy plików są sprowadzane do ASCII, z transliteracją znaków, których Unicode
+  nie rozkłada (`okładka.png` → `okladka.png`, `Żółć.xhtml` → `Zolc.xhtml`).
+  Odnośniki są przepisywane.
+- Warstwa typograficzna — cudzysłowy, pauza dialogowa, twarde spacje, mojibake —
+  **nie istnieje**. To jedyna duża kategoria „syfu po generatorach", której
+  narzędzie nie rusza; jest świadomie zaplanowana na koniec, bo jako jedyna łamie
+  gwarancję K1. Patrz [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- Cała książka jest trzymana w pamięci. Dla pojedynczego pliku bez znaczenia,
+  przy wsadzie liczonym w tysiącach — istotne.
 - Treść raportu jest po angielsku.
+
+---
+
+## Rozwój
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — reguły, których nowa funkcja nie może
+  złamać, każda ze wskazaniem testu, który jej pilnuje.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
+  akurat takiej.
 
 ---
 

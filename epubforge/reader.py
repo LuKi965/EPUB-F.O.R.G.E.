@@ -93,6 +93,37 @@ class _RawArchive:
     mimetype_ok: bool
 
 
+#: Ceilings on what a single archive may expand to. The whole book is held in
+#: memory by design, and files arrive by drag-and-drop from wherever the user
+#: found them, so a malicious or merely broken archive must not be able to ask
+#: for unbounded allocation. Both limits sit far above any real book: the
+#: largest illustrated EPUBs run to a few hundred megabytes, and legitimate
+#: content (already-compressed images, fonts, XHTML) does not deflate anywhere
+#: near two hundred to one.
+MAX_TOTAL_BYTES = 2 * 1024**3
+MAX_ENTRY_BYTES = 512 * 1024**2
+MAX_COMPRESSION_RATIO = 200
+#: Below this, a high ratio means nothing — a few hundred bytes of repeated
+#: whitespace compresses spectacularly and harmlessly.
+_RATIO_FLOOR = 64 * 1024
+
+
+def _refuse_oversized(info: zipfile.ZipInfo, name: str) -> str | None:
+    """Why this entry must not be read, or ``None`` when it is fine."""
+    if info.file_size > MAX_ENTRY_BYTES:
+        return f"entry expands to {info.file_size / 1024**2:.0f} MiB"
+    if (
+        info.file_size > _RATIO_FLOOR
+        and info.compress_size
+        and info.file_size / info.compress_size > MAX_COMPRESSION_RATIO
+    ):
+        return (
+            f"entry expands {info.file_size / info.compress_size:.0f}× "
+            f"({info.compress_size} → {info.file_size} bytes)"
+        )
+    return None
+
+
 def _read_archive(source: str, report: Report) -> _RawArchive:
     try:
         archive = zipfile.ZipFile(source)
@@ -101,11 +132,31 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
 
     entries: dict[str, bytes] = {}
     mimetype_ok = False
+    total = 0
     with archive:
         for info in archive.infolist():
             if info.is_dir():
                 continue
             name = info.filename.replace("\\", "/").lstrip("/")
+
+            # Checked against the header before reading, so a decompression
+            # bomb is refused rather than absorbed and then measured.
+            refusal = _refuse_oversized(info, name)
+            if refusal:
+                report.add(
+                    "reader",
+                    Level.ERROR,
+                    f"refused an implausibly large archive entry: {refusal}",
+                    location=name,
+                    detail="No real book contains this; the archive is broken or hostile.",
+                )
+                continue
+            total += info.file_size
+            if total > MAX_TOTAL_BYTES:
+                raise EpubReadError(
+                    f"archive expands to more than {MAX_TOTAL_BYTES // 1024**3} GiB; refusing to read it"
+                )
+
             if name == "mimetype":
                 try:
                     mimetype_ok = archive.read(info).strip() == b"application/epub+zip"
@@ -225,13 +276,22 @@ def _parse_metadata(package, report: Report) -> Metadata:
             content = child.get("content")
             prop = child.get("property")
             if child.get("refines"):
+                # Not every refinement is noise. `group-position` exists only as
+                # a refinement of the collection it numbers — there is nothing
+                # else for it to point at — so skipping every refines outright
+                # silently dropped the series number of any book that came back
+                # through this tool a second time.
+                if prop == "group-position" and value:
+                    metadata.series_index = metadata.series_index or value
                 continue
             if prop == "dcterms:modified" and value:
                 metadata.modified = value
             elif prop == "belongs-to-collection" and value:
-                metadata.series = metadata.series or value
-            elif prop == "group-position" and value:
-                metadata.series_index = metadata.series_index or value
+                # A collection may also be a "set" — a boxed edition rather than
+                # a series. Only the latter belongs in dc:series.
+                kind = refinement(child, "collection-type")
+                if kind in (None, "series"):
+                    metadata.series = metadata.series or value
             elif name and content:
                 if name == "calibre:series":
                     metadata.series = metadata.series or content

@@ -24,7 +24,8 @@ what makes the book itself — cover, artwork, fonts, layout and typography.
 11. [How it is built](#how-it-is-built)
 12. [Building the packaged app](#building-the-packaged-app)
 13. [Limits](#limits)
-14. [Authors and licence](#authors-and-licence)
+14. [Development](#development)
+15. [Authors and licence](#authors-and-licence)
 
 ---
 
@@ -272,7 +273,7 @@ epubforge gui                                    # desktop interface
 
 Useful flags: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
 `--keep-watermark-markup`, `--no-a11y-metadata`, `--claim-conformance wcag-aa`,
-`--compat`, `--title/--author/--publisher/--series/--language`,
+`--compat`, `--modified`, `--title/--author/--publisher/--series/--language`,
 `--report out.json`, `-v`.
 
 ### Interface
@@ -340,6 +341,22 @@ Layers: `reader.py` lowers any file into the model (`model.py`), the stages in
 `stages/` transform it, `writer.py` raises it back into a container. Nothing in
 the model knows about ZIP files or OPF syntax.
 
+### Guarantees
+
+Three properties of the output are checked as a whole, independently of what any
+stage does. They have their own test file because they are a different category
+from behaviour tests: a behaviour test says "this defect is repaired", these say
+"whatever you add next, the output still has this property".
+
+| | Property |
+|---|---|
+| **K1** | No readable character is lost. `<body>` content in spine order is identical before and after. |
+| **K2** | The output is a function of the input. Two runs produce the same bytes — the one moving part, `dcterms:modified`, can be pinned with `--modified` or `SOURCE_DATE_EPOCH`. |
+| **K3** | A second pass changes nothing. Idempotence at the level of file contents, not of file names. |
+
+The full set of rules, each naming the test that enforces it, is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ### Tests
 
 ```bash
@@ -349,6 +366,12 @@ pytest
 The suite rebuilds a fixture carrying the damage described above and checks the
 result — including, when EPUBCheck is installed, that `strict` validates with
 zero errors and zero warnings, with every compatibility profile enabled too.
+
+Regression against real books runs separately. They cannot go into a public
+repository, so they live in a gitignored directory and only **metrics** are
+committed: EPUBCheck counts, whether the text invariant held, the shape of the
+report and the hash of the output. The test skips itself when the directory is
+absent. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
@@ -376,8 +399,25 @@ Windows installers are produced by `.github/workflows/build-windows.yml`. Push a
 - **DRM is not touched.** Real encryption is detected, refused and reported.
 - Fixed-layout books keep their `rendition:*` properties, but their absolute
   positioning is not re-derived.
-- Filenames are folded to ASCII. Polish `ł` has no Unicode decomposition and is
-  dropped (`okładka.png` → `okadka.png`); links are rewritten to match.
+- Filenames are folded to ASCII, transliterating the letters Unicode cannot
+  decompose (`okładka.png` → `okladka.png`, `Żółć.xhtml` → `Zolc.xhtml`). Links
+  are rewritten to match.
+- There is **no typography layer** — quotation marks, dashes, non-breaking
+  spaces, mojibake. It is the one large category of converter damage the tool
+  does not touch, deliberately scheduled last because it is the only thing that
+  breaks the K1 guarantee. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- The whole book is held in memory. Irrelevant for one file, relevant for a
+  batch counted in thousands.
+- Report text is in English.
+
+---
+
+## Development
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — the rules a new feature may not break,
+  each naming the test that enforces it.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — what comes next, in what order, and why
+  that order.
 
 ---
 
