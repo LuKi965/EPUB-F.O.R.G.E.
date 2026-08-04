@@ -18,6 +18,12 @@ class Level(str, Enum):
 
 _ORDER = {Level.ERROR: 0, Level.WARN: 1, Level.PRESERVED: 2, Level.FIX: 3, Level.INFO: 4}
 
+#: Version of the JSON shape written by :meth:`Report.to_dict`. The moment
+#: anything outside this project reads ``--report`` output, that shape is an
+#: interface; stamping it now costs one field and means a later change can be
+#: announced instead of guessed at.
+SCHEMA_VERSION = 1
+
 
 @dataclass
 class Finding:
@@ -57,6 +63,7 @@ class Report:
 
     def to_dict(self) -> dict:
         return {
+            "schema": SCHEMA_VERSION,
             "source": self.source,
             "output": self.output,
             "ok": self.ok,

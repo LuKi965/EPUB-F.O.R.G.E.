@@ -21,10 +21,6 @@ class Context:
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None
-    #: Documents where an image had no alt at all and one was supplied. The
-    #: accessibility stage runs after that repair, so it cannot see the gap in
-    #: the DOM and would otherwise mistake a filled-in alt for a real one.
-    auto_alt_locations: list[str] = field(default_factory=list)
 
     #: Stylesheets that must gain the consolidated watermark rule, because a
     #: document they style had its repeated inline styling removed.

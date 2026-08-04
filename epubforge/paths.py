@@ -18,6 +18,29 @@ REMOTE_SCHEMES = ("http:", "https:", "ftp:", "mailto:", "tel:", "data:", "file:"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 _DASHES = re.compile(r"-{2,}")
 
+#: Letters with no canonical decomposition, which NFKD therefore leaves whole
+#: and the ASCII encoder then drops without trace: `okładka.png` became
+#: `okadka.png`. Applied *before* normalisation, so the rest still works the
+#: usual way. Polish `ł` is the one that matters here; the others are the same
+#: defect in other alphabets and cost nothing to cover.
+_TRANSLITERATION = str.maketrans(
+    {
+        "ł": "l", "Ł": "L",
+        "đ": "d", "Đ": "D",
+        "ø": "o", "Ø": "O",
+        "æ": "ae", "Æ": "AE",
+        "œ": "oe", "Œ": "OE",
+        "ß": "ss",
+        "þ": "th", "Þ": "Th",
+        "ð": "d", "Ð": "D",
+        "ı": "i", "İ": "I",
+        "ħ": "h", "Ħ": "H",
+        "ŋ": "n", "Ŋ": "N",
+        "ĸ": "k",
+        "ŧ": "t", "Ŧ": "T",
+    }
+)
+
 
 def is_remote(href: str) -> bool:
     lowered = href.strip().lower()
@@ -69,14 +92,22 @@ def ascii_slug(name: str, fallback: str = "file") -> str:
     stem, dot, ext = name.rpartition(".")
     if not dot:
         stem, ext = name, ""
-    decomposed = unicodedata.normalize("NFKD", stem)
-    stripped = decomposed.encode("ascii", "ignore").decode("ascii")
-    slug = _UNSAFE.sub("-", stripped).strip("-.")
+    slug = _fold(stem)
+    slug = _UNSAFE.sub("-", slug).strip("-.")
     slug = _DASHES.sub("-", slug)
     if not slug:
         slug = fallback
-    ext_slug = _UNSAFE.sub("", unicodedata.normalize("NFKD", ext).encode("ascii", "ignore").decode()).lower()
+    ext_slug = _UNSAFE.sub("", _fold(ext)).lower()
     return f"{slug}.{ext_slug}" if ext_slug else slug
+
+
+def _fold(text: str) -> str:
+    """Transliterate what NFKD cannot decompose, then fold the rest to ASCII."""
+    return (
+        unicodedata.normalize("NFKD", text.translate(_TRANSLITERATION))
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
 
 
 def unique(candidate: str, taken: set[str]) -> str:

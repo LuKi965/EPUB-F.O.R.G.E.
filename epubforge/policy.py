@@ -71,6 +71,13 @@ class Policy:
     #: profile is a concession to a device that does not follow it.
     compat_profiles: tuple[str, ...] = ()
 
+    #: Pin ``dcterms:modified`` instead of stamping the current time. Every ZIP
+    #: entry already carries a fixed timestamp, so this is the last thing that
+    #: differs between two runs on the same input; setting it makes the output
+    #: byte-for-byte reproducible. An ISO 8601 UTC string, e.g.
+    #: ``"2026-01-01T00:00:00Z"``.
+    modified_override: str | None = None
+
     #: Force a language tag when the source has none or an invalid one.
     default_language: str = "en"
 

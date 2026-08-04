@@ -10,3 +10,8 @@ dist/
 
 # Staged Java runtime and EPUBCheck; recreated by packaging/build.py
 packaging/_bundle/
+
+# Private corpus of real books — other people's work, never committed.
+# Only the metric signatures under tests/corpus/expected/ are tracked.
+tests/corpus/*
+!tests/corpus/expected/

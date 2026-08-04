@@ -92,8 +92,6 @@ class AccessibilityStage(Stage):
             elif resource.media_type.startswith("video/"):
                 survey["video"] = True
 
-        auto_alt = set(ctx.auto_alt_locations)
-
         for resource in book.content_docs():
             survey["documents"] += 1
             try:
@@ -115,17 +113,25 @@ class AccessibilityStage(Stage):
                 if tag == "img":
                     survey["images"] += 1
                     alt = element.get("alt")
-                    if alt is None:
-                        survey["images_without_alt"] += 1
-                        survey["missing_alt_locations"].append(resource.path)
-                    elif not alt.strip() and resource.path in auto_alt:
-                        # Empty because the content stage had to supply one, not
-                        # because anybody decided the image was decorative.
-                        survey["images_without_alt"] += 1
-                        survey["missing_alt_locations"].append(resource.path)
-                    elif not alt.strip():
-                        # An empty alt is a positive statement: "decorative".
-                        survey["decorative"] += 1
+                    # An empty alt is a claim — "this image carries no
+                    # information" — and nothing here can check it. It used to
+                    # count as decorative unless the content stage remembered
+                    # supplying it, but that memory lived in the run and not in
+                    # the file: send the output back through and the same empty
+                    # alt was read as a description, so a book with no alt text
+                    # at all came out asserting alternativeText. State that has
+                    # to survive the write cannot live in the context.
+                    #
+                    # Only an explicit, checkable assertion counts as
+                    # decorative now. A bare empty alt counts as undescribed,
+                    # which over-reports on books that use it correctly — that
+                    # is the safe direction, and the report says so.
+                    if alt is None or not alt.strip():
+                        if self._declared_decorative(element):
+                            survey["decorative"] += 1
+                        else:
+                            survey["images_without_alt"] += 1
+                            survey["missing_alt_locations"].append(resource.path)
                     elif is_placeholder_alt(alt, element.get("src")):
                         survey["placeholder_alt"] += 1
                         if len(survey["placeholder_examples"]) < 4:
@@ -148,6 +154,19 @@ class AccessibilityStage(Stage):
                         survey["tables_without_headers"] += 1
 
         return survey
+
+    @staticmethod
+    def _declared_decorative(element) -> bool:
+        """Whether the markup states outright that this image carries nothing.
+
+        `role="presentation"` and `aria-hidden="true"` are assertions somebody
+        wrote deliberately, which is what distinguishes them from an empty alt
+        that may equally well be a placeholder nobody ever filled in.
+        """
+        return (
+            (element.get("role") or "").strip().lower() == "presentation"
+            or (element.get("aria-hidden") or "").strip().lower() == "true"
+        )
 
     # ------------------------------------------------------------ declaring
     def _declare(self, ctx: Context, survey: dict) -> None:
@@ -245,12 +264,14 @@ class AccessibilityStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                f"{survey['images_without_alt']} image(s) have no alt text",
+                f"{survey['images_without_alt']} image(s) have no usable alt text",
                 location=locations[0] if len(locations) == 1 else f"{len(locations)} documents",
                 detail=(
-                    "An empty alt was added so the markup is valid, which declares them "
-                    "decorative. If any of them carry meaning, only a human can write the "
-                    "description — so alternativeText is not claimed in the metadata."
+                    "Either the attribute is absent or it is empty. An empty alt asserts "
+                    "the image is decorative, and that cannot be checked mechanically — "
+                    "only role=\"presentation\" or aria-hidden=\"true\" says it outright. "
+                    "So alternativeText is not claimed. If any of these images carry "
+                    "meaning, only a human can write the description."
                 ),
             )
 

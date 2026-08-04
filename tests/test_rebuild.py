@@ -222,7 +222,7 @@ class TestAssets:
         assert "EPUB/images/deco.png" in names
 
     def test_non_ascii_filenames_are_slugged(self, archive):
-        assert "EPUB/images/okadka.png" in archive.namelist()
+        assert "EPUB/images/okladka.png" in archive.namelist()
 
     def test_cover_image_carries_the_manifest_property(self, archive):
         package = opf_tree(archive)
@@ -230,7 +230,7 @@ class TestAssets:
             './/opf:item[contains(@properties, "cover-image")]', namespaces=OPF_NS
         )
         assert len(covers) == 1
-        assert covers[0].get("href") == "images/okadka.png"
+        assert covers[0].get("href") == "images/okladka.png"
 
     def test_legacy_cover_meta_is_kept_for_old_readers(self, archive):
         package = opf_tree(archive)
@@ -649,7 +649,7 @@ class TestAccessibility:
 
     def test_missing_alt_is_reported_not_silently_hidden(self, rebuilt):
         assert any(
-            "no alt text" in f.message
+            "alt text" in f.message
             for f in rebuilt.report.findings
             if f.level is Level.WARN
         )

@@ -33,6 +33,19 @@ _STORE_TYPES = (
 
 _ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
+#: The earliest timestamp a ZIP entry can carry. Every entry gets it, so two
+#: runs on the same input produce the same bytes. `writestr` with a plain string
+#: name stamps the wall clock instead, which is how `container.xml` and the
+#: package document used to differ between otherwise identical runs.
+EPOCH = (1980, 1, 1, 0, 0, 0)
+
+
+def _entry(path: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(path, date_time=EPOCH)
+    info.compress_type = compression
+    info.external_attr = 0o644 << 16
+    return info
+
 
 def _make_id(path: str, taken: set[str]) -> str:
     stem = posixpath.basename(path)
@@ -255,27 +268,24 @@ def write_epub(book: Book, destination: str, report: Report, content_dir: str = 
 
     with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         # OCF requires 'mimetype' to be the first entry and stored uncompressed.
-        mimetype_info = zipfile.ZipInfo("mimetype")
-        mimetype_info.compress_type = zipfile.ZIP_STORED
-        archive.writestr(mimetype_info, b"application/epub+zip")
+        archive.writestr(_entry("mimetype", zipfile.ZIP_STORED), b"application/epub+zip")
 
-        archive.writestr("META-INF/container.xml", CONTAINER_XML.format(opf_path=opf_path))
+        archive.writestr(
+            _entry("META-INF/container.xml"), CONTAINER_XML.format(opf_path=opf_path)
+        )
         # Reader-specific container entries, added only by a compatibility
         # profile. Written next to container.xml because that is where the
         # readers that look for them look.
         for extra_path in sorted(book.container_files):
-            archive.writestr(extra_path, book.container_files[extra_path])
-        archive.writestr(opf_path, opf.encode("utf-8"))
+            archive.writestr(_entry(extra_path), book.container_files[extra_path])
+        archive.writestr(_entry(opf_path), opf.encode("utf-8"))
 
         for path in sorted(book.resources):
             resource = book.resources[path]
             compression = (
                 zipfile.ZIP_STORED if resource.media_type in _STORE_TYPES else zipfile.ZIP_DEFLATED
             )
-            info = zipfile.ZipInfo(path)
-            info.compress_type = compression
-            info.external_attr = 0o644 << 16
-            archive.writestr(info, resource.data)
+            archive.writestr(_entry(path, compression), resource.data)
 
     # mimetype, container.xml and the package document, plus anything a
     # compatibility profile added beside them.

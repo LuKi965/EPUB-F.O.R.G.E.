@@ -7,6 +7,76 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.8.0
+
+An external audit found two defects that had gone unnoticed through 154 tests.
+Both share a shape worth naming: they corrupted **data** without changing the
+**shape** of the output — same files, same counts, same validator verdict. No
+behaviour test was ever going to catch that, so the suite gained a category
+that can: `tests/test_invariants.py`, which asserts properties of the whole
+output rather than individual repairs.
+
+### Fixed
+- **The series number was lost on the second pass.** `group-position` is, by
+  definition, always a refinement of the collection it numbers — there is
+  nothing else for it to point at — and the reader skipped every refinement
+  before reaching the branch that handles it. The branch was unreachable code.
+  A book rebuilt once kept its series number; rebuilt twice, it lost it,
+  because the first pass had already moved the number from
+  `calibre:series_index` to the EPUB 3 spelling.
+- **A book with no alt text at all came out claiming it had some.** The content
+  stage supplies `alt=""` where an image has none, and recorded in the run's
+  context that it had done so; the accessibility stage read that note and
+  correctly withheld `alternativeText`. But the note lived only inside one run,
+  and the output goes to disk and comes back. On a second pass the same empty
+  alt was indistinguishable from a publisher's deliberate one, so the book was
+  declared to have alternative text it does not have. Under the European
+  Accessibility Act that is not cosmetic.
+
+  The repair is not to remember harder. An empty alt asserts "this image is
+  decorative" and nothing here can verify that, so it no longer counts as a
+  description at all — only `role="presentation"` or `aria-hidden="true"`, which
+  somebody wrote deliberately, does. That over-reports on books using an empty
+  alt correctly, which is the safe direction, and the report says exactly why.
+- **The output was not byte-reproducible.** `container.xml` and the package
+  document were written through a code path that stamps the wall clock, while
+  every other entry carried a fixed timestamp. Two runs on the same input
+  produced different files. All entries are now written the same way.
+- A collection of type `set` — a boxed edition — was recorded as a series.
+
+### Added
+- `tests/test_invariants.py`: K1 no readable character is lost, K2 the output
+  is a function of the input, K3 a second pass changes nothing. The third would
+  have caught both defects above; the weaker idempotency test it replaces
+  compared file *names* and passed while the data changed underneath.
+- `Policy.modified_override`, `--modified` and `SOURCE_DATE_EPOCH`, which pin
+  `dcterms:modified`. With every ZIP timestamp already fixed, that was the last
+  moving part: the output is now byte-identical across runs, and a test proves
+  it.
+- Ceilings on what an archive may expand to — per entry, in total, and by
+  compression ratio. The whole book is held in memory by design and files
+  arrive by drag-and-drop, so an archive must not be able to ask for unbounded
+  allocation. The limits sit far above any real book and a test asserts that
+  ordinary content is never refused.
+- `tests/test_corpus.py`: regression against real books without putting anyone's
+  book in the repository. The books stay in a gitignored directory; only a small
+  metric signature per book is committed — EPUBCheck counts, whether the text
+  invariant held, the report's shape and the output hash. The module skips
+  itself when the directory is absent.
+- `CONTRIBUTING.md` — the rules a new feature may not break, each naming the
+  test that enforces it — and `docs/ROADMAP.md`, which records what comes next,
+  in what order, and the four places where we deliberately departed from the
+  advice we were given.
+- `"schema": 1` in the JSON report. The moment anything outside this project
+  reads `--report`, its shape is an interface.
+
+### Changed
+- Filenames keep their Polish letters. `unicodedata.NFKD` cannot decompose `ł`,
+  so the ASCII fold dropped it without trace and `okładka.png` became
+  `okadka.png`. A transliteration table is applied first: `okladka.png`,
+  `Żółć.xhtml` → `Zolc.xhtml`. `đ ø æ œ ß þ ð` and friends are the same defect
+  in other alphabets and cost nothing to cover.
+
 ## 0.7.0
 
 ### Added

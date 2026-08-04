@@ -41,6 +41,22 @@ def collect_inputs(raw_inputs: list[str]) -> list[str]:
     return found
 
 
+def _source_date_epoch() -> str | None:
+    """Honour the reproducible-builds convention, when it is set.
+
+    Every ZIP entry already carries a fixed timestamp, so `dcterms:modified` is
+    the last thing standing between two runs on one input and identical bytes.
+    `SOURCE_DATE_EPOCH` is the established way to ask for that, and costs
+    nothing when it is unset.
+    """
+    raw = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
+    if not raw.isdigit():
+        return None
+    import datetime as dt
+
+    return dt.datetime.fromtimestamp(int(raw), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def build_policy(args: argparse.Namespace) -> Policy:
     preset = "strict" if args.strict else ("minimal" if args.minimal else "preserve")
     policy = Policy.preset(preset)
@@ -62,6 +78,9 @@ def build_policy(args: argparse.Namespace) -> Policy:
         # Accept both --compat kindle --compat kobo and --compat kindle,kobo.
         names = [part for entry in args.compat for part in entry.split(",") if part.strip()]
         policy.compat_profiles = tuple(dict.fromkeys(name.strip().lower() for name in names))
+    modified = getattr(args, "modified", None) or _source_date_epoch()
+    if modified:
+        policy.modified_override = modified
     if args.language:
         policy.default_language = args.language
         policy.metadata_overrides["language"] = args.language
@@ -315,6 +334,15 @@ def build_parser() -> argparse.ArgumentParser:
             + ", ".join(sorted(compat.PROFILES))
             + ". Repeatable, or comma-separated. Off by default, and every measure "
             "is additive — see 'epubforge compat' for what each one does"
+        ),
+    )
+    build.add_argument(
+        "--modified",
+        metavar="ISO8601",
+        help=(
+            "pin dcterms:modified (e.g. 2026-01-01T00:00:00Z) instead of stamping now. "
+            "Everything else in the output is already deterministic, so this makes two "
+            "runs on the same book byte-identical. SOURCE_DATE_EPOCH is honoured too"
         ),
     )
     build.add_argument("--title", help="override dc:title")

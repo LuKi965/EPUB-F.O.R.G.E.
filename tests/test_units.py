@@ -50,7 +50,11 @@ class TestPaths:
             ("Ćwiczenia.XHTML", "Cwiczenia.xhtml"),
             ("chapter 1.html", "chapter-1.html"),
             # ...while ł has no decomposition, so it is simply dropped.
-            ("okładka.png", "okadka.png"),
+            # `ł` has no canonical decomposition, so NFKD alone dropped it.
+            ("okładka.png", "okladka.png"),
+            ("Żółć.xhtml", "Zolc.xhtml"),
+            ("Straße.txt", "Strasse.txt"),
+            ("søster.png", "soster.png"),
             # A name that transliterates to nothing still needs to be addressable.
             ("日本語.png", "images.png"),
         ],
@@ -152,3 +156,60 @@ class TestXhtmlRecovery:
         )
         root, _ = xhtml.parse(source)
         assert root.tag == f"{{{xhtml.XHTML_NS}}}html"
+
+
+class TestArchiveLimits:
+    """A book is held entirely in memory, so the reader must bound what it reads."""
+
+    def _archive(self, path, entries):
+        import zipfile
+
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as handle:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            handle.writestr(info, b"application/epub+zip")
+            for name, data in entries.items():
+                handle.writestr(name, data)
+        return str(path)
+
+    def test_a_highly_compressible_bomb_is_refused(self, tmp_path):
+        from epubforge.reader import _read_archive
+        from epubforge.report import Report
+
+        source = self._archive(
+            tmp_path / "bomb.epub",
+            {"META-INF/container.xml": b"<x/>", "OEBPS/bomb.bin": b"\0" * (4 * 1024 * 1024)},
+        )
+        report = Report(source=source)
+        raw = _read_archive(source, report)
+        assert "OEBPS/bomb.bin" not in raw.entries
+        assert any("implausibly large" in f.message for f in report.findings)
+
+    def test_ordinary_content_is_not_refused(self, tmp_path):
+        """The limits must be invisible to every real book."""
+        import os
+
+        from epubforge.reader import _read_archive
+        from epubforge.report import Report
+
+        # Incompressible, so the ratio guard cannot fire.
+        source = self._archive(
+            tmp_path / "normal.epub",
+            {"META-INF/container.xml": b"<x/>", "OEBPS/photo.jpg": os.urandom(2 * 1024 * 1024)},
+        )
+        report = Report(source=source)
+        raw = _read_archive(source, report)
+        assert "OEBPS/photo.jpg" in raw.entries
+        assert not [f for f in report.findings if "implausibly large" in f.message]
+
+    def test_small_files_are_never_judged_by_ratio(self, tmp_path):
+        """A page of repeated whitespace compresses enormously and harmlessly."""
+        from epubforge.reader import _read_archive
+        from epubforge.report import Report
+
+        source = self._archive(
+            tmp_path / "spaces.epub",
+            {"META-INF/container.xml": b"<x/>", "OEBPS/ch.xhtml": b" " * 20000},
+        )
+        report = Report(source=source)
+        assert "OEBPS/ch.xhtml" in _read_archive(source, report).entries

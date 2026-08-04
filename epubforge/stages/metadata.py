@@ -172,7 +172,13 @@ class MetadataStage(Stage):
                 metadata.published = normalized
 
         # EPUB 3 requires a dcterms:modified timestamp, to the second, in UTC.
-        metadata.modified = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # It is the one field that is *meant* to differ between two runs on the
+        # same input, so it is also the one thing standing between this tool and
+        # byte-for-byte reproducible output. Pinning it is therefore a supported
+        # choice rather than something to work around.
+        metadata.modified = ctx.policy.modified_override or dt.datetime.now(
+            dt.timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _creators(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
