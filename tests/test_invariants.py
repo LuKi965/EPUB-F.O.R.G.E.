@@ -25,21 +25,105 @@ MODIFIED_RE = re.compile(rb"<meta property=\"dcterms:modified\">[^<]*</meta>")
 
 
 # --------------------------------------------------------------------- helpers
+CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
+
+
+def _local(tag: str) -> str:
+    return tag.rpartition("}")[2] if isinstance(tag, str) else ""
+
+
+def spine_documents(archive: zipfile.ZipFile) -> list[str]:
+    """Content documents in spine order, navigation excluded.
+
+    Not chosen by file extension, and not filtered by looking for "nav" in the
+    name. Neither is a fact about an EPUB: the specification says a content
+    document is whatever the manifest declares as `application/xhtml+xml`, the
+    name may be anything, and `.xml` and `.xhtm` both occur in the wild. Both
+    guesses fail silently and in the same direction — a chapter named
+    `navigare-necesse-est.xhtml` simply stops being compared, and the invariant
+    passes with a narrower scope than anyone intended. On the fixtures in this
+    repository that can never show up, because we chose the names; on a corpus
+    of real books it would happen constantly and quietly.
+
+    So the documents come from where a reader gets them: container.xml, to the
+    package document, to the manifest and the spine.
+    """
+    from lxml import etree
+
+    try:
+        container = etree.fromstring(archive.read("META-INF/container.xml"))
+        opf_path = container.find(f".//{{{CONTAINER_NS}}}rootfile").get("full-path")
+        package = etree.fromstring(archive.read(opf_path))
+    except Exception:
+        # Last resort for a source too broken to navigate. Deliberately *wider*
+        # than the real answer: a false failure is recoverable, a silently
+        # narrowed invariant is the thing this function exists to avoid.
+        return sorted(
+            n for n in archive.namelist() if n.endswith((".xhtml", ".html", ".htm", ".xml"))
+        )
+    base = opf_path.rpartition("/")[0]
+
+    manifest: dict[str, tuple[str, set[str]]] = {}
+    for item in package.iter():
+        if _local(item.tag) != "item":
+            continue
+        item_id, href = item.get("id"), item.get("href")
+        if not item_id or not href:
+            continue
+        properties = set((item.get("properties") or "").split())
+        manifest[item_id] = (href, properties)
+
+    def resolve(href: str) -> str:
+        from urllib.parse import unquote
+
+        joined = f"{base}/{unquote(href)}" if base else unquote(href)
+        parts: list[str] = []
+        for piece in joined.split("/"):
+            if piece == ".." and parts:
+                parts.pop()
+            elif piece not in ("", ".", ".."):
+                parts.append(piece)
+        return "/".join(parts)
+
+    ordered_ids = [
+        ref.get("idref")
+        for ref in package.iter()
+        if _local(ref.tag) == "itemref" and ref.get("idref")
+    ]
+    # A book with no usable spine still has content worth comparing.
+    if not ordered_ids:
+        ordered_ids = list(manifest)
+
+    # No media-type filter on purpose. The fixture declares one chapter as
+    # `text/html` and the rebuild corrects that to `application/xhtml+xml`;
+    # filtering on the declared type would drop the chapter from one side of
+    # the comparison and not the other, and K1 would fail on a book that lost
+    # nothing. Anything in the spine is a content document by definition.
+    documents: list[str] = []
+    names = set(archive.namelist())
+    for item_id in ordered_ids:
+        entry = manifest.get(item_id)
+        if entry is None:
+            continue
+        href, properties = entry
+        if "nav" in properties:
+            continue
+        path = resolve(href)
+        if path in names:
+            documents.append(path)
+    return documents
+
+
 def body_text(path: str) -> str:
     """Every readable character in the book, in spine order, whitespace-folded.
 
-    Deliberately scoped to `<body>`. An earlier version of this compared whole
-    documents and reported false differences, because `text_content()` pulls in
-    `<title>` from the head — and the rebuild writes the chapter title there.
-    The navigation document is excluded for the same reason: it is generated,
-    so it is output rather than content.
+    Deliberately scoped to `<body>`. An earlier version compared whole documents
+    and reported false differences, because `text_content()` pulls in `<title>`
+    from the head — and the rebuild writes the chapter title there.
     """
     parts: list[str] = []
     with zipfile.ZipFile(path) as archive:
-        names = sorted(n for n in archive.namelist() if n.endswith((".xhtml", ".html", ".htm")))
-        for name in names:
-            if "nav" in name.rsplit("/", 1)[-1].lower():
-                continue
+        for name in spine_documents(archive):
             document = lxml.html.fromstring(archive.read(name))
             body = document.xpath('//*[local-name()="body"]')
             parts.append((body[0] if body else document).text_content())
@@ -135,3 +219,68 @@ def test_second_pass_reports_no_errors(legacy_epub, tmp_path):
     first = rebuild(legacy_epub, str(tmp_path / "first.epub"), Policy.preset("preserve"))
     second = rebuild(first.output_path, str(tmp_path / "second.epub"), Policy.preset("preserve"))
     assert second.report.count(Level.ERROR) == 0, second.report.to_text()
+
+
+# ----------------------------------------------- the helper the invariants use
+class TestDocumentSelection:
+    """If this narrows silently, K1 passes while the book loses text.
+
+    Both of the guesses this replaced — file extension, and "nav" appearing in
+    the name — fail in the same direction: they *exclude* real content, so the
+    comparison quietly covers less of the book and still reports success. That
+    can never show up on fixtures whose names we chose ourselves.
+    """
+
+    OPF = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="i">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="i">urn:uuid:1</dc:identifier><dc:title>T</dc:title><dc:language>pl</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="spis.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="a" href="navigare-necesse-est.xhtml" media-type="application/xhtml+xml"/>
+    <item id="b" href="chapter.xml" media-type="application/xhtml+xml"/>
+    <item id="c" href="rozdzial-o-nawigacji.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="a"/><itemref idref="b"/><itemref idref="c"/></spine>
+</package>
+"""
+    DOCUMENT = (
+        b'<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml">'
+        b"<body><p>%s</p></body></html>"
+    )
+
+    def build(self, path) -> str:
+        with zipfile.ZipFile(path, "w") as handle:
+            handle.writestr(
+                "META-INF/container.xml",
+                '<?xml version="1.0"?><container version="1.0" '
+                f'xmlns="{CONTAINER_NS}"><rootfiles><rootfile full-path="OEBPS/p.opf" '
+                'media-type="application/oebps-package+xml"/></rootfiles></container>',
+            )
+            handle.writestr("OEBPS/p.opf", self.OPF)
+            handle.writestr("OEBPS/spis.xhtml", self.DOCUMENT % b"NAWIGACJA")
+            handle.writestr("OEBPS/navigare-necesse-est.xhtml", self.DOCUMENT % b"ALFA")
+            handle.writestr("OEBPS/chapter.xml", self.DOCUMENT % b"BETA")
+            handle.writestr("OEBPS/rozdzial-o-nawigacji.xhtml", self.DOCUMENT % b"GAMMA")
+        return str(path)
+
+    def test_a_chapter_whose_name_contains_nav_is_still_compared(self, tmp_path):
+        assert "ALFA" in body_text(self.build(tmp_path / "book.epub"))
+
+    def test_a_content_document_named_xml_is_still_compared(self, tmp_path):
+        assert "BETA" in body_text(self.build(tmp_path / "book.epub"))
+
+    def test_the_real_navigation_document_is_excluded(self, tmp_path):
+        """Recognised by properties="nav", which is what actually marks it."""
+        assert "NAWIGACJA" not in body_text(self.build(tmp_path / "book.epub"))
+
+    def test_documents_come_back_in_spine_order(self, tmp_path):
+        assert body_text(self.build(tmp_path / "book.epub")) == "ALFA BETA GAMMA"
+
+    def test_an_unnavigable_archive_falls_back_to_a_wider_set(self, tmp_path):
+        """Wider, never narrower: a false failure beats a silent pass."""
+        path = tmp_path / "broken.epub"
+        with zipfile.ZipFile(path, "w") as handle:
+            handle.writestr("OEBPS/ch.xhtml", self.DOCUMENT % b"DELTA")
+        assert "DELTA" in body_text(str(path))

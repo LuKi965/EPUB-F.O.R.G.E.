@@ -87,6 +87,37 @@ def text_of(element) -> str:
     return re.sub(r"\s+", " ", "".join(element.itertext())).strip()
 
 
+def _read_collection(node, refines: dict[str, dict[str, str]], metadata) -> None:
+    """Resolve series name and number from the *same* collection.
+
+    A book may belong to several collections at once — the seventh Chronicle,
+    published inside a boxed set as part one. Both carry a `group-position`, and
+    reading them independently produced "Chronicles, volume 1": the name came
+    from the series, the number from whichever refinement the document happened
+    to list first.
+
+    So the collections are gathered whole, with their refinements attached, and
+    the number is taken from the collection the name came from. Untyped
+    collections count as series, which is what EPUB 3 says they default to.
+    """
+    collections: list[tuple[str, str]] = [
+        (meta.get("id") or "", text_of(meta))
+        for meta in descendants(node, "meta")
+        if (meta.get("property") or "").strip() == "belongs-to-collection"
+        and not meta.get("refines")
+        and text_of(meta)
+    ]
+    for collection_id, name in collections:
+        attached = refines.get(collection_id, {})
+        if attached.get("collection-type", "series") != "series":
+            continue
+        metadata.series = metadata.series or name
+        position = attached.get("group-position")
+        if position:
+            metadata.series_index = metadata.series_index or position
+        break
+
+
 @dataclass
 class _RawArchive:
     entries: dict[str, bytes]
@@ -106,22 +137,53 @@ MAX_COMPRESSION_RATIO = 200
 #: Below this, a high ratio means nothing — a few hundred bytes of repeated
 #: whitespace compresses spectacularly and harmlessly.
 _RATIO_FLOOR = 64 * 1024
+#: Read granularity. Small enough that overshooting the limit costs at most this
+#: much, large enough that ordinary books are read in a handful of calls.
+_CHUNK = 1024 * 1024
 
 
-def _refuse_oversized(info: zipfile.ZipInfo, name: str) -> str | None:
-    """Why this entry must not be read, or ``None`` when it is fine."""
+def _implausible_header(info: zipfile.ZipInfo) -> str | None:
+    """Why this entry is refused on the strength of its header alone.
+
+    A cheap first pass: an archive that admits to holding a 300 MiB entry can be
+    turned away without decompressing a byte. It is *only* a first pass — the
+    header is what the author of the file chose to write there, and a hostile
+    one simply says something else. The real limit is enforced on the stream by
+    :func:`_read_bounded`.
+    """
     if info.file_size > MAX_ENTRY_BYTES:
-        return f"entry expands to {info.file_size / 1024**2:.0f} MiB"
+        return f"entry declares {info.file_size / 1024**2:.0f} MiB"
     if (
         info.file_size > _RATIO_FLOOR
         and info.compress_size
         and info.file_size / info.compress_size > MAX_COMPRESSION_RATIO
     ):
         return (
-            f"entry expands {info.file_size / info.compress_size:.0f}× "
+            f"entry declares a {info.file_size / info.compress_size:.0f}× expansion "
             f"({info.compress_size} → {info.file_size} bytes)"
         )
     return None
+
+
+def _read_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo, budget: int) -> bytes | None:
+    """The entry's contents, or ``None`` when it exceeds what we will hold.
+
+    Measured while decompressing rather than asked of the header, because the
+    header is a claim and this is the one place where the claim is exactly what
+    an attacker controls. Reading in chunks and stopping at the ceiling means a
+    ten-gigabyte entry costs a megabyte to refuse.
+    """
+    limit = min(MAX_ENTRY_BYTES, budget)
+    buffer = bytearray()
+    with archive.open(info) as stream:
+        while True:
+            chunk = stream.read(_CHUNK)
+            if not chunk:
+                break
+            buffer.extend(chunk)
+            if len(buffer) > limit:
+                return None
+    return bytes(buffer)
 
 
 def _read_archive(source: str, report: Report) -> _RawArchive:
@@ -133,41 +195,43 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
     entries: dict[str, bytes] = {}
     mimetype_ok = False
     total = 0
+
+    def refuse(name: str, reason: str) -> None:
+        report.add(
+            "reader",
+            Level.ERROR,
+            f"refused an implausibly large archive entry: {reason}",
+            location=name,
+            detail="No real book contains this; the archive is broken or hostile.",
+        )
+
     with archive:
         for info in archive.infolist():
             if info.is_dir():
                 continue
             name = info.filename.replace("\\", "/").lstrip("/")
 
-            # Checked against the header before reading, so a decompression
-            # bomb is refused rather than absorbed and then measured.
-            refusal = _refuse_oversized(info, name)
-            if refusal:
-                report.add(
-                    "reader",
-                    Level.ERROR,
-                    f"refused an implausibly large archive entry: {refusal}",
-                    location=name,
-                    detail="No real book contains this; the archive is broken or hostile.",
-                )
+            declared = _implausible_header(info)
+            if declared:
+                refuse(name, declared)
                 continue
-            total += info.file_size
-            if total > MAX_TOTAL_BYTES:
-                raise EpubReadError(
-                    f"archive expands to more than {MAX_TOTAL_BYTES // 1024**3} GiB; refusing to read it"
-                )
 
-            if name == "mimetype":
-                try:
-                    mimetype_ok = archive.read(info).strip() == b"application/epub+zip"
-                except Exception:
-                    mimetype_ok = False
-                continue
             try:
-                entries[name] = archive.read(info)
-            except (RuntimeError, zipfile.BadZipFile, NotImplementedError) as exc:
+                data = _read_bounded(archive, info, MAX_TOTAL_BYTES - total)
+            except (RuntimeError, zipfile.BadZipFile, NotImplementedError, EOFError) as exc:
                 # Encrypted or unsupported-compression member; keep going.
                 report.add("reader", Level.ERROR, f"unreadable archive entry: {exc}", location=name)
+                continue
+            if data is None:
+                refuse(name, "entry kept expanding past the limit while being read")
+                continue
+
+            total += len(data)
+            if name == "mimetype":
+                mimetype_ok = data.strip() == b"application/epub+zip"
+                continue
+            entries[name] = data
+
     if not entries:
         raise EpubReadError("archive contains no readable files")
     return _RawArchive(entries, mimetype_ok)
@@ -225,6 +289,8 @@ def _parse_metadata(package, report: Report) -> Metadata:
             return refines[element_id].get(prop)
         return None
 
+    _read_collection(node, refines, metadata)
+
     for child in node:
         tag = lname(child).lower()
         value = text_of(child)
@@ -276,22 +342,11 @@ def _parse_metadata(package, report: Report) -> Metadata:
             content = child.get("content")
             prop = child.get("property")
             if child.get("refines"):
-                # Not every refinement is noise. `group-position` exists only as
-                # a refinement of the collection it numbers — there is nothing
-                # else for it to point at — so skipping every refines outright
-                # silently dropped the series number of any book that came back
-                # through this tool a second time.
-                if prop == "group-position" and value:
-                    metadata.series_index = metadata.series_index or value
+                # Collections and their refinements are resolved together by
+                # _read_collection, above; nothing else here reads a refinement.
                 continue
             if prop == "dcterms:modified" and value:
                 metadata.modified = value
-            elif prop == "belongs-to-collection" and value:
-                # A collection may also be a "set" — a boxed edition rather than
-                # a series. Only the latter belongs in dc:series.
-                kind = refinement(child, "collection-type")
-                if kind in (None, "series"):
-                    metadata.series = metadata.series or value
             elif name and content:
                 if name == "calibre:series":
                     metadata.series = metadata.series or content

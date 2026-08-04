@@ -389,7 +389,10 @@ profilami zgodności.
 Osobno działa regresja na prawdziwych książkach. Nie mogą one trafić do
 publicznego repozytorium, więc leżą w katalogu z `.gitignore`, a wersjonowane są
 wyłącznie **metryki**: liczby błędów EPUBCheck, dotrzymanie niezmiennika tekstu,
-kształt raportu i skrót wyniku. Test pomija się sam, gdy katalogu nie ma.
+kształt raportu i skrót wyniku — osobno dla trybu `preserve` i `strict`. Podpisy
+nazywane są skrótem książki, nie jej tytułem: treść i tak nie wyciekała, ale lista
+tytułów w publicznym repozytorium to ta sama klasa informacji, której cały ten
+mechanizm ma nie ujawniać. Test pomija się sam, gdy katalogu nie ma.
 Szczegóły w [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
@@ -439,6 +442,18 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
   złamać, każda ze wskazaniem testu, który jej pilnuje.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
   akurat takiej.
+
+### Numer wersji nie jest paskiem postępu
+
+Schemat to `0.MINOR.PATCH`. **MINOR** rośnie, gdy narzędzie robi coś nowego albo
+inaczej i użytkownik to zobaczy; **PATCH** obejmuje resztę, łącznie z naprawą
+poważnych defektów — numer opisuje zakres zmiany, nie jej wagę. Od wagi jest
+[`CHANGELOG.md`](CHANGELOG.md).
+
+MINOR nie jest ułamkiem dziesiętnym: po 0.9 idzie 0.10, potem 0.11, a 0.42 jest
+najzupełniej poprawną wersją tego programu. **1.0 nie wychodzi „bo doszliśmy"** —
+warunki są wypisane w [`CONTRIBUTING.md`](CONTRIBUTING.md) i dotyczą korpusu,
+niezmienników i stabilności API, a nie stanu licznika.
 
 ---
 
