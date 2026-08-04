@@ -370,8 +370,11 @@ zero errors and zero warnings, with every compatibility profile enabled too.
 Regression against real books runs separately. They cannot go into a public
 repository, so they live in a gitignored directory and only **metrics** are
 committed: EPUBCheck counts, whether the text invariant held, the shape of the
-report and the hash of the output. The test skips itself when the directory is
-absent. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+report and the hash of the output — for `preserve` and `strict` separately.
+Signatures are named by the book's hash rather than its title: the content never
+leaked, but a list of titles in a public repository is the same class of
+information the whole arrangement exists to keep local. The test skips itself
+when the directory is absent. Details in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ---
 
@@ -418,6 +421,18 @@ Windows installers are produced by `.github/workflows/build-windows.yml`. Push a
   each naming the test that enforces it.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what comes next, in what order, and why
   that order.
+
+### The version number is not a progress bar
+
+The scheme is `0.MINOR.PATCH`. **MINOR** goes up when the tool does something new
+or different that a user would notice; **PATCH** covers everything else, serious
+defect fixes included — the number describes the scope of a change, not its
+importance. Importance is what [`CHANGELOG.md`](CHANGELOG.md) is for.
+
+MINOR is not a decimal fraction: 0.9 is followed by 0.10, then 0.11, and 0.42 is
+a perfectly ordinary version of this program. **1.0 does not arrive by counting**
+— the conditions are listed in [`CONTRIBUTING.md`](CONTRIBUTING.md) and concern
+the corpus, the invariants and API stability, not the tally.
 
 ---
 

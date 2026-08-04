@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from epubforge import paths, xhtml
@@ -213,3 +215,55 @@ class TestArchiveLimits:
         )
         report = Report(source=source)
         assert "OEBPS/ch.xhtml" in _read_archive(source, report).entries
+
+    def _lying_archive(self, tmp_path, payload: bytes):
+        """An archive whose header understates how much an entry expands to.
+
+        The size fields are what the author of the file chose to write there,
+        so a limit that reads them is a limit an attacker sets.
+        """
+        import struct
+        import zipfile
+
+        path = str(tmp_path / "lying.epub")
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as handle:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            handle.writestr(info, b"application/epub+zip")
+            handle.writestr("META-INF/container.xml", b"<x/>")
+            handle.writestr("OEBPS/bomb.bin", payload)
+
+        raw = bytearray(pathlib.Path(path).read_bytes())
+        # Both the local and the central header carry the size; patch each.
+        truth = struct.pack("<I", len(payload))
+        lie = struct.pack("<I", 1000)
+        at = 0
+        while (at := raw.find(truth, at)) >= 0:
+            raw[at : at + 4] = lie
+            at += 4
+        pathlib.Path(path).write_bytes(bytes(raw))
+        return path
+
+    def test_a_lying_header_does_not_get_the_entry_through(self, tmp_path):
+        from epubforge.reader import _read_archive
+        from epubforge.report import Report
+
+        source = self._lying_archive(tmp_path, b"\0" * (4 * 1024 * 1024))
+        report = Report(source=source)
+        raw = _read_archive(source, report)
+        assert "OEBPS/bomb.bin" not in raw.entries
+
+    def test_the_limit_is_measured_while_reading_not_asked_of_the_header(self, tmp_path):
+        """The header check is a cheap first pass; the stream is the real one."""
+        import zipfile
+
+        from epubforge.reader import MAX_ENTRY_BYTES, _read_bounded
+
+        path = str(tmp_path / "big.epub")
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as handle:
+            handle.writestr("big.bin", b"\0" * (2 * 1024 * 1024))
+        with zipfile.ZipFile(path) as archive:
+            info = archive.getinfo("big.bin")
+            assert _read_bounded(archive, info, MAX_ENTRY_BYTES) is not None
+            # Same entry, same honest header, budget below its real size.
+            assert _read_bounded(archive, info, 1024) is None

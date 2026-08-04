@@ -1,11 +1,74 @@
 # Changelog
 
-Versions follow [semantic versioning](https://semver.org). Before 1.0 the minor
-number carries breaking changes.
+The scheme is `0.MINOR.PATCH`. **MINOR** goes up when the tool does something
+new or different that a user would notice — a stage, a flag, a change in what
+the output contains. **PATCH** covers everything else, defect fixes included:
+the number describes the scope of a change, not its importance. Importance is
+what this file is for.
+
+MINOR is not a decimal fraction. 0.9 is followed by 0.10, then 0.11, and 0.42 is
+a perfectly ordinary version of this program. Reaching 1.0 is not something that
+happens by counting — the conditions for it are listed in `CONTRIBUTING.md`, and
+they are about the corpus, the invariants and the API, not about the tally.
 
 The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
+
+## 0.8.1
+
+A second audit, and a pattern worth naming: four of the five serious defects
+found across both audits have the same shape — **the code asked the source
+about something the source is under no obligation to be truthful about, or did
+not ask everything it could have.** That is now K11 in `CONTRIBUTING.md`, the
+sibling of K4: K4 governs what the tool claims on the way out, K11 what it
+believes on the way in.
+
+This release is a PATCH under the versioning rule adopted here: it repairs
+defects and strengthens tests without changing what the tool sets out to do.
+
+### Fixed
+- **The archive size limits could be bypassed by lying.** They read
+  `file_size` and `compress_size` from the ZIP header, which is not a fact
+  about the archive — it is whatever its author wrote there. Patch the field
+  and the guard waves the entry through; the decompressor then produces the
+  real payload, and the CRC check that eventually complains only runs after the
+  memory has already been allocated. Measured here: a 300 MiB entry declaring
+  itself as 1000 bytes cost **601.7 MiB** of peak allocation, and a 10 GB one
+  would have killed the process before anything noticed.
+
+  The ceiling is now enforced while decompressing, in chunks, so the same file
+  is refused at **2.6 MiB**. The header check stays as a cheap first pass — an
+  archive that admits to holding a 300 MiB entry is still turned away without
+  reading a byte — but it is no longer the only one.
+- **The series number could come from the wrong collection.** EPUB 3 allows a
+  book to belong to several: the seventh Chronicle, published inside a boxed
+  set as part one. The 0.8.0 fix separated a `set` from a `series` by *name*,
+  but the number was still taken from whichever `group-position` appeared
+  first, so that book came out as "Chronicles, volume 1". Collections are now
+  resolved whole, and the number comes from the collection the name came from.
+  This was a regression introduced by the previous fix.
+- **The K1 helper silently skipped documents.** It selected content by file
+  extension and excluded navigation by looking for "nav" in the filename.
+  Neither is a fact about an EPUB: the manifest decides what a content document
+  is, `.xml` occurs in the wild, and a chapter called
+  `navigare-necesse-est.xhtml` is a chapter. Both guesses failed in the same
+  direction — they *excluded* real content, so the invariant covered less of
+  the book and still passed. On fixtures whose names we chose that could never
+  surface; on a corpus of real books it would have happened constantly and
+  silently. Documents now come from container.xml → package document →
+  manifest and spine, with navigation recognised by `properties="nav"`.
+
+### Changed
+- Corpus signatures are named by the book's hash instead of its title. The
+  content never leaked, but `autor - Ostatnie życzenie.json` in a public
+  repository leaks the shelf, which is the same class of information the
+  arrangement exists to keep local. It also survives renaming a file on disk,
+  which previously orphaned its signature without a trace.
+- Corpus signatures measure `preserve` as well as `strict`. `preserve` is what
+  users actually get by default, and it was the one mode nothing watched.
+- `--record` now prints a field-level diff before overwriting. "12 books gained
+  a css warning" is something you can review; "40 hashes changed" is not.
 
 ## 0.8.0
 

@@ -131,3 +131,60 @@ class TestEmptyAltIsNeverADescription:
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
         warnings = [f.message for f in result.report.findings if f.level is Level.WARN]
         assert any("alt text" in message for message in warnings), warnings
+
+
+# ------------------------------------------------------- collection numbering
+class TestSeriesNumberComesFromTheRightCollection:
+    """A book can belong to several collections; the number is not free-floating.
+
+    The 0.8.0 fix separated a boxed `set` from a `series` by name, but the
+    number was still taken from whichever `group-position` the document listed
+    first. The seventh Chronicle, published inside a boxed set as part one, came
+    out as "Chronicles, volume 1".
+    """
+
+    BOX_THEN_SERIES = (
+        '    <meta property="belongs-to-collection" id="box">Dzieła zebrane</meta>\n'
+        '    <meta refines="#box" property="collection-type">set</meta>\n'
+        '    <meta refines="#box" property="group-position">1</meta>\n'
+        '    <meta property="belongs-to-collection" id="ser">Kroniki</meta>\n'
+        '    <meta refines="#ser" property="collection-type">series</meta>\n'
+        '    <meta refines="#ser" property="group-position">7</meta>'
+    )
+
+    def read(self, tmp_path, extra_metadata):
+        from epubforge.reader import read_epub
+        from epubforge.report import Report
+
+        source = make_modern_epub(str(tmp_path / "c.epub"), extra_metadata=extra_metadata)
+        return read_epub(source, Report(source=source)).metadata
+
+    def test_name_and_number_come_from_the_same_collection(self, tmp_path):
+        metadata = self.read(tmp_path, self.BOX_THEN_SERIES)
+        assert (metadata.series, metadata.series_index) == ("Kroniki", "7")
+
+    def test_an_untyped_collection_counts_as_a_series(self, tmp_path):
+        """EPUB 3 says that is the default, and most books never state it."""
+        metadata = self.read(
+            tmp_path,
+            '    <meta property="belongs-to-collection" id="s">Kroniki</meta>\n'
+            '    <meta refines="#s" property="group-position">3</meta>',
+        )
+        assert (metadata.series, metadata.series_index) == ("Kroniki", "3")
+
+    def test_a_set_alone_yields_no_series_at_all(self, tmp_path):
+        metadata = self.read(
+            tmp_path,
+            '    <meta property="belongs-to-collection" id="b">Pudełko</meta>\n'
+            '    <meta refines="#b" property="collection-type">set</meta>\n'
+            '    <meta refines="#b" property="group-position">2</meta>',
+        )
+        assert metadata.series is None and metadata.series_index is None
+
+    def test_it_survives_a_round_trip(self, tmp_path):
+        source = make_modern_epub(str(tmp_path / "c.epub"), extra_metadata=self.BOX_THEN_SERIES)
+        first = rebuild(source, str(tmp_path / "one.epub"), Policy.preset("preserve"))
+        second = rebuild(first.output_path, str(tmp_path / "two.epub"), Policy.preset("preserve"))
+        opf = package_document(second.output_path)
+        assert "Kroniki" in opf
+        assert re.search(r'property="group-position">7<', opf), opf
