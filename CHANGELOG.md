@@ -23,6 +23,71 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.1 — pre-alpha
+
+A third audit, and the structural conclusion it reached is worth more than any
+individual fix: **the model is a contract.** The rebuild emits the package
+document from the model, which is what makes the output correct however broken
+the input was — and the price is that a construct never read into the model
+disappears without a trace. No warning, no report entry, no validator error,
+because the result is perfectly valid. Just poorer. That is K12, and it now has
+a test that can see it.
+
+### Fixed
+- **The reading direction was lost in every mode, including `minimal`.**
+  `page-progression-direction` was not read or written anywhere, so a Hebrew,
+  Arabic or manga edition came out opening the wrong way — silently, in the one
+  mode that promises to touch nothing. `package/@dir` went with it. Everything
+  expressed as `<meta>` survived a rebuild and everything expressed as an
+  attribute of a structural element did not; no test could tell the difference
+  because both outputs were valid EPUB.
+- **Transliterated titles and names were dropped.** `alternate-script` is how a
+  library catalogue links "Natsume Sōseki" to 夏目漱石. After the previous
+  release, `_read_collection` was the only reader of refinements, and the code
+  said as much in a comment — a true statement that turned out to cost
+  something.
+- **Running out of the archive budget produced half a book instead of a
+  refusal.** The whole-archive budget was passed to the per-entry limit, so
+  exhausting it looked like a run of oversized entries: the loop continued, four
+  of six images vanished, the result was a valid EPUB, and the fifth image was
+  blamed for "expanding past the limit" when it was an ordinary one megabyte.
+  The two are different questions and now have different answers — a monstrous
+  entry is skipped, an exhausted budget refuses the book. A regression the
+  0.8.1 fix introduced.
+- `page-spread-center` without its `rendition:` prefix is EPUB 3.0 spelling and
+  an undefined property in 3.3. Found by the new fixture, and it made the
+  output invalid for any book written to the older specification.
+- `dc:type`, `dc:coverage` and `dc:relation` are carried through instead of
+  dropped. They had no field in the model, which is not a reason to discard a
+  publisher's statement about their own work.
+
+### Added
+- `epubforge survey` — what breaks across a whole library, ranked by how many
+  books show each defect, writing nothing. A hundred separate reports are a
+  hundred things to read; this is one answer to the question of what to fix
+  next. Findings are normalised before counting, so "corrected 5 declarations"
+  and "corrected 12" are one row rather than two. **Filenames are omitted unless
+  `--with-names` is given**: a survey is meant to be shareable, and a list of
+  titles says more about a shelf than about the tool.
+- `tests/kitchen_sink.py` and `tests/test_package_completeness.py`: a package
+  carrying one of everything EPUB 3.3 §5 allows, and a test comparing the
+  constructs going in against those coming out. Whatever disappears must be
+  repaired or listed with a reason — and two further tests keep the list honest,
+  one rejecting an entry without a reason and one rejecting an entry for
+  something the fixture never had.
+- K12 in `CONTRIBUTING.md`, completing a set: K4 governs what the tool claims on
+  the way out, K11 what it believes on the way in, K12 what it drops in between.
+- A note on the **scope of K1**: it is a character-stream invariant, so it
+  cannot see two paragraphs merged into one. That matters at the typography
+  stage, where joining paragraphs broken by a PDF conversion is planned and is
+  among the riskiest things this tool could do. Corpus signatures now record a
+  block count, so such a change has somewhere to show up.
+- `docs/KORPUS.md` — how to put a personal library to work without a single book
+  leaving the disk.
+- The test suite runs a second time under a different `PYTHONHASHSEED` in CI.
+  Iterating a set is the classic way for K2 to quietly stop holding, and a
+  single-process run can never notice.
+
 ## 0.1.0 — pre-alpha
 
 ### Changed

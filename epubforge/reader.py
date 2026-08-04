@@ -142,6 +142,10 @@ _RATIO_FLOOR = 64 * 1024
 _CHUNK = 1024 * 1024
 
 
+def _human(size: int) -> str:
+    return f"{size / 1024**3:.0f} GiB" if size >= 1024**3 else f"{size / 1024**2:.0f} MiB"
+
+
 def _implausible_header(info: zipfile.ZipInfo) -> str | None:
     """Why this entry is refused on the strength of its header alone.
 
@@ -165,15 +169,17 @@ def _implausible_header(info: zipfile.ZipInfo) -> str | None:
     return None
 
 
-def _read_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo, budget: int) -> bytes | None:
-    """The entry's contents, or ``None`` when it exceeds what we will hold.
+def _read_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes | None:
+    """The entry's contents, or ``None`` when it alone exceeds the entry limit.
 
     Measured while decompressing rather than asked of the header, because the
     header is a claim and this is the one place where the claim is exactly what
     an attacker controls. Reading in chunks and stopping at the ceiling means a
     ten-gigabyte entry costs a megabyte to refuse.
+
+    Only the per-entry limit is enforced here. The whole-archive budget is a
+    different question with a different answer — see :func:`_read_archive`.
     """
-    limit = min(MAX_ENTRY_BYTES, budget)
     buffer = bytearray()
     with archive.open(info) as stream:
         while True:
@@ -181,7 +187,7 @@ def _read_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo, budget: int) 
             if not chunk:
                 break
             buffer.extend(chunk)
-            if len(buffer) > limit:
+            if len(buffer) > MAX_ENTRY_BYTES:
                 return None
     return bytes(buffer)
 
@@ -217,16 +223,33 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
                 continue
 
             try:
-                data = _read_bounded(archive, info, MAX_TOTAL_BYTES - total)
+                data = _read_bounded(archive, info)
             except (RuntimeError, zipfile.BadZipFile, NotImplementedError, EOFError) as exc:
                 # Encrypted or unsupported-compression member; keep going.
                 report.add("reader", Level.ERROR, f"unreadable archive entry: {exc}", location=name)
                 continue
             if data is None:
-                refuse(name, "entry kept expanding past the limit while being read")
+                refuse(
+                    name,
+                    f"entry passed {_human(MAX_ENTRY_BYTES)} while being read",
+                )
                 continue
 
+            # The two limits are different questions and deserve different
+            # answers. One monstrous entry is skipped and the rest of the book
+            # is still worth reading; running out of budget for the archive as a
+            # whole means this book cannot be read in full — and for a tool
+            # whose first rule is that no character is lost, half a book is a
+            # worse outcome than a refusal. Merging the two, as an earlier
+            # version did, silently produced books missing four of six images
+            # and blamed the fifth one for "expanding past the limit".
             total += len(data)
+            if total > MAX_TOTAL_BYTES:
+                raise EpubReadError(
+                    f"archive expands past {_human(MAX_TOTAL_BYTES)}; "
+                    f"refusing to read it partially"
+                )
+
             if name == "mimetype":
                 mimetype_ok = data.strip() == b"application/epub+zip"
                 continue
@@ -277,11 +300,40 @@ def _parse_metadata(package, report: Report) -> Metadata:
 
     # EPUB 3 refinements are keyed by the id of the element they describe.
     refines: dict[str, dict[str, str]] = {}
+    #: The same refinements as elements, because some of them carry attributes
+    #: that matter — `alternate-script` is meaningless without its `xml:lang`.
+    refine_nodes: dict[str, list] = {}
     for meta in descendants(node, "meta"):
         target = meta.get("refines")
         prop = meta.get("property")
         if target and prop:
-            refines.setdefault(target.lstrip("#"), {})[prop.strip()] = text_of(meta)
+            key = target.lstrip("#")
+            refines.setdefault(key, {})[prop.strip()] = text_of(meta)
+            refine_nodes.setdefault(key, []).append(meta)
+
+    metadata.direction = (package.get("dir") or "").strip().lower() or None
+
+    def alternate_scripts(element) -> list[tuple[str, str]]:
+        """Transliterations attached to *element*, as ``(xml:lang, value)``.
+
+        A romanised title or author name is how a library catalogue finds a book
+        written in a script its index does not hold. It lives in a refinement,
+        and once `_read_collection` became the only reader of refinements these
+        went out with the bathwater.
+        """
+        element_id = element.get("id")
+        found: list[tuple[str, str]] = []
+        for meta in refine_nodes.get(element_id or "", []):
+            if (meta.get("property") or "").strip() != "alternate-script":
+                continue
+            language = attr(meta, "lang", "http://www.w3.org/XML/1998/namespace") or ""
+            value = text_of(meta)
+            if value:
+                found.append((language, value))
+        return found
+
+    def language_of(element) -> str | None:
+        return attr(element, "lang", "http://www.w3.org/XML/1998/namespace")
 
     def refinement(element, prop: str) -> str | None:
         element_id = element.get("id")
@@ -301,18 +353,28 @@ def _parse_metadata(package, report: Report) -> Metadata:
             elif title_type == "collection":
                 metadata.series = metadata.series or value
             else:
+                if not metadata.titles:
+                    metadata.title_language = language_of(child)
+                    metadata.title_direction = (child.get("dir") or "").strip().lower() or None
+                    metadata.title_alternate_scripts = alternate_scripts(child)
                 metadata.titles.append(value)
                 sort_as = refinement(child, "file-as")
                 if sort_as:
                     metadata.sort_title = sort_as
-        elif tag == "creator" and value:
-            role = refinement(child, "role") or attr(child, "role", OPF_NS) or "aut"
+        elif tag in ("creator", "contributor") and value:
+            default_role = "aut" if tag == "creator" else "ctb"
+            role = refinement(child, "role") or attr(child, "role", OPF_NS) or default_role
             file_as = refinement(child, "file-as") or attr(child, "file-as", OPF_NS)
-            metadata.creators.append(Creator(value, role.strip().lower()[:3] or "aut", file_as))
-        elif tag == "contributor" and value:
-            role = refinement(child, "role") or attr(child, "role", OPF_NS) or "ctb"
-            file_as = refinement(child, "file-as") or attr(child, "file-as", OPF_NS)
-            metadata.creators.append(Creator(value, role.strip().lower()[:3] or "ctb", file_as))
+            metadata.creators.append(
+                Creator(
+                    value,
+                    role.strip().lower()[:3] or default_role,
+                    file_as,
+                    language=language_of(child),
+                    direction=(child.get("dir") or "").strip().lower() or None,
+                    alternate_scripts=alternate_scripts(child),
+                )
+            )
         elif tag == "identifier" and value:
             scheme = refines.get(child.get("id", ""), {}).get("identifier-type") or attr(child, "scheme", OPF_NS)
             metadata.identifiers.append(Identifier(value, scheme, primary=False))
@@ -337,6 +399,8 @@ def _parse_metadata(package, report: Report) -> Metadata:
             metadata.rights = metadata.rights or value
         elif tag == "source" and value:
             metadata.source = metadata.source or value
+        elif tag in ("type", "coverage", "relation") and value:
+            metadata.dublin_core_extra.append((tag, value))
         elif tag == "meta":
             name = child.get("name")
             content = child.get("content")
@@ -430,11 +494,13 @@ def _find_case_insensitive(path: str, entries: dict[str, bytes]) -> str | None:
     return None
 
 
-def _parse_spine(package, by_id: dict[str, Resource], report: Report) -> tuple[list[SpineItem], str | None]:
+def _parse_spine(
+    package, by_id: dict[str, Resource], report: Report
+) -> tuple[list[SpineItem], str | None, str | None]:
     spine_nodes = children(package, "spine")
     if not spine_nodes:
         report.add("reader", Level.WARN, "package has no <spine>")
-        return [], None
+        return [], None, None
     spine_node = spine_nodes[0]
     items: list[SpineItem] = []
     for itemref in children(spine_node, "itemref"):
@@ -449,11 +515,23 @@ def _parse_spine(package, by_id: dict[str, Resource], report: Report) -> tuple[l
             )
             continue
         linear = (itemref.get("linear") or "yes").strip().lower() != "no"
-        properties = set((itemref.get("properties") or "").split())
+        properties = {
+            # `page-spread-center` belongs to the rendition vocabulary and needs
+            # its prefix; the other two live in the package vocabulary and do
+            # not. EPUB 3.0 accepted the bare spelling, EPUB 3.3 calls it an
+            # undefined property — so a book written to the older spec produces
+            # an invalid package unless this is translated.
+            "rendition:page-spread-center" if name == "page-spread-center" else name
+            for name in (itemref.get("properties") or "").split()
+        }
         items.append(SpineItem(resource.path, linear, properties))
     toc_id = spine_node.get("toc")
     ncx_path = by_id[toc_id].path if toc_id and toc_id in by_id else None
-    return items, ncx_path
+    # Which way the pages turn. An attribute, not a <meta> — and that is the
+    # whole reason it used to be dropped: everything the model reads from
+    # metadata survived a rebuild, and everything expressed structurally did not.
+    direction = (spine_node.get("page-progression-direction") or "").strip().lower() or None
+    return items, ncx_path, direction
 
 
 def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoint], list[PageTarget]]:
@@ -678,7 +756,15 @@ def read_epub(source: str, report: Report) -> Book:
     for resource in by_id.values():
         book.add(resource)
 
-    book.spine, book.ncx_path = _parse_spine(package, by_id, report)
+    book.spine, book.ncx_path, book.page_progression_direction = _parse_spine(
+        package, by_id, report
+    )
+    if book.page_progression_direction in ("rtl", "ltr"):
+        report.add(
+            "reader",
+            Level.INFO,
+            f"page progression is {book.page_progression_direction}; carried through",
+        )
 
     for prefix in ("rendition:layout", "rendition:orientation", "rendition:spread", "rendition:flow"):
         for metadata_node in children(package, "metadata"):

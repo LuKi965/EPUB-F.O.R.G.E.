@@ -272,6 +272,9 @@ epubforge build ksiazka.epub
 # Cała biblioteka do jednego folderu, z weryfikacją
 epubforge build ~/Ebooki -o ~/Ebooki/czyste --check
 
+# Co się psuje w całej bibliotece — rankingowo, nic nie zapisując
+epubforge survey ~/Ebooki
+
 # Pełna zgodność, wygląd na drugim miejscu
 epubforge build ksiazka.epub --strict -o czysta.epub
 
@@ -375,6 +378,22 @@ zachowania: test zachowania mówi „ta usterka jest naprawiana", te mówią
 Komplet zasad, wraz z testami, które ich pilnują, jest w
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+### Przegląd biblioteki
+
+```bash
+epubforge survey ~/Ebooki --json przeglad.json
+```
+
+Przepuszcza całą bibliotekę przez pełny potok, **niczego nie zapisując**, i daje
+jedną rankingową listę: która usterka w ilu książkach. Sto osobnych raportów to
+sto rzeczy do przeczytania; to jest jedna odpowiedź na pytanie, co warto naprawić
+najpierw. Reguła napisana z jednej książki jest zgadywaniem — ta sama usterka
+w czterdziestu jest faktem.
+
+Nazwy plików **nie trafiają** do wyniku, chyba że poprosisz o to przez
+`--with-names`. Przegląd ma się dać komuś pokazać, a lista tytułów mówi więcej
+o Twojej półce niż o narzędziu.
+
 ### Testy
 
 ```bash
@@ -386,7 +405,8 @@ i sprawdza wynik — w tym, jeśli EPUBCheck jest zainstalowany, że tryb `stric
 waliduje się z zerem błędów i zerem ostrzeżeń, również z włączonymi wszystkimi
 profilami zgodności.
 
-Osobno działa regresja na prawdziwych książkach. Nie mogą one trafić do
+Osobno działa regresja na prawdziwych książkach — pełna instrukcja w
+[`docs/KORPUS.md`](docs/KORPUS.md). Nie mogą one trafić do
 publicznego repozytorium, więc leżą w katalogu z `.gitignore`, a wersjonowane są
 wyłącznie **metryki**: liczby błędów EPUBCheck, dotrzymanie niezmiennika tekstu,
 kształt raportu i skrót wyniku — osobno dla trybu `preserve` i `strict`. Podpisy
@@ -442,6 +462,8 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
   złamać, każda ze wskazaniem testu, który jej pilnuje.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
   akurat takiej.
+- [`docs/KORPUS.md`](docs/KORPUS.md) — jak użyć własnej biblioteki, żeby pomóc
+  projektowi, nie wypuszczając z dysku ani jednej książki.
 
 ### Wersja i dojrzałość to dwie różne rzeczy
 

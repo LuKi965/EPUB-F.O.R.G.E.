@@ -132,6 +132,31 @@ def body_text(path: str) -> str:
     return unicodedata.normalize("NFC", folded).strip()
 
 
+def block_count(path: str) -> int:
+    """How many text blocks the book is divided into.
+
+    K1 compares a stream of characters, so it cannot see two paragraphs merged
+    into one or one split into two — the characters are all still there, in
+    order. That is fine today because nothing does it, and it stops being fine
+    at the typography stage, where joining paragraphs broken by a PDF
+    conversion is on the list and is one of the riskiest things this tool could
+    ever do. Counting blocks gives that change somewhere to show up.
+    """
+    total = 0
+    with zipfile.ZipFile(path) as archive:
+        for name in spine_documents(archive):
+            document = lxml.html.fromstring(archive.read(name))
+            total += len(
+                document.xpath(
+                    '//*[local-name()="p" or local-name()="div" or local-name()="li"'
+                    ' or local-name()="h1" or local-name()="h2" or local-name()="h3"'
+                    ' or local-name()="h4" or local-name()="h5" or local-name()="h6"'
+                    ' or local-name()="blockquote" or local-name()="td" or local-name()="th"]'
+                )
+            )
+    return total
+
+
 def entries(path: str) -> dict[str, bytes]:
     with zipfile.ZipFile(path) as archive:
         return {name: archive.read(name) for name in archive.namelist()}

@@ -265,6 +265,7 @@ EPUBCheck is optional here: point `EPUBCHECK_JAR` at `epubcheck.jar`, or put
 ```bash
 epubforge build book.epub                        # next to the original
 epubforge build ~/Books -o ~/Books/clean --check # a library, verified
+epubforge survey ~/Books                         # what breaks across it, ranked
 epubforge build book.epub --strict -o clean.epub # conformance first
 epubforge build book.epub --compat kobo          # concessions for one device
 epubforge inspect book.epub                      # diagnose without writing
@@ -367,6 +368,10 @@ The suite rebuilds a fixture carrying the damage described above and checks the
 result — including, when EPUBCheck is installed, that `strict` validates with
 zero errors and zero warnings, with every compatibility profile enabled too.
 
+`epubforge survey` reports what breaks across a whole library, ranked by how many
+books show each defect, writing nothing. Filenames are omitted unless
+`--with-names` is passed.
+
 Regression against real books runs separately. They cannot go into a public
 repository, so they live in a gitignored directory and only **metrics** are
 committed: EPUBCheck counts, whether the text invariant held, the shape of the
@@ -421,6 +426,8 @@ Windows installers are produced by `.github/workflows/build-windows.yml`. Push a
   each naming the test that enforces it.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what comes next, in what order, and why
   that order.
+- [`docs/KORPUS.md`](docs/KORPUS.md) *(Polish)* — how to put your own library to
+  work without a single book leaving your disk.
 
 ### Version and maturity are different things
 

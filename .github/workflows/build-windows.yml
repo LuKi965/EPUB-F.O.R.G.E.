@@ -72,6 +72,17 @@ jobs:
       - name: Run tests
         run: pytest -q
 
+      # K2 says the output is a function of the input. Iterating a set is the
+      # classic way for that to stop being true, and a single-process test run
+      # can never notice: one seed per process means the order is stable within
+      # the run and different between runs. A second pass under a different seed
+      # is the cheapest thing that would catch it.
+      - name: Run tests again under a different hash seed
+        shell: pwsh
+        env:
+          PYTHONHASHSEED: "12345"
+        run: pytest -q
+
       - name: Build the bundled distribution
         run: python packaging/build.py --clean
 
