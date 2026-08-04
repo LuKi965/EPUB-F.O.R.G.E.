@@ -7,9 +7,9 @@
   #define MyAppVersion "0.1.0"
 #endif
 
-#define MyAppName "EPUB-Forge"
-#define MyAppPublisher "EPUB-Forge"
-#define MyAppURL "https://github.com/LuKi965/EPUB-Forge"
+#define MyAppName "EPUB F.O.R.G.E."
+#define MyAppPublisher "Lukasz Kniotek"
+#define MyAppURL "https://github.com/LuKi965/EPUB-F.O.R.G.E."
 #define MyAppExeName "EPUB-Forge.exe"
 
 [Setup]
@@ -24,7 +24,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
 OutputDir=..\dist\installer
-OutputBaseFilename=EPUB-Forge-{#MyAppVersion}-setup
+OutputBaseFilename=EPUB-FORGE-{#MyAppVersion}-setup
 SetupIconFile=epubforge.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max
@@ -45,7 +45,7 @@ Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "contextmenu"; Description: "Add ""Rebuild with EPUB-Forge"" to the right-click menu for .epub files"; GroupDescription: "Shell integration:"; Flags: unchecked
+Name: "contextmenu"; Description: "Add ""Rebuild with EPUB F.O.R.G.E."" to the right-click menu for .epub files"; GroupDescription: "Shell integration:"; Flags: unchecked
 
 [Files]
 ; The PyInstaller output already contains the Python runtime, Qt, the bundled
@@ -61,7 +61,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; A shell verb, deliberately not a default file association: opening an EPUB
 ; still goes to whatever reader the user actually uses.
 Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.epub\shell\EpubForge"; \
-    ValueType: string; ValueName: ""; ValueData: "Rebuild with EPUB-Forge"; \
+    ValueType: string; ValueName: ""; ValueData: "Rebuild with EPUB F.O.R.G.E."; \
     Flags: uninsdeletekey; Tasks: contextmenu
 Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.epub\shell\EpubForge"; \
     ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName},0"; \

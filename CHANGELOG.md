@@ -7,6 +7,32 @@ The version lives in `epubforge/__init__.py` and is the single source for
 `pyproject.toml`, `epubforge --version`, the window title and the Windows
 installer — bump it there and everything follows.
 
+## 0.6.0
+
+### Changed
+- Renamed to **EPUB F.O.R.G.E.** — *Fabryka Odbudowy i Renowacji Glitchujących
+  EPUB-ów* / *Factory for Overhauling and Renovating Glitchy EPUBs*. The window
+  title, About dialog, installer and documentation follow; executable and
+  distribution folder names are deliberately unchanged so the Windows build
+  keeps working.
+
+### Added
+- A rare dry remark, shown only when a book arrives with nothing at all to fix.
+  The tool's personality lives in its documentation and in the fixed text of
+  the interface; a wisecrack after every book stops being funny by the third
+  one, and one beside a warning or an error is simply in the way.
+
+## 0.5.1
+
+### Fixed
+- The `schema:` prefix used by the accessibility metadata is only *reserved*
+  from EPUB 3.3 onwards. A reader built against EPUB 3.0 or 3.1 sees an
+  undeclared prefix on every accessibility property, and a strict one can
+  reject the package document — which presents to the user as a book that will
+  not open at all. The prefix is now declared on `<package>`, which is
+  redundant under 3.3 and legal there, so it costs nothing and restores older
+  devices. EPUBCheck never flagged this because it validates against 3.3.
+
 ## 0.5.0
 
 ### Added

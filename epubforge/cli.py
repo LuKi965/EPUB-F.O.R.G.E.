@@ -13,6 +13,7 @@ from . import __version__
 from .pipeline import rebuild
 from .policy import Policy
 from .reader import EpubReadError, read_epub
+from .quips import quip_for
 from .report import Level, Report
 from .validate import validate
 
@@ -100,6 +101,12 @@ def summarize(console: Console, report: Report) -> None:
         f"[bold red]{counts[Level.ERROR]} errors[/]",
     ]
     console.print("  " + " · ".join(parts))
+
+    # Decoration, never a substitute for the counts above, and silent whenever
+    # something went wrong.
+    remark = quip_for(report, os.environ.get("EPUBFORGE_LANG", "pl")[:2])
+    if remark:
+        console.print(f"  [dim italic]{remark}[/]")
 
 
 def command_build(args: argparse.Namespace) -> int:
