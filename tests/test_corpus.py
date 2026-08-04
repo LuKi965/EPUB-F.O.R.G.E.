@@ -44,7 +44,7 @@ from epubforge.policy import Policy
 from epubforge.report import Level
 from epubforge.validate import find_epubcheck, validate
 
-from .test_invariants import body_text
+from .test_invariants import block_count, body_text
 
 CORPUS = pathlib.Path(__file__).parent / "corpus"
 EXPECTED = CORPUS / "expected"
@@ -88,6 +88,9 @@ def measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
 
     measurement["output"] = digest(pathlib.Path(result.output_path).read_bytes())
     measurement["text_invariant"] = body_text(result.output_path) == body_text(str(book))
+    # K1 is a character-stream invariant and cannot see a change in how the text
+    # is divided. Recording the count gives that its own line in the diff.
+    measurement["blocks"] = block_count(result.output_path)
     if find_epubcheck() is not None:
         check = validate(result.output_path)
         measurement["epubcheck"] = {

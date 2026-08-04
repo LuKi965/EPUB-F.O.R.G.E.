@@ -61,6 +61,19 @@ def _make_id(path: str, taken: set[str]) -> str:
     return unique
 
 
+def _alternate_script(target_id: str, language: str, value: str) -> str:
+    """A transliteration of a title or a name, tagged with the script it is in.
+
+    Without the language the refinement says nothing — it is the pair that
+    tells a catalogue that this Latin string denotes that Japanese one.
+    """
+    language_attribute = f" xml:lang={quoteattr(language)}" if language else ""
+    return (
+        f'    <meta refines="#{target_id}" property="alternate-script"'
+        f"{language_attribute}>{escape(value)}</meta>"
+    )
+
+
 def _element(tag: str, text: str | None = None, **attributes) -> str:
     parts = [tag]
     for key, value in attributes.items():
@@ -91,9 +104,14 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         prefixes.append("a11y: http://www.idpf.org/epub/vocab/package/a11y/#")
     prefix_attribute = f" prefix={quoteattr(' '.join(prefixes))}" if prefixes else ""
 
+    # Base text direction for the whole package. A structural attribute, so it
+    # has to be carried deliberately: a Hebrew or Arabic edition that loses it
+    # renders its metadata the wrong way round.
+    direction = f" dir={quoteattr(metadata.direction)}" if metadata.direction else ""
     lines.append(
         '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
-        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}{prefix_attribute}>'
+        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}'
+        f"{direction}{prefix_attribute}>"
     )
 
     # --- metadata -----------------------------------------------------------
@@ -108,12 +126,19 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for index, extra in enumerate(i for i in metadata.identifiers if not i.primary):
         lines.append(f"    {_element('dc:identifier', extra.value, id=f'id-{index}')}")
 
-    lines.append(f"    {_element('dc:title', metadata.title, id='title')}")
+    title_attributes = {"id": "title"}
+    if metadata.title_language:
+        title_attributes["xml:lang"] = metadata.title_language
+    if metadata.title_direction:
+        title_attributes["dir"] = metadata.title_direction
+    lines.append(f"    {_element('dc:title', metadata.title, **title_attributes)}")
     lines.append('    <meta refines="#title" property="title-type">main</meta>')
     if metadata.sort_title:
         lines.append(
             f'    <meta refines="#title" property="file-as">{escape(metadata.sort_title)}</meta>'
         )
+    for script_language, script_value in metadata.title_alternate_scripts:
+        lines.append(_alternate_script("title", script_language, script_value))
     if metadata.subtitle:
         lines.append(f"    {_element('dc:title', metadata.subtitle, id='subtitle')}")
         lines.append('    <meta refines="#subtitle" property="title-type">subtitle</meta>')
@@ -125,7 +150,12 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for index, creator in enumerate(metadata.creators):
         tag = "dc:creator" if creator.role == "aut" else "dc:contributor"
         creator_id = f"creator-{index}"
-        lines.append(f"    {_element(tag, creator.name, id=creator_id)}")
+        creator_attributes = {"id": creator_id}
+        if creator.language:
+            creator_attributes["xml:lang"] = creator.language
+        if creator.direction:
+            creator_attributes["dir"] = creator.direction
+        lines.append(f"    {_element(tag, creator.name, **creator_attributes)}")
         lines.append(
             f'    <meta refines="#{creator_id}" property="role" '
             f'scheme="marc:relators">{escape(creator.role)}</meta>'
@@ -134,6 +164,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             lines.append(
                 f'    <meta refines="#{creator_id}" property="file-as">{escape(creator.file_as)}</meta>'
             )
+        for script_language, script_value in creator.alternate_scripts:
+            lines.append(_alternate_script(creator_id, script_language, script_value))
 
     if metadata.publisher:
         lines.append(f"    {_element('dc:publisher', metadata.publisher)}")
@@ -147,6 +179,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         lines.append(f"    {_element('dc:rights', metadata.rights)}")
     if metadata.source:
         lines.append(f"    {_element('dc:source', metadata.source)}")
+    for element_name, element_value in metadata.dublin_core_extra:
+        lines.append(f"    {_element(f'dc:{element_name}', element_value)}")
 
     if metadata.series:
         lines.append(
@@ -217,6 +251,10 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     # --- spine --------------------------------------------------------------
     ncx_id = id_by_path.get(book.ncx_path) if book.ncx_path else None
     spine_attributes = f' toc={quoteattr(ncx_id)}' if ncx_id else ""
+    if book.page_progression_direction:
+        spine_attributes += (
+            f" page-progression-direction={quoteattr(book.page_progression_direction)}"
+        )
     lines.append(f"  <spine{spine_attributes}>")
     for item in book.spine:
         item_id = id_by_path.get(item.path)

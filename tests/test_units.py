@@ -253,17 +253,46 @@ class TestArchiveLimits:
         raw = _read_archive(source, report)
         assert "OEBPS/bomb.bin" not in raw.entries
 
-    def test_the_limit_is_measured_while_reading_not_asked_of_the_header(self, tmp_path):
+    def test_the_limit_is_measured_while_reading_not_asked_of_the_header(self, tmp_path, monkeypatch):
         """The header check is a cheap first pass; the stream is the real one."""
         import zipfile
 
-        from epubforge.reader import MAX_ENTRY_BYTES, _read_bounded
+        from epubforge import reader
 
         path = str(tmp_path / "big.epub")
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as handle:
             handle.writestr("big.bin", b"\0" * (2 * 1024 * 1024))
         with zipfile.ZipFile(path) as archive:
             info = archive.getinfo("big.bin")
-            assert _read_bounded(archive, info, MAX_ENTRY_BYTES) is not None
-            # Same entry, same honest header, budget below its real size.
-            assert _read_bounded(archive, info, 1024) is None
+            assert reader._read_bounded(archive, info) is not None
+            monkeypatch.setattr(reader, "MAX_ENTRY_BYTES", 1024)
+            assert reader._read_bounded(archive, info) is None
+
+    def test_running_out_of_budget_refuses_the_book_instead_of_truncating_it(
+        self, tmp_path, monkeypatch
+    ):
+        """A partial book is a worse outcome than no book.
+
+        The entry limit and the whole-archive budget are different questions. An
+        earlier version passed the remaining budget in as the entry limit, so
+        exhausting it looked like a run of oversized entries: the loop carried
+        on, four of six images vanished, the result was a valid EPUB, and the
+        fifth image was blamed for "expanding past the limit".
+        """
+        import os
+        import zipfile
+
+        from epubforge import reader
+        from epubforge.report import Report
+
+        monkeypatch.setattr(reader, "MAX_TOTAL_BYTES", 3 * 1024**2)
+        monkeypatch.setattr(reader, "MAX_ENTRY_BYTES", 2 * 1024**2)
+
+        path = str(tmp_path / "heavy.epub")
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as handle:
+            handle.writestr("META-INF/container.xml", b"<x/>")
+            for index in range(6):
+                handle.writestr(f"OEBPS/img{index}.jpg", os.urandom(1024 * 1024))
+
+        with pytest.raises(reader.EpubReadError, match="partially"):
+            reader._read_archive(path, Report(source=path))

@@ -156,6 +156,13 @@ class Creator:
     #: MARC relator code, e.g. ``aut``, ``trl``, ``ill``.
     role: str = "aut"
     file_as: str | None = None
+    #: Script and direction of the name as written, when the source said so.
+    language: str | None = None
+    direction: str | None = None
+    #: ``(xml:lang, value)`` transliterations — the romanised form a library
+    #: catalogue indexes by. Dropping these loses the only machine-readable
+    #: link between 夏目漱石 and "Natsume Sōseki".
+    alternate_scripts: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -186,6 +193,18 @@ class Metadata:
     series_index: str | None = None
     #: Vendor metadata worth carrying over, as ``(name, content)`` pairs.
     extra_meta: list[tuple[str, str]] = field(default_factory=list)
+    #: Dublin Core elements with no dedicated field, as ``(element, value)``.
+    #: Carried through verbatim: they are the publisher's statements about the
+    #: work, and having no slot in this model is not a reason to discard them.
+    dublin_core_extra: list[tuple[str, str]] = field(default_factory=list)
+
+    #: Base text direction for the package (``ltr`` / ``rtl`` / ``auto``).
+    direction: str | None = None
+    #: Script and direction of the title as written.
+    title_language: str | None = None
+    title_direction: str | None = None
+    #: ``(xml:lang, value)`` transliterations of the title.
+    title_alternate_scripts: list[tuple[str, str]] = field(default_factory=list)
 
     #: EPUB Accessibility 1.1 discovery metadata, as schema.org property names
     #: mapped to their values. Derived from what the book demonstrably contains
@@ -236,6 +255,13 @@ class Book:
     has_drm: bool = False
     #: Fixed-layout and other rendering hints from the source OPF.
     rendition: dict[str, str] = field(default_factory=dict)
+
+    #: Which way the pages turn: ``ltr``, ``rtl`` or ``default``. A structural
+    #: attribute rather than a ``<meta>``, which is exactly why it used to be
+    #: lost — everything expressed as metadata survived the rebuild and
+    #: everything expressed as an attribute did not. A Hebrew, Arabic or manga
+    #: edition that loses this opens backwards.
+    page_progression_direction: str | None = None
 
     #: Reader-family concessions applied to this book, as measure keys from
     #: :mod:`epubforge.compat`. The writer consults these; nothing else does.

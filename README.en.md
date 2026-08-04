@@ -265,6 +265,7 @@ EPUBCheck is optional here: point `EPUBCHECK_JAR` at `epubcheck.jar`, or put
 ```bash
 epubforge build book.epub                        # next to the original
 epubforge build ~/Books -o ~/Books/clean --check # a library, verified
+epubforge survey ~/Books                         # what breaks across it, ranked
 epubforge build book.epub --strict -o clean.epub # conformance first
 epubforge build book.epub --compat kobo          # concessions for one device
 epubforge inspect book.epub                      # diagnose without writing
@@ -367,6 +368,10 @@ The suite rebuilds a fixture carrying the damage described above and checks the
 result — including, when EPUBCheck is installed, that `strict` validates with
 zero errors and zero warnings, with every compatibility profile enabled too.
 
+`epubforge survey` reports what breaks across a whole library, ranked by how many
+books show each defect, writing nothing. Filenames are omitted unless
+`--with-names` is passed.
+
 Regression against real books runs separately. They cannot go into a public
 repository, so they live in a gitignored directory and only **metrics** are
 committed: EPUBCheck counts, whether the text invariant held, the shape of the
@@ -421,18 +426,33 @@ Windows installers are produced by `.github/workflows/build-windows.yml`. Push a
   each naming the test that enforces it.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what comes next, in what order, and why
   that order.
+- [`docs/KORPUS.md`](docs/KORPUS.md) *(Polish)* — how to put your own library to
+  work without a single book leaving your disk.
 
-### The version number is not a progress bar
+### Version and maturity are different things
 
-The scheme is `0.MINOR.PATCH`. **MINOR** goes up when the tool does something new
-or different that a user would notice; **PATCH** covers everything else, serious
-defect fixes included — the number describes the scope of a change, not its
-importance. Importance is what [`CHANGELOG.md`](CHANGELOG.md) is for.
+This is **pre-alpha**, and the program says so itself wherever it reports its
+version:
 
-MINOR is not a decimal fraction: 0.9 is followed by 0.10, then 0.11, and 0.42 is
-a perfectly ordinary version of this program. **1.0 does not arrive by counting**
-— the conditions are listed in [`CONTRIBUTING.md`](CONTRIBUTING.md) and concern
-the corpus, the invariants and API stability, not the tally.
+```
+epub-forge 0.1.0 (pre-alpha)
+```
+
+The number no longer tries to carry that information, because it cannot: a
+figure climbing towards 1.0 reads as progress towards a release whatever anyone
+intended. PATCH moves on every release, whatever it contains; MINOR moves only
+when the maturity stage does, against written entry conditions.
+
+| Stage | | |
+|---|---|---|
+| **pre-alpha** | `0.1.x` | prototype; works on the author's books, no corpus yet |
+| **alpha** | `0.2.x` | verified against 30+ real books, report translated |
+| **beta** | `0.3.x` | complete, used by somebody other than the author |
+| **1.0** | | stable — full conditions in [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+
+In practice: the tool **never overwrites the source file**, and a test enforces
+that — but keep your originals anyway. This is a prototype and it is labelled as
+one.
 
 ---
 

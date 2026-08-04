@@ -272,6 +272,9 @@ epubforge build ksiazka.epub
 # Cała biblioteka do jednego folderu, z weryfikacją
 epubforge build ~/Ebooki -o ~/Ebooki/czyste --check
 
+# Co się psuje w całej bibliotece — rankingowo, nic nie zapisując
+epubforge survey ~/Ebooki
+
 # Pełna zgodność, wygląd na drugim miejscu
 epubforge build ksiazka.epub --strict -o czysta.epub
 
@@ -375,6 +378,22 @@ zachowania: test zachowania mówi „ta usterka jest naprawiana", te mówią
 Komplet zasad, wraz z testami, które ich pilnują, jest w
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+### Przegląd biblioteki
+
+```bash
+epubforge survey ~/Ebooki --json przeglad.json
+```
+
+Przepuszcza całą bibliotekę przez pełny potok, **niczego nie zapisując**, i daje
+jedną rankingową listę: która usterka w ilu książkach. Sto osobnych raportów to
+sto rzeczy do przeczytania; to jest jedna odpowiedź na pytanie, co warto naprawić
+najpierw. Reguła napisana z jednej książki jest zgadywaniem — ta sama usterka
+w czterdziestu jest faktem.
+
+Nazwy plików **nie trafiają** do wyniku, chyba że poprosisz o to przez
+`--with-names`. Przegląd ma się dać komuś pokazać, a lista tytułów mówi więcej
+o Twojej półce niż o narzędziu.
+
 ### Testy
 
 ```bash
@@ -386,7 +405,8 @@ i sprawdza wynik — w tym, jeśli EPUBCheck jest zainstalowany, że tryb `stric
 waliduje się z zerem błędów i zerem ostrzeżeń, również z włączonymi wszystkimi
 profilami zgodności.
 
-Osobno działa regresja na prawdziwych książkach. Nie mogą one trafić do
+Osobno działa regresja na prawdziwych książkach — pełna instrukcja w
+[`docs/KORPUS.md`](docs/KORPUS.md). Nie mogą one trafić do
 publicznego repozytorium, więc leżą w katalogu z `.gitignore`, a wersjonowane są
 wyłącznie **metryki**: liczby błędów EPUBCheck, dotrzymanie niezmiennika tekstu,
 kształt raportu i skrót wyniku — osobno dla trybu `preserve` i `strict`. Podpisy
@@ -442,18 +462,33 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
   złamać, każda ze wskazaniem testu, który jej pilnuje.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
   akurat takiej.
+- [`docs/KORPUS.md`](docs/KORPUS.md) — jak użyć własnej biblioteki, żeby pomóc
+  projektowi, nie wypuszczając z dysku ani jednej książki.
 
-### Numer wersji nie jest paskiem postępu
+### Wersja i dojrzałość to dwie różne rzeczy
 
-Schemat to `0.MINOR.PATCH`. **MINOR** rośnie, gdy narzędzie robi coś nowego albo
-inaczej i użytkownik to zobaczy; **PATCH** obejmuje resztę, łącznie z naprawą
-poważnych defektów — numer opisuje zakres zmiany, nie jej wagę. Od wagi jest
-[`CHANGELOG.md`](CHANGELOG.md).
+To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
+wersję:
 
-MINOR nie jest ułamkiem dziesiętnym: po 0.9 idzie 0.10, potem 0.11, a 0.42 jest
-najzupełniej poprawną wersją tego programu. **1.0 nie wychodzi „bo doszliśmy"** —
-warunki są wypisane w [`CONTRIBUTING.md`](CONTRIBUTING.md) i dotyczą korpusu,
-niezmienników i stabilności API, a nie stanu licznika.
+```
+epub-forge 0.1.0 (pre-alpha)
+```
+
+Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —
+liczba rosnąca w stronę 1.0 czyta się jako postęp ku wydaniu niezależnie od tego,
+co ktoś miał na myśli. PATCH podbija się przy każdym wydaniu, cokolwiek zawiera;
+MINOR wyłącznie razem z etapem dojrzałości, po odhaczeniu wypisanych warunków.
+
+| Etap | | |
+|---|---|---|
+| **pre-alpha** | `0.1.x` | prototyp; działa na książkach autora, korpusu nie ma |
+| **alpha** | `0.2.x` | poprawność sprawdzana na 30+ prawdziwych książkach, raport przetłumaczony |
+| **beta** | `0.3.x` | kompletne, używane przez kogoś poza autorem |
+| **1.0** | | stabilne — pełne warunki w [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+
+Co to znaczy w praktyce: narzędzie **nigdy nie nadpisuje pliku źródłowego** i to
+jest własność pilnowana testem, ale poza tym trzymaj oryginały. To jest prototyp
+i tak się nazywa.
 
 ---
 

@@ -9,7 +9,7 @@ import sys
 from rich.console import Console
 from rich.table import Table
 
-from . import __version__, compat
+from . import compat, version_string
 from .pipeline import rebuild
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -242,6 +242,87 @@ def command_check(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def command_survey(args: argparse.Namespace) -> int:
+    """What breaks across a whole library, ranked — not book by book."""
+    from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
+
+    from .survey import survey_library, to_json
+
+    console = Console()
+    inputs = collect_inputs(args.inputs)
+    if not inputs:
+        console.print("[yellow]No .epub files found.[/]")
+        return 1
+
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total}"),
+        TimeRemainingColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("surveying", total=len(inputs))
+
+        def tick(index: int, name: str) -> None:
+            progress.update(task, completed=index, description=name[:40])
+
+        survey = survey_library(
+            inputs,
+            Policy.preset("strict") if args.strict else None,
+            deep=not args.shallow,
+            with_names=args.with_names,
+            on_book=tick,
+        )
+
+    console.print()
+    console.print(f"[bold]{survey.books}[/] book(s) surveyed")
+    versions = ", ".join(f"{v}: {n}" for v, n in survey.source_versions.most_common())
+    if versions:
+        console.print(f"  source versions: [dim]{versions}[/]")
+    for label, items, style in (
+        ("unreadable", survey.unreadable, "red"),
+        ("crashed a stage", survey.crashed, "bold red"),
+    ):
+        if items:
+            console.print(f"  [{style}]{len(items)} {label}[/]")
+            for name, reason in items[:5]:
+                shown = name if args.with_names else "(name withheld)"
+                console.print(f"    [dim]{shown}: {reason}[/]")
+    if survey.drm:
+        console.print(f"  [yellow]{len(survey.drm)} carry DRM and were refused[/]")
+
+    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
+    table.add_column("books", justify="right", width=6)
+    table.add_column("total", justify="right", width=6)
+    table.add_column("level", width=9)
+    table.add_column("stage", width=12)
+    table.add_column("finding")
+    for finding in survey.ranked()[: args.top]:
+        if not args.verbose and finding.level is Level.INFO:
+            continue
+        table.add_row(
+            str(finding.books),
+            str(finding.occurrences),
+            f"[{LEVEL_STYLE[finding.level]}]{finding.level.value}[/]",
+            finding.stage,
+            finding.message,
+        )
+    console.print()
+    console.print(table)
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as handle:
+            handle.write(to_json(survey, with_names=args.with_names))
+        console.print(f"\n  [green]written[/] {args.json}")
+        if not args.with_names:
+            console.print(
+                "  [dim]No filenames are included. Pass --with-names if you want "
+                "examples in it.[/]"
+            )
+    return 0
+
+
 def command_compat(args: argparse.Namespace) -> int:
     """Print what each profile actually does, so --compat is not a guess."""
     console = Console()
@@ -280,7 +361,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="epubforge",
         description="Rebuild EPUB files into clean EPUB 3.3 while preserving their appearance.",
     )
-    parser.add_argument("--version", action="version", version=f"epub-forge {__version__}")
+    parser.add_argument("--version", action="version", version=f"epub-forge {version_string()}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build = subparsers.add_parser("build", help="rebuild one or more EPUB files")
@@ -360,6 +441,32 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="run EPUBCheck against existing files")
     check.add_argument("inputs", nargs="+")
     check.set_defaults(func=command_check)
+
+    survey = subparsers.add_parser(
+        "survey",
+        help="report what breaks across a whole library, ranked by how many books it affects",
+    )
+    survey.add_argument("inputs", nargs="+", help="EPUB files or directories")
+    survey.add_argument("--json", metavar="FILE", help="also write the survey as JSON")
+    survey.add_argument(
+        "--top", type=int, default=40, help="how many findings to show (default 40)"
+    )
+    survey.add_argument("-v", "--verbose", action="store_true", help="include informational findings")
+    survey.add_argument(
+        "--shallow",
+        action="store_true",
+        help="read the books only, without running the full rebuild — much faster, sees less",
+    )
+    survey.add_argument(
+        "--with-names",
+        action="store_true",
+        help=(
+            "include book filenames as examples. Off by default: a survey is meant to be "
+            "shareable, and a list of titles says more about your shelf than about the tool"
+        ),
+    )
+    survey.add_argument("--strict", action="store_true", help="survey what strict mode would do")
+    survey.set_defaults(func=command_survey)
 
     compat_parser = subparsers.add_parser(
         "compat", help="explain the reader-compatibility profiles and what each costs"

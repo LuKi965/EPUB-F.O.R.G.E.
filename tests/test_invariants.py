@@ -12,6 +12,7 @@ the ones used there.
 from __future__ import annotations
 
 import hashlib
+import pathlib
 import re
 import unicodedata
 import zipfile
@@ -129,6 +130,31 @@ def body_text(path: str) -> str:
             parts.append((body[0] if body else document).text_content())
     folded = re.sub(r"\s+", " ", " ".join(parts))
     return unicodedata.normalize("NFC", folded).strip()
+
+
+def block_count(path: str) -> int:
+    """How many text blocks the book is divided into.
+
+    K1 compares a stream of characters, so it cannot see two paragraphs merged
+    into one or one split into two — the characters are all still there, in
+    order. That is fine today because nothing does it, and it stops being fine
+    at the typography stage, where joining paragraphs broken by a PDF
+    conversion is on the list and is one of the riskiest things this tool could
+    ever do. Counting blocks gives that change somewhere to show up.
+    """
+    total = 0
+    with zipfile.ZipFile(path) as archive:
+        for name in spine_documents(archive):
+            document = lxml.html.fromstring(archive.read(name))
+            total += len(
+                document.xpath(
+                    '//*[local-name()="p" or local-name()="div" or local-name()="li"'
+                    ' or local-name()="h1" or local-name()="h2" or local-name()="h3"'
+                    ' or local-name()="h4" or local-name()="h5" or local-name()="h6"'
+                    ' or local-name()="blockquote" or local-name()="td" or local-name()="th"]'
+                )
+            )
+    return total
 
 
 def entries(path: str) -> dict[str, bytes]:
@@ -284,3 +310,40 @@ class TestDocumentSelection:
         with zipfile.ZipFile(path, "w") as handle:
             handle.writestr("OEBPS/ch.xhtml", self.DOCUMENT % b"DELTA")
         assert "DELTA" in body_text(str(path))
+
+
+# ------------------------------------------------------------------ the source
+class TestTheSourceIsNeverDestroyed:
+    """The one file the tool must not be able to ruin.
+
+    Everything it writes can be produced again from the source; the source
+    cannot. The guard lives in `rebuild()` rather than only in the CLI and the
+    window, so a library caller gets it too — and so this can be asserted once
+    instead of once per front end.
+    """
+
+    def test_writing_over_the_source_is_refused(self, legacy_epub):
+        from epubforge.report import Level
+
+        before = pathlib.Path(legacy_epub).read_bytes()
+        result = rebuild(legacy_epub, legacy_epub, Policy.preset("preserve"))
+
+        assert result.output_path is None
+        assert pathlib.Path(legacy_epub).read_bytes() == before
+        assert any(
+            f.level is Level.ERROR and "source" in f.message for f in result.report.findings
+        )
+
+    def test_an_equivalent_path_is_refused_too(self, legacy_epub, tmp_path):
+        """Same file, spelled differently, is still the same file."""
+        indirect = str(pathlib.Path(legacy_epub).parent / "." / pathlib.Path(legacy_epub).name)
+        before = pathlib.Path(legacy_epub).read_bytes()
+        result = rebuild(legacy_epub, indirect, Policy.preset("preserve"))
+
+        assert result.output_path is None
+        assert pathlib.Path(legacy_epub).read_bytes() == before
+
+    def test_an_ordinary_rebuild_leaves_the_source_untouched(self, legacy_epub, tmp_path):
+        before = pathlib.Path(legacy_epub).read_bytes()
+        rebuild(legacy_epub, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert pathlib.Path(legacy_epub).read_bytes() == before
