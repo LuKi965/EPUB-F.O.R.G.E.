@@ -43,7 +43,7 @@ class ImageStage(Stage):
 
     def run(self, ctx: Context) -> None:
         if not PIL_AVAILABLE:
-            self.note(ctx, Level.WARN, "Pillow is unavailable; images passed through unchecked")
+            self.note(ctx, Level.WARN, "Pillow is unavailable; images passed through unchecked", rule="image.pillow-unavailable")
             return
 
         for resource in list(ctx.book.resources.values()):
@@ -60,7 +60,7 @@ class ImageStage(Stage):
             self.note(
                 ctx,
                 Level.ERROR,
-                f"image is unreadable and was kept as-is: {type(exc).__name__}",
+                f"image is unreadable and was kept as-is: {type(exc).__name__}", rule="image.unreadable",
                 location=resource.path,
             )
             return
@@ -70,7 +70,7 @@ class ImageStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"file is really {actual_media} though it was declared {resource.media_type}",
+                f"file is really {actual_media} though it was declared {resource.media_type}", rule="image.type-corrected",
                 location=resource.path,
             )
             resource.media_type = actual_media
@@ -83,7 +83,7 @@ class ImageStage(Stage):
             self.note(
                 ctx,
                 Level.PRESERVED,
-                f"{resource.media_type} is not a core EPUB 3 type but was kept by policy",
+                f"{resource.media_type} is not a core EPUB 3 type but was kept by policy", rule="image.type-kept",
                 location=resource.path,
             )
             return
@@ -101,7 +101,7 @@ class ImageStage(Stage):
         if new_path in ctx.book.resources:
             return
         ctx.book.rename(resource.path, new_path)
-        self.note(ctx, Level.FIX, f"renamed to match its real format (.{expected})", location=new_path)
+        self.note(ctx, Level.FIX, f"renamed to match its real format (.{expected})", rule="image.renamed", location=new_path)
 
     def _transcode(self, ctx: Context, resource) -> None:
         try:
@@ -115,7 +115,7 @@ class ImageStage(Stage):
             self.note(
                 ctx,
                 Level.ERROR,
-                f"could not transcode to PNG, keeping the original: {type(exc).__name__}",
+                f"could not transcode to PNG, keeping the original: {type(exc).__name__}", rule="image.transcode-failed",
                 location=resource.path,
             )
             return
@@ -134,7 +134,7 @@ class ImageStage(Stage):
         self.note(
             ctx,
             Level.FIX,
-            f"transcoded {old_type} to PNG for universal reader support",
+            f"transcoded {old_type} to PNG for universal reader support", rule="image.transcoded",
             location=new_path,
             detail=f"was {old_path}",
         )

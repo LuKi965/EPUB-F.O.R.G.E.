@@ -468,21 +468,35 @@ class NavigationStage(Stage):
             )
 
         entries = sum(1 for root in book.toc for _ in root.walk())
-        self.note(
-            ctx,
-            Level.INFO if self._had_nav else Level.FIX,
-            (
-                f"regenerated the navigation document ({entries} entries)"
-                if self._had_nav
-                else f"generated the navigation document EPUB 3 requires ({entries} entries)"
-            ),
-            detail=None if self._had_nav else "The source had none; its table of contents came from the NCX.",
-        )
+        # Two findings, not one with a conditional: replacing a navigation
+        # document is routine and generating one the source never had is a
+        # correction, and they are read differently.
+        if self._had_nav:
+            self.note(
+                ctx,
+                Level.INFO,
+                f"regenerated the navigation document ({entries} entries)",
+                rule="nav.regenerated",
+            )
+        else:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"generated the navigation document EPUB 3 requires ({entries} entries)",
+                rule="nav.generated",
+                detail="The source had none; its table of contents came from the NCX.",
+            )
 
     def _drop_ncx(self, ctx: Context) -> None:
         if ctx.book.ncx_path:
             ctx.book.remove(ctx.book.ncx_path)
             ctx.book.ncx_path = None
+            self.note(
+                ctx,
+                Level.INFO,
+                "did not carry the legacy NCX over; EPUB 3 navigates by the nav document",
+                rule="nav.ncx-dropped",
+            )
 
     def _write_ncx(self, ctx: Context) -> None:
         book = ctx.book
@@ -545,6 +559,7 @@ class NavigationStage(Stage):
             ctx,
             Level.INFO,
             "wrote a legacy NCX alongside the nav document for older readers",
+            rule="nav.ncx-written",
         )
 
     def _depth(self, nodes: list[NavPoint], level: int = 1) -> int:

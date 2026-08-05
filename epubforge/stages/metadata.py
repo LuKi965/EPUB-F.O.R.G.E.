@@ -83,7 +83,7 @@ class MetadataStage(Stage):
                 metadata.publisher = value
             elif key == "series":
                 metadata.series = value
-            self.note(ctx, Level.INFO, f"applied caller override for {key}", detail=value)
+            self.note(ctx, Level.INFO, f"applied caller override for {key}", rule="metadata.override-applied", detail=value)
 
     def _titles(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -93,7 +93,7 @@ class MetadataStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                "no dc:title in the source; inserted a placeholder",
+                "no dc:title in the source; inserted a placeholder", rule="metadata.title-missing",
                 detail="Pass --title to set the real one.",
             )
         elif len(metadata.titles) > 1:
@@ -103,7 +103,7 @@ class MetadataStage(Stage):
             metadata.titles = metadata.titles[:1]
             if not metadata.subtitle and extra:
                 metadata.subtitle = extra[0]
-            self.note(ctx, Level.FIX, f"collapsed {len(extra) + 1} dc:title elements to one main title")
+            self.note(ctx, Level.FIX, f"collapsed {len(extra) + 1} dc:title elements to one main title", rule="metadata.titles-collapsed")
 
     def _language(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -117,13 +117,13 @@ class MetadataStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"language tag {raw!r} is not valid BCP 47; replaced with {ctx.policy.default_language!r}",
+                f"language tag {raw!r} is not valid BCP 47; replaced with {ctx.policy.default_language!r}", rule="metadata.language-invalid",
             )
         else:
             self.note(
                 ctx,
                 Level.WARN,
-                f"no dc:language in the source; defaulted to {ctx.policy.default_language!r}",
+                f"no dc:language in the source; defaulted to {ctx.policy.default_language!r}", rule="metadata.language-missing",
             )
         metadata.language = ctx.policy.default_language
 
@@ -147,14 +147,14 @@ class MetadataStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                "no dc:identifier in the source; minted a UUID",
+                "no dc:identifier in the source; minted a UUID", rule="metadata.identifier-minted",
                 detail=generated,
             )
             return
 
         if not any(i.primary for i in metadata.identifiers):
             metadata.identifiers[0].primary = True
-            self.note(ctx, Level.FIX, "package declared no unique-identifier; promoted the first one")
+            self.note(ctx, Level.FIX, "package declared no unique-identifier; promoted the first one", rule="metadata.identifier-promoted")
 
     def _dates(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -165,10 +165,10 @@ class MetadataStage(Stage):
                     self.note(
                         ctx,
                         Level.FIX,
-                        f"normalised dc:date to ISO 8601: {metadata.published!r} -> {normalized!r}",
+                        f"normalised dc:date to ISO 8601: {metadata.published!r} -> {normalized!r}", rule="metadata.date-normalised",
                     )
                 else:
-                    self.note(ctx, Level.WARN, f"could not parse dc:date {metadata.published!r}; dropped it")
+                    self.note(ctx, Level.WARN, f"could not parse dc:date {metadata.published!r}; dropped it", rule="metadata.date-unparseable")
                 metadata.published = normalized
 
         # EPUB 3 requires a dcterms:modified timestamp, to the second, in UTC.
@@ -201,4 +201,4 @@ class MetadataStage(Stage):
             cleaned.append(creator)
         metadata.creators = cleaned
         if not cleaned:
-            self.note(ctx, Level.WARN, "no dc:creator in the source")
+            self.note(ctx, Level.WARN, "no dc:creator in the source", rule="metadata.creator-missing")

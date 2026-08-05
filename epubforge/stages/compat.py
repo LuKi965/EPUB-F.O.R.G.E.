@@ -57,7 +57,7 @@ class CompatibilityStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                f"unknown compatibility profile {name!r}; ignored",
+                f"unknown compatibility profile {name!r}; ignored", rule="compat.unknown-profile",
                 detail=f"Known profiles: {', '.join(sorted(compat.PROFILES))}.",
             )
         if not measures:
@@ -66,7 +66,7 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            "applying compatibility profile(s): " + ", ".join(sorted(ctx.policy.compat_profiles)),
+            "applying compatibility profile(s): ", rule="compat.applied" + ", ".join(sorted(ctx.policy.compat_profiles)),
             detail=(
                 "These are concessions to specific devices, not corrections. "
                 "Nothing below removes or rewrites what the book already had."
@@ -95,7 +95,7 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.WARN,
-            "the selected profile needs the legacy NCX, but it was switched off",
+            "the selected profile needs the legacy NCX, but it was switched off", rule="compat.ncx-required",
             detail=(
                 "Readers predating EPUB 3 build their chapter list from the NCX and "
                 "ignore the navigation document. Drop --no-ncx to restore it."
@@ -138,7 +138,7 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            f"added {compat.COMPAT_STYLESHEET_NAME} to {linked} document(s)",
+            f"added {compat.COMPAT_STYLESHEET_NAME} to {linked} document(s)", rule="compat.stylesheet-added",
             detail=(
                 "Declares the HTML5 sectioning elements as blocks. It is linked "
                 "ahead of the book's own stylesheets, so every rule the publisher "
@@ -195,7 +195,7 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            f"mirrored {mirrored} fragmentation declaration(s) into page-break-* form",
+            f"mirrored {mirrored} fragmentation declaration(s) into page-break-* form", rule="compat.page-break-mirrored",
             detail=(
                 "The modern break-* properties are left exactly as they are; the "
                 "legacy spelling is added beside them for renderers that only know "
@@ -246,7 +246,7 @@ class CompatibilityStage(Stage):
             self.note(
                 ctx,
                 Level.INFO,
-                "skipped the Apple specified-fonts declaration: this book embeds no fonts",
+                "skipped the Apple specified-fonts declaration: this book embeds no fonts", rule="compat.specified-fonts-skipped",
                 detail="Declaring it anyway would state something the book does not do.",
             )
             return
@@ -256,7 +256,7 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            "declared specified-fonts for Apple Books",
+            "declared specified-fonts for Apple Books", rule="compat.specified-fonts-added",
             detail=(
                 "Without this file Apple Books ignores every embedded face and "
                 "substitutes its own."
@@ -270,14 +270,14 @@ class CompatibilityStage(Stage):
             self.note(
                 ctx,
                 Level.INFO,
-                "skipped the legacy <guide>: nothing in the book maps onto it",
+                "skipped the legacy <guide>: nothing in the book maps onto it", rule="compat.guide-skipped",
             )
             return
         ctx.book.compat.add("guide")
         self.note(
             ctx,
             Level.PRESERVED,
-            "added the EPUB 2 <guide> element for readers that look for it",
+            "added the EPUB 2 <guide> element for readers that look for it", rule="compat.guide-added",
             detail=(
                 "EPUB 3.3 no longer defines this element, though EPUBCheck still "
                 "accepts it: the output stays valid, but it carries something the "
@@ -302,7 +302,7 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.WARN,
-            "the cover page wraps its image in SVG, which Amazon's converter handles poorly",
+            "the cover page wraps its image in SVG, which Amazon's converter handles poorly", rule="compat.svg-cover",
             detail=(
                 "The wrapper is what scales the artwork to the page, so removing it "
                 "would change the layout on every other reader. Left as it is; "

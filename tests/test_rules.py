@@ -26,7 +26,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: How many call sites carry a rule today. Raise it as more are converted;
 #: lowering it means a finding lost its identity, which is the thing this whole
 #: module exists to prevent.
-TAGGED_TODAY = 21
+TAGGED_TODAY = 67
 
 #: Every `rule="…"` written anywhere in the package.
 _RULE_ARGUMENT = re.compile(r'rule\s*=\s*"([a-z0-9.\-]+)"')
@@ -76,7 +76,7 @@ class TestTheCatalogueAndTheCodeAgree:
 #: Areas whose call sites are still being converted, so a catalogue entry with
 #: no caller is a plan rather than a mistake. Shrinks as the work lands; when it
 #: is empty this list goes away with it.
-_AREAS_STILL_BEING_CONVERTED = {"epubcheck", "package", "nav", "xhtml"}
+_AREAS_STILL_BEING_CONVERTED = {"epubcheck", "package"}
 
 
 class TestTheMigrationCannotStall:

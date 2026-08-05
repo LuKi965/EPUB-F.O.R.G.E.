@@ -62,6 +62,56 @@ CATALOGUE: dict[str, str] = {
     "xhtml.doctype-kept": "a legacy DOCTYPE stayed because an entity in the document cannot be resolved",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "a manifest property the document does not bear out was withdrawn",
+    # -- metadata -----------------------------------------------------------
+    "metadata.override-applied": "the caller overrode a metadata field",
+    "metadata.title-missing": "the source has no dc:title and a placeholder was inserted",
+    "metadata.titles-collapsed": "several dc:title elements were collapsed to one main title",
+    "metadata.language-invalid": "the language tag is not valid BCP 47 and was replaced",
+    "metadata.language-missing": "the source has no dc:language and the default was used",
+    "metadata.identifier-minted": "the source has no dc:identifier and a UUID was minted",
+    "metadata.identifier-promoted": "no unique-identifier was declared and the first one was promoted",
+    "metadata.date-normalised": "dc:date was normalised to ISO 8601",
+    "metadata.date-unparseable": "dc:date could not be parsed and was dropped",
+    "metadata.creator-missing": "the source names no dc:creator",
+
+    # -- images -------------------------------------------------------------
+    "image.pillow-unavailable": "Pillow is not installed, so images passed through unchecked",
+    "image.unreadable": "an image could not be decoded and was kept as it was",
+    "image.type-corrected": "a file is not the format its media type declared",
+    "image.type-kept": "a non-core image type was kept because policy said so",
+    "image.renamed": "a file was renamed to match the format it really is",
+    "image.transcode-failed": "transcoding failed and the original was kept",
+    "image.transcoded": "an image was transcoded to PNG for universal reader support",
+
+    # -- fonts --------------------------------------------------------------
+    "font.type-corrected": "a font's media type was corrected to what the file really is",
+    "font.unrecognised": "a font has no recognisable signature",
+    "font.drm": "the content is DRM-encrypted and the rebuild cannot proceed safely",
+    "font.obfuscation-kept": "font obfuscation was left in place by policy",
+    "font.obfuscation-unkeyed": "fonts are obfuscated but the package has no identifier to key on",
+    "font.deobfuscation-failed": "deobfuscation did not yield a valid font, so the file was left alone",
+    "font.deobfuscated": "embedded fonts were deobfuscated and the encryption file dropped",
+
+    # -- compatibility profiles ---------------------------------------------
+    "compat.unknown-profile": "a compatibility profile was named that does not exist",
+    "compat.applied": "compatibility profiles were applied",
+    "compat.ncx-required": "a selected profile needs the legacy NCX, which was switched off",
+    "compat.stylesheet-added": "the HTML5 block stylesheet was linked into documents",
+    "compat.page-break-mirrored": "fragmentation declarations were mirrored into page-break-*",
+    "compat.specified-fonts-skipped": "the book embeds no fonts, so the Apple declaration was skipped",
+    "compat.specified-fonts-added": "specified-fonts was declared for Apple Books",
+    "compat.guide-skipped": "nothing in the book maps onto a legacy <guide>",
+    "compat.guide-added": "the EPUB 2 <guide> element was added for readers that look for it",
+    "compat.svg-cover": "the cover page wraps its image in SVG, which some converters mishandle",
+
+    # -- accessibility ------------------------------------------------------
+    "a11y.conformance-declared": "conformance was declared because the caller asserted it",
+    "a11y.metadata-added": "EPUB Accessibility 1.1 discovery metadata was added",
+    "a11y.missing-alt": "images have no usable alt text",
+    "a11y.placeholder-alt": "alt text only repeats the file name",
+    "a11y.heading-jump": "heading levels skip a rank",
+    "a11y.table-without-headers": "a table has no header cells",
+
     # -- package ------------------------------------------------------------
     "package.regenerated": "the package document was regenerated",
     # -- validation ---------------------------------------------------------

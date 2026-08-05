@@ -245,7 +245,7 @@ class ContentStage(Stage):
                 self.note(
                     ctx,
                     Level.FIX,
-                    "rewrote undefined HTML entities to numeric character references",
+                    "rewrote undefined HTML entities to numeric character references", rule="xhtml.entities-rewritten",
                     location=resource.path,
                 )
 

@@ -83,7 +83,7 @@ class FontStage(Stage):
                 self.note(
                     ctx,
                     Level.FIX,
-                    f"corrected font media type to {sniffed} (was {resource.media_type})",
+                    f"corrected font media type to {sniffed} (was {resource.media_type})", rule="font.type-corrected",
                     location=resource.path,
                 )
                 resource.media_type = sniffed
@@ -91,7 +91,7 @@ class FontStage(Stage):
                 self.note(
                     ctx,
                     Level.WARN,
-                    "font has no recognisable signature; it may still be obfuscated or corrupt",
+                    "font has no recognisable signature; it may still be obfuscated or corrupt", rule="font.unrecognised",
                     location=resource.path,
                 )
 
@@ -101,12 +101,12 @@ class FontStage(Stage):
             self.note(
                 ctx,
                 Level.ERROR,
-                "content is DRM-encrypted; rebuild cannot proceed safely",
+                "content is DRM-encrypted; rebuild cannot proceed safely", rule="font.drm",
                 detail="Remove DRM with a tool you are licensed to use before running EPUB-Forge.",
             )
             return
         if not ctx.policy.deobfuscate_fonts:
-            self.note(ctx, Level.PRESERVED, "font obfuscation left in place by policy")
+            self.note(ctx, Level.PRESERVED, "font obfuscation left in place by policy", rule="font.obfuscation-kept")
             return
 
         identifier = ctx.original_identifier
@@ -114,7 +114,7 @@ class FontStage(Stage):
             self.note(
                 ctx,
                 Level.ERROR,
-                "fonts are obfuscated but the package has no unique identifier to key on",
+                "fonts are obfuscated but the package has no unique identifier to key on", rule="font.obfuscation-unkeyed",
             )
             return
 
@@ -131,7 +131,7 @@ class FontStage(Stage):
                     self.note(
                         ctx,
                         Level.ERROR,
-                        "Adobe-obfuscated font needs a UUID identifier, which this book lacks",
+                        "Adobe-obfuscated font needs a UUID identifier, which this book lacks", rule="font.obfuscation-unkeyed",
                         location=path,
                     )
                     continue
@@ -143,7 +143,7 @@ class FontStage(Stage):
                 self.note(
                     ctx,
                     Level.ERROR,
-                    "deobfuscation did not yield a valid font; leaving the file untouched",
+                    "deobfuscation did not yield a valid font; leaving the file untouched", rule="font.deobfuscation-failed",
                     location=path,
                     detail="The source identifier likely differs from the one used to obfuscate it.",
                 )
@@ -158,6 +158,6 @@ class FontStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"deobfuscated {recovered} embedded font(s) and dropped META-INF/encryption.xml",
+                f"deobfuscated {recovered} embedded font(s) and dropped META-INF/encryption.xml", rule="font.deobfuscated",
                 detail="Fonts render identically and the container no longer depends on the identifier.",
             )
