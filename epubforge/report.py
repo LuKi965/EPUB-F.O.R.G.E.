@@ -75,19 +75,51 @@ class Report:
     def sorted_findings(self) -> list[Finding]:
         return sorted(self.findings, key=lambda f: (_ORDER[f.level], f.stage, f.message))
 
-    def to_dict(self) -> dict:
+    def to_dict(self, language: str = "en") -> dict:
+        """The report as data, with a description in the language asked for.
+
+        `message` is always English and never moves: it is what a script that
+        greps this file has been matching all along, and a translation that
+        changes it is a broken interface wearing a feature's name. The reader's
+        language goes in `description`, rendered from `rule` and `values` — the
+        two fields that let any consumer render either language for itself.
+        """
+        from . import rules
+
+        findings = []
+        for finding in self.sorted_findings():
+            entry = asdict(finding) | {"level": finding.level.value}
+            if finding.rule:
+                entry["description"] = rules.describe(finding.rule, language, finding.values)
+            findings.append(entry)
         return {
             "schema": SCHEMA_VERSION,
+            "language": language,
             "source": self.source,
             "output": self.output,
             "ok": self.ok,
             "stats": self.stats,
             "summary": {level.value: self.count(level) for level in Level},
-            "findings": [asdict(f) | {"level": f.level.value} for f in self.sorted_findings()],
+            "findings": findings,
         }
 
-    def to_json(self) -> str:
-        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
+    def to_json(self, language: str = "en") -> str:
+        return json.dumps(self.to_dict(language), indent=2, ensure_ascii=False)
+
+    def headline(self, finding: Finding, language: str = "en") -> str:
+        """One line for *finding*, in the language asked for.
+
+        The window and the console were rendering this differently, which is
+        how the console came to be English-only while the window was bilingual.
+        """
+        from . import rules
+
+        if language == "en" or not finding.rule:
+            return finding.message
+        described = rules.describe(finding.rule, language, finding.values)
+        if rules.renders_fully(finding.rule, language, finding.values):
+            return described
+        return f"{described}\n{finding.message}"
 
     def to_text(self, language: str = "en") -> str:
         """The report, rendered for a reader rather than for a machine.
@@ -103,8 +135,6 @@ class Report:
         language. The second line is the visible edge of the conversion, and it
         disappears one finding at a time as the templates are written.
         """
-        from . import rules
-
         header = "EPUB-Forge report" if language == "en" else "Raport EPUB F.O.R.G.E."
         lines = [header, f"  source: {self.source}", f"  output: {self.output}", ""]
         for key, value in self.stats.items():
@@ -116,19 +146,16 @@ class Report:
                 current_level = finding.level
                 lines.append(f"[{current_level.value.upper()}]")
             where = f" ({finding.location})" if finding.location else ""
-            if language != "en" and finding.rule:
-                described = rules.describe(finding.rule, language, finding.values)
-                lines.append(f"  - {finding.stage}: {described}{where}")
-                if not rules.renders_fully(finding.rule, language, finding.values):
-                    lines.append(f"      {finding.message}")
-            else:
-                lines.append(f"  - {finding.stage}: {finding.message}{where}")
+            headline, _, original = self.headline(finding, language).partition("\n")
+            lines.append(f"  - {finding.stage}: {headline}{where}")
+            if original:
+                lines.append(f"      {original}")
             if finding.detail:
                 lines.append(f"      {finding.detail}")
         return "\n".join(lines)
 
 
-def batch_to_dict(reports: "list[Report]") -> dict:
+def batch_to_dict(reports: "list[Report]", language: str = "en") -> dict:
     """Every book in one run, as one document.
 
     Saving reports one at a time is fine for one book and unusable for thirty:
@@ -161,9 +188,10 @@ def batch_to_dict(reports: "list[Report]") -> dict:
         "summary": summary,
         # Worst first: a batch report is read from the top and abandoned as
         # soon as it stops being interesting.
-        "reports": [report.to_dict() for report in ordered],
+        "language": language,
+        "reports": [report.to_dict(language) for report in ordered],
     }
 
 
-def batch_to_json(reports: "list[Report]") -> str:
-    return json.dumps(batch_to_dict(reports), indent=2, ensure_ascii=False)
+def batch_to_json(reports: "list[Report]", language: str = "en") -> str:
+    return json.dumps(batch_to_dict(reports, language), indent=2, ensure_ascii=False)

@@ -15,6 +15,7 @@ from .plan import describe, plan_batch
 from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
+from . import rules
 from .report import Level, batch_to_json, Report
 from .validate import validate
 
@@ -92,7 +93,27 @@ def build_policy(args: argparse.Namespace) -> Policy:
     return policy
 
 
-def print_report(console: Console, report: Report, verbose: bool) -> None:
+def _default_language() -> str:
+    """Which language the console speaks when nobody said.
+
+    The window remembers a choice and the command line has nowhere to keep one,
+    so it borrows the window's — a person who set the interface to Polish did
+    not mean "Polish, except on the command line". Failing that, the locale;
+    failing that, English.
+    """
+    try:  # The GUI's settings file, read without importing Qt.
+        from PySide6.QtCore import QSettings
+
+        stored = QSettings("EPUB-Forge", "EPUB-Forge").value("language")
+        if stored in rules.CATALOGUES:
+            return str(stored)
+    except Exception:  # noqa: BLE001 — no Qt, no settings, no problem
+        pass
+    locale = (os.environ.get("LC_ALL") or os.environ.get("LANG") or "")[:2].lower()
+    return locale if locale in rules.CATALOGUES else "en"
+
+
+def print_report(console: Console, report: Report, verbose: bool, language: str = "en") -> None:
     table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
     table.add_column("level", width=9)
     table.add_column("stage", width=12)
@@ -105,10 +126,12 @@ def print_report(console: Console, report: Report, verbose: bool) -> None:
             continue
         location = f" [dim]{finding.location}[/dim]" if finding.location else ""
         detail = f"\n  [dim]{finding.detail}[/dim]" if finding.detail and verbose else ""
+        headline, _, original = report.headline(finding, language).partition("\n")
+        beneath = f"\n  [dim]{original}[/dim]" if original else ""
         table.add_row(
             f"[{LEVEL_STYLE[finding.level]}]{finding.level.value}[/]",
             finding.stage,
-            f"{finding.message}{location}{detail}",
+            f"{headline}{location}{beneath}{detail}",
         )
     if table.row_count:
         console.print(table)
@@ -211,7 +234,7 @@ def command_build(args: argparse.Namespace) -> int:
                 content_untouched=not policy.rewrite_content,
             )
 
-        print_report(console, result.report, args.verbose)
+        print_report(console, result.report, args.verbose, args.report_language)
         summarize(console, result.report)
 
         if result.status.wrote_a_file:
@@ -235,7 +258,7 @@ def command_build(args: argparse.Namespace) -> int:
                     args.report, f"{os.path.basename(destination)}.json"
                 )
                 with open(report_path, "w", encoding="utf-8") as handle:
-                    handle.write(result.report.to_json())
+                    handle.write(result.report.to_json(args.report_language))
             else:
                 # Collected and written once at the end. Writing each book to
                 # the same path in turn left only the last one, which looked
@@ -252,7 +275,9 @@ def command_build(args: argparse.Namespace) -> int:
         # the batch document, whose whole point is answering "which of these
         # needs me" without opening them one at a time.
         payload = (
-            collected[0].to_json() if len(collected) == 1 else batch_to_json(collected)
+            collected[0].to_json(args.report_language)
+            if len(collected) == 1
+            else batch_to_json(collected, args.report_language)
         )
         with open(args.report, "w", encoding="utf-8") as handle:
             handle.write(payload)
@@ -522,6 +547,15 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("-v", "--verbose", action="store_true", help="show informational findings")
     build.add_argument("--check", action="store_true", help="run EPUBCheck on the result")
     build.add_argument("--report", help="write a JSON report to this file or directory")
+    build.add_argument(
+        "--report-language",
+        choices=sorted(rules.CATALOGUES),
+        default=_default_language(),
+        help=(
+            "language for the console report and the description in --report "
+            "(default: the window's setting, or LANG, or English)"
+        ),
+    )
 
     mode = build.add_mutually_exclusive_group()
     mode.add_argument(

@@ -25,6 +25,38 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The report speaks whichever language the interface does
+
+The window had both languages and everything it wrote had one. The saved JSON,
+the batch document and the console table were English whatever the setting
+said — which is not bilingual, it is Polish in one place and English in three.
+That is the shape of the complaint that found it, and it was right.
+
+`to_json(language)` and `batch_to_json(language)` add a `description` field
+rendered from the finding's `rule` and `values`; the window passes its own
+setting to both. The English `message` does not move and is present in either
+document: it is the field a script greps, and replacing it with Polish would be
+a broken interface wearing a feature's name. English readers get `description`
+too, in English, so no consumer has to special-case a language.
+
+The command line has nowhere to remember a setting, so `--report-language`
+decides, defaulting to the window's stored choice, then `LANG`, then English. A
+person who set the interface to Polish did not mean "Polish, except on the
+command line".
+
+One renderer serves all three now — `Report.headline` — because the console
+built its own line out of `finding.message`, which is exactly how it stayed
+English while everything around it was translated.
+
+### The release procedure updates the README
+
+Step zero, not the last step: the version, the test count, the alpha conditions
+and the list of limitations. It had drifted two releases behind and still said
+the report was English-only, which stopped being true in the same release that
+made the claim look most convincing. A limitation that is no longer true is
+worse than a stale number — it tells someone a thing is missing when it is
+there.
+
 ### A correction to the 0.2.4 notes
 
 Those notes said "all 79 call sites are converted". That is not what the number

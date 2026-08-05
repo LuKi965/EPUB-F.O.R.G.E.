@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.3` · alpha · 552 testy · Windows / Linux / macOS
+`0.2.4` · alpha · 819 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
@@ -100,6 +100,7 @@ pliku JSON, najgorsze książki na górze.
 epubforge build ksiazka.epub                       # jedna książka
 epubforge build *.epub --output przebudowane/      # cała półka
 epubforge build ksiazka.epub --strict --report r.json
+epubforge build ksiazka.epub --report-language pl   # raport po polsku
 epubforge inspect ksiazka.epub                     # co jest w środku
 epubforge compat                                   # co robią profile zgodności
 ```
@@ -132,11 +133,16 @@ się w każdym rozdziale, i zostają.
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Dwa z trzech warunków wejścia w alfę spisanych w
-  [`CONTRIBUTING.md`](CONTRIBUTING.md) nie są spełnione — brakuje korpusu
-  30+ książek z metrykami zielonymi przez trzy wydania i przetłumaczonego
-  raportu. Trzeci (zero defektów gubiących dane po cichu) jest spełniony od 0.2.2.
-- **Raport jest po angielsku.** Interfejs jest dwujęzyczny, raport nie.
+- **Alpha.** Z trzech warunków wejścia w alfę spisanych w
+  [`CONTRIBUTING.md`](CONTRIBUTING.md) został jeden: korpus 64 książek ma
+  metryki zielone przez dwa wydania (0.2.3 i 0.2.4), a warunkiem są trzy.
+  Pozostałe dwa — zero defektów gubiących dane po cichu i przetłumaczony
+  raport — są spełnione, odpowiednio od 0.2.2 i od 0.2.5.
+- **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
+  samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
+  Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
+  skryptów. **Wyjątek:** linia szczegółów pod znaleziskiem jest wciąż tylko
+  po angielsku.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie — patrz
   [`docs/ROADMAP.md`](docs/ROADMAP.md), punkt 10.
 - **Nie zdejmuje DRM** i nie będzie.
@@ -145,7 +151,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-552 testy, w tym trzy niezależne siatki bezpieczeństwa:
+819 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

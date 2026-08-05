@@ -673,13 +673,9 @@ class MainWindow(QMainWindow):
             # catalogue it is not, so the headline follows the interface. The
             # original line stays beneath it only where the translation cannot
             # state the specifics itself, which is what the templates remove.
-            headline = finding.message
-            complete = False
-            if language() != "en" and finding.rule:
-                headline = rules.describe(finding.rule, language(), finding.values)
-                complete = rules.renders_fully(finding.rule, language(), finding.values)
+            headline, _, original = result.report.headline(finding, language()).partition("\n")
             self.report_view.append(f"{label}  {finding.stage}: {headline}{where}")
-            if language() != "en" and finding.rule and not complete and headline != finding.message:
+            if original:
                 self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
                 self.report_view.append(f"{'':>{width + 2}}{finding.message}")
                 self.report_view.setTextColor(QColor(colors[finding.level]))
@@ -699,7 +695,7 @@ class MainWindow(QMainWindow):
         )
         if path:
             with open(path, "w", encoding="utf-8") as handle:
-                handle.write(result.report.to_json())
+                handle.write(result.report.to_json(language()))
 
     def _save_batch_report(self) -> None:
         """Every book in the queue, in one file.
@@ -717,7 +713,7 @@ class MainWindow(QMainWindow):
         if path:
             reports = [self._results[row].report for row in sorted(self._results)]
             with open(path, "w", encoding="utf-8") as handle:
-                handle.write(batch_to_json(reports))
+                handle.write(batch_to_json(reports, language()))
             self.statusBar().showMessage(
                 tr("status.batch.saved", count=len(reports))
             )

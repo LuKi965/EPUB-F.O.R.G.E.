@@ -458,3 +458,82 @@ class TestPolishCounts:
             "structure.relaid-out", "pl", {"count": "kilka", "directory": "EPUB"}
         )
         assert "plików" in rendered
+
+
+class TestTheLanguageIsASettingNotAReplacement:
+    """The window has had both languages for a while; everything it writes did
+    not. The saved JSON and the console were English whatever the setting said,
+    which is not "bilingual" — it is Polish in one place and English in three.
+
+    English never moves: `message` is what a script grepping the report has
+    always matched, and swapping it for Polish would be a broken interface
+    wearing a feature's name. The reader's language is an addition.
+    """
+
+    @staticmethod
+    def _report(tmp_path):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        return rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve")).report
+
+    def test_the_json_carries_both(self, tmp_path):
+        import json
+
+        report = self._report(tmp_path)
+        english = json.loads(report.to_json("en"))
+        polish = json.loads(report.to_json("pl"))
+        assert english["language"] == "en" and polish["language"] == "pl"
+
+        by_rule = {f["rule"]: f for f in polish["findings"] if f.get("rule")}
+        assert by_rule
+        for rule, finding in by_rule.items():
+            assert finding["description"] == rules.describe(rule, "pl", finding["values"])
+
+        # The English text is identical in both documents, field for field.
+        assert [f["message"] for f in english["findings"]] == [
+            f["message"] for f in polish["findings"]
+        ]
+
+    def test_english_output_gains_a_description_too(self, tmp_path):
+        """Not a Polish feature: an English reader gets the same field, in
+        English, so a consumer never has to special-case a language."""
+        import json
+
+        english = json.loads(self._report(tmp_path).to_json("en"))
+        tagged = [f for f in english["findings"] if f.get("rule")]
+        assert tagged
+        for finding in tagged:
+            assert finding["description"] == rules.describe(finding["rule"], "en", finding["values"])
+
+    def test_a_batch_document_carries_the_language_through(self, tmp_path):
+        import json
+
+        from epubforge.report import batch_to_json
+
+        report = self._report(tmp_path)
+        batch = json.loads(batch_to_json([report], "pl"))
+        assert batch["language"] == "pl"
+        assert batch["reports"][0]["language"] == "pl"
+        assert any(f.get("description") for f in batch["reports"][0]["findings"])
+
+    def test_one_renderer_serves_the_window_the_console_and_the_file(self, tmp_path):
+        """The console was English-only because it built its own line from
+        `finding.message` instead of asking the report."""
+        report = self._report(tmp_path)
+        text = report.to_text("pl")
+        for finding in report.findings:
+            headline = report.headline(finding, "pl").partition("\n")[0]
+            assert headline in text, finding.rule
+
+    def test_asking_for_a_language_nobody_wrote_gives_english(self, tmp_path):
+        import json
+
+        payload = json.loads(self._report(tmp_path).to_json("de"))
+        tagged = [f for f in payload["findings"] if f.get("rule")]
+        assert tagged
+        for finding in tagged:
+            assert finding["description"] == rules.describe(finding["rule"], "en", finding["values"])
