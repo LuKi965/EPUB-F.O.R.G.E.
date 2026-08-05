@@ -90,3 +90,44 @@ class Report:
             if finding.detail:
                 lines.append(f"      {finding.detail}")
         return "\n".join(lines)
+
+
+def batch_to_dict(reports: "list[Report]") -> dict:
+    """Every book in one run, as one document.
+
+    Saving reports one at a time is fine for one book and unusable for thirty:
+    the question a batch actually raises is *which* of them needs attention,
+    and answering it by opening thirty files is slower than not asking.
+
+    So the whole-run counts come first, then the books ordered worst-first —
+    the ones that wrote nothing, then the ones with errors, then the rest. Each
+    book carries its complete report, so nothing here replaces the single-book
+    file; it saves having to open thirty of them to find the two that matter.
+    """
+    def severity(report: "Report") -> tuple:
+        return (
+            0 if not report.ok else 1,
+            -report.count(Level.ERROR),
+            -report.count(Level.WARN),
+            report.source or "",
+        )
+
+    ordered = sorted(reports, key=severity)
+    summary = {level.value: sum(r.count(level) for r in reports) for level in Level}
+    return {
+        "schema": SCHEMA_VERSION,
+        "kind": "batch",
+        "books": len(reports),
+        "written": sum(1 for r in reports if r.ok),
+        "not_written": sum(1 for r in reports if not r.ok),
+        "with_errors": sum(1 for r in reports if r.count(Level.ERROR)),
+        "with_warnings": sum(1 for r in reports if r.count(Level.WARN)),
+        "summary": summary,
+        # Worst first: a batch report is read from the top and abandoned as
+        # soon as it stops being interesting.
+        "reports": [report.to_dict() for report in ordered],
+    }
+
+
+def batch_to_json(reports: "list[Report]") -> str:
+    return json.dumps(batch_to_dict(reports), indent=2, ensure_ascii=False)

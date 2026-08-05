@@ -145,11 +145,16 @@ class ContentStage(Stage):
             # is the only edit that cannot change what the reader sees. Half
             # the older books in a real library carry the XHTML 1.1 one.
             modernised = 0
+            refused: dict[str, set[str]] = {}
             for resource in ctx.book.content_docs():
                 data, changed = xhtml.modernise_doctype(resource.data)
                 if changed:
                     resource.data = data
                     modernised += 1
+                else:
+                    unresolvable = xhtml.unresolvable_entities(resource.data)
+                    if unresolvable and b"<!DOCTYPE html>" not in resource.data[:400]:
+                        refused[resource.path] = unresolvable
 
                 # Reading the ids costs a parse and changes nothing, and
                 # without them the navigation stage cannot tell a live anchor
@@ -175,6 +180,21 @@ class ContentStage(Stage):
                         "says nothing about rendering, and a legacy one makes the book "
                         "invalid. A DOCTYPE that declares its own entities is left "
                         "alone, because the document uses them."
+                    ),
+                )
+            if refused:
+                names = sorted({name for names in refused.values() for name in names})
+                self.note(
+                    ctx,
+                    Level.WARN,
+                    f"{len(refused)} document(s) keep a legacy DOCTYPE because an entity "
+                    f"in them cannot be resolved: {', '.join(names[:5])}",
+                    location=sorted(refused)[0],
+                    detail=(
+                        "The output stays an invalid EPUB 3 in those documents, and that "
+                        "is the lesser harm: replacing the declaration would strand the "
+                        "reference and the book would no longer open at all. Rebuild "
+                        "this book in a mode that rewrites content."
                     ),
                 )
             self.note(

@@ -35,7 +35,7 @@ from .. import resources, version_string
 from ..pipeline import Status, rebuild
 from ..policy import Policy
 from ..quips import quip_for
-from ..report import Level, Report
+from ..report import Level, Report, batch_to_json
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog
@@ -413,6 +413,7 @@ class MainWindow(QMainWindow):
         for label, slot, shortcut in (
             (tr("toolbar.add"), self._choose_files, "Ctrl+O"),
             (tr("action.save"), self._save_report, "Ctrl+S"),
+            (tr("action.save.batch"), self._save_batch_report, "Ctrl+Shift+S"),
             (tr("menu.quit"), self.close, "Ctrl+Q"),
         ):
             action = QAction(label, self)
@@ -674,6 +675,27 @@ class MainWindow(QMainWindow):
         if path:
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(result.report.to_json())
+
+    def _save_batch_report(self) -> None:
+        """Every book in the queue, in one file.
+
+        Saving one report at a time is fine for one book and unusable for
+        thirty: the question a batch raises is which of them needs attention,
+        and opening thirty files to answer it is slower than not asking.
+        """
+        if not self._results:
+            QMessageBox.information(self, tr("dialog.noreport.title"), tr("dialog.noreport.body"))
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("dialog.savereport.batch"), "raport-zbiorczy.json", "JSON (*.json)"
+        )
+        if path:
+            reports = [self._results[row].report for row in sorted(self._results)]
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(batch_to_json(reports))
+            self.statusBar().showMessage(
+                tr("status.batch.saved", count=len(reports))
+            )
 
 
 def run(argv: list[str] | None = None) -> int:

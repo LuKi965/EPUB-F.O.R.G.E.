@@ -973,16 +973,19 @@ class TestTheOneEditContainerOnlyModeMakes:
             f.message for f in result.report.findings
         ]
 
-    def test_a_document_using_a_named_entity_is_left_alone(self):
-        """The guard that was missing, and that a real book found.
+    def test_a_named_entity_travels_with_the_doctype(self):
+        """The case a real book found, and the reason this mode edits at all.
 
         A legacy DOCTYPE declares entities two ways: an internal subset, and
         the external DTD it names. The second is the one that matters — every
         XHTML 1.1 document may write `&nbsp;` because `xhtml11.dtd` declares
-        it. Swapping the declaration strands the reference and EPUBCheck stops
-        dead: *Fatal Error while parsing file: The entity "nbsp" was
-        referenced, but not declared*. A book that will not open is worse than
-        a book that is merely invalid.
+        it. Under EPUB 3 nothing fetches that DTD, so taking the declaration
+        away without taking the entity with it strands the reference:
+        *Fatal Error while parsing file: The entity "nbsp" was referenced, but
+        not declared*. One book had 235 errors, and 228 of them traced back to
+        seven documents that would not parse for this reason.
+
+        A numeric reference is the same character and needs no declaration.
         """
         from epubforge.xhtml import modernise_doctype
 
@@ -992,7 +995,32 @@ class TestTheOneEditContainerOnlyModeMakes:
             body="<p>Dwa&nbsp;słowa.</p>",
         )
         updated, changed = modernise_doctype(data)
+        assert changed
+        assert b"&nbsp;" not in updated
+        assert b"&#160;" in updated
+        assert b"<!DOCTYPE html>" in updated
+        # The character is what matters, and it is the same one — which is
+        # visible only once the document is parsed, since a numeric reference
+        # is still a reference in the file.
+        from lxml import etree
+
+        root = etree.fromstring(updated)
+        assert "Dwa\u00a0słowa." in "".join(root.itertext())
+
+    def test_an_entity_nothing_can_resolve_stops_the_swap(self):
+        """The safety net. A name no HTML vocabulary knows cannot be rewritten,
+        so the declaration that defines it has to stay — the output remains an
+        invalid EPUB 3, which is the lesser harm against a book that will not
+        open."""
+        from epubforge.xhtml import modernise_doctype, unresolvable_entities
+
+        data = self._document(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "x.dtd">',
+            body="<p>&wydawnictwo;</p>",
+        )
+        updated, changed = modernise_doctype(data)
         assert not changed and updated == data
+        assert unresolvable_entities(data) == {"wydawnictwo"}
 
     def test_the_five_xml_builtins_do_not_block_it(self):
         """`&amp;` and its four siblings need no declaration, so a document

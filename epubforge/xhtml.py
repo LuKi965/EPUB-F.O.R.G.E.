@@ -278,27 +278,51 @@ def modernise_doctype(data: bytes) -> tuple[bytes, bool]:
     container-only rebuild and a valid EPUB 3, and roughly half the older books
     in a real library carry the XHTML 1.1 one.
 
-    Returns the data unchanged whenever the document references an entity that
-    `<!DOCTYPE html>` does not define. A legacy DOCTYPE declares entities two
-    ways — an internal subset, and the external DTD it names — and the second
-    is the one that matters in practice: every XHTML 1.1 document may write
-    `&nbsp;` because `xhtml11.dtd` declares it. Swapping the declaration
-    strands the reference, and EPUBCheck stops at *Fatal Error while parsing
-    file: The entity "nbsp" was referenced, but not declared*. That turns a book
-    that is merely invalid into one that will not open, which is worse than
-    doing nothing.
+    A legacy DOCTYPE declares entities two ways — an internal subset, and the
+    external DTD it names — and the second is the one that matters in practice:
+    every XHTML 1.1 document may write `&nbsp;` because `xhtml11.dtd` declares
+    it. Under EPUB 3 no external DTD is fetched, so the reference is stranded
+    and EPUBCheck stops at *Fatal Error while parsing file: The entity "nbsp"
+    was referenced, but not declared*. Four of thirty-two real books were in
+    that state, and the whole of one book's 235 errors traced back to seven
+    documents failing to parse for this reason.
 
-    Only the five XML built-ins survive without a declaration.
+    So the named entities go with it, rewritten to numeric references — the
+    same character, byte-for-byte identical on screen, and needing no
+    declaration at all. What this mode promises is that the book looks the same,
+    and bytes were only ever a convenient way of keeping that promise.
+
+    Returns the data unchanged when something in it cannot be resolved: an
+    internal subset, whose entities are the book's own, or a name no HTML
+    vocabulary knows. Refusing there is the point — a book that will not open is
+    worse than a book that is merely invalid.
     """
     match = _DOCTYPE_RE.search(data)
     if match is None or match.group(0) == EPUB3_DOCTYPE:
         return data, False
-    if match.group(1):  # an internal subset declares its own — leave it alone
+    if match.group(1):  # an internal subset declares its own — see the docstring
         return data, False
-    body = data[: match.start()] + data[match.end() :]
-    if set(_ENTITY_REFERENCE.findall(body)) - _XML_BUILTIN_ENTITIES:
+    if unresolvable_entities(data):
         return data, False
-    return data[: match.start()] + EPUB3_DOCTYPE + data[match.end() :], True
+    body = _numeric_entities(data[: match.start()] + data[match.end() :])
+    return body[: match.start()] + EPUB3_DOCTYPE + body[match.start() :], True
+
+
+def unresolvable_entities(data: bytes) -> set[str]:
+    """Named entities in the document that nothing here can turn into characters.
+
+    The five XML built-ins need no declaration; everything else has to be
+    rewritten before the declaration that defined it is taken away.
+    """
+    found = set()
+    for raw in _ENTITY_REFERENCE.findall(data):
+        name = raw.decode("ascii")
+        if raw in _XML_BUILTIN_ENTITIES:
+            continue
+        if html5.get(name + ";") or html5.get(name):
+            continue
+        found.add(name)
+    return found
 
 
 def qname(local: str, ns: str = XHTML_NS) -> str:

@@ -15,7 +15,7 @@ from .plan import describe, plan_batch
 from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
-from .report import Level, Report
+from .report import Level, batch_to_json, Report
 from .validate import validate
 
 LEVEL_STYLE = {
@@ -197,6 +197,7 @@ def command_build(args: argparse.Namespace) -> int:
         return EXIT_NOT_WRITTEN
 
     exit_code = 0
+    collected: list = []
     for job in batch.jobs:
         source, destination = job.source, job.destination
 
@@ -225,18 +226,32 @@ def command_build(args: argparse.Namespace) -> int:
             exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
         if args.report:
-            report_path = (
-                os.path.join(args.report, f"{os.path.basename(destination)}.json")
-                if os.path.isdir(args.report)
-                else args.report
-            )
-            with open(report_path, "w", encoding="utf-8") as handle:
-                handle.write(result.report.to_json())
+            if os.path.isdir(args.report):
+                report_path = os.path.join(
+                    args.report, f"{os.path.basename(destination)}.json"
+                )
+                with open(report_path, "w", encoding="utf-8") as handle:
+                    handle.write(result.report.to_json())
+            else:
+                # Collected and written once at the end. Writing each book to
+                # the same path in turn left only the last one, which looked
+                # like a report and was a report about a different book.
+                collected.append(result.report)
 
         if result.status is Status.SUCCEEDED_WITH_PROBLEMS:
             exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
         elif args.strict_exit and result.report.count(Level.WARN):
             exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
+
+    if collected:
+        # One book keeps the shape a single report has always had; several get
+        # the batch document, whose whole point is answering "which of these
+        # needs me" without opening them one at a time.
+        payload = (
+            collected[0].to_json() if len(collected) == 1 else batch_to_json(collected)
+        )
+        with open(args.report, "w", encoding="utf-8") as handle:
+            handle.write(payload)
 
     return exit_code
 

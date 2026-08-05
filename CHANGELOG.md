@@ -30,6 +30,40 @@ is built, not when a commit lands: numbering every commit produced 0.2.3
 through 0.2.7 with two releases between them, which says nothing to anyone
 reading the list of downloads. What was done is kept in full, by subject.
 
+### Container-only mode carries its entities with it
+
+A legacy DOCTYPE declares entities two ways, and the second is the one that
+matters: every XHTML 1.1 document may write `&nbsp;` because `xhtml11.dtd`
+declares it. Under EPUB 3 nothing fetches that DTD, so taking the declaration
+away without taking the entity with it stranded the reference — *Fatal Error
+while parsing file: The entity "nbsp" was referenced, but not declared*.
+
+One book had **235 EPUBCheck errors against a source that had none**, and 228
+of them were consequences: seven documents would not parse, so every navigation
+link into them was reported as an undefined fragment. There were never 221 dead
+anchors; there were seven unparseable files.
+
+The named entities now travel with the DOCTYPE, rewritten to numeric references
+— the same character, needing no declaration. What this mode promises is that
+the book looks the same; bytes were only ever a convenient way of keeping that
+promise. A name nothing can resolve stops the swap and is reported, because a
+book that will not open is worse than one that is merely invalid.
+
+Four of thirty-two real books were affected. All four: EPUBCheck clean.
+
+### One report for a whole run
+
+Saving a report per book is right for one book and unusable for thirty: the
+question a batch raises is *which* of them needs attention. `batch_to_json`
+writes one document — run totals first, then every book in full, worst first,
+so it can be read from the top and abandoned as soon as it stops being
+interesting. In the window under *Zapisz raport zbiorczy…* (Ctrl+Shift+S), and
+on the command line whenever `--report` names a file rather than a directory.
+
+That fixed a defect of the same shape: `--report out.json` with five books
+wrote all five to one path in turn, leaving a report about whichever book came
+last — indistinguishable from a report about the run.
+
 ### Two findings of mine that were not defects, and two that were
 
 **Both findings reported in 0.2.1 were mine, and neither was a defect.** They
