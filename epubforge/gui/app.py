@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import resources, version_string
-from ..pipeline import rebuild
+from ..pipeline import Status, rebuild
 from ..policy import Policy
 from ..quips import quip_for
 from ..report import Level, Report
@@ -56,6 +56,7 @@ STATUS_KEYS = {
     "done": "status.done",
     "issues": "status.issues",
     "failed": "status.failed",
+    "blocked": "status.blocked",
 }
 
 
@@ -577,8 +578,12 @@ class MainWindow(QMainWindow):
         self._results[index] = result
         report = result.report
 
-        if result.output_path is None:
-            self._set_status(index, "failed")
+        # From the status the pipeline reports, not from whether a file appeared.
+        # Those two used to be the same question and were not the same answer:
+        # a stage could crash and the file appeared anyway.
+        status = getattr(result, "status", None)
+        if status is not None and not status.wrote_a_file:
+            self._set_status(index, "blocked" if status is Status.BLOCKED else "failed")
         elif report.count(Level.ERROR):
             self._set_status(index, "issues")
         else:

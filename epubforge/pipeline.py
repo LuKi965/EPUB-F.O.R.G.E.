@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from enum import Enum
 
 from .model import Book
 from .policy import Policy
@@ -13,11 +14,34 @@ from .stages import DEFAULT_STAGES, Context
 from .writer import write_epub
 
 
+class Status(str, Enum):
+    """How a rebuild ended, stated rather than inferred.
+
+    Front ends used to work this out from ``output_path is not None``, which
+    cannot distinguish "finished" from "a stage crashed and we wrote the pieces
+    anyway". The distinction is the whole point of this type.
+    """
+
+    #: Nothing to report beyond fixes.
+    SUCCEEDED = "succeeded"
+    #: Written, but the report carries errors the tool could not resolve.
+    SUCCEEDED_WITH_PROBLEMS = "succeeded-with-problems"
+    #: Refused before writing: DRM, or a destination this tool will not touch.
+    BLOCKED = "blocked"
+    #: A stage raised, or the source could not be read. Nothing was written.
+    FAILED = "failed"
+
+    @property
+    def wrote_a_file(self) -> bool:
+        return self in (Status.SUCCEEDED, Status.SUCCEEDED_WITH_PROBLEMS)
+
+
 @dataclass
 class Result:
     report: Report
     book: Book | None
     output_path: str | None
+    status: Status = Status.SUCCEEDED
 
 
 def rebuild(source: str, destination: str, policy: Policy | None = None) -> Result:
@@ -29,7 +53,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         book = read_epub(source, report)
     except EpubReadError as exc:
         report.add("reader", Level.ERROR, f"could not read the source file: {exc}")
-        return Result(report, None, None)
+        return Result(report, None, None, Status.FAILED)
 
     # The version change is the single largest thing the rebuild does, so it is
     # stated outright rather than left for the reader to infer from the output.
@@ -60,16 +84,31 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         stage = stage_class()
         try:
             stage.run(ctx)
-        except Exception as exc:  # A failing stage must not lose the whole book.
+        except Exception as exc:  # noqa: BLE001 — reported, then the run stops
+            # A stage mutates the shared Book as it goes, so an exception leaves
+            # the model half-changed: some documents rewritten, some not, the
+            # manifest describing a state that no longer exists. Continuing
+            # through the remaining stages and writing the result produced a
+            # file that looked finished and was not. There is no way to tell
+            # from the outside, which is what made this the worst defect in the
+            # program: every other failure could leave the building through it.
+            #
+            # The book is not lost — the source is untouched and the report says
+            # exactly which stage failed. What is lost is the pretence that the
+            # output is usable.
             report.add(
                 stage.name,
                 Level.ERROR,
                 f"stage failed: {type(exc).__name__}: {exc}",
-                detail="The rebuild continued with the remaining stages.",
+                detail=(
+                    "Nothing was written. The model was left half-modified by the "
+                    "failure, so anything built from it would be a book only in shape."
+                ),
             )
+            return Result(report, book, None, Status.FAILED)
 
     if book.has_drm:
-        return Result(report, book, None)
+        return Result(report, book, None, Status.BLOCKED)
 
     # Checked here rather than only in the front ends, so the guarantee holds
     # for a library caller too. The source is the one file this tool must never
@@ -83,11 +122,12 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
             location=source,
             detail="Nothing was written. Choose a different destination.",
         )
-        return Result(report, book, None)
+        return Result(report, book, None, Status.BLOCKED)
 
     parent = os.path.dirname(os.path.abspath(destination))
     if parent:
         os.makedirs(parent, exist_ok=True)
     write_epub(book, destination, report, content_dir=policy.content_dir)
 
-    return Result(report, book, destination)
+    status = Status.SUCCEEDED if report.ok else Status.SUCCEEDED_WITH_PROBLEMS
+    return Result(report, book, destination, status)

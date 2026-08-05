@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import compat, version_string
-from .pipeline import rebuild
+from .pipeline import Status, rebuild
 from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
@@ -199,9 +199,9 @@ def command_build(args: argparse.Namespace) -> int:
         print_report(console, result.report, args.verbose)
         summarize(console, result.report)
 
-        if result.output_path:
+        if result.status.wrote_a_file:
             size = os.path.getsize(result.output_path)
-            if result.report.ok:
+            if result.status is Status.SUCCEEDED:
                 console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
             else:
                 # Written, but carrying errors. Saying only "written" here is how
@@ -210,7 +210,8 @@ def command_build(args: argparse.Namespace) -> int:
                     f"  [bold yellow]written with errors[/] {destination} ({size / 1024:.0f} KiB)"
                 )
         else:
-            console.print("  [bold red]not written[/] — see errors above")
+            reason = "refused" if result.status is Status.BLOCKED else "not written"
+            console.print(f"  [bold red]{reason}[/] — see the report above")
             exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
         if args.report:
@@ -222,7 +223,7 @@ def command_build(args: argparse.Namespace) -> int:
             with open(report_path, "w", encoding="utf-8") as handle:
                 handle.write(result.report.to_json())
 
-        if not result.report.ok:
+        if result.status is Status.SUCCEEDED_WITH_PROBLEMS:
             exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
         elif args.strict_exit and result.report.count(Level.WARN):
             exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)

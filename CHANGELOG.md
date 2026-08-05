@@ -50,10 +50,25 @@ reproduction.
   that guard was the reason nobody looked at the rest: pointing `-o` at any
   other file replaced it, silently, exit 0. `--force` is the way to say yes.
 
+- **A stage that raises no longer ends in a file** (EF-001). The exception
+  became an ERROR line, the remaining stages ran on a model the failure had
+  left half-modified, and the writer produced a book that looked finished.
+  Nothing about the file said otherwise — not its size, not its structure, not
+  EPUBCheck. That is what made this the worst defect in the program rather than
+  merely one of them: every other failure could leave the building through it.
+  The run now stops, nothing is written, and the report names the stage.
+
 ### Added
+- `Result.status` — `succeeded`, `succeeded-with-problems`, `blocked` or
+  `failed`. Front ends used to work this out from `output_path is not None`,
+  which cannot tell "finished" from "crashed, and we wrote the pieces anyway".
+  A refusal (DRM, writing over the source) is now `blocked` rather than sharing
+  a label with a malfunction.
 - `tests/test_cli_contract.py` — the command line had no tests at all, which is
-  precisely where both of the above lived. Exit codes and refusals are a
+  precisely where two of these defects lived. Exit codes and refusals are a
   contract with whoever runs the program, and are now pinned as one.
+- `tests/test_failure_injection.py` — parameterised over every stage in the real
+  pipeline, so a stage added later is covered the day it is added.
 
 The other half of the same afternoon's data: the three books a 64-book survey
 could not read, and the three complaints from the person running it.

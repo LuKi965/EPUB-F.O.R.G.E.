@@ -51,6 +51,7 @@ PL: dict[str, str] = {
     "status.done": "gotowe",
     "status.issues": "gotowe z uwagami",
     "status.failed": "niepowodzenie",
+    "status.blocked": "odmowa",
 
     # --- policy panel ---------------------------------------------------
     "policy.group": "Zasady przebudowy",
@@ -362,6 +363,7 @@ EN: dict[str, str] = {
     "status.done": "done",
     "status.issues": "done with issues",
     "status.failed": "failed",
+    "status.blocked": "refused",
     "policy.group": "Rebuild policy",
     "policy.mode.label": "When conformance and appearance conflict:",
     "policy.mode.tip": (

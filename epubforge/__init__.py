@@ -4,7 +4,7 @@ Rebuilds any EPUB into a clean EPUB 3.3 without losing how it looks.
 """
 
 from .model import Book
-from .pipeline import Result, rebuild
+from .pipeline import Result, Status, rebuild
 from .policy import Policy
 from .report import Level, Report
 
@@ -25,6 +25,7 @@ def version_string() -> str:
 __all__ = [
     "rebuild",
     "Result",
+    "Status",
     "Policy",
     "Report",
     "Level",
