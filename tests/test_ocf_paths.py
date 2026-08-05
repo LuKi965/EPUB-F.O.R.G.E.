@@ -81,6 +81,10 @@ def _archive(path, extra: dict) -> str:
             # and the test has nothing left to test. Setting the name after
             # construction produces the same archive on both platforms — which
             # is the point, since the archives under test come from elsewhere.
+            #
+            # The same replacement happens again on the way back in, which is
+            # why the reader canonicalises `orig_filename` rather than
+            # `filename`; this fixture only guarantees the bytes on disk.
             info = zipfile.ZipInfo("placeholder")
             info.filename = name
             handle.writestr(info, data)
@@ -98,6 +102,7 @@ class TestCanonicalNames:
             ("OEBPS/./a.xhtml", "OEBPS/a.xhtml", "current-directory"),
             ("OEBPS/sub/../a.xhtml", "OEBPS/a.xhtml", "parent-directory"),
             ("OEBPS/a%20b.xhtml", "OEBPS/a b.xhtml", "percent-encoding"),
+            ("OEBPS/a.xhtml\0.exe", "OEBPS/a.xhtml", "null byte"),
         ],
     )
     def test_folding_is_recorded_not_just_done(self, raw, expected, change):
@@ -218,10 +223,25 @@ class TestTheArchiveIsReadThroughThatModel:
         source = archive(tmp_path / "back.epub", {"OEBPS\\odd.bin": b"x"})
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("minimal"))
 
-        assert any(
-            "not a container path" in f.message and f.level is Level.FIX
-            for f in result.report.findings
-        ), [f.message for f in result.report.findings]
+        rewrites = [
+            f for f in result.report.findings
+            if "not a container path" in f.message and f.level is Level.FIX
+        ]
+        assert rewrites, [f.message for f in result.report.findings]
+        # The name as it was written down, not as the standard library handed
+        # it over. On Windows those are two different strings, and reporting
+        # the second one would mean reporting that nothing had happened.
+        assert "\\" in rewrites[0].location, rewrites[0].location
+
+    def test_the_same_book_is_read_the_same_way_on_every_platform(self, tmp_path):
+        """`zipfile` folds os.sep out of entry names on the way in *and* on the
+        way back out, so on Windows this book used to arrive already repaired
+        and the repair went unmentioned. The reader reads `orig_filename` for
+        exactly this reason; this asserts the raw name survives to it."""
+        source = archive(tmp_path / "back.epub", {"OEBPS\\odd.bin": b"x"})
+        with zipfile.ZipFile(source) as handle:
+            raw = [info.orig_filename for info in handle.infolist()]
+        assert "OEBPS\\odd.bin" in raw
 
     def test_an_ordinary_book_says_nothing_about_paths(self, tmp_path):
         """The whole point is that this is quiet when there is nothing to say."""

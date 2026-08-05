@@ -37,10 +37,19 @@ def compat_archive(rebuilt_compat):
 
 
 def test_no_profile_changes_nothing(legacy_epub, tmp_path):
-    """The default path must be byte-identical to one with the stage present."""
-    plain = rebuild(legacy_epub, str(tmp_path / "a.epub"), Policy.preset("preserve"))
+    """The default path must be byte-identical to one with the stage present.
+
+    `dcterms:modified` is stamped from the clock and is the one field meant to
+    differ between two runs, so it is pinned here. Without the pin this passed
+    except when the two rebuilds happened to straddle a second — a test that is
+    right about the wrong thing 99 times out of 100.
+    """
+    pinned = {"modified_override": "2026-01-01T00:00:00Z"}
+    plain = rebuild(legacy_epub, str(tmp_path / "a.epub"), Policy.preset("preserve", **pinned))
     explicit = rebuild(
-        legacy_epub, str(tmp_path / "b.epub"), Policy.preset("preserve", compat_profiles=())
+        legacy_epub,
+        str(tmp_path / "b.epub"),
+        Policy.preset("preserve", compat_profiles=(), **pinned),
     )
     with zipfile.ZipFile(plain.output_path) as one, zipfile.ZipFile(explicit.output_path) as two:
         assert one.namelist() == two.namelist()

@@ -228,13 +228,20 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
             # archive, and folding it into shape in one expression — which is
             # what this used to be — left no way to tell a name that had been
             # changed from one that had not.
-            entry_name = ocf.canonical(info.filename)
+            #
+            # `info.filename` is already folded by the standard library, and
+            # differently on each platform: `ZipInfo.__init__` replaces os.sep,
+            # so on Windows an entry named `OEBPS\odd.bin` arrives as
+            # `OEBPS/odd.bin` and there is nothing left to notice. The same book
+            # would then be reported as repaired on Linux and as ordinary on
+            # Windows. `orig_filename` is the name as it was written down.
+            entry_name = ocf.canonical(getattr(info, "orig_filename", None) or info.filename)
             if entry_name.rejected:
                 report.add(
                     "reader",
                     Level.WARN,
                     f"dropped an archive entry whose name is not a container path: {entry_name.reason}",
-                    location=info.filename,
+                    location=entry_name.raw,
                     detail=(
                         "Nothing in a conforming EPUB is named this way. It is not "
                         "carried into the output, where it would be somebody else's "
@@ -244,7 +251,7 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
                 continue
             name = entry_name.path
             if entry_name.changed:
-                rewritten.append((info.filename, name, ", ".join(entry_name.changes)))
+                rewritten.append((entry_name.raw, name, ", ".join(entry_name.changes)))
 
             declared = _implausible_header(info)
             if declared:

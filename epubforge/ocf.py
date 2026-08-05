@@ -55,6 +55,12 @@ def canonical(raw: str) -> Name:
     changes: list[str] = []
     name = raw
 
+    # A name is terminated at the first null byte — the standard library does
+    # this too, and calls it a virus trick in a comment. The difference is that
+    # here it is written down rather than done on the way past.
+    if "\0" in name:
+        name = name.split("\0", 1)[0]
+        changes.append("null byte")
     if "\\" in name:
         name = name.replace("\\", "/")
         changes.append("backslash separators")
