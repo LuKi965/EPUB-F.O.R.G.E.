@@ -25,6 +25,30 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The corpus milestone was closed on the wrong number
+
+`docs/ROADMAP.md` point 1 does not ask for thirty books. It asks for books
+chosen **by provenance** — ten families with a count each — and says why in the
+same paragraph: what a book was made by decides what is wrong with it, so three
+hundred files off one shelf can teach less than ten off ten. Sixty-four books
+were collected, nobody ever counted the families, and the milestone was called
+finished on the only number anyone had counted. The roadmap even names a family
+it knows is empty (`pdf-or-ocr`), which should have been the clue.
+
+`epubforge inventory <folder> --json inventory.json` now prints coverage family
+by family and writes it beside the measurements as `inventory-coverage.json`.
+The inventory already recognised the generator traces; what was missing was the
+comparison against what the roadmap asked for, and a visible zero for a family
+that has nothing to show.
+
+One trait had to be measured that was not: a visible watermark, which is what
+makes a bookshop file a bookshop file — those carry no generator trace of their
+own. Project Gutenberg's licence page reads as a purchase notice to that
+detector and is excluded by name, because nobody bought that book.
+
+The coverage file is counts only, no titles and no content, so it can be sent
+from a disk whose books cannot be.
+
 ### The report speaks whichever language the interface does
 
 The window had both languages and everything it wrote had one. The saved JSON,

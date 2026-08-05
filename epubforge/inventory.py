@@ -32,7 +32,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-from . import xhtml
+from . import watermark, xhtml
 from .reader import EpubReadError, read_epub
 from .report import Report
 
@@ -195,6 +195,13 @@ def measure(path: pathlib.Path) -> Book:
         for name, patterns in GENERATOR_SIGNATURES.items()
         if any(re.search(pattern, material) for pattern in patterns)
     )
+    # A visible watermark is what makes a bookshop file a bookshop file, and it
+    # is the family the roadmap wants most of. Nothing else here can stand in
+    # for it: shop EPUBs carry no generator trace of their own.
+    book.fields["watermarked"] = any(
+        watermark.is_visible_notice(fragment)
+        for fragment in re.findall(r">([^<>]{20,400})<", markup)
+    )
 
     # --- damage ------------------------------------------------------------
     classes = collections.Counter(
@@ -297,6 +304,114 @@ def measure(path: pathlib.Path) -> Book:
     return book
 
 
+# ----------------------------------------------------------------- coverage
+
+#: The corpus the roadmap asks for, family by family, with how many books each
+#: family needs. Taken verbatim from `docs/ROADMAP.md`, point [1] — "dobierać po
+#: pochodzeniu, nie po tytule": what a book was made by decides what is wrong
+#: with it, and a hundred books from one generator teach less than ten from ten.
+#:
+#: A book counts towards every family it belongs to; layered files are real
+#: (InDesign → Calibre → Sigil) and pretending otherwise would undercount both.
+CORPUS_FAMILIES: dict[str, tuple[int, str]] = {
+    "polish-bookshop": (5, "księgarnie polskie — znak wodny, strony prawne"),
+    "indesign-vellum": (4, "InDesign / Vellum — wydawcy dbający o skład"),
+    "calibre": (4, "Calibre — konwersja z czegokolwiek"),
+    "word": (3, "Word / Google Docs — self-publishing"),
+    "pdf-or-ocr": (3, "konwersja z PDF, OCR — najgorszy przypadek dla typografii"),
+    "from-mobi": (2, "back-konwersja z MOBI/AZW3 — puste kotwice filepos"),
+    "epub2": (3, "EPUB 2 sprzed 2012 — <guide>, NCX, brak nawigacji"),
+    "fixed-layout": (2, "fixed-layout, komiks — sprawdzian trybu minimalnego"),
+    "pathological": (3, "patologie — brzegi pamięciowe i wydajnościowe"),
+    "public-domain": (3, "domena publiczna — jedyne, które wolno commitować"),
+}
+
+
+def families(fields: dict) -> set[str]:
+    """Which of the roadmap's families one measured book belongs to."""
+    if "error" in fields:
+        return set()
+    generators = set(fields.get("generators") or ())
+    found = set()
+    if (
+        fields.get("watermarked")
+        and str(fields.get("language", "")).lower().startswith("pl")
+        and "gutenberg" not in generators
+    ):
+        # Gutenberg's licence page reads as a purchase notice to the watermark
+        # detector, and it is not one: nobody bought that book.
+        found.add("polish-bookshop")
+    if generators & {"indesign", "vellum"}:
+        found.add("indesign-vellum")
+    if "calibre" in generators:
+        found.add("calibre")
+    if "word" in generators:
+        found.add("word")
+    if "pdf-or-ocr" in generators:
+        found.add("pdf-or-ocr")
+    if "from-mobi" in generators:
+        found.add("from-mobi")
+    if str(fields.get("version", "")).startswith("2"):
+        found.add("epub2")
+    if fields.get("fixed_layout"):
+        found.add("fixed-layout")
+    if "gutenberg" in generators:
+        found.add("public-domain")
+    # The edges, where memory and performance failures live and nowhere else.
+    if (
+        not fields.get("has_cover")
+        or fields.get("spine_items", 0) >= 400
+        or fields.get("largest_image_mb", 0) >= 8
+        or fields.get("documents", 0) <= 1
+    ):
+        found.add("pathological")
+    return found
+
+
+def coverage(books: list[Book]) -> dict[str, dict]:
+    """How far the library is from the corpus the roadmap describes.
+
+    A corpus is not "enough books". It is enough books *of each kind*, because
+    a rule written without a family represented is a rule nobody has tested —
+    and the family missing today is the one whose defects surface at a user.
+    """
+    counts: collections.Counter = collections.Counter()
+    for book in books:
+        for family in families(book.fields):
+            counts[family] += 1
+    return {
+        name: {
+            "have": counts.get(name, 0),
+            "want": want,
+            "short": max(want - counts.get(name, 0), 0),
+            "what": description,
+        }
+        for name, (want, description) in CORPUS_FAMILIES.items()
+    }
+
+
+def coverage_report(books: list[Book]) -> str:
+    """The gap, as a list of what to go and find."""
+    rows = coverage(books)
+    short = {name: row for name, row in rows.items() if row["short"]}
+    lines = ["corpus coverage (docs/ROADMAP.md, point 1):"]
+    for name, row in rows.items():
+        mark = "  " if not row["short"] else "->"
+        lines.append(
+            f"{mark} {name:18} {row['have']:3} / {row['want']:<3}  {row['what']}"
+        )
+    if short:
+        lines += [
+            "",
+            f"{len(short)} famil{'y' if len(short) == 1 else 'ies'} short. "
+            "A rule written for a family the corpus does not hold is untested "
+            "in the only way that counts.",
+        ]
+    else:
+        lines += ["", "every family is represented."]
+    return "\n".join(lines)
+
+
 # ------------------------------------------------------------------ summary
 
 def summarise(books: list[Book]) -> str:
@@ -314,6 +429,8 @@ def summarise(books: list[Book]) -> str:
     lines.append("provenance (a book may carry several traces):")
     for name, count in provenance.most_common():
         lines.append(f"  {name:18} {count:4}  {_percent(count, len(good)):5.1f}%")
+
+    lines += ["", coverage_report(good)]
 
     def share(predicate) -> str:
         count = sum(1 for book in good if predicate(book.fields))
@@ -355,7 +472,11 @@ def to_json(books: list[Book]) -> str:
 
 __all__ = [
     "Book",
+    "CORPUS_FAMILIES",
     "GENERATOR_SIGNATURES",
+    "coverage",
+    "coverage_report",
+    "families",
     "measure",
     "summarise",
     "to_json",

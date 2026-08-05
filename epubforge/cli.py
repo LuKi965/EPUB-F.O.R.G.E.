@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -457,7 +458,7 @@ def command_inventory(args: argparse.Namespace) -> int:
     """What the books are, as opposed to what the tool does to them."""
     import pathlib
 
-    from .inventory import measure, summarise, to_json
+    from .inventory import coverage, measure, summarise, to_json
 
     console = Console()
     inputs = collect_inputs(args.inputs)
@@ -488,6 +489,14 @@ def command_inventory(args: argparse.Namespace) -> int:
 
     with open(args.json, "w", encoding="utf-8") as handle:
         handle.write(to_json(books) + "\n")
+
+    # The gap goes beside the measurements rather than only on screen: it is
+    # the one part of an inventory that says what to do next, and a terminal
+    # scrolls.
+    gaps = os.path.splitext(args.json)[0] + "-coverage.json"
+    with open(gaps, "w", encoding="utf-8") as handle:
+        json.dump(coverage(books), handle, indent=2, ensure_ascii=False)
+    console.print(f"[dim]coverage written to {gaps}[/dim]")
     console.print(f"\n  [green]written[/] {args.json}  [dim](safe to share — counts only)[/]")
 
     if args.map:
