@@ -23,6 +23,23 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.5 — alpha
+
+**Vendor metadata written the EPUB 3 way was being dropped.** Only
+`<meta name= content=>` — the EPUB 2 spelling — was carried through. Anything
+said as `<meta property="…">` that the model had no field for went silently,
+and the vocabulary is open by design: "not recognised" says something about
+this program and nothing about the book.
+
+Apple's `ibooks:specified-fonts` is what exposed it, on eleven of thirty-two
+real books. Unknown properties are now carried with their qualifiers, and the
+prefix declaration comes with them — without one the property is not a property
+but an error, which EPUBCheck reports as *Undeclared prefix*. Only prefixes the
+output actually uses are declared, so regenerating that attribute rather than
+copying it still holds.
+
+Tests: 524 → 529.
+
 ## 0.2.4 — alpha
 
 **Two defects found by thirty-two real books**, commercial Polish editions run

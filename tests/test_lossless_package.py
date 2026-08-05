@@ -240,3 +240,115 @@ class TestAPropertyThatWasNotTrue:
             if "scripted" in (item.get("properties") or "")
         ]
         assert not [f for f in result.report.findings if "withdrew manifest" in f.message]
+
+
+class TestPropertiesWithNoFieldOfTheirOwn:
+    """`<meta property="…">` for a property the model has never heard of.
+
+    Only the EPUB 2 spelling — `<meta name= content=>` — was being carried, so
+    everything written the EPUB 3 way and not recognised was dropped in
+    silence. Apple's `ibooks:specified-fonts` is the one that exposed it: it
+    appeared on eleven of thirty-two real books and vanished from all eleven.
+
+    The vocabulary is open by design. "Not recognised" says something about
+    this program and nothing about the book.
+    """
+
+    def _book(self, tmp_path, *, prefix: str, extra: str) -> str:
+        from .factory import CONTAINER, MODERN_NAV, write_zip
+
+        opf = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id"{prefix}>
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>Cudze właściwości</dc:title><dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+{extra}
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch" href="ch.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="ch"/></spine>
+</package>
+"""
+        return write_zip(
+            str(tmp_path / "vendor.epub"),
+            {
+                "META-INF/container.xml": CONTAINER.replace(
+                    "OEBPS/content.opf", "OEBPS/package.opf"
+                ),
+                "OEBPS/package.opf": opf,
+                "OEBPS/nav.xhtml": MODERN_NAV,
+                "OEBPS/ch.xhtml": (
+                    '<?xml version="1.0" encoding="utf-8"?>'
+                    '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+                    '<meta charset="utf-8"/><title>R</title></head><body><h1>R</h1>'
+                    "<p>Tekst.</p></body></html>"
+                ),
+            },
+        )
+
+    IBOOKS = ' prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/"'
+
+    def test_an_unknown_property_survives(self, tmp_path):
+        source = self._book(
+            tmp_path,
+            prefix=self.IBOOKS,
+            extra='    <meta property="ibooks:specified-fonts">true</meta>',
+        )
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        root, _ = package_of(result.output_path)
+        assert [
+            m for m in root.iter(f"{{{OPF}}}meta")
+            if m.get("property") == "ibooks:specified-fonts" and (m.text or "").strip() == "true"
+        ]
+
+    def test_its_prefix_comes_with_it(self, tmp_path):
+        """Without the declaration it is not a property but an error, and
+        EPUBCheck reports exactly that: "Undeclared prefix"."""
+        source = self._book(
+            tmp_path,
+            prefix=self.IBOOKS,
+            extra='    <meta property="ibooks:specified-fonts">true</meta>',
+        )
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        root, _ = package_of(result.output_path)
+        assert "ibooks:" in (root.get("prefix") or "")
+
+    def test_an_unused_declaration_is_not_carried(self, tmp_path):
+        """The prefix attribute is regenerated from what the output uses. That
+        is the decision this must not undo."""
+        source = self._book(
+            tmp_path,
+            prefix=' prefix="foaf: http://xmlns.com/foaf/spec/"',
+            extra="",
+        )
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        root, _ = package_of(result.output_path)
+        assert "foaf:" not in (root.get("prefix") or "")
+
+    def test_a_second_pass_does_not_duplicate_it(self, tmp_path):
+        source = self._book(
+            tmp_path,
+            prefix=self.IBOOKS,
+            extra='    <meta property="ibooks:specified-fonts">true</meta>',
+        )
+        once = rebuild(source, str(tmp_path / "once.epub"), Policy.preset("preserve"))
+        twice = rebuild(once.output_path, str(tmp_path / "twice.epub"), Policy.preset("preserve"))
+        root, _ = package_of(twice.output_path)
+        assert len([
+            m for m in root.iter(f"{{{OPF}}}meta")
+            if m.get("property") == "ibooks:specified-fonts"
+        ]) == 1
+
+    def test_a_property_the_writer_generates_is_not_carried_twice(self, tmp_path):
+        """`dcterms:modified` is in every book and is regenerated. Carrying the
+        source's copy as well would put two of them in the package."""
+        source = self._book(tmp_path, prefix="", extra="")
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        root, _ = package_of(result.output_path)
+        assert len([
+            m for m in root.iter(f"{{{OPF}}}meta")
+            if m.get("property") == "dcterms:modified"
+        ]) == 1

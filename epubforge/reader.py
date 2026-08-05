@@ -393,6 +393,18 @@ def _locate_opf(entries: dict[str, bytes], report: Report) -> str:
 
 def _parse_metadata(package, report: Report) -> Metadata:
     metadata = Metadata()
+
+    # `prefix="ibooks: http://… rendition: http://…"`. Kept so that a property
+    # carried through can bring its declaration with it — without one it is not
+    # a property but an error, and EPUBCheck says so.
+    declaration = (package.get("prefix") or "").strip()
+    if declaration:
+        tokens = declaration.replace("\n", " ").split()
+        for index in range(0, len(tokens) - 1, 2):
+            name = tokens[index].rstrip(":")
+            if name and tokens[index + 1].startswith(("http://", "https://")):
+                metadata.prefixes[name] = tokens[index + 1]
+
     meta_nodes = children(package, "metadata")
     if not meta_nodes:
         report.add("reader", Level.WARN, "package has no <metadata> element")
@@ -537,6 +549,23 @@ def _parse_metadata(package, report: Report) -> Metadata:
                     metadata.series_index = metadata.series_index or content
                 elif name != "cover":
                     metadata.extra_meta.append((name, content))
+            elif prop and value:
+                # Anything expressed the EPUB 3 way that this model has no
+                # field for. Carried rather than dropped: the vocabulary is
+                # open, so "not recognised" says something about this program
+                # and nothing about the book. The writer skips the ones it
+                # generates itself, so nothing appears twice.
+                metadata.extra_properties.append(
+                    (
+                        prop,
+                        value,
+                        {
+                            key: attribute_value
+                            for key, attribute_value in child.attrib.items()
+                            if key not in ("property", "id")
+                        },
+                    )
+                )
 
     unique_id = package.get("unique-identifier")
     if unique_id:

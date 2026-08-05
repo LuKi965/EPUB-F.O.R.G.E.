@@ -262,8 +262,19 @@ class Metadata:
     source: str | None = None
     series: str | None = None
     series_index: str | None = None
-    #: Vendor metadata worth carrying over, as ``(name, content)`` pairs.
+    #: Vendor metadata worth carrying over, as ``(name, content)`` pairs. This
+    #: is the EPUB 2 spelling — ``<meta name= content=>``.
     extra_meta: list[tuple[str, str]] = field(default_factory=list)
+    #: The EPUB 3 spelling — ``<meta property="…">value</meta>`` — for every
+    #: property this model has no field of its own for, with whatever else the
+    #: element said. Apple's `ibooks:specified-fonts` is the one that exposed
+    #: the gap: it appeared on eleven of thirty-two real books and vanished
+    #: from all of them, because only the EPUB 2 spelling was being carried.
+    extra_properties: list[tuple[str, str, dict[str, str]]] = field(default_factory=list)
+    #: `package/@prefix` from the source, as prefix → URI. Kept so a carried
+    #: property can bring its declaration with it; without one it is not a
+    #: property but an error.
+    prefixes: dict[str, str] = field(default_factory=dict)
     #: Comments found inside ``<metadata>``. Kept because at least one shop
     #: writes its order number there — a watermark by any other name, and this
     #: tool does not remove watermarks.

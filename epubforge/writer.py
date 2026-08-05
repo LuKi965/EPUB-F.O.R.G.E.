@@ -26,6 +26,28 @@ from .report import Level, Report
 _OVERLAY_ID = "__OVERLAY_ID__"
 _OVERLAY_END = "__END__"
 
+#: Prefixes EPUB 3.3 reserves, which must not be declared again.
+_RESERVED_PREFIXES = frozenset({"dcterms", "marc", "media", "onix", "rendition", "schema", "xsd", "a11y", "msv", "prism"})
+
+#: Properties this writer produces from the model. A carried-through copy of
+#: one of these would be a duplicate, and the model's version is the one that
+#: has been through the pipeline.
+_GENERATED_PROPERTIES = frozenset(
+    {
+        "dcterms:modified",
+        "dcterms:conformsTo",
+        "belongs-to-collection",
+        "collection-type",
+        "group-position",
+        "identifier-type",
+        "title-type",
+        "file-as",
+        "alternate-script",
+        "role",
+        "display-seq",
+    }
+)
+
 CONTAINER_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
@@ -62,6 +84,18 @@ def _entry(path: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipInf
     # bits set above already assume.
     info.create_system = 3
     return info
+
+
+def _prefixes_used(metadata) -> set[str]:
+    """Prefixes the carried-through properties actually need declared."""
+    used = set()
+    for prop, _, _ in metadata.extra_properties:
+        if prop in _GENERATED_PROPERTIES or prop.startswith(("schema:", "rendition:", "media:")):
+            continue
+        prefix, separator, _ = prop.partition(":")
+        if separator and prefix not in _RESERVED_PREFIXES:
+            used.add(prefix)
+    return used
 
 
 def _render_collection(collection, opf_path: str, indent: str) -> list[str]:
@@ -150,6 +184,14 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         prefixes.append("schema: http://schema.org/")
     if metadata.conforms_to:
         prefixes.append("a11y: http://www.idpf.org/epub/vocab/package/a11y/#")
+    # A carried-through property brings its prefix with it or it is not a
+    # property at all — EPUBCheck: "Undeclared prefix". The source's whole
+    # declaration is not copied, only the parts still in use, which is what
+    # made regenerating this attribute worth doing in the first place.
+    for prefix in sorted(_prefixes_used(metadata)):
+        declaration = metadata.prefixes.get(prefix)
+        if declaration and not any(p.startswith(f"{prefix}:") for p in prefixes):
+            prefixes.append(f"{prefix}: {declaration}")
     prefix_attribute = f" prefix={quoteattr(' '.join(prefixes))}" if prefixes else ""
 
     # Base text direction for the whole package. A structural attribute, so it
@@ -295,6 +337,19 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         if name.startswith("calibre:"):
             continue
         lines.append(f'    <meta name={quoteattr(name)} content={quoteattr(content)}/>')
+
+    # Properties with no field of their own, carried through. Anything this
+    # writer generates itself is skipped rather than repeated: the model's
+    # version is the one that has been through the pipeline.
+    for prop, value, attributes in metadata.extra_properties:
+        if prop in _GENERATED_PROPERTIES or prop.startswith(("schema:", "rendition:", "media:")):
+            continue
+        rendered = "".join(
+            f" {key}={quoteattr(attribute_value)}"
+            for key, attribute_value in sorted(attributes.items())
+            if not key.startswith("{")
+        )
+        lines.append(f'    <meta property={quoteattr(prop)}{rendered}>{escape(value)}</meta>')
 
     for comment in metadata.metadata_comments:
         # `--` cannot appear inside an XML comment and there is no escape for
