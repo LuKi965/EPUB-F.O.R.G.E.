@@ -107,9 +107,13 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
   </manifest>
 
   <spine toc="ncx" page-progression-direction="rtl">
-    <itemref idref="cover-page" linear="no" properties="page-spread-center"/>
+    <!-- `page-spread-center` lives in the rendition vocabulary and is an
+         undefined property without the prefix; `page-spread-left` is in the
+         default one. A fixture that gets this wrong tests EPUBCheck's rules
+         rather than this program's, and mine did. -->
+    <itemref idref="cover-page" linear="no" properties="rendition:page-spread-center"/>
     <itemref idref="ch1"/>
-    <itemref idref="ch2" properties="rendition:layout-pre-paginated"/>
+    <itemref idref="ch2" properties="rendition:layout-pre-paginated page-spread-left"/>
   </spine>
 
   <guide>

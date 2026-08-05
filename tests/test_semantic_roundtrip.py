@@ -48,27 +48,25 @@ BY_DECISION: dict[str, str] = {
         "an external metadata record is not read into the model, so re-emitting it "
         "would mean copying a reference this tool cannot verify"
     ),
+    "properties='scripted'": (
+        "removed because it was not true. The fixture declares `scripted` on a "
+        "document containing no script, and EPUBCheck calls that an error on the "
+        "*source*: \"The property 'scripted' should not be declared in the OPF "
+        "file\". Manifest properties are derived from the document rather than "
+        "copied, so a false declaration does not survive — see "
+        "`ContentStage._properties`"
+    ),
 }
 
 #: Open defects. Each one is a statement the source made and the output does
 #: not, with nothing said about it in the report.
 #:
-#: EF-004 was the whole of this list and is closed as of 0.2.2. What is left
-#: are two losses this oracle found itself, which is the argument for having
-#: written it.
-STILL_BROKEN: dict[str, str] = {
-    "properties='scripted'": (
-        "not in either audit's table; found by this oracle. `preserve` drops the "
-        "manifest property that says the document contains scripting, while "
-        "`minimal` keeps it. A reading system uses it to decide whether to allow "
-        "scripting at all"
-    ),
-    "itemref[file:cover.xhtml]": (
-        "not in either audit's table; found by this oracle. `itemref/@properties` "
-        "is dropped, so `page-spread-center` is lost — a fixed-layout instruction "
-        "about which side of the fold a page belongs on"
-    ),
-}
+#: Empty as of 0.2.3. EF-004 was the whole of this list and closed in 0.2.2;
+#: the two entries that outlived it were both mine and neither was a defect —
+#: one was a fixture declaring a property that was not true, the other was this
+#: oracle comparing an unordered token list as a string. The list stays because
+#: the two tests around it are the ratchet.
+STILL_BROKEN: dict[str, str] = {}
 
 
 @pytest.fixture(scope="module")
@@ -205,3 +203,74 @@ class TestTheOracleCanSeeWhatTheOldOneCouldNot:
         after = graph_of(sink)
         after.nodes[Node("meta", "schema:accessMode", "auditory")] += 1
         assert not compare(before, after)
+
+class TestTheOracleDoesNotCryWolf:
+    """The other failure mode, and the one this file actually hit.
+
+    Two entries sat in `STILL_BROKEN` describing losses that were not losses:
+    a fixture declaring `scripted` on a document with no script, and this
+    oracle comparing `properties` as a string when it is an unordered set of
+    tokens. Both were reported as findings neither audit had caught. Neither
+    was real. An oracle that produces false findings spends the credibility the
+    true ones need.
+    """
+
+    @staticmethod
+    def _with_tokens_reordered(sink, destination):
+        """A copy of the book whose `properties` say the same in another order."""
+        import re
+        import shutil
+        import zipfile
+
+        shutil.copyfile(sink, destination)
+        with zipfile.ZipFile(sink) as archive:
+            names = archive.namelist()
+            contents = {name: archive.read(name) for name in names}
+
+        opf_name = next(n for n in names if n.endswith(".opf"))
+        opf = contents[opf_name].decode()
+        opf = re.sub(
+            r'properties="([^"]+)"',
+            lambda m: 'properties="' + " ".join(reversed(m.group(1).split())) + '"',
+            opf,
+        )
+        contents[opf_name] = opf.encode()
+
+        with zipfile.ZipFile(destination, "w") as archive:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, b"application/epub+zip")
+            for name in names:
+                if name != "mimetype":
+                    archive.writestr(name, contents[name])
+        return str(destination)
+
+    def test_reordered_tokens_are_not_a_loss(self, sink, tmp_path):
+        from .opf_graph import compare, graph_of
+
+        other = self._with_tokens_reordered(sink, tmp_path / "reordered.epub")
+        differences = compare(graph_of(sink), graph_of(other))
+        assert not differences, [str(d) for d in differences]
+
+    def test_a_genuinely_different_property_is_still_a_loss(self, sink):
+        """The reordering rule must not swallow a token that actually went."""
+        from .opf_graph import Node, compare, graph_of
+
+        before = graph_of(sink)
+        after = graph_of(sink)
+        for node in list(after.nodes):
+            qualifiers = dict(node.qualifiers)
+            tokens = qualifiers.get("properties", "").split()
+            if len(tokens) < 2:
+                continue
+            del after.nodes[node]
+            after.nodes[
+                Node(
+                    node.kind,
+                    node.subject,
+                    node.value,
+                    tuple(sorted({**qualifiers, "properties": tokens[0]}.items())),
+                )
+            ] += 1
+            break
+        assert [d for d in compare(before, after) if "properties" in str(d)]

@@ -1010,7 +1010,12 @@ class ContentStage(Stage):
         """Derive the manifest properties EPUB 3 requires to be declared."""
         properties = {p for p in resource.properties if p in {"nav", "cover-image"}}
 
-        if any(root.iter(xhtml.qname("script"))) or any(
+        # `any(root.iter(...))` truth-tests the elements themselves, and an
+        # lxml element with no children is falsy — so a document whose only
+        # script was `<script>void 0;</script>` came out undeclared, and lxml
+        # had been warning about exactly this in a FutureWarning nobody read.
+        # The svg and mathml checks below were already written the right way.
+        if any(True for _ in root.iter(xhtml.qname("script"))) or any(
             key.lower().startswith("on")
             for element in xhtml.iter_elements(root)
             for key in element.attrib
@@ -1039,6 +1044,26 @@ class ContentStage(Stage):
                     properties.add("remote-resources")
                     break
 
+        withdrawn = sorted(resource.properties - properties)
+        if withdrawn:
+            # Silent until 0.2.3. A manifest property is a claim about the
+            # document — that it scripts, that it holds MathML — and a reading
+            # system acts on it. Withdrawing one because the document does not
+            # bear it out is right, and doing it without saying so is not: the
+            # publisher gets a package that differs from theirs with nothing in
+            # the report to explain why.
+            self.note(
+                ctx,
+                Level.FIX,
+                f"withdrew manifest {'property' if len(withdrawn) == 1 else 'properties'} "
+                f"the document does not bear out: {', '.join(withdrawn)}",
+                location=resource.path,
+                detail=(
+                    "Declaring one of these without the markup to match is a "
+                    "conformance error in its own right, and EPUBCheck reports it "
+                    "against the source."
+                ),
+            )
         resource.properties = properties
 
 

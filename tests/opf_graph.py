@@ -149,6 +149,15 @@ class Graph:
     collections: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
+#: Attributes whose value is an unordered set of tokens rather than a string.
+#: Comparing them as written reported `"a b"` becoming `"b a"` as a loss — the
+#: writer sorts them, so the oracle claimed `itemref/@properties` was being
+#: dropped when every token was still there. An oracle that cries wolf about
+#: whitespace is worse than none, because the next real finding is read as
+#: another one of those.
+TOKEN_LISTS = {"properties", "rel"}
+
+
 def _qualifiers(element) -> tuple[tuple[str, str], ...]:
     found = []
     for key, value in element.attrib.items():
@@ -157,6 +166,8 @@ def _qualifiers(element) -> tuple[tuple[str, str], ...]:
             name = f"xml:{name}"
         if name in IDENTIFIERS:
             continue
+        if name in TOKEN_LISTS:
+            value = " ".join(sorted(value.split()))
         found.append((name, value))
     return tuple(sorted(found))
 

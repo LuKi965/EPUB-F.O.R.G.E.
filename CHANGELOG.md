@@ -23,6 +23,43 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.3 — alpha
+
+**Both findings reported in 0.2.1 were mine, and neither was a defect.** They
+were announced as losses neither audit had caught. Checking them against
+EPUBCheck rather than against my own fixture:
+
+| Reported as | Actually |
+|---|---|
+| `item/@properties="scripted"` dropped | a **correction**. The fixture declared `scripted` on a document with no script, and EPUBCheck errors on the *source*: "The property 'scripted' should not be declared in the OPF file" |
+| `itemref/@properties` dropped | a **false positive in the oracle**. Every token was still there; the writer sorts them, and the oracle compared `properties` as a string when it is an unordered set of tokens |
+
+The fixture also declared `page-spread-center` without its `rendition:` prefix,
+which EPUBCheck calls an undefined property. Two invalid constructs in a fixture
+whose entire job is to be valid.
+
+`TOKEN_LISTS` in `tests/opf_graph.py` fixes the oracle, with two tests: one that
+reorders every `properties` attribute in the package and expects silence, and
+one that removes a single token and expects a finding. An oracle that produces
+false findings spends the credibility the true ones need.
+
+**Two real defects came out of checking.**
+
+A manifest property withdrawn because the document does not bear it out is now
+**reported**. It was silent, which meant a publisher got a package differing
+from theirs with nothing to explain it. `minimal` still keeps a false
+declaration, because it promises to touch nothing and that promise covers
+declarations that are wrong.
+
+And the scripting check itself was broken: `any(root.iter(qname("script")))`
+truth-tests the *elements*, and an lxml element with no children is falsy. A
+document whose only script was `<script>void 0;</script>` came out undeclared —
+a reading system would have been told it needs no scripting support. lxml had
+been emitting a `FutureWarning` about this exact construct the whole time. The
+suite now runs clean under `-W error::FutureWarning`.
+
+Tests: 498 → 503.
+
 ## 0.2.2 — alpha
 
 **EF-004 closed.** The last three constructs the model had no room for now
