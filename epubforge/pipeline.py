@@ -127,7 +127,13 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     parent = os.path.dirname(os.path.abspath(destination))
     if parent:
         os.makedirs(parent, exist_ok=True)
-    write_epub(book, destination, report, content_dir=policy.content_dir)
+    write_epub(
+        book,
+        destination,
+        report,
+        content_dir=policy.content_dir,
+        package_name=policy.package_name,
+    )
 
     status = Status.SUCCEEDED if report.ok else Status.SUCCEEDED_WITH_PROBLEMS
     return Result(report, book, destination, status)

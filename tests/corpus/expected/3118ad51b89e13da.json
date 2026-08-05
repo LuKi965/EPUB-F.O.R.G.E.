@@ -1,0 +1,41 @@
+{
+  "source": "sha256:3118ad51b89e13dab558f042e2319b58b7ea06849f09cc1485bc774755d823da",
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 3,
+      "fix": 5,
+      "preserved": 35,
+      "warn": 3
+    },
+    "output": "sha256:a81492f3312d91d189272d22288f4f229a9c93954889c77db1ca422a810abd0c",
+    "text_characters": 101799,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 851,
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 3,
+      "fix": 5,
+      "preserved": 35,
+      "warn": 3
+    },
+    "output": "sha256:a81492f3312d91d189272d22288f4f229a9c93954889c77db1ca422a810abd0c",
+    "text_characters": 101799,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 851,
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0
+    }
+  }
+}

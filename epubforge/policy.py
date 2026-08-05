@@ -30,6 +30,13 @@ class Policy:
 
     #: Directory layout inside the container.
     content_dir: str = "EPUB"
+    #: File name of the package document inside `content_dir`. EPUB 3 lets it
+    #: be anything — `container.xml` says where it is — but readers exist that
+    #: never read `container.xml` and look for `OEBPS/content.opf` outright.
+    #: Together with `content_dir` this reproduces the layout every EPUB had
+    #: before the specification stopped caring, which is a diagnostic worth
+    #: being able to produce.
+    package_name: str = "package.opf"
 
     #: Rewrite filenames to ASCII slugs and regroup them into typed folders.
     reorganize_files: bool = True

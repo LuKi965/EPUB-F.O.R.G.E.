@@ -508,7 +508,13 @@ def _verify_container(path: str) -> None:
             raise OSError(f"the written archive has a corrupt entry: {broken}")
 
 
-def write_epub(book: Book, destination: str, report: Report, content_dir: str = "EPUB") -> None:
+def write_epub(
+    book: Book,
+    destination: str,
+    report: Report,
+    content_dir: str = "EPUB",
+    package_name: str = "package.opf",
+) -> None:
     """Write *book* to *destination*, or leave whatever is there untouched.
 
     The write goes to a temporary file beside the destination and only replaces
@@ -521,7 +527,7 @@ def write_epub(book: Book, destination: str, report: Report, content_dir: str = 
     ``os.replace`` is atomic within a filesystem, which is why the temporary
     file is created in the destination's own directory rather than in /tmp.
     """
-    opf_path = f"{content_dir.strip('/')}/package.opf"
+    opf_path = f"{content_dir.strip('/')}/{package_name}"
     opf, _ = build_opf(book, opf_path, report)
 
     directory = os.path.dirname(os.path.abspath(destination))
