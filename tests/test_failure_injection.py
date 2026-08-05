@@ -144,3 +144,89 @@ def test_the_default_result_status_is_not_a_lie():
 
     empty = Result(Report(), None, None, Status.FAILED)
     assert not empty.status.wrote_a_file
+
+
+class TestTheWriteIsAllOrNothing:
+    """A failure halfway through the write used to leave a truncated file under
+    the name the user knew. Measured before the fix: 2338 bytes became 1196, and
+    the result was still called `book.epub`.
+
+    The write now goes to a temporary file beside the destination and only
+    replaces it after the archive has been closed and read back.
+    """
+
+    def failing_writer(self, monkeypatch, after: str):
+        """Make the archive raise while writing the entry named *after*."""
+        import zipfile
+
+        import epubforge.writer as writer
+
+        real = writer.zipfile.ZipFile
+
+        class Failing(real):
+            def writestr(self, entry, data, *args, **kwargs):
+                name = entry.filename if isinstance(entry, zipfile.ZipInfo) else entry
+                if str(name).endswith(after):
+                    raise OSError("simulated disk full")
+                return super().writestr(entry, data, *args, **kwargs)
+
+        monkeypatch.setattr(writer.zipfile, "ZipFile", Failing)
+
+    @pytest.mark.parametrize("entry", ["nav.xhtml", "package.opf", ".png"])
+    def test_an_existing_book_survives_a_failed_write(
+        self, entry, book, tmp_path, monkeypatch
+    ):
+        destination = tmp_path / "out.epub"
+        rebuild(book, str(destination), Policy.preset("preserve"))
+        before = destination.read_bytes()
+
+        self.failing_writer(monkeypatch, entry)
+        with pytest.raises(OSError):
+            rebuild(book, str(destination), Policy.preset("preserve"))
+
+        assert destination.read_bytes() == before
+
+    def test_no_file_appears_where_there_was_none(self, book, tmp_path, monkeypatch):
+        destination = tmp_path / "fresh.epub"
+        self.failing_writer(monkeypatch, "nav.xhtml")
+
+        with pytest.raises(OSError):
+            rebuild(book, str(destination), Policy.preset("preserve"))
+
+        assert not destination.exists()
+
+    def test_no_temporary_file_is_left_behind(self, book, tmp_path, monkeypatch):
+        self.failing_writer(monkeypatch, "nav.xhtml")
+
+        with pytest.raises(OSError):
+            rebuild(book, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+
+        assert os.listdir(tmp_path) == ["book.epub"], os.listdir(tmp_path)
+
+    def test_a_container_that_reads_back_wrong_is_not_promoted(
+        self, book, tmp_path, monkeypatch
+    ):
+        """The check is on the file as written, not on the intention to write it.
+
+        Corrupting the mimetype produces an archive that zipfile is perfectly
+        happy with and no reader would open — exactly the shape of damage a
+        half-finished write leaves behind.
+        """
+        import epubforge.writer as writer
+
+        real = writer._write_archive
+
+        def sabotage(book_, destination, opf_path, opf):
+            real(book_, destination, opf_path, opf)
+            import zipfile
+
+            with zipfile.ZipFile(destination, "w") as archive:
+                archive.writestr("mimetype", b"application/wrong")
+
+        monkeypatch.setattr(writer, "_write_archive", sabotage)
+        destination = tmp_path / "out.epub"
+
+        with pytest.raises(OSError, match="mimetype"):
+            rebuild(book, str(destination), Policy.preset("preserve"))
+
+        assert not destination.exists()

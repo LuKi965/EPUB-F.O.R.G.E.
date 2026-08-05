@@ -11,6 +11,7 @@ from rich.table import Table
 
 from . import compat, version_string
 from .pipeline import Status, rebuild
+from .plan import describe, plan_batch
 from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
@@ -162,33 +163,42 @@ def command_build(args: argparse.Namespace) -> int:
     if len(inputs) > 1 and output_dir and not os.path.isdir(output_dir):
         os.makedirs(output_dir, exist_ok=True)
 
+    # Every destination is settled before the first book is touched. Deciding
+    # them one at a time is how two books with one filename used to become one
+    # book, silently, with a zero exit code.
+    batch = plan_batch(inputs, output_dir)
+
+    for collision in batch.collisions:
+        console.print(f"[red]Two or more books would be written to:[/] {collision.destination}")
+        for claimant in collision.sources:
+            console.print(f"    [dim]{claimant}[/]")
+    for offender in batch.self_targets:
+        console.print(f"[red]Refusing to overwrite the source file:[/] {offender}")
+    if not batch.ok:
+        console.print(
+            "\n  [dim]Nothing was written. Give each book its own destination, "
+            "or write to a folder that mirrors the source tree.[/]"
+        )
+        return EXIT_NOT_WRITTEN
+
+    if args.dry_run:
+        for line in describe(batch):
+            console.print(line, highlight=False)
+        return EXIT_OK
+
+    if batch.occupied and not args.force:
+        console.print("[red]These destinations already exist:[/]")
+        for existing in batch.occupied:
+            console.print(f"    [dim]{existing}[/]")
+        console.print(
+            "\n  [dim]Nothing was written. Pass --force to replace them, "
+            "or -o to write elsewhere.[/]"
+        )
+        return EXIT_NOT_WRITTEN
+
     exit_code = 0
-    for source in inputs:
-        if output_dir and os.path.isdir(output_dir):
-            stem = os.path.splitext(os.path.basename(source))[0]
-            destination = os.path.join(output_dir, f"{stem}.epub")
-        elif output_dir:
-            destination = output_dir
-        else:
-            stem = os.path.splitext(source)[0]
-            destination = f"{stem}.forged.epub"
-
-        if os.path.abspath(destination) == os.path.abspath(source):
-            console.print(f"[red]Refusing to overwrite the source file:[/] {source}")
-            exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
-            continue
-
-        # Anything already at the destination is somebody's work — possibly the
-        # output of an earlier run that they have since corrected by hand. The
-        # source has always been protected; this extends the same courtesy to
-        # everything else.
-        if os.path.exists(destination) and not args.force:
-            console.print(
-                f"[red]Refusing to overwrite:[/] {destination}\n"
-                "  [dim]It already exists. Pass --force to replace it, or -o to write elsewhere.[/]"
-            )
-            exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
-            continue
+    for job in batch.jobs:
+        source, destination = job.source, job.destination
 
         console.rule(f"[bold]{os.path.basename(source)}")
         result = rebuild(source, destination, policy)
@@ -522,6 +532,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--strict-exit",
         action="store_true",
         help="also exit non-zero on warnings (errors always do)",
+    )
+    build.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print where each book would be written, and write nothing",
     )
     build.add_argument(
         "--force",

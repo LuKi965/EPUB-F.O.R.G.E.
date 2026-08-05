@@ -49,6 +49,20 @@ reproduction.
   (EF-019). The source file has always been protected by an explicit guard, and
   that guard was the reason nobody looked at the rest: pointing `-o` at any
   other file replaced it, silently, exit 0. `--force` is the way to say yes.
+- **The write is all or nothing** (EF-003). `write_epub` opened the destination
+  directly, so a failure partway through left a truncated file under the name
+  the user knew — measured before the fix: 2338 bytes became 1196. The archive
+  is now built under a temporary name beside the destination, closed, read back
+  and checked for the things a half-written container gets wrong, and only then
+  moved into place with `os.replace`. A `KeyboardInterrupt` is treated the same
+  as a disk filling up.
+- **A batch settles every destination before it writes anything** (EF-002).
+  Destinations were derived one book at a time from the basename, so nothing in
+  the program ever held two of them at once and had the chance to notice they
+  were the same. Two books called `tom-1.epub` under different authors resolved
+  to one file: the second overwrote the first, both were announced as written,
+  exit 0. The run is now refused with both source paths named. `--dry-run`
+  prints the plan and writes nothing.
 - **A stage that raises no longer ends in a file** (EF-001). The exception
   became an ERROR line, the remaining stages ran on a model the failure had
   left half-modified, and the writer produced a book that looked finished.
@@ -67,7 +81,11 @@ reproduction.
   precisely where two of these defects lived. Exit codes and refusals are a
   contract with whoever runs the program, and are now pinned as one.
 - `tests/test_failure_injection.py` — parameterised over every stage in the real
-  pipeline, so a stage added later is covered the day it is added.
+  pipeline, so a stage added later is covered the day it is added. It also
+  covers the write itself: a failure at three different points, a container
+  that reads back wrong, and the temporary file not being left behind.
+- `epubforge/plan.py` — destinations, collisions and occupied targets as a value
+  that can be inspected before anything happens.
 
 ## 0.1.6 — pre-alpha
 

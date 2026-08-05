@@ -12,6 +12,8 @@ pipeline treats a damaged book as a finished one.
 
 from __future__ import annotations
 
+import os
+
 
 import zipfile
 
@@ -151,3 +153,71 @@ class TestOrphansAreKeptUnlessAsked:
         believe it had changed something."""
         with pytest.raises(SystemExit):
             run("build", "--keep-orphans", "nothing.epub")
+
+
+class TestBatchPlanning:
+    """Two books with one filename used to become one book.
+
+    The destination was worked out from the basename, one source at a time, so
+    nothing in the program ever held both answers at once and had the chance to
+    notice they were the same. In a library filed by author this is the ordinary
+    case: `Tom 1.epub` under two different writers.
+    """
+
+    def shelf(self, tmp_path):
+        first = tmp_path / "jednego wydawcy"
+        second = tmp_path / "autor"
+        first.mkdir()
+        second.mkdir()
+        make_modern_epub(str(first / "tom-1.epub"), title="jednego wydawcy")
+        make_modern_epub(str(second / "tom-1.epub"), title="autor")
+        out = tmp_path / "out"
+        out.mkdir()
+        return first, second, out
+
+    def test_a_collision_stops_the_run(self, tmp_path):
+        first, second, out = self.shelf(tmp_path)
+
+        code = run("build", str(first / "tom-1.epub"), str(second / "tom-1.epub"),
+                   "-o", str(out))
+
+        assert code == EXIT_NOT_WRITTEN
+        assert os.listdir(out) == [], "nothing may be written when the plan is ambiguous"
+
+    def test_the_collision_is_detected_before_anything_is_written(self, tmp_path):
+        """Not after the first book — that would already have lost the race."""
+        first, second, out = self.shelf(tmp_path)
+        run("build", str(first / "tom-1.epub"), str(second / "tom-1.epub"), "-o", str(out))
+        assert not os.listdir(out)
+
+    def test_distinct_names_are_fine(self, tmp_path):
+        folder = tmp_path / "books"
+        folder.mkdir()
+        make_modern_epub(str(folder / "one.epub"), title="One")
+        make_modern_epub(str(folder / "two.epub"), title="Two")
+        out = tmp_path / "out"
+        out.mkdir()
+
+        assert run("build", str(folder), "-o", str(out)) == EXIT_OK
+        assert sorted(os.listdir(out)) == ["one.epub", "two.epub"]
+
+    def test_dry_run_writes_nothing(self, tmp_path):
+        folder = tmp_path / "books"
+        folder.mkdir()
+        make_modern_epub(str(folder / "one.epub"))
+        out = tmp_path / "out"
+        out.mkdir()
+
+        assert run("build", str(folder), "--dry-run", "-o", str(out)) == EXIT_OK
+        assert os.listdir(out) == []
+
+    def test_a_plan_that_cannot_work_is_refused_even_with_force(self, tmp_path):
+        """`--force` answers "may I replace this file". It does not answer
+        "which of these two books did you mean"."""
+        first, second, out = self.shelf(tmp_path)
+
+        code = run("build", str(first / "tom-1.epub"), str(second / "tom-1.epub"),
+                   "--force", "-o", str(out))
+
+        assert code == EXIT_NOT_WRITTEN
+        assert os.listdir(out) == []
