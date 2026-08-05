@@ -25,6 +25,31 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Seventy manifest hrefs that climbed out of their own directory
+
+A container-only rebuild put the package document in `EPUB/` and left every
+file it describes in `OEBPS/`, because `content_dir` decides where the package
+goes and `reorganize_files` decides where the resources go — and `minimal`
+turns off only the second. Every manifest entry then had to climb back out:
+`href="../OEBPS/images/cover.jpg"`, seventy times over.
+
+That is legal. The path never leaves the container, and EPUBCheck passes it
+without a message of any kind — verified on the file this was found in, before
+and after. It is also the shape of a zip-slip attack, which is exactly what a
+reader guards against, and a reader that refuses the path refuses the book.
+
+When the files do not move, the package document does not move either: it
+stays where the source had it, and says so (`package.layout-kept`). The
+invariant — no manifest href begins with `../` — is now a test across all three
+profiles, because nothing else was ever going to catch it.
+
+Found while writing up why an InkBOOK Focus hangs on our output; whether it is
+*the* cause there is still unknown, and the investigation is written down in
+`docs/sprawy/INKBOOK-FOCUS.md` rather than carried in anyone's head.
+`tools/device_variants.py` rebuilds the archive-level variants that bisect a
+reader like it — one file per property the specification leaves free, plus the
+control file without which no result means anything.
+
 ### A finding now has a name that does not change (EF-018, in progress)
 
 The identity of a finding used to be its English sentence. Three consequences,

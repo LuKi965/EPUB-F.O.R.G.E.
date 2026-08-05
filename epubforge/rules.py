@@ -115,6 +115,7 @@ CATALOGUE: dict[str, str] = {
     # -- package ------------------------------------------------------------
     "package.upgraded": "the package was rebuilt from an older EPUB version to 3.3",
     "package.regenerated": "the source was already EPUB 3 and the package was regenerated anyway",
+    "package.layout-kept": "the package document stayed where the source had it, because the files around it did not move",
     "package.version-unusable": "the package declared no usable version and was treated as EPUB 2",
     "package.unreadable-source": "the source file could not be read",
     "package.stage-failed": "a stage raised, so nothing was written",
@@ -202,6 +203,7 @@ CATALOGUE_PL: dict[str, str] = {
     'a11y.table-without-headers': 'tabela nie ma komórek nagłówkowych',
     'package.upgraded': 'pakiet przebudowano ze starszej wersji EPUB na 3.3',
     'package.regenerated': 'źródło było już EPUB 3, a pakiet i tak wygenerowano od nowa',
+    'package.layout-kept': 'dokument pakietu został tam, gdzie był w źródle, bo pliki wokół niego się nie przesunęły',
     'package.version-unusable': 'pakiet nie deklarował używalnej wersji; potraktowano go jak EPUB 2',
     'package.unreadable-source': 'pliku źródłowego nie dało się odczytać',
     'package.stage-failed': 'etap zgłosił wyjątek, więc nic nie zostało zapisane',

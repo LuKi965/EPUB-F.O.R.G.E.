@@ -1129,3 +1129,56 @@ class TestTheContentDirectoryMayBeTheRoot:
                 ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
             ).get("full-path")
             assert declared in archive.namelist(), declared
+
+
+class TestNoManifestHrefClimbsOutOfItsOwnDirectory:
+    """A container-only rebuild left every href pointing at `../OEBPS/…`.
+
+    `content_dir` says where the package document goes; `reorganize_files` says
+    where the resources go. In `minimal` the second is off and the first was
+    not, so the package landed in `EPUB/` while the files it describes stayed in
+    `OEBPS/` — seventy manifest entries each having to climb back out.
+
+    EPUBCheck passes that without a word: the path never leaves the container,
+    so it is legal. Readers are a different matter. `..` inside an archive is
+    the shape of a zip-slip attack, and a reader that refuses it on sight
+    refuses the entire book — which is how this was found, on a device that
+    hung and died on a file with zero validation errors.
+    """
+
+    @staticmethod
+    def _hrefs(archive: zipfile.ZipFile) -> list[str]:
+        container = etree.fromstring(archive.read("META-INF/container.xml"))
+        opf_path = container.find(
+            ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
+        ).get("full-path")
+        package = etree.fromstring(archive.read(opf_path))
+        return [
+            item.get("href")
+            for item in package.iter("{http://www.idpf.org/2007/opf}item")
+        ]
+
+    @pytest.mark.parametrize("preset", ["preserve", "strict", "minimal"])
+    def test_no_href_contains_a_parent_step(self, legacy_epub, tmp_path, preset):
+        result = rebuild(legacy_epub, str(tmp_path / f"{preset}.epub"), Policy.preset(preset))
+        with zipfile.ZipFile(result.output_path) as archive:
+            climbing = [href for href in self._hrefs(archive) if href.startswith("../")]
+        assert climbing == [], climbing
+
+    def test_a_container_only_rebuild_keeps_the_package_where_it_was(self, legacy_epub, tmp_path):
+        result = rebuild(legacy_epub, str(tmp_path / "minimal.epub"), Policy.preset("minimal"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            assert "OEBPS/content.opf" in archive.namelist()
+        assert any(
+            finding.rule == "package.layout-kept" for finding in result.report.findings
+        ), result.report.to_text()
+
+    def test_a_full_rebuild_still_uses_the_configured_directory(self, legacy_epub, tmp_path):
+        """The fix must not reach past the case that needed it: when the files
+        do move, the policy's layout is the one that applies."""
+        result = rebuild(legacy_epub, str(tmp_path / "preserve.epub"), Policy.preset("preserve"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            assert "EPUB/package.opf" in archive.namelist()
+        assert not any(
+            finding.rule == "package.layout-kept" for finding in result.report.findings
+        )

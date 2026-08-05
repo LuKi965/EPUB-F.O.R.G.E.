@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 from .model import Book
@@ -44,6 +44,45 @@ class Result:
     status: Status = Status.SUCCEEDED
 
 
+def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
+    """Put the package document where the files are when the files do not move.
+
+    `content_dir` decides where the package document, the navigation document
+    and the NCX are written. It is only half a layout decision: the other half
+    is where the *resources* go, and that is `reorganize_files`. With the
+    reorganisation off — the container-only rebuild, whose whole promise is that
+    content files come out byte for byte as they went in — the resources stay in
+    the source's directory while the package moved to `EPUB/`. Every manifest
+    href then had to climb out of it: `../OEBPS/images/cover.jpg`, seventy times
+    over.
+
+    That is legal. The path stays inside the container, and EPUBCheck passes it
+    without a word. It is also the kind of path a reader guards against, because
+    `..` inside an archive is how a zip-slip attack looks, and a reader that
+    refuses it refuses the whole book.
+
+    So when nothing is being moved, nothing moves — including the package
+    document.
+    """
+    if policy.reorganize_files or not book.source_opf_path:
+        return policy
+    directory, _, name = book.source_opf_path.rpartition("/")
+    if directory == policy.content_dir.strip("/") and name == policy.package_name:
+        return policy
+    report.add(
+        "package",
+        Level.INFO,
+        f"kept the package document at {book.source_opf_path}",
+        rule="package.layout-kept",
+        detail=(
+            "This rebuild does not move content files, so moving the package "
+            "document away from them would leave every manifest href pointing "
+            "back out of its own directory with `../`."
+        ),
+    )
+    return replace(policy, content_dir=directory, package_name=name)
+
+
 def rebuild(source: str, destination: str, policy: Policy | None = None) -> Result:
     """Rebuild *source* into a conforming EPUB 3.3 at *destination*."""
     policy = policy or Policy()
@@ -78,6 +117,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
             "package declared no usable version; treating it as EPUB 2 and rebuilding to 3.3", rule="package.version-unusable",
         )
 
+    policy = _settle_layout(book, policy, report)
     ctx = Context(book=book, policy=policy, report=report)
 
     for stage_class in DEFAULT_STAGES:
