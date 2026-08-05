@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "packaging"))
 
-from release_notes import CHANGELOG, section_for  # noqa: E402
+from release_notes import CHANGELOG, main, section_for  # noqa: E402
 
 SAMPLE = """# Changelog
 
@@ -69,3 +69,50 @@ def test_the_current_version_has_notes_to_release():
 def test_earlier_versions_are_still_extractable(version):
     """Cheap protection for the heading format, which the regex depends on."""
     assert section_for(version, CHANGELOG.read_text(encoding="utf-8"))
+
+
+class TestWritingThemOut:
+    """The release step calls this as a program, not as a function.
+
+    It first did it by printing and letting PowerShell redirect, and that died
+    on the runner after a full build: Windows hands Python a cp1252 console,
+    and this changelog is Polish with em dashes and arrows in it. Everything
+    downstream — tag, release, both downloads — was lost to an encoding.
+    """
+
+    def test_the_file_it_writes_is_utf_8(self, tmp_path):
+        from epubforge import __version__
+
+        target = tmp_path / "notes.md"
+        assert main(["release_notes.py", __version__, "--output", str(target)]) == 0
+        written = target.read_text(encoding="utf-8")
+        assert written.strip()
+        assert written == target.read_bytes().decode("utf-8")
+
+    def test_a_leading_v_is_accepted(self, tmp_path):
+        """The workflow passes whatever the tag said."""
+        from epubforge import __version__
+
+        target = tmp_path / "notes.md"
+        assert main(["release_notes.py", f"v{__version__}", "--output", str(target)]) == 0
+        assert target.read_text(encoding="utf-8").strip()
+
+    def test_an_unknown_version_writes_nothing_and_fails(self, tmp_path):
+        target = tmp_path / "notes.md"
+        assert main(["release_notes.py", "9.9.9", "--output", str(target)]) == 1
+        assert not target.exists()
+
+    def test_printing_survives_a_console_that_cannot_hold_the_text(self):
+        """Exactly the runner's failure, reproduced: a stdout that is cp1252."""
+        import io
+
+        from epubforge import __version__
+
+        buffer = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+        stdout, sys.stdout = sys.stdout, buffer
+        try:
+            assert main(["release_notes.py", __version__]) == 0
+        finally:
+            sys.stdout = stdout
+        buffer.flush()
+        assert buffer.buffer.getvalue().decode("utf-8").strip()
