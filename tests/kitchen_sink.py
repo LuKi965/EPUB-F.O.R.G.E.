@@ -117,12 +117,22 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
     <reference type="text" title="Początek" href="ch1.xhtml"/>
   </guide>
 
-  <collection role="manifest">
+  <!-- Roles from a private vocabulary, which EPUB 3 allows as an absolute URI.
+       The registered ones each carry rules of their own — `manifest` has to be
+       nested, `index` requires an <index> element in the document it names —
+       and a fixture that breaks those teaches EPUBCheck's rules rather than
+       this program's. Two of them, because losing one of two is the defect. -->
+  <collection role="https://example.invalid/roles#notatki">
     <link href="ch1.xhtml"/>
     <link href="style.css"/>
   </collection>
-  <collection role="index">
-    <link href="ch2.xhtml"/>
+  <!-- A collection holds links *or* collections, never both; nesting is the
+       only way to have one of each, and nesting is worth a fixture. -->
+  <collection role="https://example.invalid/roles#dodatki">
+    <collection role="https://example.invalid/roles#zagniezdzona">
+      <link href="ch2.xhtml"/>
+      <link href="cover.xhtml"/>
+    </collection>
   </collection>
 </package>
 """

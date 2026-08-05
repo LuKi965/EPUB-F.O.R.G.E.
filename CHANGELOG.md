@@ -23,6 +23,37 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.2 — alpha
+
+**EF-004 closed.** The last three constructs the model had no room for now
+survive a rebuild, and both oracles' defect lists are empty.
+
+| | |
+|---|---|
+| `<collection>` | carried whole — role, other attributes, nested collections, links, and any `<metadata>` verbatim, because the role vocabulary is open and there is nothing honest to model field by field |
+| remote manifest items | declared, never fetched. Dropping one meant the output no longer declared a resource the source did |
+| the second `belongs-to-collection` | every membership is kept with its own type and position; a book in a boxed set *and* a series used to keep whichever came first |
+
+A `set`-typed collection now comes back as a set. The old test asserted it came
+back *absent* — which read as a decision ("a boxed edition is not a series") but
+was the single series field showing through. Not being a series is a reason to
+keep it as a set, not to drop it.
+
+**Six real books joined the corpus** — Project Gutenberg, public domain,
+committed with the source, three of them Polish. They earned it on the first
+run by exposing a defect in the measurement itself: `text_invariant` was false
+on all six, and no text had been lost. The field compared character counts for
+*equality*, so generating a cover page — two characters — reported a broken
+invariant. K1 says no character is lost; it does not say none may be added, and
+nothing else in the program was checking K1 at runtime.
+
+It now checks what K1 actually claims: every character of the source's reading
+order still appears in the output's, in order. Four tests say so, including one
+that reorders text without changing its length — which the count could never
+have caught, and neither could a book written to be a test.
+
+Tests: 461 → 498.
+
 ## 0.2.1 — alpha
 
 **A stronger oracle, and the first part of EF-004 closed with it.**

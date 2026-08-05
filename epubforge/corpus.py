@@ -74,6 +74,40 @@ def books_in(folder: pathlib.Path) -> list[pathlib.Path]:
     )
 
 
+def _text_survived(before: pathlib.Path, after: pathlib.Path) -> bool:
+    """Whether every character of the source's reading order is still there.
+
+    K1 as it is actually written: *no character is lost*. Not "the counts
+    match" — that forbids the rebuild from generating a cover page, which it is
+    supposed to do — and not "the output is no shorter", which a book could
+    satisfy while losing a chapter and gaining a longer one.
+
+    Whitespace is compared loosely because the rebuild reflows markup, and
+    collapsing runs of spaces is not losing text. Everything else has to appear,
+    in order.
+    """
+    from .inventory import spine_text
+
+    def normalise(text: str) -> str:
+        return " ".join(text.split())
+
+    try:
+        source = normalise(spine_text(before))
+        result = normalise(spine_text(after))
+    except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
+        return False
+
+    # Subsequence rather than substring: the rebuild may insert text between
+    # documents (a generated cover page) without having lost any.
+    position = 0
+    for character in source:
+        position = result.find(character, position)
+        if position < 0:
+            return False
+        position += 1
+    return True
+
+
 def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
     from .inventory import measure as inventory_measure  # local: avoids a cycle
 
@@ -100,10 +134,23 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
     # source had none, and its chapter titles are text — counting them made
     # every EPUB 2 book in a corpus report that its text had changed, which is
     # the one thing this field exists to be believed about.
+    #
+    # K1 is "no character is lost", not "no character is added", and the two
+    # are not the same rule. Comparing the counts for equality made this field
+    # false for every book that arrives without a cover page in its spine,
+    # because generating one adds two characters — a deliberate, documented
+    # improvement reported as a broken invariant. The six Project Gutenberg
+    # books added to the corpus were false on all six for that reason alone.
+    #
+    # Counting is not enough to say K1 holds: two books can carry the same
+    # number of characters and not the same characters. So the source's spine
+    # text has to still be *in* the output's, in order, and the count is kept
+    # beside it as a number a human can read.
     measurement["text_characters"] = after.get("spine_text_characters", 0)
-    measurement["text_invariant"] = before.get("spine_text_characters") == after.get(
-        "spine_text_characters"
+    measurement["text_added"] = after.get("spine_text_characters", 0) - before.get(
+        "spine_text_characters", 0
     )
+    measurement["text_invariant"] = _text_survived(book, output)
     # K1 compares a stream of characters and cannot see two paragraphs merged
     # into one. Recording the count gives that change its own line in the diff.
     measurement["blocks"] = after.get("blocks", 0)

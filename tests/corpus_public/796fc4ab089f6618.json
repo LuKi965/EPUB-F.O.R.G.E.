@@ -10,6 +10,7 @@
     },
     "output": "sha256:42d98e0de65071e3c768ed3e887dae5d497a805a68d7e3baf7afe8d48db2de59",
     "text_characters": 10,
+    "text_added": 0,
     "text_invariant": true,
     "blocks": 7
   },
@@ -21,6 +22,7 @@
     },
     "output": "sha256:40704a04f0d93096cd180c33feaf5a48cdd9ec7ecaf6a5d0a3060d9758f38867",
     "text_characters": 10,
+    "text_added": 0,
     "text_invariant": true,
     "blocks": 7
   }

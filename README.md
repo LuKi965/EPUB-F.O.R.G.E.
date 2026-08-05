@@ -538,12 +538,15 @@ epub-forge 0.2.0 (alpha)
 > etapu nie kończy się plikiem udającym gotowy, dwie książki o tej samej nazwie
 > nie zlewają się w jedną, a plik źródłowy jest chroniony osobnym strażnikiem.
 >
-> **Nie jest zamknięte** to, że wynik bywa uboższy od wejścia. Książka
-> z Media Overlays traci synchronizację narracji, zasoby zdalne i `fallback`
-> znikają, a raport milczy — patrz [Ograniczenia](#ograniczenia) i
-> `audit_consolidation/`, ustalenie EF-004. Dwa z trzech warunków wejścia
-> w alfę spisanych w [`CONTRIBUTING.md`](CONTRIBUTING.md) też nie są spełnione;
-> `CHANGELOG.md` wypisuje które i dlaczego mimo to wydajemy.
+> **Zamknięte od 0.2.2**: ustalenie EF-004, czyli konstrukcje znikające bez
+> błędu. Media Overlays, `fallback`, zasoby zdalne, `<collection>` i wszystkie
+> przynależności do serii przechodzą przez przebudowę. Pilnują tego dwie
+> wyrocznie i sześć prawdziwych książek w korpusie.
+>
+> **Nie jest zamknięte**: dwa z trzech warunków wejścia w alfę spisanych
+> w [`CONTRIBUTING.md`](CONTRIBUTING.md) — korpus 30+ książek z metrykami
+> zielonymi przez trzy wydania oraz przetłumaczony raport. `CHANGELOG.md`
+> wypisuje, dlaczego mimo to wydajemy.
 
 Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —
 liczba rosnąca w stronę 1.0 czyta się jako postęp ku wydaniu niezależnie od tego,

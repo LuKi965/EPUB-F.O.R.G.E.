@@ -52,14 +52,15 @@ class TestSeriesNumberSurvivesARoundTrip:
         )
         assert "Kroniki" in package_document(again.output_path)
 
-    @pytest.mark.parametrize(
-        "collection_type, carried",
-        [("series", True), ("set", False)],
-    )
-    def test_only_a_series_collection_becomes_a_series(
-        self, tmp_path, collection_type, carried
-    ):
-        """A "set" is a boxed edition, not a series, and does not belong in one."""
+    @pytest.mark.parametrize("collection_type", ["series", "set"])
+    def test_a_collection_is_carried_whatever_its_type(self, tmp_path, collection_type):
+        """Both survive, and the type survives with them.
+
+        This used to assert that a `set` came out *absent*, which read as a
+        decision — "a boxed edition is not a series" — but was the model's
+        single series field showing through. Not being a series is a reason to
+        keep it as a set, not a reason to drop it (EF-004).
+        """
         source = make_modern_epub(
             str(tmp_path / "collection.epub"),
             extra_metadata=(
@@ -68,7 +69,25 @@ class TestSeriesNumberSurvivesARoundTrip:
             ),
         )
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
-        assert ("Dzieła zebrane" in package_document(result.output_path)) is carried
+        package = package_document(result.output_path)
+        assert "Dzieła zebrane" in package
+        assert f">{collection_type}</meta>" in package
+
+    def test_a_set_does_not_become_the_series(self, tmp_path):
+        """The half of the old test that was a real decision, kept on its own."""
+        from epubforge.reader import read_epub
+        from epubforge.report import Report
+
+        source = make_modern_epub(
+            str(tmp_path / "set.epub"),
+            extra_metadata=(
+                '    <meta property="belongs-to-collection" id="c">Dzieła zebrane</meta>\n'
+                '    <meta refines="#c" property="collection-type">set</meta>'
+            ),
+        )
+        book = read_epub(source, Report())
+        assert book.metadata.series is None
+        assert [m.collection_type for m in book.metadata.collection_memberships] == ["set"]
 
 
 # ------------------------------------------------------------ empty alt text

@@ -80,6 +80,73 @@ def folder_for(media_type: str) -> str:
 
 
 @dataclass
+class RemoteResource:
+    """A manifest item that lives somewhere else.
+
+    A book may declare a resource by URL — a trailer, a font served from a
+    foundry. The reader used to warn and drop it, which meant the output no
+    longer declared something the source did, and nothing downstream could tell.
+    Nothing here fetches it; it is a declaration, and declarations are carried.
+    """
+
+    href: str
+    media_type: str
+    properties: set[str] = field(default_factory=set)
+    #: Container path of the local item to show instead, when there is one.
+    fallback: str | None = None
+
+
+@dataclass
+class CollectionLink:
+    """One `<link>` inside a `<collection>`."""
+
+    #: Container path when the target is inside the book; None when it is not.
+    path: str | None = None
+    #: The href exactly as written, kept for remote targets and for anything
+    #: that could not be resolved.
+    href: str = ""
+    attributes: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class Collection:
+    """An `<collection>`: a grouping the publication makes about itself.
+
+    Indexes, manifests of preview content, dictionaries — EPUB 3 leaves the
+    vocabulary open, which is precisely why this cannot be modelled field by
+    field. Everything the element said is carried: its role, its other
+    attributes, its links, its nested collections, and any `<metadata>` it
+    holds, the last of those verbatim because its contents are open too.
+    """
+
+    role: str = ""
+    attributes: dict[str, str] = field(default_factory=dict)
+    links: list[CollectionLink] = field(default_factory=list)
+    children: list["Collection"] = field(default_factory=list)
+    #: Serialised `<metadata>` children, carried through untouched.
+    raw_metadata: list[str] = field(default_factory=list)
+
+    def walk(self):
+        yield self
+        for child in self.children:
+            yield from child.walk()
+
+
+@dataclass
+class CollectionMembership:
+    """One `belongs-to-collection`: the set or series this book is part of.
+
+    A book can be in several at once — the seventh Chronicle, published inside
+    a boxed set as part one — and the model used to hold exactly one, so the
+    other disappeared along with its type and position.
+    """
+
+    name: str
+    collection_type: str = "series"
+    position: str | None = None
+
+
+@dataclass
 class Resource:
     """A single file inside the container."""
 
@@ -233,6 +300,11 @@ class Metadata:
     #: a reading system applies to the phrase being read.
     media_classes: dict[str, str] = field(default_factory=dict)
 
+    #: Every collection this book says it belongs to. `series` and
+    #: `series_index` below are the first *series*-typed one, kept because most
+    #: of the program only wants that; this list is what actually gets written.
+    collection_memberships: list["CollectionMembership"] = field(default_factory=list)
+
     @property
     def title(self) -> str:
         return self.titles[0] if self.titles else "Untitled"
@@ -292,6 +364,11 @@ class Book:
     #: Files placed in the container outside the content directory, by
     #: container-absolute path. Reader-specific META-INF entries live here.
     container_files: dict[str, bytes] = field(default_factory=dict)
+
+    #: `<collection>` elements, in document order.
+    collections: list["Collection"] = field(default_factory=list)
+    #: Manifest items declared by URL. Not fetched, not validated — declared.
+    remote_resources: list["RemoteResource"] = field(default_factory=list)
 
     def add(self, resource: Resource) -> Resource:
         self.resources[resource.path] = resource
@@ -358,6 +435,14 @@ class Book:
                 other.fallback = new_path
             if other.media_overlay == old_path:
                 other.media_overlay = new_path
+        for remote in self.remote_resources:
+            if remote.fallback == old_path:
+                remote.fallback = new_path
+        for collection in self.collections:
+            for node in collection.walk():
+                for link in node.links:
+                    if link.path == old_path:
+                        link.path = new_path
 
         for root in self.toc:
             for node in root.walk():

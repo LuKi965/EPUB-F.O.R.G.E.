@@ -70,13 +70,12 @@ DROPPED_ON_PURPOSE: dict[str, str] = {
 #: Constructs the rebuild drops because it *cannot* carry them — open defects,
 #: not decisions. Kept in their own list so that a defect cannot quietly become
 #: a decision by being filed next to one, which is how they usually die.
-STILL_BROKEN: dict[str, str] = {
-    "collection": (
-        "EF-004: the model has no place for a <collection>, so the writer has "
-        "nothing to emit. Both of the fixture's collections disappear"
-    ),
-    "collection/@role": "EF-004: same as collection",
-}
+#:
+#: Empty as of 0.2.2, when the last of EF-004 was closed. It stays because the
+#: two tests around it are what force an entry to be deleted rather than left
+#: standing, and the next defect of this shape should land here rather than in
+#: the list above.
+STILL_BROKEN: dict[str, str] = {}
 
 
 def constructs(path: str) -> set[str]:

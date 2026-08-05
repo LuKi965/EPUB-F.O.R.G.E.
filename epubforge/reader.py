@@ -19,12 +19,16 @@ from lxml import etree
 from . import ocf, paths
 from .model import (
     Book,
+    Collection,
+    CollectionLink,
+    CollectionMembership,
     Creator,
     Identifier,
     Landmark,
     Metadata,
     NavPoint,
     PageTarget,
+    RemoteResource,
     Resource,
     SpineItem,
     guess_media_type,
@@ -115,13 +119,24 @@ def _read_collection(node, refines: dict[str, dict[str, str]], metadata) -> None
     ]
     for collection_id, name in collections:
         attached = refines.get(collection_id, {})
-        if attached.get("collection-type", "series") != "series":
+        collection_type = attached.get("collection-type", "series")
+        # Every one of them is kept. `series`/`series_index` below are the
+        # first series-typed one and exist because most of the program only
+        # wants that; the list is what gets written back, so a book in a boxed
+        # set *and* a series no longer loses one of the two.
+        metadata.collection_memberships.append(
+            CollectionMembership(
+                name=name,
+                collection_type=collection_type,
+                position=attached.get("group-position"),
+            )
+        )
+        if collection_type != "series":
             continue
         metadata.series = metadata.series or name
         position = attached.get("group-position")
         if position:
             metadata.series_index = metadata.series_index or position
-        break
 
 
 @dataclass
@@ -539,13 +554,14 @@ def _parse_metadata(package, report: Report) -> Metadata:
 
 
 def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Report):
-    """Return ``(resources_by_id, id_by_path)`` for everything the manifest lists."""
+    """Return ``(resources_by_id, id_by_path, remote)`` for what the manifest lists."""
     resources: dict[str, Resource] = {}
     id_by_path: dict[str, str] = {}
+    remote: dict[str, RemoteResource] = {}
     manifest_nodes = children(package, "manifest")
     if not manifest_nodes:
         report.add("reader", Level.WARN, "package has no <manifest>; falling back to archive contents")
-        return resources, id_by_path
+        return resources, id_by_path, remote
 
     for item in children(manifest_nodes[0], "item"):
         item_id = item.get("id")
@@ -553,7 +569,22 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
         if not href:
             continue
         if paths.is_remote(href):
-            report.add("reader", Level.WARN, "manifest lists a remote resource", location=href)
+            # Carried as a declaration, not fetched. Dropping it used to mean
+            # the output no longer declared something the source did, with a
+            # warning nobody could act on.
+            remote[item_id or f"__remote_{len(remote)}"] = RemoteResource(
+                href=href,
+                media_type=(item.get("media-type") or "").strip() or "application/octet-stream",
+                properties=set((item.get("properties") or "").split()),
+                fallback=item.get("fallback"),
+            )
+            report.add(
+                "reader",
+                Level.INFO,
+                "manifest declares a resource hosted elsewhere; carried through as declared",
+                location=href,
+                detail="Nothing here fetches it. It is not stored in the container either.",
+            )
             continue
         path = paths.resolve(posixpath.join(opf_dir, "_"), href) if opf_dir else paths.resolve("_", href)
         if path is None:
@@ -595,9 +626,9 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
     # Ids are the source's, and the rebuild regenerates them. Both of these are
     # therefore stored as paths, which survive renaming — `Book.rename` keeps
     # them pointing at the file rather than at a name that no longer exists.
-    for resource in resources.values():
+    for resource in list(resources.values()) + list(remote.values()):
         for attribute in ("fallback", "media_overlay"):
-            reference = getattr(resource, attribute)
+            reference = getattr(resource, attribute, None)
             if not reference:
                 continue
             target = resources.get(reference)
@@ -612,7 +643,55 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                 setattr(resource, attribute, None)
             else:
                 setattr(resource, attribute, target.path)
-    return resources, id_by_path
+    return resources, id_by_path, remote
+
+
+def _parse_collections(package, opf_dir: str, by_id: dict[str, Resource]) -> list[Collection]:
+    """`<collection>` elements, carried whole.
+
+    The vocabulary of `role` is open by design, so there is nothing to model
+    field by field and no honest way to decide which of these matters. What is
+    kept is everything the element said; what is resolved is only the part that
+    has to move when files do.
+    """
+    by_path = {resource.path: resource for resource in by_id.values()}
+
+    def resolve(href: str) -> str | None:
+        if not href or paths.is_remote(href):
+            return None
+        base = posixpath.join(opf_dir, "_") if opf_dir else "_"
+        target = paths.resolve(base, href.split("#", 1)[0])
+        return target if target in by_path else None
+
+    def build(node) -> Collection:
+        collection = Collection(
+            role=(node.get("role") or "").strip(),
+            attributes={
+                key: value for key, value in node.attrib.items()
+                if not key.startswith("{") and key != "role"
+            },
+        )
+        for link in children(node, "link"):
+            href = link.get("href") or ""
+            collection.links.append(
+                CollectionLink(
+                    path=resolve(href),
+                    href=href,
+                    attributes={
+                        key: value for key, value in link.attrib.items()
+                        if not key.startswith("{") and key != "href"
+                    },
+                )
+            )
+        for nested in children(node, "collection"):
+            collection.children.append(build(nested))
+        for metadata_node in children(node, "metadata"):
+            collection.raw_metadata.append(
+                etree.tostring(metadata_node, encoding="unicode").strip()
+            )
+        return collection
+
+    return [build(node) for node in children(package, "collection")]
 
 
 def _find_case_insensitive(path: str, entries: dict[str, bytes]) -> str | None:
@@ -881,9 +960,11 @@ def read_epub(source: str, report: Report) -> Book:
     book.source_version = (package.get("version") or "unknown").strip()
     book.metadata = _parse_metadata(package, report)
 
-    by_id, _ = _parse_manifest(package, opf_dir, entries, report)
+    by_id, _, remote = _parse_manifest(package, opf_dir, entries, report)
     for resource in by_id.values():
         book.add(resource)
+    book.remote_resources = list(remote.values())
+    book.collections = _parse_collections(package, opf_dir, by_id)
 
     # Durations arrive keyed by the id they refine, because the metadata is
     # parsed before the manifest. Re-key them by path so they survive renaming

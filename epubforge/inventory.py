@@ -122,6 +122,28 @@ def _rendered_text(root) -> str:
     return unicodedata.normalize("NFC", re.sub(r"[^\S ]+", " ", text))
 
 
+def spine_text(path: pathlib.Path) -> str:
+    """The readable text of the reading order, in order.
+
+    Separate from `measure` because a count is not enough to check K1 against.
+    Two books can hold the same number of characters and not the same
+    characters, so the corpus comparison needs the text itself.
+    """
+    parsed = read_epub(str(path), Report(source=str(path)))
+    spine_paths = {item.path for item in parsed.spine}
+    parts: list[str] = []
+    for item in parsed.spine:
+        document = parsed.get(item.path)
+        if document is None or item.path not in spine_paths:
+            continue
+        try:
+            root, _ = xhtml.parse(document.data)
+        except Exception:  # noqa: BLE001 — one bad document must not stop the read
+            continue
+        parts.append(_rendered_text(root))
+    return " ".join(parts)
+
+
 def measure(path: pathlib.Path) -> Book:
     """Everything we are willing to record about one book."""
     raw = path.read_bytes()

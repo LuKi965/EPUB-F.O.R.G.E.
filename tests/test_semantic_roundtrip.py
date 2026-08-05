@@ -51,22 +51,12 @@ BY_DECISION: dict[str, str] = {
 }
 
 #: Open defects. Each one is a statement the source made and the output does
-#: not, with nothing said about it in the report. EF-004 unless noted.
+#: not, with nothing said about it in the report.
+#:
+#: EF-004 was the whole of this list and is closed as of 0.2.2. What is left
+#: are two losses this oracle found itself, which is the argument for having
+#: written it.
 STILL_BROKEN: dict[str, str] = {
-    "collection": (
-        "EF-004: both <collection> elements disappear. The model has no place "
-        "for one, so the writer cannot emit one"
-    ),
-    "url:https://example.invalid/trailer.mp4": (
-        "EF-004: a manifest item whose href is remote is dropped; the book loses "
-        "a resource it declared and nothing says so"
-    ),
-    "belongs-to-collection": (
-        "EF-004: the model holds one series, so a book belonging to a set *and* "
-        "a series keeps only one of them"
-    ),
-    "collection-type": "EF-004: refinement of the collection that was lost",
-    "group-position": "EF-004: refinement of the collection that was lost",
     "properties='scripted'": (
         "not in either audit's table; found by this oracle. `preserve` drops the "
         "manifest property that says the document contains scripting, while "

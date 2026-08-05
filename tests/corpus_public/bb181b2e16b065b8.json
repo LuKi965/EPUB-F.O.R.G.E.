@@ -10,7 +10,8 @@
     },
     "output": "sha256:b3b779dfd7d9de82796e1309d69e5b15f54f9422711b4a7956054f773d78c6b1",
     "text_characters": 57,
-    "text_invariant": false,
+    "text_added": 2,
+    "text_invariant": true,
     "blocks": 12
   },
   "strict": {
@@ -23,7 +24,8 @@
     },
     "output": "sha256:b3b779dfd7d9de82796e1309d69e5b15f54f9422711b4a7956054f773d78c6b1",
     "text_characters": 57,
-    "text_invariant": false,
+    "text_added": 2,
+    "text_invariant": true,
     "blocks": 12
   }
 }

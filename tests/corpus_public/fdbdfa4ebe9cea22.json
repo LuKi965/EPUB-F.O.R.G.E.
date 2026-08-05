@@ -9,6 +9,7 @@
     },
     "output": "sha256:3b7882cbf523ea0c06c0082ce07651d9842a6e9765cdcec1b736b7ef139d3adb",
     "text_characters": 209,
+    "text_added": 0,
     "text_invariant": true,
     "blocks": 18
   },
@@ -21,6 +22,7 @@
     },
     "output": "sha256:3b7882cbf523ea0c06c0082ce07651d9842a6e9765cdcec1b736b7ef139d3adb",
     "text_characters": 209,
+    "text_added": 0,
     "text_invariant": true,
     "blocks": 18
   }

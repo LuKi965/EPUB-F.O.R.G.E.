@@ -6,8 +6,9 @@
       "info": 3,
       "fix": 2
     },
-    "output": "sha256:576fdf44a0d1d81f8cd457de22bb7d13f0a11cb3b9b3c67cb4477eb50fd16b59",
+    "output": "sha256:8c0e076de55a4f8a451a068800ee5731d6a160a2212c04d7d10b56ec6e96555d",
     "text_characters": 14,
+    "text_added": 0,
     "text_invariant": true,
     "blocks": 6
   },
@@ -17,8 +18,9 @@
       "info": 3,
       "fix": 2
     },
-    "output": "sha256:576fdf44a0d1d81f8cd457de22bb7d13f0a11cb3b9b3c67cb4477eb50fd16b59",
+    "output": "sha256:8c0e076de55a4f8a451a068800ee5731d6a160a2212c04d7d10b56ec6e96555d",
     "text_characters": 14,
+    "text_added": 0,
     "text_invariant": true,
     "blocks": 6
   }

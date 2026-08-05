@@ -16,7 +16,7 @@ import zipfile
 from xml.sax.saxutils import escape, quoteattr
 
 from . import compat, paths
-from .model import Book
+from .model import Book, CollectionMembership
 from .report import Level, Report
 
 #: A metadata refinement has to name a manifest id, and the manifest is written
@@ -62,6 +62,37 @@ def _entry(path: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipInf
     # bits set above already assume.
     info.create_system = 3
     return info
+
+
+def _render_collection(collection, opf_path: str, indent: str) -> list[str]:
+    """One `<collection>` and everything under it, back into XML."""
+    attributes = dict(collection.attributes)
+    if collection.role:
+        attributes = {"role": collection.role, **attributes}
+    rendered = "".join(f" {key}={quoteattr(value)}" for key, value in attributes.items())
+    lines = [f"{indent}<collection{rendered}>"]
+
+    for raw in collection.raw_metadata:
+        # Carried verbatim: the contents of a collection's metadata are as open
+        # as its role, so re-serialising it from a model would mean inventing
+        # one for something nobody here understands.
+        lines.append(f"{indent}  {raw}")
+
+    # A collection holds links *or* nested collections, never both, so the
+    # order between the two groups cannot matter for a conforming source. A
+    # non-conforming one is regrouped rather than reproduced — the alternative
+    # is emitting a package document that no reader will accept.
+    for child in collection.children:
+        lines += _render_collection(child, opf_path, indent + "  ")
+
+    for link in collection.links:
+        href = paths.relative(opf_path, link.path) if link.path else link.href
+        link_attributes = {"href": href, **link.attributes}
+        rendered = "".join(f" {key}={quoteattr(value)}" for key, value in link_attributes.items())
+        lines.append(f"{indent}  <link{rendered}/>")
+
+    lines.append(f"{indent}</collection>")
+    return lines
 
 
 def _make_id(path: str, taken: set[str]) -> str:
@@ -199,15 +230,28 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for element_name, element_value in metadata.dublin_core_extra:
         lines.append(f"    {_element(f'dc:{element_name}', element_value)}")
 
-    if metadata.series:
+    # Every collection the book belongs to, not just the first series-typed
+    # one. A book published inside a boxed set *and* as part of a series used
+    # to keep whichever the model happened to hold.
+    memberships = list(metadata.collection_memberships)
+    if not memberships and metadata.series:
+        # Nothing was read from a `belongs-to-collection`; the series came from
+        # somewhere else, such as calibre's own metadata.
+        memberships = [CollectionMembership(metadata.series, "series", metadata.series_index)]
+    for index, membership in enumerate(memberships):
+        anchor = "series" if index == 0 else f"collection-{index}"
         lines.append(
-            f'    <meta property="belongs-to-collection" id="series">{escape(metadata.series)}</meta>'
+            f'    <meta property="belongs-to-collection" id="{anchor}">'
+            f"{escape(membership.name)}</meta>"
         )
-        lines.append('    <meta refines="#series" property="collection-type">series</meta>')
-        if metadata.series_index:
+        lines.append(
+            f'    <meta refines="#{anchor}" property="collection-type">'
+            f"{escape(membership.collection_type)}</meta>"
+        )
+        if membership.position:
             lines.append(
-                f'    <meta refines="#series" property="group-position">'
-                f"{escape(metadata.series_index)}</meta>"
+                f'    <meta refines="#{anchor}" property="group-position">'
+                f"{escape(membership.position)}</meta>"
             )
 
     lines.append(f'    <meta property="dcterms:modified">{escape(metadata.modified or "")}</meta>')
@@ -294,6 +338,22 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             f"{key}={quoteattr(value)}" for key, value in attributes.items() if value is not None
         )
         lines.append(f"    <item {rendered}/>")
+
+    # Declared, never fetched. An id is minted for these too, so that a local
+    # item can name one as its fallback and vice versa.
+    for index, remote in enumerate(book.remote_resources):
+        remote_id = _make_id(f"remote-{index}-{posixpath.basename(remote.href)}", taken_ids)
+        attributes = {
+            "id": remote_id,
+            "href": remote.href,
+            "media-type": remote.media_type,
+            "properties": " ".join(sorted(remote.properties)) or None,
+            "fallback": id_by_path.get(remote.fallback or ""),
+        }
+        rendered = " ".join(
+            f"{key}={quoteattr(value)}" for key, value in attributes.items() if value is not None
+        )
+        lines.append(f"    <item {rendered}/>")
     lines.append("  </manifest>")
 
     # --- spine --------------------------------------------------------------
@@ -335,6 +395,12 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
                     f"title={quoteattr(title)} href={quoteattr(href)}/>"
                 )
             lines.append("  </guide>")
+
+    # `<collection>` comes after the spine and the guide. The vocabulary of
+    # `role` is open, so nothing here interprets them — what was read is what
+    # is written, with only the hrefs moved to follow their files.
+    for collection in book.collections:
+        lines += _render_collection(collection, opf_path, indent="  ")
 
     lines.append("</package>")
 

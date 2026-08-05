@@ -472,12 +472,14 @@ epub-forge 0.2.0 (alpha)
 > looks finished, two books with one filename no longer become one, and the
 > source file has its own guard.
 >
-> **Not closed**: the output can be poorer than the input. A book with Media
-> Overlays loses its narration sync, remote resources and `fallback` disappear,
-> and the report says nothing — see [Limits](#limits) and finding EF-004 in
-> `audit_consolidation/`. Two of the three written entry conditions for alpha in
-> [`CONTRIBUTING.md`](CONTRIBUTING.md) are also unmet; `CHANGELOG.md` lists which
-> and why this ships regardless.
+> **Closed as of 0.2.2**: finding EF-004, the constructs that disappeared
+> without an error. Media Overlays, `fallback`, remote resources,
+> `<collection>` and every collection membership now survive a rebuild, guarded
+> by two oracles and six real books in the corpus.
+>
+> **Not closed**: two of the three written entry conditions for alpha in
+> [`CONTRIBUTING.md`](CONTRIBUTING.md) — a 30-book corpus green across three
+> releases, and a translated report. `CHANGELOG.md` says why this ships anyway.
 
 The number no longer tries to carry that information, because it cannot: a
 figure climbing towards 1.0 reads as progress towards a release whatever anyone
