@@ -723,7 +723,17 @@ def test_rebuild_is_idempotent(rebuilt, tmp_path):
 
 # --------------------------------------------------------------- minimal mode
 def test_minimal_mode_leaves_content_files_byte_identical(legacy_epub, tmp_path):
-    """The mode's whole promise. Parsing and reserialising would break it."""
+    """The mode's whole promise, with the one exception written down.
+
+    Parsing and reserialising would break it, so documents are not opened. The
+    DOCTYPE is replaced on the bytes, because a legacy one makes the output an
+    invalid EPUB 3 and a DOCTYPE says nothing about how a page renders — the
+    one edit that cannot change what the reader sees. Everything else is
+    identical, and this asserts that by comparing with the DOCTYPE normalised
+    on both sides rather than by relaxing the comparison.
+    """
+    from epubforge.xhtml import modernise_doctype
+
     result = rebuild(legacy_epub, str(tmp_path / "minimal.epub"), Policy.preset("minimal"))
     assert result.output_path, result.report.to_text()
 
@@ -739,7 +749,8 @@ def test_minimal_mode_leaves_content_files_byte_identical(legacy_epub, tmp_path)
         ]
         assert shared, "the fixture shares no files with its rebuild"
         for name in shared:
-            assert source.read(name) == output.read(name), name
+            expected, _ = modernise_doctype(source.read(name))
+            assert expected == output.read(name), name
 
 
 def test_minimal_mode_still_produces_a_navigation_document(legacy_epub, tmp_path):
@@ -861,3 +872,71 @@ class TestTheCoverFitsThePage:
             markup = "".join(archive.read(n).decode() for n in names)
         styled = [tag for tag in re.findall(r"<img[^>]*>", markup) if "style=" in tag]
         assert len(styled) == 1, styled
+
+
+class TestTheOneEditContainerOnlyModeMakes:
+    """A legacy DOCTYPE makes a container-only rebuild an invalid EPUB 3.
+
+    EPUBCheck: *Irregular DOCTYPE: found "-//W3C//DTD XHTML 1.1//EN", expected
+    "<!DOCTYPE html>"*. It appeared on four of the first thirty-two real books
+    this was run against, all of them in this mode. A DOCTYPE says nothing
+    about how a page renders, so replacing it is the one edit that cannot
+    change what the reader sees — and it is done on the bytes, because opening
+    the document is what this mode promises not to do.
+    """
+
+    def _document(self, doctype: str, body: str = "<p>Tekst.</p>") -> bytes:
+        return (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            f"{doctype}\n"
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            f"<meta charset=\"utf-8\"/><title>R</title></head><body><h1>R</h1>{body}</body></html>"
+        ).encode()
+
+    def test_a_legacy_doctype_is_replaced(self):
+        from epubforge.xhtml import modernise_doctype
+
+        data = self._document(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" '
+            '"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">'
+        )
+        updated, changed = modernise_doctype(data)
+        assert changed
+        assert b"<!DOCTYPE html>" in updated
+        assert b"XHTML 1.1" not in updated
+        # Everything else, to the byte.
+        assert updated.replace(b"<!DOCTYPE html>", b"X") == data[: data.index(b"<!DOCTYPE")] + b"X" + data[data.index(b".dtd\">") + 6 :]
+
+    def test_the_epub3_doctype_is_left_alone(self):
+        from epubforge.xhtml import modernise_doctype
+
+        data = self._document("<!DOCTYPE html>")
+        updated, changed = modernise_doctype(data)
+        assert not changed and updated == data
+
+    def test_a_document_without_one_is_left_alone(self):
+        from epubforge.xhtml import modernise_doctype
+
+        data = b'<?xml version="1.0"?><html/>'
+        updated, changed = modernise_doctype(data)
+        assert not changed and updated == data
+
+    def test_an_internal_subset_is_left_alone(self):
+        """Those entities are used by the document, and `<!DOCTYPE html>` does
+        not define them. Swapping it turns a book that is merely invalid into
+        one that will not parse."""
+        from epubforge.xhtml import modernise_doctype
+
+        data = self._document(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "x.dtd" '
+            "[<!ENTITY mojaencja \"tekst\">]>",
+            body="<p>&mojaencja;</p>",
+        )
+        updated, changed = modernise_doctype(data)
+        assert not changed and updated == data
+
+    def test_the_rebuild_reports_it(self, legacy_epub, tmp_path):
+        result = rebuild(legacy_epub, str(tmp_path / "out.epub"), Policy.preset("minimal"))
+        assert any("DOCTYPE" in f.message for f in result.report.findings), [
+            f.message for f in result.report.findings
+        ]

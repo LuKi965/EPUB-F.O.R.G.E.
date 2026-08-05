@@ -258,6 +258,33 @@ def strip_doctype(data: bytes) -> bytes:
     return _DOCTYPE_RE.sub(b"", data, count=1)
 
 
+#: The only DOCTYPE EPUB 3 accepts. EPUBCheck on anything else: *Irregular
+#: DOCTYPE: found "-//W3C//DTD XHTML 1.1//EN", expected "<!DOCTYPE html>"*.
+EPUB3_DOCTYPE = b"<!DOCTYPE html>"
+
+
+def modernise_doctype(data: bytes) -> tuple[bytes, bool]:
+    """Swap a legacy DOCTYPE for the EPUB 3 one, touching nothing else.
+
+    For the container-only mode, which does not open documents at all. A
+    DOCTYPE declares nothing about how a page looks, so replacing it is the one
+    change that cannot alter rendering — but it is what stands between a
+    container-only rebuild and a valid EPUB 3, and roughly half the older books
+    in a real library carry the XHTML 1.1 one.
+
+    Returns the data unchanged when the DOCTYPE declares an internal subset.
+    Those entities are used by the document, and `<!DOCTYPE html>` does not
+    define them: swapping it would turn a book that is merely invalid into a
+    book that will not parse.
+    """
+    match = _DOCTYPE_RE.search(data)
+    if match is None or match.group(0) == EPUB3_DOCTYPE:
+        return data, False
+    if match.group(1):  # an internal subset — see the docstring
+        return data, False
+    return data[: match.start()] + EPUB3_DOCTYPE + data[match.end() :], True
+
+
 def qname(local: str, ns: str = XHTML_NS) -> str:
     return f"{{{ns}}}{local}"
 

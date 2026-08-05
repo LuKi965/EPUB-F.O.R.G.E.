@@ -23,6 +23,32 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.6 — alpha
+
+**The container-only mode makes exactly one edit inside a document now.** A
+legacy DOCTYPE makes its output an invalid EPUB 3 — *Irregular DOCTYPE: found
+"-//W3C//DTD XHTML 1.1//EN"* — and a DOCTYPE says nothing about how a page
+renders, so replacing it is the one change that cannot alter what the reader
+sees. Done on the bytes, because opening the document is what this mode
+promises not to do. A DOCTYPE declaring its own entities is left alone: those
+entities are used, and `<!DOCTYPE html>` does not define them, so swapping it
+would turn a merely invalid book into one that will not parse.
+
+The byte-identity test was not relaxed to accommodate this — it normalises the
+DOCTYPE on both sides and still demands every other byte match.
+
+**The same mode was leaving dead anchors in the navigation.** Whether a
+fragment exists is checked against ids collected while rewriting documents, and
+this mode does not rewrite them, so every anchor was assumed live. Reading the
+ids costs a parse and changes nothing.
+
+**The report panel stayed blank for a queue of one.** Drawing it was left to
+`itemSelectionChanged`, which does not fire when the row is already selected —
+so with a single book the report only appeared after a second was added and the
+user clicked between them.
+
+Tests: 529 → 534.
+
 ## 0.2.5 — alpha
 
 **Vendor metadata written the EPUB 3 way was being dropped.** Only

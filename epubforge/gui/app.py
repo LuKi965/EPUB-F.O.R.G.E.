@@ -599,6 +599,12 @@ class MainWindow(QMainWindow):
         self.progress.setValue(index + 1)
         if self.table.currentRow() in (-1, index):
             self.table.selectRow(index)
+            # Drawing the report was left to `itemSelectionChanged`, and that
+            # signal does not fire when the row is *already* selected — which is
+            # exactly the case with one book in the queue. The result was a
+            # blank report panel until a second book was added and the user
+            # clicked between the two.
+            self._show_selected_report()
 
     def _on_all_finished(self) -> None:
         if self._thread:

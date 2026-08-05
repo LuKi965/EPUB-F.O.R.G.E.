@@ -139,11 +139,54 @@ class ContentStage(Stage):
             # Container-only rebuild. Parsing and reserialising a document
             # changes its bytes even when nothing about it is wrong, so the way
             # to keep that promise is not to open them at all.
+            # One exception, and it is exactly one. A legacy DOCTYPE makes the
+            # output an invalid EPUB 3 — EPUBCheck: "Irregular DOCTYPE" — and a
+            # DOCTYPE declares nothing about how a page looks, so replacing it
+            # is the only edit that cannot change what the reader sees. Half
+            # the older books in a real library carry the XHTML 1.1 one.
+            modernised = 0
+            for resource in ctx.book.content_docs():
+                data, changed = xhtml.modernise_doctype(resource.data)
+                if changed:
+                    resource.data = data
+                    modernised += 1
+
+                # Reading the ids costs a parse and changes nothing, and
+                # without them the navigation stage cannot tell a live anchor
+                # from a dead one — so in this mode it assumed every anchor was
+                # live and left `nav.xhtml` pointing at fragments that do not
+                # exist. EPUBCheck: "Fragment identifier is not defined".
+                try:
+                    root, _ = xhtml.parse(resource.data)
+                except Exception:  # noqa: BLE001 — a document we cannot read has no ids
+                    continue
+                ctx.document_ids[resource.path] = {
+                    element.get("id")
+                    for element in xhtml.iter_elements(root)
+                    if element.get("id")
+                }
+            if modernised:
+                self.note(
+                    ctx,
+                    Level.FIX,
+                    f"replaced the DOCTYPE in {modernised} document(s) with the EPUB 3 one",
+                    detail=(
+                        "The only change this mode makes inside a document. A DOCTYPE "
+                        "says nothing about rendering, and a legacy one makes the book "
+                        "invalid. A DOCTYPE that declares its own entities is left "
+                        "alone, because the document uses them."
+                    ),
+                )
             self.note(
                 ctx,
                 Level.INFO,
                 "content documents left untouched; only the container was rebuilt",
-                detail="Every XHTML file comes out byte for byte as it went in.",
+                detail=(
+                    "Every XHTML file comes out byte for byte as it went in, apart "
+                    "from the DOCTYPE where it had to be modernised."
+                    if modernised
+                    else "Every XHTML file comes out byte for byte as it went in."
+                ),
             )
             return
 
