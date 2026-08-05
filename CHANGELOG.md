@@ -23,106 +23,14 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## 0.2.7 — alpha
+## Unreleased — will ship as 0.2.3
 
-**The DOCTYPE swap released in 0.2.6 had a hole, and a real book found it.**
-A legacy DOCTYPE declares entities two ways — an internal subset, which was
-guarded, and the external DTD it names, which was not. Every XHTML 1.1 document
-may write `&nbsp;` because `xhtml11.dtd` declares it, so replacing the
-declaration stranded the reference: *Fatal Error while parsing file: The entity
-"nbsp" was referenced, but not declared*. A book that will not open, from one
-that was merely invalid. The swap now happens only when the document uses no
-named entity beyond the five XML built-ins.
+Nothing below has an installer yet. The version number moves when a release
+is built, not when a commit lands: numbering every commit produced 0.2.3
+through 0.2.7 with two releases between them, which says nothing to anyone
+reading the list of downloads. What was done is kept in full, by subject.
 
-Numeric references are unaffected, and `&amp;` and its four siblings do not
-block the swap — treating them as a reason to stop would mean never modernising
-anything.
-
-Tests: 534 → 537.
-
-## 0.2.6 — alpha
-
-**The container-only mode makes exactly one edit inside a document now.** A
-legacy DOCTYPE makes its output an invalid EPUB 3 — *Irregular DOCTYPE: found
-"-//W3C//DTD XHTML 1.1//EN"* — and a DOCTYPE says nothing about how a page
-renders, so replacing it is the one change that cannot alter what the reader
-sees. Done on the bytes, because opening the document is what this mode
-promises not to do. A DOCTYPE declaring its own entities is left alone: those
-entities are used, and `<!DOCTYPE html>` does not define them, so swapping it
-would turn a merely invalid book into one that will not parse.
-
-The byte-identity test was not relaxed to accommodate this — it normalises the
-DOCTYPE on both sides and still demands every other byte match.
-
-**The same mode was leaving dead anchors in the navigation.** Whether a
-fragment exists is checked against ids collected while rewriting documents, and
-this mode does not rewrite them, so every anchor was assumed live. Reading the
-ids costs a parse and changes nothing.
-
-**The report panel stayed blank for a queue of one.** Drawing it was left to
-`itemSelectionChanged`, which does not fire when the row is already selected —
-so with a single book the report only appeared after a second was added and the
-user clicked between them.
-
-Tests: 529 → 534.
-
-## 0.2.5 — alpha
-
-**Vendor metadata written the EPUB 3 way was being dropped.** Only
-`<meta name= content=>` — the EPUB 2 spelling — was carried through. Anything
-said as `<meta property="…">` that the model had no field for went silently,
-and the vocabulary is open by design: "not recognised" says something about
-this program and nothing about the book.
-
-Apple's `ibooks:specified-fonts` is what exposed it, on eleven of thirty-two
-real books. Unknown properties are now carried with their qualifiers, and the
-prefix declaration comes with them — without one the property is not a property
-but an error, which EPUBCheck reports as *Undeclared prefix*. Only prefixes the
-output actually uses are declared, so regenerating that attribute rather than
-copying it still holds.
-
-Tests: 524 → 529.
-
-## 0.2.4 — alpha
-
-**Two defects found by thirty-two real books**, commercial Polish editions run
-through all three modes. Four of the thirty-two failed, all four in the same
-two ways, and neither defect had a test because neither can happen to a book
-written to be a test.
-
-**The publisher's contents page was being destroyed.** A nav document is
-allowed to sit in the reading order, and when it does it is two things at once:
-the machine-readable navigation, and a page the publisher wrote that the reader
-can turn to. Regenerating it served the first and destroyed the second —
-"Spis treści", "Punkty orientacyjne" and the publisher's own chapter labels
-replaced by ours. Text the source had and the output did not, which is K1, on
-four books out of thirty-two.
-
-The page now stays as an ordinary content document and the regenerated
-navigation goes in beside it, outside the reading order. One nav document, as
-EPUB 3 requires; the publisher's page, as the reader expects. Reported as
-`PRESERVED`.
-
-**Replacing a nav document left references pointing at nothing.** The
-regenerated nav listed the page it had just deleted, and in one book
-twenty-seven chapters carried a "back to contents" link to it:
-
-```
-ERROR: Referenced resource "EPUB/text/0015-table_of_contents.xhtml"
-       could not be found in the EPUB. (EPUB/nav.xhtml)
-```
-
-The output was invalid, and the report said nothing. References in the
-navigation tables, the landmarks, the page list and inside content documents
-now follow the document that replaced it, and the repointing is reported.
-
-All four books: EPUBCheck clean, K1 satisfied. The `nav-in-spine.epub`
-signature moves deliberately — `text_added: 47 → 0`, the source's text now
-preserved to the character.
-
-Tests: 503 → 524.
-
-## 0.2.3 — alpha
+### Two findings of mine that were not defects, and two that were
 
 **Both findings reported in 0.2.1 were mine, and neither was a defect.** They
 were announced as losses neither audit had caught. Checking them against
@@ -158,6 +66,103 @@ been emitting a `FutureWarning` about this exact construct the whole time. The
 suite now runs clean under `-W error::FutureWarning`.
 
 Tests: 498 → 503.
+
+### Two defects found by thirty-two real books
+
+Commercial Polish editions, run through all three modes. Four of the thirty-two failed, all four in the same
+two ways, and neither defect had a test because neither can happen to a book
+written to be a test.
+
+**The publisher's contents page was being destroyed.** A nav document is
+allowed to sit in the reading order, and when it does it is two things at once:
+the machine-readable navigation, and a page the publisher wrote that the reader
+can turn to. Regenerating it served the first and destroyed the second —
+"Spis treści", "Punkty orientacyjne" and the publisher's own chapter labels
+replaced by ours. Text the source had and the output did not, which is K1, on
+four books out of thirty-two.
+
+The page now stays as an ordinary content document and the regenerated
+navigation goes in beside it, outside the reading order. One nav document, as
+EPUB 3 requires; the publisher's page, as the reader expects. Reported as
+`PRESERVED`.
+
+**Replacing a nav document left references pointing at nothing.** The
+regenerated nav listed the page it had just deleted, and in one book
+twenty-seven chapters carried a "back to contents" link to it:
+
+```
+ERROR: Referenced resource "EPUB/text/0015-table_of_contents.xhtml"
+       could not be found in the EPUB. (EPUB/nav.xhtml)
+```
+
+The output was invalid, and the report said nothing. References in the
+navigation tables, the landmarks, the page list and inside content documents
+now follow the document that replaced it, and the repointing is reported.
+
+All four books: EPUBCheck clean, K1 satisfied. The `nav-in-spine.epub`
+signature moves deliberately — `text_added: 47 → 0`, the source's text now
+preserved to the character.
+
+Tests: 503 → 524.
+
+### Metadata written the EPUB 3 way was being dropped
+
+Only
+`<meta name= content=>` — the EPUB 2 spelling — was carried through. Anything
+said as `<meta property="…">` that the model had no field for went silently,
+and the vocabulary is open by design: "not recognised" says something about
+this program and nothing about the book.
+
+Apple's `ibooks:specified-fonts` is what exposed it, on eleven of thirty-two
+real books. Unknown properties are now carried with their qualifiers, and the
+prefix declaration comes with them — without one the property is not a property
+but an error, which EPUBCheck reports as *Undeclared prefix*. Only prefixes the
+output actually uses are declared, so regenerating that attribute rather than
+copying it still holds.
+
+Tests: 524 → 529.
+
+### One edit in container-only mode, dead anchors, and a blank report panel
+
+**The container-only mode makes exactly one edit inside a document now.** A
+legacy DOCTYPE makes its output an invalid EPUB 3 — *Irregular DOCTYPE: found
+"-//W3C//DTD XHTML 1.1//EN"* — and a DOCTYPE says nothing about how a page
+renders, so replacing it is the one change that cannot alter what the reader
+sees. Done on the bytes, because opening the document is what this mode
+promises not to do. A DOCTYPE declaring its own entities is left alone: those
+entities are used, and `<!DOCTYPE html>` does not define them, so swapping it
+would turn a merely invalid book into one that will not parse.
+
+The byte-identity test was not relaxed to accommodate this — it normalises the
+DOCTYPE on both sides and still demands every other byte match.
+
+**The same mode was leaving dead anchors in the navigation.** Whether a
+fragment exists is checked against ids collected while rewriting documents, and
+this mode does not rewrite them, so every anchor was assumed live. Reading the
+ids costs a parse and changes nothing.
+
+**The report panel stayed blank for a queue of one.** Drawing it was left to
+`itemSelectionChanged`, which does not fire when the row is already selected —
+so with a single book the report only appeared after a second was added and the
+user clicked between them.
+
+Tests: 529 → 534.
+
+### The DOCTYPE swap could strand an entity
+
+The swap above had a hole, and a real book found it. A legacy DOCTYPE declares entities two ways — an internal subset, which was
+guarded, and the external DTD it names, which was not. Every XHTML 1.1 document
+may write `&nbsp;` because `xhtml11.dtd` declares it, so replacing the
+declaration stranded the reference: *Fatal Error while parsing file: The entity
+"nbsp" was referenced, but not declared*. A book that will not open, from one
+that was merely invalid. The swap now happens only when the document uses no
+named entity beyond the five XML built-ins.
+
+Numeric references are unaffected, and `&amp;` and its four siblings do not
+block the swap — treating them as a reason to stop would mean never modernising
+anything.
+
+Tests: 534 → 537.
 
 ## 0.2.2 — alpha
 

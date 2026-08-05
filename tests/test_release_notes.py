@@ -126,3 +126,45 @@ class TestWritingThemOut:
             sys.stdout = stdout
         buffer.flush()
         assert buffer.buffer.getvalue().decode("utf-8").strip()
+
+
+class TestTheUnreleasedSection:
+    """Work between releases lives under `## Unreleased — will ship as X.Y.Z`.
+
+    The version number moves when a release is built, not when a commit lands.
+    Bumping per commit produced 0.2.3 through 0.2.7 against two actual
+    releases — numbers matching nothing anybody could download. The extractor
+    has to find that section by the version it names, or the release pipeline
+    fails on a project that is following its own rule.
+    """
+
+    SAMPLE = """# Changelog
+
+## Unreleased — will ship as 0.3.0
+
+### Coś zrobionego
+
+Treść.
+
+## 0.2.9 — alpha
+
+Poprzednie.
+"""
+
+    def test_the_unreleased_section_is_found_by_the_version_it_names(self):
+        body = section_for("0.3.0", self.SAMPLE)
+        assert "Coś zrobionego" in body
+        assert "Poprzednie" not in body
+
+    def test_a_released_version_still_wins_its_own_heading(self):
+        assert section_for("0.2.9", self.SAMPLE).strip() == "Poprzednie."
+
+    def test_a_version_nobody_mentions_is_still_empty(self):
+        assert section_for("9.9.9", self.SAMPLE) == ""
+
+    def test_the_current_version_is_reachable_whichever_form_it_is_in(self):
+        """The one that would stop a release: whatever `__version__` says, the
+        changelog has something to say about it — released or not."""
+        from epubforge import __version__
+
+        assert section_for(__version__, CHANGELOG.read_text(encoding="utf-8"))

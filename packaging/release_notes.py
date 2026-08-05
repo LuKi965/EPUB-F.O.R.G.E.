@@ -28,7 +28,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CHANGELOG = ROOT / "CHANGELOG.md"
 
 #: "## 0.2.0 — alpha", and the em dash is not optional in this file.
-HEADING = re.compile(r"^## (?P<version>\d+\.\d+\.\d+)(?P<rest>.*)$")
+#:
+#: "## Unreleased — will ship as 0.2.3" counts as that version's section. Work
+#: accumulates there between releases, because the version number moves when a
+#: release is built and not when a commit lands; at release time the heading is
+#: renamed and this pattern stops matching it, which is the intended handover.
+HEADING = re.compile(
+    r"^## (?:(?P<version>\d+\.\d+\.\d+)|Unreleased\b.*?(?P<upcoming>\d+\.\d+\.\d+))(?P<rest>.*)$"
+)
 
 
 def section_for(version: str, text: str) -> str:
@@ -41,7 +48,7 @@ def section_for(version: str, text: str) -> str:
             continue
         if start is not None:
             return "\n".join(lines[start:index]).strip()
-        if match.group("version") == version:
+        if (match.group("version") or match.group("upcoming")) == version:
             start = index + 1
     if start is None:
         return ""
