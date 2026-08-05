@@ -76,7 +76,14 @@ def _archive(path, extra: dict) -> str:
         handle.writestr("OEBPS/nav.xhtml", MODERN_NAV)
         handle.writestr("OEBPS/chapter.xhtml", CHAPTER.format(marker="Tekst"))
         for name, data in extra.items():
-            handle.writestr(name, data)
+            # `ZipInfo.__init__` replaces os.sep with "/", so on Windows an
+            # entry named with a backslash silently becomes a well-formed one
+            # and the test has nothing left to test. Setting the name after
+            # construction produces the same archive on both platforms — which
+            # is the point, since the archives under test come from elsewhere.
+            info = zipfile.ZipInfo("placeholder")
+            info.filename = name
+            handle.writestr(info, data)
     return str(path)
 
 

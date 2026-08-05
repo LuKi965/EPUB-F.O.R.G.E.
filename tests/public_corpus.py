@@ -28,6 +28,16 @@ import zipfile
 #: the recorded signatures are worthless.
 EPOCH = (1980, 1, 1, 0, 0, 0)
 
+#: And the same host-system byte. `zipfile` stamps every entry with the platform
+#: it ran on — 0 for Windows, 3 for everything else — so a corpus generated on
+#: Windows hashed differently from the one generated here, every book came back
+#: "new", and the regression proved nothing.
+#:
+#: This is exactly the defect fixed in `epubforge/writer.py` for the real output,
+#: reproduced two days later in the fixture meant to guard against it. The public
+#: corpus caught it on its first run in CI, which is what it was built for.
+CREATE_SYSTEM = 3
+
 CONTAINER = """<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
@@ -84,10 +94,12 @@ def _write(path: pathlib.Path, entries: dict[str, bytes | str]) -> pathlib.Path:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         first = zipfile.ZipInfo("mimetype", date_time=EPOCH)
         first.compress_type = zipfile.ZIP_STORED
+        first.create_system = CREATE_SYSTEM
         archive.writestr(first, b"application/epub+zip")
         for name, data in entries.items():
             info = zipfile.ZipInfo(name, date_time=EPOCH)
             info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = CREATE_SYSTEM
             archive.writestr(info, data.encode("utf-8") if isinstance(data, str) else data)
     return path
 
