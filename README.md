@@ -24,10 +24,7 @@ jak książka wygląda.**
 > za przypadkową autodestrukcję plików w niej przetwarzanych. Wyznajemy zasadę —
 > **u mnie działa, u Ciebie nie musi**. Jak nie pasuje, to sobie zatenteguj.
 >
-> <!-- Miejsce na mem. Nie wstawiam żadnego z sieci: nie mam stąd dostępu do
->      internetu, a wklejenie cudzej grafiki do repozytorium bez sprawdzenia
->      licencji byłoby dokładnie tym rodzajem skrótu, przed którym ostrzega
->      reszta tego akapitu. Podeślij plik, a wstawię. -->
+> <div align="center"><img src="docs/to-sie-zateguje.jpg" alt="Spokojnie, to się zateguje" width="380"></div>
 >
 > Uczciwie natomiast: **narzędzie nigdy nie nadpisuje pliku wejściowego**, zapis
 > jest atomowy (przerwany przebieg nie zostawia połowy pliku), a nadpisanie

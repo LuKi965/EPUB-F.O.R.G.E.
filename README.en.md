@@ -26,10 +26,9 @@ book looking the way it looked.**
 > **it works on my machine, yours is your problem**. If you don't like it, sort
 > it out yourself.
 >
-> <!-- Space for a meme. Not pulling one off the internet: there is no network
->      access from here, and dropping someone else's image into a repository
->      without checking its licence would be exactly the kind of shortcut the
->      rest of this paragraph warns about. Send a file and it goes in. -->
+> <div align="center"><img src="docs/to-sie-zateguje.jpg" alt="Spokojnie, to się zateguje" width="380"></div>
+>
+> *("Spokojnie, to się zateguje" — roughly: relax, it'll sort itself out.)*
 >
 > In fairness, though: the tool **never overwrites its input**, the write is
 > atomic (an interrupted run leaves no half-file), and replacing an existing
