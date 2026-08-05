@@ -53,6 +53,28 @@ correction. They carried different levels and different messages through a
 conditional expression, which is how they came to share an identity neither of
 them could have.
 
+### The report speaks Polish
+
+The second of the two unmet alpha conditions. The window has been bilingual for
+a while and the report has not, and the reason was structural rather than
+effort: a sentence that *is* the identity of a finding cannot be swapped for its
+Polish equivalent without changing what it identifies. The catalogue is what
+made this possible, and it is exactly what a translation replaces.
+
+All 77 findings have a Polish description. `report.to_text("pl")` and the window
+use it; English is unchanged, byte for byte, because a translation that alters
+the original is a rewrite wearing a translation's name.
+
+The original message stays underneath the translated line. Thirty-seven of the
+seventy-seven still interpolate their values straight into the sentence — how
+many entries, which file, which media type — and dropping that to gain Polish
+would trade information for language. Turning those into templates with their
+values alongside is what removes the second line; until then it is there and
+said out loud rather than quietly lost.
+
+A copied English line in the Polish catalogue fails the suite: that is the shape
+a stalled translation takes, and it looks finished.
+
 ### A corpus diff now names the behaviour, not the counter
 
 Signatures record which rules fired and how often, so a book whose signature

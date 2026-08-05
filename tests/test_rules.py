@@ -205,3 +205,84 @@ class TestTheCorpusRecordsWhichRulesFired:
 
         same = {"preserve": {"rules": {"structure.relaid-out": 1}}}
         assert differences(same, same) == []
+
+
+class TestTheReportSpeaksPolish:
+    """The second of the two unmet alpha conditions.
+
+    The interface has been bilingual for a while and the report has not, for a
+    structural reason rather than a lack of effort: a sentence that *is* the
+    identity of a finding cannot be swapped for its Polish equivalent without
+    changing what it identifies. The catalogue is what made this possible, and
+    it is what a translation replaces.
+    """
+
+    def test_both_catalogues_describe_the_same_findings(self):
+        """A half-translated catalogue falls back to English silently and looks
+        like a finished translation, which is worse than an obvious gap."""
+        assert set(rules.CATALOGUE) == set(rules.CATALOGUE_PL)
+
+    def test_no_polish_entry_is_left_in_english(self):
+        """A copied English line is the shape a stalled translation takes."""
+        identical = [
+            rule
+            for rule in rules.CATALOGUE
+            if rules.CATALOGUE[rule] == rules.CATALOGUE_PL[rule]
+        ]
+        assert not identical, identical
+
+    def test_every_polish_entry_says_something(self):
+        empty = [rule for rule, text in rules.CATALOGUE_PL.items() if not text.strip()]
+        assert not empty, empty
+
+    def test_a_language_nobody_wrote_falls_back_rather_than_failing(self):
+        """A report in the wrong language is still a report; one that refuses to
+        print is not."""
+        assert rules.describe("nav.repointed", "de") == rules.describe("nav.repointed")
+
+    def test_the_report_renders_in_polish(self, tmp_path):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        text = result.report.to_text("pl")
+
+        assert text.startswith("Raport EPUB F.O.R.G.E.")
+        tagged = [f for f in result.report.findings if f.rule]
+        assert tagged
+        for finding in tagged:
+            assert rules.describe(finding.rule, "pl") in text
+
+    def test_the_specifics_are_not_traded_for_the_language(self, tmp_path):
+        """Thirty-seven messages still interpolate their values directly, so the
+        original line stays underneath the translated one. Dropping it would buy
+        Polish with information — how many entries, which file — and that is the
+        wrong trade."""
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        text = result.report.to_text("pl")
+        for finding in result.report.findings:
+            if finding.rule:
+                assert finding.message in text
+
+    def test_english_is_unchanged(self, tmp_path):
+        """Nothing about the existing report moves. A translation that alters the
+        original is a rewrite wearing a translation's name."""
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        text = result.report.to_text()
+        assert text.startswith("EPUB-Forge report")
+        assert "obrazy nie mają" not in text

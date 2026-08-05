@@ -81,8 +81,21 @@ class Report:
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
 
-    def to_text(self) -> str:
-        lines = [f"EPUB-Forge report", f"  source: {self.source}", f"  output: {self.output}", ""]
+    def to_text(self, language: str = "en") -> str:
+        """The report, rendered for a reader rather than for a machine.
+
+        In a language other than English, a finding that carries an identifier
+        is headed by what that identifier *means* in that language, and its
+        original message follows underneath. The message is where the specifics
+        live — how many entries, which file, which media type — and dropping it
+        to gain a translation would trade information for language. Once every
+        message is a template with its values alongside (37 of the 77 still
+        interpolate directly), the second line stops being needed.
+        """
+        from . import rules
+
+        header = "EPUB-Forge report" if language == "en" else "Raport EPUB F.O.R.G.E."
+        lines = [header, f"  source: {self.source}", f"  output: {self.output}", ""]
         for key, value in self.stats.items():
             lines.append(f"  {key}: {value}")
         lines.append("")
@@ -92,7 +105,11 @@ class Report:
                 current_level = finding.level
                 lines.append(f"[{current_level.value.upper()}]")
             where = f" ({finding.location})" if finding.location else ""
-            lines.append(f"  - {finding.stage}: {finding.message}{where}")
+            if language != "en" and finding.rule:
+                lines.append(f"  - {finding.stage}: {rules.describe(finding.rule, language)}{where}")
+                lines.append(f"      {finding.message}")
+            else:
+                lines.append(f"  - {finding.stage}: {finding.message}{where}")
             if finding.detail:
                 lines.append(f"      {finding.detail}")
         return "\n".join(lines)

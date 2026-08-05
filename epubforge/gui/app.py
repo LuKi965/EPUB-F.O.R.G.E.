@@ -36,6 +36,7 @@ from ..pipeline import Status, rebuild
 from ..policy import Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_to_json
+from .. import rules
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog
@@ -657,7 +658,19 @@ class MainWindow(QMainWindow):
             self.report_view.setTextColor(QColor(colors[finding.level]))
             label = tr(LEVEL_KEYS[finding.level]).rjust(width)
             where = f"  [{finding.location}]" if finding.location else ""
-            self.report_view.append(f"{label}  {finding.stage}: {finding.message}{where}")
+            # The window has been bilingual and the report has not, because the
+            # English sentence *was* the identity of a finding. With the
+            # catalogue it is not, so the headline follows the interface — and
+            # the original line stays beneath it, since that is where the
+            # specifics still live.
+            headline = finding.message
+            if language() != "en" and finding.rule:
+                headline = rules.describe(finding.rule, language())
+            self.report_view.append(f"{label}  {finding.stage}: {headline}{where}")
+            if language() != "en" and finding.rule and headline != finding.message:
+                self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
+                self.report_view.append(f"{'':>{width + 2}}{finding.message}")
+                self.report_view.setTextColor(QColor(colors[finding.level]))
             if finding.detail:
                 self.report_view.append(f"{'':>{width + 2}}{finding.detail}")
         self.report_view.setTextColor(default)
