@@ -67,6 +67,18 @@ DROPPED_ON_PURPOSE: dict[str, str] = {
 }
 
 
+#: Constructs the rebuild drops because it *cannot* carry them — open defects,
+#: not decisions. Kept in their own list so that a defect cannot quietly become
+#: a decision by being filed next to one, which is how they usually die.
+STILL_BROKEN: dict[str, str] = {
+    "collection": (
+        "EF-004: the model has no place for a <collection>, so the writer has "
+        "nothing to emit. Both of the fixture's collections disappear"
+    ),
+    "collection/@role": "EF-004: same as collection",
+}
+
+
 def constructs(path: str) -> set[str]:
     """Every element and attribute present in the package document.
 
@@ -118,16 +130,35 @@ def rebuilt_sink(request, kitchen_sink, tmp_path):
 
 def test_nothing_leaves_the_package_document_unnoticed(kitchen_sink, rebuilt_sink):
     """K12. Whatever the source declared either survives or is on the list."""
-    lost = constructs(kitchen_sink) - constructs(rebuilt_sink) - set(DROPPED_ON_PURPOSE)
+    lost = (
+        constructs(kitchen_sink)
+        - constructs(rebuilt_sink)
+        - set(DROPPED_ON_PURPOSE)
+        - set(STILL_BROKEN)
+    )
     assert not lost, (
         "the package document lost constructs that are not on the deliberate list: "
         f"{sorted(lost)}"
     )
 
 
+def test_no_known_defect_has_quietly_been_fixed(kitchen_sink, rebuilt_sink):
+    """A ratchet. When B3/B4 close one of these it fails here, and the entry has
+    to be deleted rather than left standing as a claim that is no longer true."""
+    survived = [name for name in STILL_BROKEN if name in constructs(rebuilt_sink)]
+    assert not survived, (
+        "listed as a defect but present in the output — delete the entry: "
+        f"{sorted(survived)}"
+    )
+
+
 def test_every_deliberate_drop_carries_a_reason():
     """The list documents decisions. An entry without one is a defect in hiding."""
-    unexplained = [name for name, reason in DROPPED_ON_PURPOSE.items() if not reason.strip()]
+    unexplained = [
+        name
+        for name, reason in list(DROPPED_ON_PURPOSE.items()) + list(STILL_BROKEN.items())
+        if not reason.strip()
+    ]
     assert not unexplained, unexplained
 
 

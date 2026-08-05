@@ -500,10 +500,21 @@ def _parse_metadata(package, report: Report) -> Metadata:
             prop = child.get("property")
             if child.get("refines"):
                 # Collections and their refinements are resolved together by
-                # _read_collection, above; nothing else here reads a refinement.
+                # _read_collection, above. The one refinement that is read here
+                # is a Media Overlay's duration, because it refines a *manifest
+                # item* rather than another metadata statement — and without it
+                # the overlay it belongs to is not merely poorer but invalid.
+                if prop == "media:duration" and value:
+                    # The target is an id at this point; the manifest is parsed
+                    # afterwards, so `read_epub` re-keys these by path.
+                    metadata.media_durations[child.get("refines")] = value
                 continue
             if prop == "dcterms:modified" and value:
                 metadata.modified = value
+            elif prop == "media:duration" and value:
+                metadata.media_durations[None] = value
+            elif prop in ("media:active-class", "media:playback-active-class") and value:
+                metadata.media_classes[prop] = value
             elif name and content:
                 if name == "calibre:series":
                     metadata.series = metadata.series or content
@@ -571,11 +582,36 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
             )
         properties = set((item.get("properties") or "").split())
         resource = Resource(path=path, media_type=media_type, data=entries[path], properties=properties)
+        # Kept as the raw id for now; resolved to a path below, once every item
+        # has been seen. A fallback may point forwards.
+        resource.fallback = item.get("fallback")
+        resource.media_overlay = item.get("media-overlay")
         if item_id:
             resources[item_id] = resource
             id_by_path[path] = item_id
         else:
             resources[f"__anon_{len(resources)}"] = resource
+
+    # Ids are the source's, and the rebuild regenerates them. Both of these are
+    # therefore stored as paths, which survive renaming — `Book.rename` keeps
+    # them pointing at the file rather than at a name that no longer exists.
+    for resource in resources.values():
+        for attribute in ("fallback", "media_overlay"):
+            reference = getattr(resource, attribute)
+            if not reference:
+                continue
+            target = resources.get(reference)
+            if target is None:
+                report.add(
+                    "reader",
+                    Level.WARN,
+                    f"{attribute.replace('_', '-')} points at an id the manifest does not define",
+                    location=resource.path,
+                    detail=f"{reference!r} — the reference is dropped rather than guessed at",
+                )
+                setattr(resource, attribute, None)
+            else:
+                setattr(resource, attribute, target.path)
     return resources, id_by_path
 
 
@@ -848,6 +884,15 @@ def read_epub(source: str, report: Report) -> Book:
     by_id, _ = _parse_manifest(package, opf_dir, entries, report)
     for resource in by_id.values():
         book.add(resource)
+
+    # Durations arrive keyed by the id they refine, because the metadata is
+    # parsed before the manifest. Re-key them by path so they survive renaming
+    # along with everything else that points at a file.
+    if book.metadata.media_durations:
+        book.metadata.media_durations = {
+            (by_id[key.lstrip("#")].path if key and key.lstrip("#") in by_id else None): value
+            for key, value in book.metadata.media_durations.items()
+        }
 
     book.source_package = entries.get(opf_path)
     book.spine, book.ncx_path, book.page_progression_direction = _parse_spine(

@@ -23,6 +23,49 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.1 — alpha
+
+**A stronger oracle, and the first part of EF-004 closed with it.**
+
+`tests/opf_graph.py` reads the package document as a graph: nodes with values
+and qualifiers, edges for `refines`, `fallback`, `media-overlay`, spine and
+collection membership, and a multiset rather than a set. The oracle it replaces
+asked whether the *name* of a construct still appeared somewhere, which is why
+a book with two `<collection>` elements could come back with one and pass. Node
+identity survives the things a rebuild is entitled to do — moving a file,
+renumbering it, transcoding an image — and nothing else.
+
+It found two losses that neither audit listed:
+
+| | |
+|---|---|
+| `item/@properties="scripted"` | `preserve` dropped the property that tells a reading system the document contains scripting |
+| `itemref/@properties` | `page-spread-center` lost, so a fixed-layout page no longer says which side of the fold it belongs on |
+
+**Media Overlays now survive, and this was worse than a loss.** Three separate
+omissions combined into one invalid book:
+
+- the SMIL file was carried as opaque bytes and moved to `misc/`, which left its
+  own `src` attributes pointing at files that were no longer there;
+- `item/@media-overlay` was never read, and EPUBCheck rejects a SMIL file whose
+  document does not point back at it;
+- `media:duration` was skipped because it is a refinement, and refinements were
+  assumed to belong to collections.
+
+`item/@fallback` is fixed in the same change, and it was the most invisible kind
+of defect: the field existed on the model and had no line in the writer, so it
+was read and then quietly dropped. A `fallback` or `media-overlay` naming an id
+the manifest does not define is now reported rather than guessed at.
+
+Both oracles carry a ratchet in the other direction too: an entry describing a
+loss that no longer happens fails the suite until it is deleted. Four entries
+were removed by that rule while this change was being written, which is the
+point of having it.
+
+`media-overlays.epub` in the public corpus has a new signature, deliberately.
+
+Tests: 428 → 461.
+
 ## 0.2.0 — alpha
 
 **Safety Gate complete.** Ten tasks, seven of the eight P0 findings from

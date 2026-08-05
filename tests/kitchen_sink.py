@@ -81,6 +81,13 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
     <meta name="cover" content="cover-image"/>
     <meta name="calibre:timestamp" content="2011-03-12T00:00:00+00:00"/>
 
+    <!-- The total must be the sum of the per-overlay durations; EPUBCheck
+         warns when it is not, and a fixture that is itself wrong teaches the
+         wrong lesson. One overlay, so the two are equal. -->
+    <meta property="media:duration">0:16:14</meta>
+    <meta refines="#ch1-overlay" property="media:duration">0:16:14</meta>
+    <meta property="media:active-class">-epub-media-overlay-active</meta>
+
     <link rel="record" href="https://example.invalid/onix.xml" media-type="application/xml"/>
   </metadata>
 
@@ -88,11 +95,15 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="cover-image" href="cover.png" media-type="image/png" properties="cover-image"/>
     <item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>
-    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml" media-overlay="ch1-overlay"/>
     <item id="ch2" href="ch2.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="css" href="style.css" media-type="text/css"/>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="font" href="font.ttf" media-type="font/ttf"/>
+    <item id="ch1-overlay" href="ch1.smil" media-type="application/smil+xml"/>
+    <item id="narration" href="ch1.mp3" media-type="audio/mpeg"/>
+    <item id="trailer" href="https://example.invalid/trailer.mp4" media-type="video/mp4"/>
+    <item id="odd" href="odd.xyz" media-type="application/octet-stream" fallback="ch2"/>
   </manifest>
 
   <spine toc="ncx" page-progression-direction="rtl">
@@ -105,7 +116,31 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
     <reference type="cover" title="Okładka" href="cover.xhtml"/>
     <reference type="text" title="Początek" href="ch1.xhtml"/>
   </guide>
+
+  <collection role="manifest">
+    <link href="ch1.xhtml"/>
+    <link href="style.css"/>
+  </collection>
+  <collection role="index">
+    <link href="ch2.xhtml"/>
+  </collection>
 </package>
+"""
+
+#: A Media Overlay: the thing that makes a book with narration a book with
+#: narration. The rebuild currently drops the attribute, the file and the
+#: duration together, and says nothing (EF-004).
+SMIL = """<?xml version="1.0" encoding="utf-8"?>
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">
+  <body>
+    <seq id="s1" epub:textref="ch1.xhtml" epub:type="chapter">
+      <par id="p1">
+        <text src="ch1.xhtml#p1"/>
+        <audio src="ch1.mp3" clipBegin="0s" clipEnd="12.5s"/>
+      </par>
+    </seq>
+  </body>
+</smil>
 """
 
 NAV = """<?xml version="1.0" encoding="utf-8"?>
@@ -174,6 +209,11 @@ def make_kitchen_sink(path: str) -> str:
         "OEBPS/style.css": b"p { text-indent: 1.2em; }\n",
         "OEBPS/cover.png": png_bytes(),
         "OEBPS/font.ttf": b"\x00\x01\x00\x00" + b"\x00" * 2048,
+        "OEBPS/ch1.smil": SMIL.encode(),
+        # Not real audio. Nothing here decodes it; what matters is that the
+        # manifest declares it and that it is still declared afterwards.
+        "OEBPS/ch1.mp3": b"ID3\x03\x00\x00\x00\x00\x00\x00" + b"\x00" * 512,
+        "OEBPS/odd.xyz": b"a resource of a type this tool has never heard of",
     }
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         info = zipfile.ZipInfo("mimetype")

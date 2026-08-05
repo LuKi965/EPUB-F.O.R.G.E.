@@ -26,6 +26,16 @@ _REFERENCE_RE = re.compile(
     re.VERBOSE | re.IGNORECASE,
 )
 
+#: File types carried through as opaque bytes whose internal references still
+#: have to follow the files they point at. Media Overlays are the whole of this
+#: list today; anything added here needs a fixture proving the same failure.
+CARRIED_XML = {"application/smil+xml"}
+
+#: `src="…"` and friends, in the shape SMIL uses them. Deliberately narrow: this
+#: rewrites bytes it does not otherwise understand, so it touches attributes it
+#: can name and nothing else.
+_SRC_ATTRIBUTE = re.compile(r"""\b(src|textref|epub:textref)=(["'])([^"']*)\2""")
+
 JUNK_PATHS = re.compile(
     r"(^|/)(\.DS_Store|Thumbs\.db|__MACOSX/.*|\._.*|.*\.bak|iTunesMetadata\.plist|calibre_bookmarks\.txt)$",
     re.IGNORECASE,
@@ -60,6 +70,65 @@ class StructureStage(Stage):
         if ctx.policy.reorganize_files:
             self._relayout(ctx)
         ctx.build_path_map()
+        self._repoint_carried_xml(ctx)
+
+    def _repoint_carried_xml(self, ctx: Context) -> None:
+        """Fix references inside files this pipeline moves but does not model.
+
+        A Media Overlay is the case that exposed this. The SMIL file is carried
+        through as opaque bytes, so nothing rewrote the `src` attributes inside
+        it — and moving it to `misc/` left it pointing at a chapter and an audio
+        file that are no longer where it says. The result does not merely lose
+        the narration: it is an invalid EPUB, and EPUBCheck says so.
+
+        Carrying a file without carrying its references is worse than not
+        carrying it, because it turns a silent loss into a broken book.
+        """
+        book = ctx.book
+        for resource in list(book.resources.values()):
+            if resource.media_type not in CARRIED_XML:
+                continue
+            source_path = resource.original_path or resource.path
+            try:
+                text = resource.data.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            rewritten = 0
+
+            def repoint(match: re.Match) -> str:
+                nonlocal rewritten
+                attribute, quote, value = match.group(1), match.group(2), match.group(3)
+                if not value or paths.is_remote(value) or value.startswith("#"):
+                    return match.group(0)
+                href, _, fragment = value.partition("#")
+                target = paths.resolve(source_path, href)
+                if target is None:
+                    return match.group(0)
+                moved = ctx.path_map.get(target, target)
+                if moved not in book.resources:
+                    return match.group(0)
+                new_value = paths.relative(resource.path, moved)
+                if fragment:
+                    new_value = f"{new_value}#{fragment}"
+                if new_value != value:
+                    rewritten += 1
+                return f"{attribute}={quote}{new_value}{quote}"
+
+            updated = _SRC_ATTRIBUTE.sub(repoint, text)
+            if rewritten:
+                resource.data = updated.encode("utf-8")
+                self.note(
+                    ctx,
+                    Level.FIX,
+                    f"repointed {rewritten} reference(s) inside a file carried as-is",
+                    location=resource.path,
+                    detail=(
+                        "The pipeline does not model this file type, but it does move "
+                        "the files it points at. Leaving the references alone would "
+                        "have produced an invalid book rather than a poorer one."
+                    ),
+                )
 
     def _drop_junk(self, ctx: Context) -> None:
         for path in list(ctx.book.resources):

@@ -19,6 +19,13 @@ from . import compat, paths
 from .model import Book
 from .report import Level, Report
 
+#: A metadata refinement has to name a manifest id, and the manifest is written
+#: after the metadata. The path goes in between these markers and is swapped for
+#: the id once both halves exist — the same trick `__COVER_ID__` uses, with room
+#: for a value in the middle.
+_OVERLAY_ID = "__OVERLAY_ID__"
+_OVERLAY_END = "__END__"
+
 CONTAINER_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
@@ -225,6 +232,21 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for key, value in book.rendition.items():
         lines.append(f'    <meta property="rendition:{escape(key)}">{escape(value)}</meta>')
 
+    # Media Overlays. Declaring an overlay without its duration is not a
+    # smaller book, it is an invalid one — EPUBCheck rejects the pair. The
+    # refinement targets a manifest id that does not exist yet, so it goes in
+    # as a placeholder and is resolved once the manifest has been written.
+    for key, value in sorted(metadata.media_classes.items()):
+        lines.append(f'    <meta property="{escape(key)}">{escape(value)}</meta>')
+    for target, value in sorted(metadata.media_durations.items(), key=lambda pair: pair[0] or ""):
+        if target is None:
+            lines.append(f'    <meta property="media:duration">{escape(value)}</meta>')
+        elif target in book.resources:
+            lines.append(
+                f'    <meta refines="#{_OVERLAY_ID}{target}{_OVERLAY_END}" '
+                f'property="media:duration">{escape(value)}</meta>'
+            )
+
     for name, content in metadata.extra_meta:
         if name.startswith("calibre:"):
             continue
@@ -248,17 +270,25 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     lines.append("  <manifest>")
     taken_ids: set[str] = {"pub-id", "title", "subtitle", "series"}
     id_by_path: dict[str, str] = {}
+    # Two passes: an item may point forwards, at a fallback or an overlay that
+    # has not been given an id yet.
+    for path in sorted(book.resources):
+        id_by_path[path] = _make_id(path, taken_ids)
+
     for path in sorted(book.resources):
         resource = book.resources[path]
-        item_id = _make_id(path, taken_ids)
-        id_by_path[path] = item_id
         href = paths.relative(opf_path, path)
         properties = " ".join(sorted(resource.properties)) or None
         attributes = {
-            "id": item_id,
+            "id": id_by_path[path],
             "href": href,
             "media-type": resource.media_type,
             "properties": properties,
+            # Dropped silently until 0.2.1. A book whose narration attribute is
+            # gone does not merely lose the narration: EPUBCheck rejects a SMIL
+            # file whose document does not point back at it.
+            "fallback": id_by_path.get(resource.fallback or ""),
+            "media-overlay": id_by_path.get(resource.media_overlay or ""),
         }
         rendered = " ".join(
             f"{key}={quoteattr(value)}" for key, value in attributes.items() if value is not None
@@ -309,6 +339,20 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     lines.append("</package>")
 
     opf = "\n".join(lines) + "\n"
+
+    def resolve_overlay(match: re.Match) -> str:
+        item_id = id_by_path.get(match.group(1))
+        # An overlay whose file is gone leaves a refinement pointing nowhere,
+        # which is worse than no refinement; the loss is already reported by the
+        # stage that removed the file.
+        return item_id if item_id else "__MISSING__"
+
+    if _OVERLAY_ID in opf:
+        opf = re.sub(
+            re.escape(_OVERLAY_ID) + r"(.*?)" + re.escape(_OVERLAY_END), resolve_overlay, opf
+        )
+        opf = re.sub(r'\s*<meta refines="#__MISSING__"[^>]*>[^<]*</meta>', "", opf)
+
     if book.cover_path:
         cover_id = id_by_path.get(book.cover_path)
         if cover_id:

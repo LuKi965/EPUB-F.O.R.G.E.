@@ -91,8 +91,12 @@ class Resource:
     manifested: bool = True
     #: Populated by the structure stage so other stages can report old names.
     original_path: str | None = None
-    #: Fallback chain target for non-core media types.
+    #: Fallback chain target for non-core media types, as a container path.
     fallback: str | None = None
+    #: The Media Overlay that narrates this document, as a container path. The
+    #: attribute is what makes a book with narration a book with narration; the
+    #: SMIL file alone is not enough, and EPUBCheck rejects the pair.
+    media_overlay: str | None = None
 
     @property
     def is_content_doc(self) -> bool:
@@ -219,6 +223,16 @@ class Metadata:
     #: Set only when the caller explicitly asserts conformance.
     conforms_to: str | None = None
 
+    #: Media Overlay declarations. The key is the container path of the SMIL
+    #: file the duration refines, or ``None`` for the whole publication. Not
+    #: optional decoration: EPUBCheck rejects a book that declares an overlay
+    #: without both, so dropping these while keeping the overlay produced an
+    #: invalid book rather than a poorer one.
+    media_durations: dict[str | None, str] = field(default_factory=dict)
+    #: ``media:active-class`` and ``media:playback-active-class`` — the classes
+    #: a reading system applies to the phrase being read.
+    media_classes: dict[str, str] = field(default_factory=dict)
+
     @property
     def title(self) -> str:
         return self.titles[0] if self.titles else "Untitled"
@@ -334,6 +348,16 @@ class Book:
             if path != old_path:
                 return target
             return f"{new_path}#{fragment}" if fragment else new_path
+
+        if old_path in self.metadata.media_durations:
+            self.metadata.media_durations[new_path] = self.metadata.media_durations.pop(old_path)
+
+        # Both are stored as paths precisely so that a move keeps them valid.
+        for other in self.resources.values():
+            if other.fallback == old_path:
+                other.fallback = new_path
+            if other.media_overlay == old_path:
+                other.media_overlay = new_path
 
         for root in self.toc:
             for node in root.walk():
