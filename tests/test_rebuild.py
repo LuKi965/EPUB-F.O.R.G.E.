@@ -1044,3 +1044,88 @@ class TestTheOneEditContainerOnlyModeMakes:
         )
         _, changed = modernise_doctype(data)
         assert changed
+
+
+class TestTheArchiveDeclaresWhatItHolds:
+    """`create_system = 3` says these are Unix attributes; the mode has to be
+    a possible Unix mode.
+
+    `0o644 << 16` leaves the file-type field zero — not a regular file, not a
+    directory, not anything. Python's own `writestr` does the same, which is
+    why it is common and why nothing on a desktop notices. It surfaced when an
+    e-reader hung on every file this program had ever written, and both files
+    that worked on it — one from another tool, one from Calibre — carry
+    `S_IFREG`.
+    """
+
+    def test_every_entry_is_a_regular_file(self, rebuilt):
+        import stat
+        import zipfile
+
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            for info in archive.infolist():
+                mode = info.external_attr >> 16
+                assert stat.S_ISREG(mode), f"{info.filename}: mode {mode:#o}"
+
+    def test_the_permission_bits_are_still_readable(self, rebuilt):
+        import zipfile
+
+        with zipfile.ZipFile(rebuilt.output_path) as archive:
+            for info in archive.infolist():
+                assert (info.external_attr >> 16) & 0o777 == 0o644, info.filename
+
+    def test_two_runs_still_produce_the_same_bytes(self, legacy_epub, tmp_path):
+        """The attributes are a constant, so reproducibility is untouched — the
+        thing every other field in this writer is arranged around."""
+        one = rebuild(legacy_epub, str(tmp_path / "a.epub"), Policy.preset("preserve", modified_override="2020-01-01T00:00:00Z"))
+        two = rebuild(legacy_epub, str(tmp_path / "b.epub"), Policy.preset("preserve", modified_override="2020-01-01T00:00:00Z"))
+        assert open(one.output_path, "rb").read() == open(two.output_path, "rb").read()
+
+
+class TestTheContentDirectoryMayBeTheRoot:
+    """Calibre puts the package document at the archive root, and readers exist
+    that were built against that layout.
+
+    Making the directory configurable produced "/content.opf" and "/images/…" —
+    a leading slash, which is not a container path at all and which EPUBCheck
+    rejected on sight, 214 errors deep. Every place that builds a path inside
+    the content directory now goes through one helper, because there were four
+    of them and three were wrong.
+    """
+
+    def test_an_empty_directory_puts_the_package_at_the_root(self, legacy_epub, tmp_path):
+        result = rebuild(
+            legacy_epub,
+            str(tmp_path / "root.epub"),
+            Policy.preset("preserve", content_dir="", package_name="content.opf"),
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            names = archive.namelist()
+        assert "content.opf" in names
+        assert not [n for n in names if n.startswith("/")]
+
+    def test_a_named_directory_still_works(self, legacy_epub, tmp_path):
+        result = rebuild(
+            legacy_epub,
+            str(tmp_path / "oebps.epub"),
+            Policy.preset("preserve", content_dir="OEBPS", package_name="content.opf"),
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            assert "OEBPS/content.opf" in archive.namelist()
+
+    @pytest.mark.parametrize(
+        "directory, name",
+        [("", "content.opf"), ("OEBPS", "content.opf"), ("EPUB", "package.opf")],
+    )
+    def test_the_container_points_at_wherever_it_went(self, legacy_epub, tmp_path, directory, name):
+        result = rebuild(
+            legacy_epub,
+            str(tmp_path / f"{directory or 'root'}.epub"),
+            Policy.preset("preserve", content_dir=directory, package_name=name),
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            container = etree.fromstring(archive.read("META-INF/container.xml"))
+            declared = container.find(
+                ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
+            ).get("full-path")
+            assert declared in archive.namelist(), declared

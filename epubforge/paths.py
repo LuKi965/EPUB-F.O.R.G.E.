@@ -123,3 +123,13 @@ def unique(candidate: str, taken: set[str]) -> str:
         if probe not in taken:
             return probe
         counter += 1
+
+
+def content_path(policy, name: str) -> str:
+    """A path inside the content directory, which may be the archive root.
+
+    `f"{policy.content_dir.strip('/')}/{name}"` produces "/nav.xhtml" when the
+    directory is empty — a leading slash, and not a container path at all.
+    """
+    directory = policy.content_dir.strip("/")
+    return f"{directory}/{name}" if directory else name

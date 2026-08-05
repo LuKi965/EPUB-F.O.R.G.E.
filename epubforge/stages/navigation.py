@@ -78,7 +78,7 @@ class NavigationStage(Stage):
 
         # Some books reference the image directly from the spine; others have no
         # cover page at all. Either way, synthesise one so readers show it.
-        page_path = f"{ctx.policy.content_dir.strip('/')}/text/0000-cover.xhtml"
+        page_path = paths.content_path(ctx.policy, "text/0000-cover.xhtml")
         page_path = paths.unique(page_path, set(book.resources))
         markup = COVER_PAGE_TEMPLATE.format(
             xhtml=XHTML_NS,
@@ -333,7 +333,7 @@ class NavigationStage(Stage):
 
     def _write_nav(self, ctx: Context) -> None:
         book = ctx.book
-        nav_path = f"{ctx.policy.content_dir.strip('/')}/nav.xhtml"
+        nav_path = paths.content_path(ctx.policy, "nav.xhtml")
 
         # A navigation document is allowed to be part of the reading order, and
         # that is how a *visible* table of contents is built — the page the
@@ -500,7 +500,7 @@ class NavigationStage(Stage):
 
     def _write_ncx(self, ctx: Context) -> None:
         book = ctx.book
-        ncx_path = f"{ctx.policy.content_dir.strip('/')}/toc.ncx"
+        ncx_path = paths.content_path(ctx.policy, "toc.ncx")
         if book.ncx_path and book.ncx_path != ncx_path:
             book.remove(book.ncx_path)
 

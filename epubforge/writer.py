@@ -74,7 +74,17 @@ EPOCH = (1980, 1, 1, 0, 0, 0)
 def _entry(path: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(path, date_time=EPOCH)
     info.compress_type = compression
-    info.external_attr = 0o644 << 16
+    # The mode goes in the high half, and it has to include the file-type bits.
+    # `0o644 << 16` alone declares a Unix mode whose type field is zero — not a
+    # regular file, not a directory, not anything. `create_system = 3` below
+    # says these attributes *are* Unix attributes, so writing an impossible
+    # mode is claiming one thing and providing another.
+    #
+    # Python's own `writestr` does the same, which is why it is common and why
+    # nothing on a desktop notices. Both files known to work on the e-reader
+    # that started this — one from another tool, one from Calibre — carry
+    # `S_IFREG`; every file this program has ever written does not.
+    info.external_attr = (0o100644 << 16)
     # `zipfile` stamps every entry with the operating system it ran on — 0 for
     # Windows, 3 for everything else — in both headers. One book built in two
     # places therefore came out with different bytes and an identical
@@ -527,7 +537,12 @@ def write_epub(
     ``os.replace`` is atomic within a filesystem, which is why the temporary
     file is created in the destination's own directory rather than in /tmp.
     """
-    opf_path = f"{content_dir.strip('/')}/{package_name}"
+    # An empty content directory means the package sits at the archive root,
+    # which is what Calibre produces and what some readers were built against.
+    # Joining unconditionally gave "/content.opf" — a leading slash, and an
+    # invalid container path.
+    directory = content_dir.strip("/")
+    opf_path = f"{directory}/{package_name}" if directory else package_name
     opf, _ = build_opf(book, opf_path, report)
 
     directory = os.path.dirname(os.path.abspath(destination))

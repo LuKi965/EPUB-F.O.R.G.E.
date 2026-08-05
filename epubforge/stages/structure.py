@@ -59,6 +59,16 @@ def scan_references(data: bytes) -> list[str]:
     return found
 
 
+def _join(directory: str, name: str) -> str:
+    """A container path, with no leading slash when the directory is empty.
+
+    The content directory may be empty — the package at the archive root, which
+    is the layout Calibre produces. Joining unconditionally produced "/images/…",
+    which is not a container path at all.
+    """
+    return f"{directory}/{name}" if directory else name
+
+
 class StructureStage(Stage):
     name = "structure"
 
@@ -208,7 +218,7 @@ class StructureStage(Stage):
         for path in ordered:
             resource = book.resources[path]
             if resource.media_type == "application/x-dtbncx+xml":
-                new_path = f"{root}/toc.ncx"
+                new_path = _join(root, "toc.ncx")
             else:
                 folder = folder_for(resource.media_type)
                 basename = paths.ascii_slug(posixpath.basename(path), fallback=folder)
@@ -218,7 +228,7 @@ class StructureStage(Stage):
                     stem = re.sub(r"^\d{4}-", "", stem)
                     prefix = f"{spine_positions[path]:04d}-" if path in spine_positions else ""
                     basename = f"{prefix}{stem or 'section'}.xhtml"
-                new_path = f"{root}/{folder}/{basename}"
+                new_path = _join(root, f"{folder}/{basename}")
             new_path = paths.unique(new_path, taken)
             taken.add(new_path)
             if new_path != path:

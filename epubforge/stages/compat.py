@@ -110,7 +110,7 @@ class CompatibilityStage(Stage):
             return
 
         sheet_path = paths.unique(
-            f"{ctx.policy.content_dir.strip('/')}/styles/{compat.COMPAT_STYLESHEET_NAME}",
+            paths.content_path(ctx.policy, f"styles/{compat.COMPAT_STYLESHEET_NAME}"),
             set(book.resources),
         )
         book.add(
