@@ -23,12 +23,33 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## Unreleased — will ship as 0.2.3
+## Unreleased
 
-Nothing below has an installer yet. The version number moves when a release
-is built, not when a commit lands: numbering every commit produced 0.2.3
-through 0.2.7 with two releases between them, which says nothing to anyone
-reading the list of downloads. What was done is kept in full, by subject.
+Nothing here yet. Work lands under this heading and gets a number and a date
+when a release is built — see *Jak się wydaje* in `CONTRIBUTING.md`.
+
+## 0.2.3 — alpha — 2026-08-05
+
+**Thirty-two real books and six from Project Gutenberg were pointed at this
+release, and they found five defects that no fixture could have.** Four books
+came out invalid; one of them turned a source EPUBCheck passed cleanly into 235
+errors. All five are closed.
+
+### At a glance
+
+| | |
+|---|---|
+| The publisher's contents page was destroyed | K1 violation, 4 of 32 books |
+| Replacing the navigation left dead references | invalid output, 27 links in one book |
+| Container-only mode stranded entities | book would not open, 4 of 32 books |
+| Metadata written the EPUB 3 way was dropped | 11 of 32 books |
+| Manifest properties were withdrawn silently | every book with a false declaration |
+
+**New:** one JSON report for a whole run, in the window (Ctrl+Shift+S) and on
+the command line. **Fixed:** the report panel stayed blank when the queue held
+a single book.
+
+### Everything, by subject
 
 ### Container-only mode carries its entities with it
 

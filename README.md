@@ -1,575 +1,180 @@
+<div align="center">
+
+<img src="packaging/epubforge.png" alt="EPUB F.O.R.G.E." width="128" height="128">
+
 # EPUB F.O.R.G.E.
 
-**F**abryka **O**dbudowy i **R**enowacji **G**litchujących **E**PUB-ów
+**Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
+jak książka wygląda.**
 
-Przekuwa wadliwe EPUB-y w czysty **EPUB 3.3**, nie tracąc tego, co czyni książkę
-sobą — okładki, grafik, czcionek, układu i typografii.
+`0.2.3` · alpha · 552 testy · Windows / Linux / macOS
 
-*(English: [`README.en.md`](README.en.md).)*
+[Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
+[Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
+[Zmiany](CHANGELOG.md)
+
+</div>
 
 ---
 
-## Spis treści
-
-1. [Na czym to polega](#na-czym-to-polega)
-2. [Co jest zachowywane](#co-jest-zachowywane)
-3. [Co jest naprawiane](#co-jest-naprawiane)
-4. [Czego narzędzie nie rusza](#czego-narzędzie-nie-rusza)
-5. [Tryby pracy](#tryby-pracy)
-6. [Zgodność z czytnikami](#zgodność-z-czytnikami)
-7. [Dostępność cyfrowa](#dostępność-cyfrowa)
-8. [Instalacja](#instalacja)
-9. [Użycie](#użycie)
-10. [Raport](#raport)
-11. [Jak to jest zbudowane](#jak-to-jest-zbudowane)
-12. [Budowanie paczki](#budowanie-paczki)
-13. [Ograniczenia](#ograniczenia)
-14. [Rozwój](#rozwój)
-15. [Autorzy i licencja](#autorzy-i-licencja)
+> ### ⚠️ Zanim wrzucisz tu swoją bibliotekę
+>
+> Aplikacja powstała z wykorzystaniem metody tak zwanego **Vibe Codingu** i może
+> (a prawie na pewno jest) potencjalnym **AI slopem**. Autorzy nie odpowiadają
+> za przypadkową autodestrukcję plików w niej przetwarzanych. Wyznajemy zasadę —
+> **u mnie działa, u Ciebie nie musi**. Jak nie pasuje, to sobie zatenteguj.
+>
+> <!-- Miejsce na mem. Nie wstawiam żadnego z sieci: nie mam stąd dostępu do
+>      internetu, a wklejenie cudzej grafiki do repozytorium bez sprawdzenia
+>      licencji byłoby dokładnie tym rodzajem skrótu, przed którym ostrzega
+>      reszta tego akapitu. Podeślij plik, a wstawię. -->
+>
+> Uczciwie natomiast: **narzędzie nigdy nie nadpisuje pliku wejściowego**, zapis
+> jest atomowy (przerwany przebieg nie zostawia połowy pliku), a nadpisanie
+> istniejącego wyjścia wymaga `--force`. To nie jest gwarancja — to jest lista
+> rzeczy, które są przetestowane.
 
 ---
 
 ## Na czym to polega
 
-Narzędzie nie łata pliku, który dostaje. Wczytuje książkę do modelu niezależnego
-od formatu, wyrzuca oryginalny kontener i generuje nowy: dokument pakietu,
-nawigację, manifest, spine, nazwy plików i strukturę ZIP.
+EPUB to ZIP z dokumentami XHTML, arkuszami CSS i plikiem opisującym całość.
+Przez piętnaście lat produkowało go kilkanaście generatorów, z których każdy
+robił to trochę inaczej i żaden nie robił tego całkiem zgodnie ze standardem.
 
-To nie jest ozdobnik architektoniczny, tylko powód, dla którego to działa. Pliki
-z księgarń i konwerterów psują się w sposób, który wymyka się łataniu: manifesty
-wymieniające nieistniejące pliki, spine wskazujący brakujące identyfikatory,
-`<center>` i `<font>` z konwertera HTML z 2004 roku, identyfikatory zaczynające
-się cyfrą, nieokreślone encje HTML w plikach podających się za XML, czcionki
-zaobfuskowane kluczem, którego nikt nie zapisał. Narzędzie *naprawiające* musi
-przewidzieć każdy z tych przypadków z osobna. Przebudowa musi go tylko
-**odczytać** — a wynik jest poprawny z konstrukcji, nie z listy poprawek.
+To narzędzie **czyta książkę i składa ją na nowo**: czyta, co źródło naprawdę
+deklaruje, buduje z tego model w pamięci i wypisuje z niego świeży, poprawny
+kontener EPUB 3.3. Nie łata pliku wejściowego — pisze nowy. Dzięki temu wynik
+jest poprawny niezależnie od tego, jak zepsute było wejście.
 
-Zasada nadrzędna, której podlega cała reszta:
+Naczelna zasada, sprawdzana testem na każdej książce: **żaden znak tekstu nie
+ginie**. Nie „prawie żaden" i nie „liczba znaków się zgadza" — każdy znak
+kolejności czytania źródła musi znaleźć się w wyniku, w tej samej kolejności.
 
-> Naprawiamy to, co jest **jawnym błędem**. Zostawiamy to, co jest **decyzją
-> wydawcy** — nawet nietypową. Gdy nie da się rozstrzygnąć, wygrywa wygląd,
-> a wątpliwość idzie do raportu.
+## Trzy tryby
 
----
-
-## Co jest zachowywane
-
-Zachowanie wyglądu to twarde wymaganie, nie „staranie się”. Przestarzały markup
-jest **tłumaczony**, nigdy usuwany:
-
-| Źródło | Wynik | Wygląd |
+| Tryb | Co robi | Kiedy |
 |---|---|---|
-| `<center>` | `<div style="text-align: center">` | identyczny |
-| `<font color size face>` | `<span style="…">` | identyczny |
-| `<table border cellspacing bgcolor>` | odpowiedniki CSS na elemencie | identyczny |
-| `<tt>` `<big>` `<strike>` | `<span>` z pasującym CSS | identyczny |
-| `<a name="x">` | `<a id="x">` | identyczny |
-| czcionki zaobfuskowane | odszyfrowane, `encryption.xml` usunięty | identyczny |
-| WebP / BMP / TIFF | PNG, odnośniki przepisane | identyczny |
+| **Zachowaj wygląd** (`preserve`) | pełna przebudowa; poprawia to, co jest zepsute, i zostawia to, o czym wydawca zdecydował świadomie | domyślny; do większości książek |
+| **Wymuś standard** (`strict`) | to samo, ale zgodność wygrywa z wyglądem tam, gdzie się kłócą | gdy plik ma trafić do dystrybucji |
+| **Tylko kontener** (`minimal`) | przebudowuje opakowanie, dokumentów nie otwiera | gdy chcesz wyłącznie naprawić strukturę |
 
-### Znaki wodne
-
-Znaki wodne księgarń (*social DRM*) **nie są usuwane** — to sprawa między Tobą
-a sprzedawcą, nie narzędziem. Są za to porządkowane, bo w oryginale potrafią
-zdemolować książkę technicznie: pojedynczy token wstrzyknięty w
-`<div style="font-size:1px !important">` na końcu **każdego** dokumentu — 34
-kopie w jednej zmierzonej tu książce, 27 i 23 w dwóch kolejnych.
-
-Tekst tokenu zostaje nietknięty. Znika powtarzane po trzydzieści parę razy
-formatowanie inline z `!important`, zastąpione jedną regułą, a znacznik dostaje
-`aria-hidden`, żeby czytnik ekranowy przestał go literować na końcu każdego
-rozdziału. Widoczne informacje o ochronie — te przeznaczone do przeczytania —
-są rozpoznawane osobno i zostają dokładnie takie, jakie były.
-
----
-
-## Co jest naprawiane
-
-Osobna kategoria: rzeczy, które przeglądarka i tak odrzuca, więc ich naprawa
-**przywraca** intencję wydawcy, zamiast ją nadpisywać.
-
-- **`font-style: regular`** — `regular` nie jest wartością CSS, więc parser
-  wyrzucał całą deklarację. Zamieniane na `normal`.
-- **`<p><img/></p>` w tekście ciągłym** — reguła
-  `p { text-indent: 2%; text-align: justify }` pisana pod prozę przesuwała
-  okładki i strony tytułowe w bok i nigdy ich nie centrowała.
-- **Blok wewnątrz elementu liniowego** — nagłówek zbudowany jako
-  `<h1><a><span style="display:block">…</span></a></h1>`. Blok rozbija element
-  liniowy na anonimowe pudełka i marginesy zaczynają się zachowywać
-  nieprzewidywalnie; opakowanie awansuje na `inline-block`.
-- **Błędne typy MIME w manifeście** — np. `application/x-font-ttf`, który nie
-  istnieje w żadnym standardzie.
-- **Identyfikatory niebędące poprawnymi nazwami XML** — zmieniane wraz ze
-  wszystkimi odnośnikami, także we wnętrzu spisu treści.
-- **Nieokreślone encje** (`&nbsp;` i pokrewne) w plikach deklarujących się jako
-  XML, na których czytniki wykładają się fatalnie.
-
-### Skąd narzędzie wie, że to błąd
-
-Poprawka obrazków jest tu dobrym przykładem, bo pokazuje różnicę między
-„naprawiam usterkę” a „narzucam swój gust”. Zanim akapit z samym obrazkiem
-zostanie wycentrowany, czytana jest kaskada CSS:
-
-- `p.ilustracja { text-align: right }` — reguła celuje w ten akapit klasą, więc
-  jest **decyzją o tym obrazku**. Zostaje.
-- `body.cover { text-align: center }` — reguła celuje w pojemnik, a wyrównanie
-  jest dziedziczone. To wciąż decyzja o tym, gdzie stoi ta grafika, więc też
-  zostaje; obraz **już jest** wyśrodkowany i dopisywanie czegokolwiek byłoby
-  meldunkiem o pracy, której nie wykonano.
-- `p { text-align: justify }` — reguła pisana pod prozę, która przypadkiem
-  spadła na grafikę przez dziedziczenie. Akapit jest z niej wyłączany.
-- styl inline — zawsze respektowany.
-- selektor zbyt złożony, żeby go jednoznacznie odczytać — traktowany jak
-  celowany. Przy niepewności narzędzie **nie rusza**.
-
-Obie właściwości — `text-align` i `text-indent` — są dziedziczone, więc
-rozstrzyga je najbliższy przodek, który cokolwiek o nich mówi. Bywa, że
-wyrównanie było wyborem, a wcięcie akapitowe wsiąkło z reguły o tekście
-ciągłym: wtedy znika samo wcięcie, a wyrównanie zostaje takie, jakie było.
-
-Dlatego książki, które stylują swoje ilustracje świadomie, wychodzą nietknięte,
-a poprawiane są tylko strony, na których o wyrównaniu nie zdecydował nikt.
-W przeglądzie 65 książek reguła zostawiła układ w spokoju 485 razy, a ruszyła
-54 — dziewięć razy częściej nie robi nic, niż robi cokolwiek.
-
----
-
-## Czego narzędzie nie rusza
-
-Rzeczy, które są **wyborem** wydawcy — nawet dziwnym — zostają i trafiają do
-raportu jako `zachowano`:
-
-- `div.dol { position: absolute; bottom: 0 }` dociska dedykację do dołu strony;
-  to układ, a nie usterka. (Usuwane dopiero w trybie `strict`.)
-- Hacki CSS pod konkretne czytniki, `@media amzn-*`, właściwości `adobe-*`.
-- Skrypty — część książek o stałym układzie bez nich się rozjeżdża.
-- Odnośniki do plików, których książka nigdy nie zawierała: tekst zostaje,
-  usterka idzie do raportu.
-
-**DRM nie jest ruszany.** Prawdziwe szyfrowanie jest wykrywane, odrzucane
-i raportowane; narzędzie odwraca wyłącznie obfuskację czcionek, która DRM-em nie
-jest.
-
----
-
-## Tryby pracy
-
-Tam, gdzie zgodność naprawdę kłóci się z wyglądem, decyduje tryb — a każde
-odstępstwo i tak trafia do raportu.
-
-| Tryb | Co wygrywa | Co robi |
-|---|---|---|
-| **`preserve`** *(domyślny)* | wygląd | Naprawia jawne błędy. Odstępstwa, które działają, zostają z adnotacją `zachowano`. |
-| **`strict`** | specyfikacja | Martwe odnośniki tracą `href` (tekst zostaje), znikają bloki `@media` pod Kindle, właściwości `adobe-*` i pozycjonowanie bezwzględne. |
-| **`minimal`** | nic | Regenerowany jest wyłącznie kontener: OPF, nawigacja i struktura ZIP. Pliki XHTML i CSS wychodzą **bajt w bajt** takie, jakie weszły. |
-
-W trybie `minimal` etapy XHTML i CSS w ogóle się nie uruchamiają. Samo
-sparsowanie i ponowne zapisanie dokumentu zmienia jego bajty, nawet gdy nic mu
-nie brakuje — więc jedynym sposobem dotrzymania tej obietnicy jest nieotwieranie
-tych plików.
-
----
-
-## Zgodność z czytnikami
-
-Wynikiem tego narzędzia jest książka zgodna ze standardem. Niektóre urządzenia
-standardu nie trzymają się, a ich awaria nie jest głośna: czytnik nie protestuje,
-tylko renderuje książkę źle — pusty spis treści, okładka, która się nie
-pojawia, rozdziały zlane w jeden akapit.
-
-Dlatego profile zgodności są **opcjonalne i domyślnie wyłączone**, a każdy z nich
-wyłącznie **dokłada**: plik, deklarację albo stary element. Żaden nic nie usuwa,
-nie przepisuje tego, co w książce było, ani nie zmienia wyglądu na czytniku
-trzymającym się specyfikacji. To jest cena wstępu — ustępstwo, które mogłoby
-zepsuć książkę na poprawnym oprogramowaniu, nie jest ustępstwem, tylko regresją.
-
-| Profil | Urządzenia | Co dokłada |
-|---|---|---|
-| `kindle` | Amazon Kindle (Send-to-Kindle, konwersja KFX/KF8) | `<guide>`, arkusz z blokowymi elementami HTML5, stara pisownia łamania stron |
-| `kobo` | Rakuten Kobo czytające EPUB-a wprost | NCX, `<guide>`, blokowe elementy HTML5 |
-| `apple` | Apple Books (iOS, macOS) | `META-INF/com.apple.ibooks.display-options.xml` |
-| `legacy` | Adobe RMSDK — PocketBook, Nook, Sony, starsze Kobo i Onyx | wszystko powyższe |
-
-Dlaczego akurat to:
-
-- **`<guide>`** — konwerter Amazona i czytniki oparte na RMSDK szukają okładki
-  i miejsca rozpoczęcia lektury właśnie tam, nie w nawigacji EPUB 3. Element nie
-  należy już do EPUB 3.3, choć EPUBCheck wciąż go akceptuje: plik pozostaje
-  poprawny, ale niesie coś, co standard porzucił.
-- **Blokowe elementy HTML5** — RMSDK renderuje nieznany element jako liniowy,
-  więc książka zbudowana z `<section>` zlewa się w jeden ciągły akapit. Arkusz
-  jest podlinkowany **przed** arkuszami wydawcy, więc każda jego reguła nadal
-  wygrywa.
-- **`page-break-*`** — nowoczesne właściwości łamania są młodsze od tych
-  silników. Stara pisownia jest dopisywana **przed** nową, żeby w aktualnym
-  czytniku wciąż wygrywała ta, którą napisał wydawca.
-- **`specified-fonts`** — bez tego pliku Apple Books ignoruje wszystkie osadzone
-  kroje i podstawia własny. Powstaje tylko wtedy, gdy książka faktycznie zawiera
-  czcionki: deklaracja czegoś, czego nie ma, byłaby po prostu nieprawdą.
-
-Z wszystkimi czterema profilami naraz wynik nadal przechodzi EPUBCheck z zerem
-błędów i zerem ostrzeżeń — pilnuje tego test.
-
-```bash
-epubforge compat                       # co dokładnie robi każdy profil i po co
-epubforge build ksiazka.epub --compat kindle,apple
-```
-
-Czego to **nie** jest: lekarstwa na czytnik, który odmawia otwarcia pliku
-w ogóle. Taka usterka leży gdzie indziej i profil jej nie naprawi.
-
-Profile są opcjonalne, bo w praktyce często nie są potrzebne: na Kobo pełna
-przebudowa **bez żadnego profilu** otwiera się normalnie — zmierzone, zapisane
-w [`docs/URZADZENIA.md`](docs/URZADZENIA.md). Włącz profil, gdy Twoje urządzenie
-pokaże, że go potrzebuje, a nie na zapas.
-
----
-
-## Dostępność cyfrowa
-
-Od czerwca 2025 **European Accessibility Act** obejmuje ebooki, więc metadane
-dostępności przestały być opcjonalne. Narzędzie generuje deklaracje
-**EPUB Accessibility 1.1** wyprowadzone z tego, co książka faktycznie zawiera:
-`schema:accessMode`, `accessModeSufficient`, `accessibilityFeature`,
-`accessibilityHazard` i podsumowanie.
-
-Obowiązuje przy tym jedna twarda zasada: **żadna deklaracja nie jest zmyślana.**
-Narzędzie, które wpisze `alternativeText` książce bez opisów alternatywnych, nie
-poprawiło dostępności — wyprodukowało fałszywe oświadczenie i utrudniło
-znalezienie problemu. Dlatego:
-
-- `alternativeText` pojawia się tylko wtedy, gdy **każda** ilustracja ma realny
-  opis;
-- alt powtarzający nazwę pliku (`alt="title-1"`, `alt="cover"`) jest wykrywany
-  i **nie** liczy się jako opis;
-- okładka dostaje opis z tytułu książki, bo okładka przedstawia książkę;
-- zgodność z WCAG **nigdy** nie jest deklarowana automatycznie — maszynowo się
-  jej nie da ustalić, a pod EAA to oświadczenie wydawcy. Służy do tego jawna
-  flaga `--claim-conformance`.
-
-Braki, których nie da się naprawić automatycznie (brakujące opisy, przeskoki
-poziomów nagłówków, tabele bez komórek nagłówkowych), trafiają do raportu jako
-robota dla człowieka.
-
----
+Tryb „tylko kontener" robi w treści **jedną** zmianę: wymienia stary DOCTYPE na
+ten z EPUB 3, przenosząc razem z nim encje (`&nbsp;` → `&#160;`). Bez tego wynik
+nie jest poprawnym EPUB-em 3, a książka, w której encja została osierocona, w
+ogóle się nie otwiera. DOCTYPE nie mówi nic o wyglądzie, więc jest to jedyna
+zmiana, która nie może zmienić tego, co widzi czytelnik.
 
 ## Instalacja
 
 ### Windows — bez Pythona i bez Javy
 
-Pobierz `EPUB-FORGE-<wersja>-setup.exe` ze
-[strony wydań](https://github.com/LuKi965/EPUB-F.O.R.G.E./releases) albo wersję
-przenośną `.zip`. Obie zawierają środowisko Pythona, Qt, minimalne środowisko
-Javy i EPUBCheck — na komputerze docelowym nie trzeba mieć niczego. Instalator
-działa w trybie użytkownika i nie pyta o uprawnienia administratora.
+Pobierz z [wydań](https://github.com/LuKi965/EPUB-F.O.R.G.E./releases):
 
-W paczce są dwa programy:
-
-- `EPUB-Forge.exe` — okno. Przeciągasz książki, oglądasz raport, zapisujesz wynik.
-- `epubforge.exe` — to samo z wiersza poleceń, do przetwarzania wsadowego.
+- **`EPUB-FORGE-x.y.z-setup.exe`** — instalator, skrót w menu Start
+- **`EPUB-Forge-x.y.z-portable.zip`** — rozpakuj i uruchom, nic nie instaluje
 
 ### Ze źródeł
 
 ```bash
-pip install -e ".[gui]"
+git clone https://github.com/LuKi965/EPUB-F.O.R.G.E.
+cd EPUB-F.O.R.G.E.
+pip install -e .
 ```
 
-Tutaj EPUBCheck jest opcjonalny: wskaż `epubcheck.jar` zmienną `EPUBCHECK_JAR`
-albo umieść `epubcheck` w `PATH`. Bez niego działa wszystko poza walidacją.
-
----
+Wymaga Pythona 3.10+. EPUBCheck (opcjonalny, do walidacji) potrzebuje Javy 11+
+i pobiera się sam przy pierwszym użyciu.
 
 ## Użycie
 
-```bash
-# Jedna książka, obok oryginału
-epubforge build ksiazka.epub
-
-# Cała biblioteka do jednego folderu, z weryfikacją
-epubforge build ~/Ebooki -o ~/Ebooki/czyste --check
-
-# Co się psuje w całej bibliotece — rankingowo, nic nie zapisując
-epubforge survey ~/Ebooki
-
-# Czym te książki są: pochodzenie, uszkodzenia, typografia
-epubforge inventory ~/Ebooki --json spis.json
-
-# Pełna zgodność, wygląd na drugim miejscu
-epubforge build ksiazka.epub --strict -o czysta.epub
-
-# Z ustępstwami pod konkretne urządzenia
-epubforge build ksiazka.epub --compat kobo
-
-# Co jest nie tak z tym plikiem, bez zapisywania czegokolwiek
-epubforge inspect ksiazka.epub
-
-# Interfejs graficzny
-epubforge gui
-```
-
-Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--drop-orphans`, `--keep-layout`,
-`--keep-watermark-markup`, `--no-a11y-metadata`, `--claim-conformance wcag-aa`,
-`--compat`, `--modified`, `--title/--author/--publisher/--series/--language`,
-`--report raport.json`, `-v`.
-
-### Interfejs
-
-Trzy zakładki, bo to trzy różne pytania:
-
-| Zakładka | Do czego |
-|---|---|
-| **Przebudowa** | pojedyncze książki: przeciągasz, oglądasz raport, zapisujesz wynik |
-| **Biblioteka** | cały folder naraz — przegląd (co się psuje) albo inwentarz (czym te książki są) |
-| **Korpus** | podpisy Twojej biblioteki, żeby pilnowała narzędzia przy każdej kolejnej zmianie |
-
-Polski lub angielski, przełączany w menu **Ustawienia → Język interfejsu**
-(wybór jest zapamiętywany). Każda opcja ma dymek opisujący, co zrobi z książką —
-nie powtarzający jej nazwy. Motyw jasny i ciemny dobiera się z ustawień systemu.
-
-Okno bierze część dostępnego pulpitu zamiast stałego rozmiaru, a kolumna opcji
-przewija się, zamiast być ucinana na niższych ekranach.
-
-### Jako biblioteka
-
-```python
-from epubforge import rebuild, Policy
-
-wynik = rebuild("we.epub", "wy.epub", Policy.preset("strict"))
-print(wynik.report.to_text())
-```
-
----
-
-## Raport
-
-Każde uruchomienie rozlicza się z tego, co zrobiło. Wpisy mają jeden z poziomów:
-`naprawiono` (usterka poprawiona), `zachowano` (odstępstwo zostawione świadomie),
-`ostrzeżenie`, `błąd`, `informacja`. `--report` zapisuje te same dane w JSON-ie.
-
-```
-naprawiono  package        rebuilt the package from EPUB 2.0 to EPUB 3.3
-naprawiono  css            corrected 5 declarations using the invalid value 'regular'
-naprawiono  xhtml          centred 1 image-only paragraph and removed its text indent
-naprawiono  accessibility  added EPUB Accessibility 1.1 discovery metadata
-zachowano   css            kept 1 absolute/fixed position rule in a reflowable book
-zachowano   compat         added the EPUB 2 <guide> element for readers that look for it
-ostrzeżenie accessibility  2 images have alt text that only repeats the filename
-```
-
-Treść wpisów jest na razie po angielsku — tłumaczenie wymaga przebudowy sposobu,
-w jaki etapy tworzą komunikaty, i jest zaplanowane osobno.
-
-### Poczucie humoru
-
-Charakter tego narzędzia mieszka w dokumentacji i w stałych opisach interfejsu,
-nie w komentarzu do każdego uruchomienia. W samej pracy jest dokładnie jedna
-sucha uwaga i pojawia się rzadko: gdy plik przychodzi bez **żadnej** usterki, co
-jest na tyle niecodzienne, że zasługuje na uniesioną brew. Poza tym program
-milczy — dowcip po każdej książce przestaje bawić przy trzeciej, a obok
-ostrzeżenia zwyczajnie przeszkadza.
-
----
-
-## Jak to jest zbudowane
-
-```
-odczyt → czcionki → obrazy → struktura → metadane → xhtml → css
-       → nawigacja → dostępność → zgodność → zapis
-```
-
-Kolejność jest nośna i udokumentowana w `epubforge/stages/__init__.py`:
-
-- **czcionki przed metadanymi** — deobfuskacja opiera się na *źródłowym*
-  identyfikatorze, który normalizacja może wymienić;
-- **struktura przed treścią** — zamraża mapę ścieżek, od której zależy
-  przepisywanie odnośników;
-- **dostępność przed zgodnością** — musi zmierzyć samą książkę, a nie ustępstwa
-  dołożone na wierzch;
-- **zgodność na końcu** — to jedyny etap, który świadomie odchodzi od standardu,
-  i żaden wcześniejszy nie musi o tym wiedzieć.
-
-Warstwy: `reader.py` sprowadza dowolny plik do modelu (`model.py`), etapy w
-`stages/` go przekształcają, `writer.py` składa z niego kontener. Nic w modelu
-nie wie o ZIP-ie ani o składni OPF.
-
-### Gwarancje
-
-Trzy własności wyniku są sprawdzane jako całość, niezależnie od tego, co robi
-którykolwiek etap. Mają własny plik testów, bo są innej kategorii niż testy
-zachowania: test zachowania mówi „ta usterka jest naprawiana", te mówią
-„cokolwiek dołożysz, wynik nadal to spełnia".
-
-| | Własność |
-|---|---|
-| **K1** | Ani jeden znak tekstu czytelnego nie ginie. Zawartość `<body>` w kolejności spine jest identyczna przed i po. |
-| **K2** | Wynik jest funkcją wejścia. Dwa uruchomienia dają te same bajty — jedyna ruchoma część, `dcterms:modified`, daje się przypiąć przez `--modified` albo `SOURCE_DATE_EPOCH`. |
-| **K3** | Drugi przebieg nic nie zmienia. Idempotencja na poziomie zawartości plików, nie ich nazw. |
-
-Komplet zasad, wraz z testami, które ich pilnują, jest w
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-### Przegląd biblioteki
+### Okno
 
 ```bash
-epubforge survey ~/Ebooki --json przeglad.json
+epubforge-gui
 ```
 
-Przepuszcza całą bibliotekę przez pełny potok, **niczego nie zapisując**, i daje
-jedną rankingową listę: która usterka w ilu książkach. Sto osobnych raportów to
-sto rzeczy do przeczytania; to jest jedna odpowiedź na pytanie, co warto naprawić
-najpierw. Reguła napisana z jednej książki jest zgadywaniem — ta sama usterka
-w czterdziestu jest faktem.
+Przeciągnij pliki, wybierz tryb, uruchom. Raport pojawia się obok kolejki;
+**Zapisz raport zbiorczy…** (Ctrl+Shift+S) zapisuje całą kolejkę do jednego
+pliku JSON, najgorsze książki na górze.
 
-Nazwy plików **nie trafiają** do wyniku, chyba że poprosisz o to przez
-`--with-names`. Przegląd ma się dać komuś pokazać, a lista tytułów mówi więcej
-o Twojej półce niż o narzędziu.
-
-W wersji instalowanej najprościej użyć skrótu **Menu Start → EPUB F.O.R.G.E. →
-„Wiersz polecen"** — otwiera konsolę z `epubforge` już dostępnym. Krok po kroku:
-[`docs/KORPUS.md`](docs/KORPUS.md).
-
-### Inwentarz biblioteki
+### Wiersz poleceń
 
 ```bash
-epubforge inventory ~/Ebooki --json spis.json --map mapa.txt
+epubforge build ksiazka.epub                       # jedna książka
+epubforge build *.epub --output przebudowane/      # cała półka
+epubforge build ksiazka.epub --strict --report r.json
+epubforge inspect ksiazka.epub                     # co jest w środku
+epubforge compat                                   # co robią profile zgodności
 ```
 
-Przegląd mówi, **co narzędzie zrobiło**; inwentarz mówi, **czym te książki są**.
-To pytanie wcześniejsze i mniej oczywiste: przegląd potrafi wymienić wyłącznie te
-usterki, które narzędzie już umie nazwać, więc sam siebie nie zaskoczy.
+Kod wyjścia mówi, co się stało: `0` — zapisano, `1` — nie zapisano, `2` —
+zapisano, ale są problemy warte przeczytania.
 
-Mierzone jest pochodzenie (ślady Calibre, InDesigna, Worda, konwersji z PDF-u —
-jako **lista**, bo pliki bywają warstwowe), uszkodzenia (eksplozja klas, zupa
-spanów, martwy CSS, atrybuty prezentacyjne) i typografia (formy cudzysłowów
-i pauz, wielokropki, twarde spacje, mojibake, dywizy zostawione przez łamanie
-wierszy). To jest materiał, na którym dopiero da się rozstrzygnąć, **które reguły
-w ogóle warto pisać** — biblioteka w 70% po Calibre potrzebuje czego innego niż
-taka, w której połowa to konwersje z PDF-u.
+### Profile zgodności
 
-Wynik to same liczby i częstości znaków. `--map` zapisuje osobno powiązanie
-skrótu z nazwą pliku i **jest jedynym plikiem, który nazywa Twoje książki** —
-nie powstaje, dopóki o niego nie poprosisz.
-
-### Testy
+Opcjonalne i domyślnie wyłączone. Każdy tylko **dokłada** — plik, deklarację
+albo stary element — i żaden nie zmienia wyglądu na czytniku trzymającym się
+standardu.
 
 ```bash
-pytest
+epubforge build ksiazka.epub --compat kindle,apple
 ```
 
-Zestaw przebudowuje plik testowy zawierający opisane wyżej uszkodzenia
-i sprawdza wynik — w tym, jeśli EPUBCheck jest zainstalowany, że tryb `strict`
-waliduje się z zerem błędów i zerem ostrzeżeń, również z włączonymi wszystkimi
-profilami zgodności.
+`kindle` · `kobo` · `apple` · `legacy` (Adobe RMSDK: PocketBook, Nook, Sony)
 
-Osobno działa regresja na prawdziwych książkach — pełna instrukcja w
-[`docs/KORPUS.md`](docs/KORPUS.md). Nie mogą one trafić do
-publicznego repozytorium, więc leżą w katalogu z `.gitignore`, a wersjonowane są
-wyłącznie **metryki**: liczby błędów EPUBCheck, dotrzymanie niezmiennika tekstu,
-kształt raportu i skrót wyniku — osobno dla trybu `preserve` i `strict`. Podpisy
-nazywane są skrótem książki, nie jej tytułem: treść i tak nie wyciekała, ale lista
-tytułów w publicznym repozytorium to ta sama klasa informacji, której cały ten
-mechanizm ma nie ujawniać. Test pomija się sam, gdy katalogu nie ma.
-Szczegóły w [`CONTRIBUTING.md`](CONTRIBUTING.md).
+## Co narzędzie o sobie mówi
 
----
+Każdy przebieg kończy się raportem, w którym każda zmiana ma swój wiersz i swój
+powód. Pięć poziomów: `ERROR`, `WARN`, `PRESERVED` (odstępstwo od standardu
+zachowane celowo, bo jego usunięcie zmieniłoby wygląd), `FIX`, `INFO`.
 
-## Budowanie paczki
-
-Wymaga JDK 17+ (dla `jlink`) i `pip install pyinstaller`.
-
-```bash
-python packaging/build.py                # pobiera EPUBCheck, linkuje JRE, zamraża
-python packaging/build.py --skip-java    # ~60 MB, bez walidacji
-python packaging/smoke_test.py           # uruchamia wynik z wyczyszczonym środowiskiem
-```
-
-Wynik trafia do `dist/EPUB-Forge/`. `smoke_test.py` czyści `PATH`, `JAVA_HOME`
-i `EPUBCHECK_JAR` przed uruchomieniem zbudowanych plików wykonywalnych, więc
-wykryje sytuację, w której paczka po cichu polega na czymś zainstalowanym na
-maszynie budującej.
-
-Instalatory Windows powstają przez `.github/workflows/build-windows.yml`.
-Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
-
----
+Znaki wodne i wpisy wydawcy **nie są usuwane** — są porządkowane, gdy powtarzają
+się w każdym rozdziale, i zostają.
 
 ## Ograniczenia
 
-- **DRM nie jest ruszany.** Prawdziwe szyfrowanie jest wykrywane, odrzucane
-  i raportowane.
-- Książki o stałym układzie przechodzą z zachowanymi właściwościami
-  `rendition:*`, ale ich pozycjonowanie nie jest przeliczane.
-- Nazwy plików są sprowadzane do ASCII, z transliteracją znaków, których Unicode
-  nie rozkłada (`okładka.png` → `okladka.png`, `Żółć.xhtml` → `Zolc.xhtml`).
-  Odnośniki są przepisywane.
-- Warstwa typograficzna — cudzysłowy, pauza dialogowa, twarde spacje, mojibake —
-  **nie istnieje**. To jedyna duża kategoria „syfu po generatorach", której
-  narzędzie nie rusza; jest świadomie zaplanowana na koniec, bo jako jedyna łamie
-  gwarancję K1. Patrz [`docs/ROADMAP.md`](docs/ROADMAP.md).
-- Cała książka jest trzymana w pamięci. Dla pojedynczego pliku bez znaczenia,
-  przy wsadzie liczonym w tysiącach — istotne.
-- Treść raportu jest po angielsku.
+Rzeczy, o których lepiej wiedzieć przed, niż po:
 
----
+- **Alpha.** Dwa z trzech warunków wejścia w alfę spisanych w
+  [`CONTRIBUTING.md`](CONTRIBUTING.md) nie są spełnione — brakuje korpusu
+  30+ książek z metrykami zielonymi przez trzy wydania i przetłumaczonego
+  raportu. Trzeci (zero defektów gubiących dane po cichu) jest spełniony od 0.2.2.
+- **Raport jest po angielsku.** Interfejs jest dwujęzyczny, raport nie.
+- **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie — patrz
+  [`docs/ROADMAP.md`](docs/ROADMAP.md), punkt 10.
+- **Nie zdejmuje DRM** i nie będzie.
+- **Cała książka trafia do pamięci.** Przy dużej bibliotece i wielu procesach
+  naraz to jest odczuwalne.
 
-## Rozwój
+## Jak to jest sprawdzane
 
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — reguły, których nowa funkcja nie może
-  złamać, każda ze wskazaniem testu, który jej pilnuje.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — co dalej, w jakiej kolejności i dlaczego
-  akurat takiej.
-- [`docs/KORPUS.md`](docs/KORPUS.md) — **instrukcja krok po kroku** dla właściciela
-  biblioteki: jak pomóc projektowi, nie wypuszczając z dysku ani jednej książki.
-- [`docs/URZADZENIA.md`](docs/URZADZENIA.md) — dziennik prób na prawdziwych
-  czytnikach. Walidator mówi, czy plik jest zgodny; nie mówi, czy Kobo go
-  otworzy.
+552 testy, w tym trzy niezależne siatki bezpieczeństwa:
 
-### Wersja i dojrzałość to dwie różne rzeczy
+- **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
+  pojedynczego egzemplarza, wartości albo krawędzi;
+- **korpus publiczny** — sześć prawdziwych książek z Projektu Gutenberga
+  i dziewięć syntetycznych, z zapisanymi sygnaturami; zmiana wyniku przebudowy
+  wywala test u każdego, nie tylko u autora;
+- **niezmiennik K1** — cały tekst źródła musi być w wyniku, w tej samej
+  kolejności.
 
-To jest **alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
-wersję:
-
-```
-epub-forge 0.2.0 (alpha)
+```bash
+pytest -q
 ```
 
-> **Co ta alfa znaczy, a czego nie.** Zamknięte są te awarie, które mogły
-> zniszczyć Twoją pracę: przerwany zapis nie kasuje poprzedniego wyniku, awaria
-> etapu nie kończy się plikiem udającym gotowy, dwie książki o tej samej nazwie
-> nie zlewają się w jedną, a plik źródłowy jest chroniony osobnym strażnikiem.
->
-> **Zamknięte od 0.2.2**: ustalenie EF-004, czyli konstrukcje znikające bez
-> błędu. Media Overlays, `fallback`, zasoby zdalne, `<collection>` i wszystkie
-> przynależności do serii przechodzą przez przebudowę. Pilnują tego dwie
-> wyrocznie i sześć prawdziwych książek w korpusie.
->
-> **Nie jest zamknięte**: dwa z trzech warunków wejścia w alfę spisanych
-> w [`CONTRIBUTING.md`](CONTRIBUTING.md) — korpus 30+ książek z metrykami
-> zielonymi przez trzy wydania oraz przetłumaczony raport. `CHANGELOG.md`
-> wypisuje, dlaczego mimo to wydajemy.
+## Dokumentacja
 
-Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —
-liczba rosnąca w stronę 1.0 czyta się jako postęp ku wydaniu niezależnie od tego,
-co ktoś miał na myśli. PATCH podbija się przy każdym wydaniu, cokolwiek zawiera;
-MINOR wyłącznie razem z etapem dojrzałości, po odhaczeniu wypisanych warunków.
-
-| Etap | | |
-|---|---|---|
-| **pre-alpha** | `0.1.x` | prototyp; działa na książkach autora, korpusu nie ma |
-| **alpha** | `0.2.x` | poprawność sprawdzana na 30+ prawdziwych książkach, raport przetłumaczony |
-| **beta** | `0.3.x` | kompletne, używane przez kogoś poza autorem |
-| **1.0** | | stabilne — pełne warunki w [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-
-Co to znaczy w praktyce: narzędzie **nigdy nie nadpisuje pliku źródłowego** i to
-jest własność pilnowana testem, ale poza tym trzymaj oryginały. To jest prototyp
-i tak się nazywa.
-
----
+| Plik | O czym |
+|---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | reguły K1–K12, wersjonowanie, jak się wydaje |
+| [`CHANGELOG.md`](CHANGELOG.md) | co się zmieniło i dlaczego |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | co dalej i czego świadomie nie robimy |
+| [`docs/URZADZENIA.md`](docs/URZADZENIA.md) | wyniki na prawdziwym sprzęcie |
+| [`docs/archive/`](docs/archive/) | poprzednia wersja tego pliku, z pełnym opisem decyzji projektowych |
 
 ## Autorzy i licencja
 
-- **Łukasz „LuKi” Kniotek** — pomysł, kierunek i wymagania
-- **Claude (Anthropic)** — projekt i implementacja
+Łukasz „LuKi" Kniotek, przy wydatnym udziale modeli językowych — patrz akapit
+o Vibe Codingu na górze.
 
-Licencja MIT — patrz [`LICENSE`](LICENSE), gdzie wymieniono też licencje
-komponentów dołączanych do paczek (EPUBCheck, OpenJDK, Qt).
+MIT. Rób z tym, co chcesz; jak coś zepsujesz, to Twoje.
