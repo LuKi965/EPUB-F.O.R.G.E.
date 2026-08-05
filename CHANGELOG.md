@@ -23,6 +23,45 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.4 — alpha
+
+**Two defects found by thirty-two real books**, commercial Polish editions run
+through all three modes. Four of the thirty-two failed, all four in the same
+two ways, and neither defect had a test because neither can happen to a book
+written to be a test.
+
+**The publisher's contents page was being destroyed.** A nav document is
+allowed to sit in the reading order, and when it does it is two things at once:
+the machine-readable navigation, and a page the publisher wrote that the reader
+can turn to. Regenerating it served the first and destroyed the second —
+"Spis treści", "Punkty orientacyjne" and the publisher's own chapter labels
+replaced by ours. Text the source had and the output did not, which is K1, on
+four books out of thirty-two.
+
+The page now stays as an ordinary content document and the regenerated
+navigation goes in beside it, outside the reading order. One nav document, as
+EPUB 3 requires; the publisher's page, as the reader expects. Reported as
+`PRESERVED`.
+
+**Replacing a nav document left references pointing at nothing.** The
+regenerated nav listed the page it had just deleted, and in one book
+twenty-seven chapters carried a "back to contents" link to it:
+
+```
+ERROR: Referenced resource "EPUB/text/0015-table_of_contents.xhtml"
+       could not be found in the EPUB. (EPUB/nav.xhtml)
+```
+
+The output was invalid, and the report said nothing. References in the
+navigation tables, the landmarks, the page list and inside content documents
+now follow the document that replaced it, and the repointing is reported.
+
+All four books: EPUBCheck clean, K1 satisfied. The `nav-in-spine.epub`
+signature moves deliberately — `text_added: 47 → 0`, the source's text now
+preserved to the character.
+
+Tests: 503 → 524.
+
 ## 0.2.3 — alpha
 
 **Both findings reported in 0.2.1 were mine, and neither was a defect.** They

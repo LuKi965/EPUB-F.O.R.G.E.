@@ -11,6 +11,11 @@ from ..report import Level
 from ..xhtml import EPUB_NS, XHTML_NS
 from .base import Context, Stage
 
+#: `href="…"` and `src="…"` as they appear in a content document. Narrow on
+#: purpose: this rewrites bytes rather than a parse tree, so it touches the
+#: attributes it can name and nothing else.
+_HREF_ATTRIBUTE = re.compile(r"""\b(href|src)=(["'])([^"']*)\2""")
+
 COVER_PAGE_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="{xhtml}" xmlns:epub="{epub}" lang="{lang}" xml:lang="{lang}">
@@ -241,6 +246,82 @@ class NavigationStage(Stage):
         lines.append(f"{indent}</ol>")
         return "\n".join(lines)
 
+    def _redirect(self, ctx: Context, old_path: str, new_path: str) -> None:
+        """Point everything that referenced `old_path` at `new_path` instead.
+
+        Called just before the source's navigation document is replaced. Three
+        kinds of reference have to follow it: the entries of the tables this
+        stage is about to render, the landmarks and page list beside them, and
+        plain links inside content documents — a book whose foreword says "back
+        to contents" is linking to the page that is about to stop existing.
+
+        Retargeted rather than deleted: a link to the table of contents still
+        means the table of contents, and the new document is it.
+        """
+        book = ctx.book
+        moved = 0
+
+        def retarget(target: str | None) -> str | None:
+            nonlocal moved
+            if not target:
+                return target
+            path, _, fragment = target.partition("#")
+            if path != old_path:
+                return target
+            moved += 1
+            # The fragment belonged to the old document and means nothing in
+            # the regenerated one.
+            return new_path
+
+        for root in book.toc:
+            for node in root.walk():
+                node.target = retarget(node.target)
+        for landmark in book.landmarks:
+            landmark.target = retarget(landmark.target) or landmark.target
+        for page in book.page_list:
+            page.target = retarget(page.target) or page.target
+
+        in_documents = 0
+        for resource in book.content_docs():
+            if resource.path == old_path:
+                continue
+            try:
+                text = resource.data.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            replaced = 0
+
+            def repoint(match: re.Match) -> str:
+                nonlocal replaced
+                attribute, quote, value = match.group(1), match.group(2), match.group(3)
+                if not value or paths.is_remote(value) or value.startswith("#"):
+                    return match.group(0)
+                href, _, fragment = value.partition("#")
+                if paths.resolve(resource.path, href) != old_path:
+                    return match.group(0)
+                replaced += 1
+                return f"{attribute}={quote}{paths.relative(resource.path, new_path)}{quote}"
+
+            updated = _HREF_ATTRIBUTE.sub(repoint, text)
+            if replaced:
+                resource.data = updated.encode("utf-8")
+                in_documents += replaced
+
+        if moved or in_documents:
+            self.note(
+                ctx,
+                Level.FIX,
+                f"repointed {moved + in_documents} reference(s) at the regenerated "
+                "navigation document",
+                location=old_path,
+                detail=(
+                    f"{moved} in the navigation tables, {in_documents} inside content "
+                    "documents. The source's own contents page is replaced, and a "
+                    "reference left pointing at it makes the book invalid, not merely "
+                    "inconsistent."
+                ),
+            )
+
     def _write_nav(self, ctx: Context) -> None:
         book = ctx.book
         nav_path = f"{ctx.policy.content_dir.strip('/')}/nav.xhtml"
@@ -257,11 +338,44 @@ class NavigationStage(Stage):
         # regenerated, which is the point of the stage.
         old_place = None
         if book.nav_path and book.nav_path != nav_path:
-            for index, item in enumerate(book.spine):
-                if item.path == book.nav_path:
-                    old_place = (index, item.linear, tuple(item.properties))
-                    break
-            book.remove(book.nav_path)
+            in_spine = next(
+                (i for i, item in enumerate(book.spine) if item.path == book.nav_path), None
+            )
+            if in_spine is not None:
+                # A nav document in the reading order is *two* things at once:
+                # the machine-readable navigation, and a contents page written
+                # by the publisher that the reader can turn to. Regenerating it
+                # served the first and destroyed the second — on four of the
+                # first thirty-two real books this ran against, the publisher's
+                # own wording ("Spis treści", "Punkty orientacyjne", their
+                # chapter labels) was replaced by ours. That is text the source
+                # had and the output does not, which is K1.
+                #
+                # So the page stays as an ordinary content document, and the
+                # regenerated nav goes in beside it, outside the reading order.
+                # One nav document, as EPUB 3 requires; the publisher's page,
+                # as the reader expects.
+                book.resources[book.nav_path].properties.discard("nav")
+                self.note(
+                    ctx,
+                    Level.PRESERVED,
+                    "kept the publisher's contents page and put the regenerated "
+                    "navigation beside it",
+                    location=book.nav_path,
+                    detail=(
+                        "The page is in the reading order, so it is something the "
+                        "reader turns to. Replacing it with generated markup would "
+                        "lose whatever the publisher wrote there."
+                    ),
+                )
+            else:
+                # Not a page anyone can turn to — only the machinery. Replacing
+                # it loses nothing, but everything pointing at it has to be told
+                # where it went: missing that produced an *invalid* book, with
+                # EPUBCheck reporting "Referenced resource ... could not be
+                # found" against the regenerated nav.
+                self._redirect(ctx, book.nav_path, nav_path)
+                book.remove(book.nav_path)
         self._nav_spine_place = old_place
         language = _escape(book.metadata.language or ctx.policy.default_language)
 

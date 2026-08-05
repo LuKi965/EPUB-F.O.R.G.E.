@@ -3,25 +3,27 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 4,
-      "fix": 2
+      "info": 3,
+      "fix": 2,
+      "preserved": 1
     },
-    "output": "sha256:8bc12add3d81aa12a3139bf48fdd7f7ff9e3a34ced3f5106d022e90516955cdf",
-    "text_characters": 74,
-    "text_added": 47,
+    "output": "sha256:6a38058481c3f31dede92e3896b513edec50d8db13a739d325e6d213712ab84e",
+    "text_characters": 27,
+    "text_added": 0,
     "text_invariant": true,
-    "blocks": 6
+    "blocks": 7
   },
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
-      "fix": 2
+      "info": 3,
+      "fix": 2,
+      "preserved": 1
     },
-    "output": "sha256:8bc12add3d81aa12a3139bf48fdd7f7ff9e3a34ced3f5106d022e90516955cdf",
-    "text_characters": 74,
-    "text_added": 47,
+    "output": "sha256:6a38058481c3f31dede92e3896b513edec50d8db13a739d325e6d213712ab84e",
+    "text_characters": 27,
+    "text_added": 0,
     "text_invariant": true,
-    "blocks": 6
+    "blocks": 7
   }
 }
