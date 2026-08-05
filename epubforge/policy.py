@@ -52,7 +52,16 @@ class Policy:
     strip_scripts: bool = False
 
     #: Remove files present in the archive but referenced by nothing.
-    drop_orphans: bool = True
+    #:
+    #: Off by default since 0.1.7, and it stays off until the dependency graph
+    #: can prove a file is unused. Today it cannot: references reached only
+    #: through ``img@srcset``, ``<picture><source srcset>`` or from inside an
+    #: SVG are invisible to it, so the file goes and the markup that needs it
+    #: stays. The output validates and renders a hole.
+    #:
+    #: The saving was never the point — a handful of kilobytes against deleting
+    #: a picture somebody is still looking at.
+    drop_orphans: bool = False
 
     #: Consolidate publisher watermark markup. The tokens are never removed;
     #: only the repeated inline styling and their presence in the reading order.

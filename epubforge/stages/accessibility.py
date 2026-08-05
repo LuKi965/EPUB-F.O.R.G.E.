@@ -30,6 +30,54 @@ CONFORMANCE_URLS = {
 
 _HEADING_RE = re.compile(r"^h([1-6])$")
 
+#: SVG's own animation elements. Their presence means something moves, and this
+#: tool has no way to judge whether it flashes.
+_SVG_ANIMATION_TAGS = {"animate", "animatetransform", "animatemotion", "set"}
+
+#: CSS that makes something move. Matched on the property name rather than on a
+#: parsed cascade, because the question here is only "is there any motion at
+#: all" — a false positive costs an honest `unknown`, a false negative costs a
+#: false `none`.
+_CSS_MOTION_RE = re.compile(r"\b(?:animation|transition)(?:-[a-z-]+)?\s*:", re.IGNORECASE)
+
+
+def _is_animated(data: bytes) -> bool:
+    """Whether a GIF or WebP holds more than one frame.
+
+    Read from the container rather than by decoding: an animated GIF has more
+    than one image descriptor, and an animated WebP carries an ANIM chunk. Both
+    checks are cheap and neither can be fooled into saying "still" by a file
+    that moves.
+    """
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        # Graphic Control Extension blocks: introducer 0x21, label 0xF9, size
+        # 0x04. A still image has at most one (transparency uses it too), so
+        # more than one means more than one frame.
+        return data.count(b"\x21\xf9\x04") > 1
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return b"ANIM" in data[:512] or b"ANMF" in data[:512]
+    return False
+
+
+def _svg_is_described(element) -> bool:
+    """Whether an inline SVG offers a text alternative.
+
+    Four ways, all of them things somebody wrote on purpose: a child `<title>`
+    with text, a child `<desc>`, an ARIA label, or an explicit statement that
+    the graphic is decorative. An SVG with none of them is a picture the reader
+    cannot get at, and it is exactly what used to be counted as nothing at all.
+    """
+    if (element.get("aria-label") or "").strip() or element.get("aria-labelledby"):
+        return True
+    if (element.get("role") or "").strip().lower() == "presentation":
+        return True
+    if (element.get("aria-hidden") or "").strip().lower() == "true":
+        return True
+    for child in element.iter():
+        if xhtml.local_name(child).lower() in ("title", "desc") and (child.text or "").strip():
+            return True
+    return False
+
 #: Alt text that exists but says nothing. Publishers generate these from the
 #: filename or a template, which satisfies a validator and helps nobody.
 _PLACEHOLDER_ALT = re.compile(
@@ -84,6 +132,17 @@ class AccessibilityStage(Stage):
             "video": False,
             "scripted": False,
             "missing_alt_locations": [],
+            #: Inline <svg> graphics, counted separately from <img> because they
+            #: carry their alternative differently — in a child <title>, not in
+            #: an attribute. Until 0.1.7 they were not counted at all, so a
+            #: document whose only graphic was an undescribed inline SVG came
+            #: out asserting alternativeText.
+            "inline_svg": 0,
+            "inline_svg_without_alt": 0,
+            #: Anything that could move. Motion cannot be ruled out by reading
+            #: markup alone, so this decides between "no hazard" and "unknown"
+            #: rather than between "hazard" and "no hazard".
+            "motion_sources": [],
         }
 
         for resource in book.resources.values():
@@ -91,6 +150,12 @@ class AccessibilityStage(Stage):
                 survey["audio"] = True
             elif resource.media_type.startswith("video/"):
                 survey["video"] = True
+            elif resource.media_type in ("image/gif", "image/webp"):
+                if _is_animated(resource.data):
+                    survey["motion_sources"].append(f"animated image: {resource.path}")
+            elif resource.media_type == "text/css":
+                if _CSS_MOTION_RE.search(resource.text()):
+                    survey["motion_sources"].append(f"CSS animation: {resource.path}")
 
         for resource in book.content_docs():
             survey["documents"] += 1
@@ -146,6 +211,24 @@ class AccessibilityStage(Stage):
                         )
                     previous_level = level
 
+                inline_style = element.get("style")
+                if inline_style and _CSS_MOTION_RE.search(inline_style):
+                    survey["motion_sources"].append(f"inline animation: {resource.path}")
+
+                elif tag == "svg":
+                    survey["inline_svg"] += 1
+                    if not _svg_is_described(element):
+                        survey["inline_svg_without_alt"] += 1
+                        survey["missing_alt_locations"].append(resource.path)
+                    if any(
+                        xhtml.local_name(child).lower() in _SVG_ANIMATION_TAGS
+                        for child in element.iter()
+                    ):
+                        survey["motion_sources"].append(f"SVG animation: {resource.path}")
+
+                elif tag == "style" and element.text and _CSS_MOTION_RE.search(element.text):
+                    survey["motion_sources"].append(f"CSS animation: {resource.path}")
+
                 elif tag == "table":
                     survey["tables"] += 1
                     if not any(
@@ -173,7 +256,7 @@ class AccessibilityStage(Stage):
         book = ctx.book
         metadata = book.metadata
 
-        has_images = survey["images"] > 0 or survey["svg"]
+        has_images = survey["images"] > 0 or survey["svg"] or survey["inline_svg"] > 0
         access_modes = ["textual"]
         if has_images:
             access_modes.append("visual")
@@ -182,18 +265,32 @@ class AccessibilityStage(Stage):
 
         # Sufficient only if a reader who cannot see the images still gets the
         # whole work — which requires every non-decorative image to be described.
-        meaningful_without_alt = survey["images_without_alt"] + survey["placeholder_alt"]
-        if has_images and meaningful_without_alt == 0:
+        meaningful_without_alt = (
+            survey["images_without_alt"]
+            + survey["placeholder_alt"]
+            + survey["inline_svg_without_alt"]
+        )
+
+        # A book can declare `svg` on a document without this stage having seen
+        # a single <svg> element — the property is on the manifest item, and the
+        # graphic may sit in a file the parser could not read. That is a graphic
+        # in an unknown state, and an unknown state must not be counted as a
+        # described one.
+        unexamined_graphics = survey["svg"] and survey["inline_svg"] == 0
+        described = has_images and meaningful_without_alt == 0 and not unexamined_graphics
+        if described or not has_images:
             sufficient = ["textual"]
-        elif has_images:
-            sufficient = ["textual,visual"]
         else:
-            sufficient = ["textual"]
+            sufficient = ["textual,visual"]
 
         features: list[str] = ["tableOfContents", "readingOrder"]
         if survey["headings"]:
             features.append("structuralNavigation")
-        if has_images and meaningful_without_alt == 0:
+        # Only when every graphic in the book has been looked at and every one
+        # of them offers an alternative. This is an assertion by the publisher
+        # under EPUB Accessibility 1.1, and a false one is worse than a missing
+        # one: it tells a reader who depends on it that the book is usable.
+        if described:
             features.append("alternativeText")
         if book.page_list:
             features.append("printPageNumbers")
@@ -205,10 +302,18 @@ class AccessibilityStage(Stage):
             # Reflowable text can be resized and recoloured by the reader.
             features.append("displayTransformability")
 
-        # Flashing and motion cannot be detected from markup. Claiming "none"
-        # for a book that contains neither script nor moving media is safe;
-        # anything else is honestly reported as unknown.
-        if survey["video"] or survey["scripted"]:
+        # "none" says: nothing in this book flashes, moves or induces motion
+        # sickness. Saying it required looking at every source of movement, and
+        # until 0.1.7 the check covered two of them — video and script. A book
+        # with a CSS keyframe animation, an animated GIF or an animating SVG
+        # came out asserting `none`.
+        #
+        # The remaining honesty gap is stated rather than hidden: even with no
+        # motion source at all, this tool cannot see a flashing sequence baked
+        # into a video it did not decode. What it can do is refuse to claim
+        # "none" whenever anything might move.
+        motion = survey["motion_sources"]
+        if survey["video"] or survey["scripted"] or motion:
             hazards = ["unknown"]
         else:
             hazards = ["none"]

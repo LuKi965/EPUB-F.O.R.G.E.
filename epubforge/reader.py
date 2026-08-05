@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from . import paths
+from . import ocf, paths
 from .model import (
     Book,
     Creator,
@@ -205,6 +205,8 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
         raise EpubReadError(f"not a readable ZIP archive: {exc}") from exc
 
     entries: dict[str, bytes] = {}
+    rewritten: list[tuple[str, str, str]] = []
+    duplicates: list[tuple[str, bool]] = []
     mimetype_ok = False
     total = 0
 
@@ -221,7 +223,28 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
         for info in archive.infolist():
             if info.is_dir():
                 continue
-            name = info.filename.replace("\\", "/").lstrip("/")
+
+            # The name is attacker-controlled data like everything else in the
+            # archive, and folding it into shape in one expression — which is
+            # what this used to be — left no way to tell a name that had been
+            # changed from one that had not.
+            entry_name = ocf.canonical(info.filename)
+            if entry_name.rejected:
+                report.add(
+                    "reader",
+                    Level.WARN,
+                    f"dropped an archive entry whose name is not a container path: {entry_name.reason}",
+                    location=info.filename,
+                    detail=(
+                        "Nothing in a conforming EPUB is named this way. It is not "
+                        "carried into the output, where it would be somebody else's "
+                        "problem to unpack safely."
+                    ),
+                )
+                continue
+            name = entry_name.path
+            if entry_name.changed:
+                rewritten.append((info.filename, name, ", ".join(entry_name.changes)))
 
             declared = _implausible_header(info)
             if declared:
@@ -259,7 +282,57 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
             if name == "mimetype":
                 mimetype_ok = data.strip() == b"application/epub+zip"
                 continue
+            if name in entries:
+                # Two entries, one name. Whatever this book meant, one of the
+                # two documents cannot be represented — and picking the later
+                # one, which is what a plain assignment does, is a decision made
+                # by iteration order. Identical payloads are not a loss and are
+                # not worth stopping for; different ones are.
+                if entries[name] == data:
+                    duplicates.append((name, True))
+                else:
+                    duplicates.append((name, False))
+                    continue
             entries[name] = data
+
+    for original, became, why in rewritten:
+        report.add(
+            "reader",
+            Level.FIX,
+            "rewrote an archive entry name that is not a container path",
+            location=original,
+            detail=f"{original!r} → {became!r} ({why})",
+        )
+
+    exact = [name for name, identical in duplicates if not identical]
+    if exact:
+        raise EpubReadError(
+            "the archive holds more than one entry named "
+            + ", ".join(sorted(set(exact))[:3])
+            + " with different contents; refusing to guess which one the book meant"
+        )
+    for name, _ in duplicates:
+        report.add(
+            "reader",
+            Level.INFO,
+            "the archive listed the same entry twice with identical contents",
+            location=name,
+        )
+
+    for clash in ocf.collisions(sorted(entries)):
+        if clash.kind == "identical":
+            continue
+        report.add(
+            "reader",
+            Level.WARN,
+            f"{len(clash.names)} entries differ only by {clash.kind}",
+            location=", ".join(clash.names),
+            detail=(
+                "They are separate files inside the archive and one file on a "
+                "filesystem that folds case or Unicode normalisation — which is "
+                "most of them outside Linux. Anyone unpacking this book loses one."
+            ),
+        )
 
     if not entries:
         raise EpubReadError("archive contains no readable files")

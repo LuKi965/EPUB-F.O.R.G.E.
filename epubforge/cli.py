@@ -10,7 +10,8 @@ from rich.console import Console
 from rich.table import Table
 
 from . import compat, version_string
-from .pipeline import rebuild
+from .pipeline import Status, rebuild
+from .plan import describe, plan_batch
 from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
@@ -64,8 +65,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.write_ncx = False
     if args.strip_scripts:
         policy.strip_scripts = True
-    if args.keep_orphans:
-        policy.drop_orphans = False
+    if args.drop_orphans:
+        policy.drop_orphans = True
     if args.keep_layout:
         policy.reorganize_files = False
     if args.keep_watermark_markup:
@@ -132,6 +133,24 @@ def summarize(console: Console, report: Report) -> None:
         console.print(f"  [dim italic]{remark}[/]")
 
 
+#: What the shell learns from a run. Zero means "the file is good"; anything
+#: else means somebody has to look. Before 0.1.7 a book that produced an ERROR
+#: still exited 0 unless --strict-exit was passed, so an automated pipeline read
+#: a damaged result as a success.
+EXIT_OK = 0
+EXIT_NOT_WRITTEN = 1
+EXIT_WRITTEN_WITH_PROBLEMS = 2
+
+#: Which outcome a batch reports when its books disagree. Ranked rather than
+#: compared numerically, because the numbers are an interface for the shell and
+#: not a severity scale: "nothing was written" is the worse news, and it is 1.
+_SEVERITY = {EXIT_OK: 0, EXIT_WRITTEN_WITH_PROBLEMS: 1, EXIT_NOT_WRITTEN: 2}
+
+
+def _worse(current: int, candidate: int) -> int:
+    return candidate if _SEVERITY[candidate] > _SEVERITY[current] else current
+
+
 def command_build(args: argparse.Namespace) -> int:
     console = Console(stderr=False)
     inputs = collect_inputs(args.inputs)
@@ -144,21 +163,42 @@ def command_build(args: argparse.Namespace) -> int:
     if len(inputs) > 1 and output_dir and not os.path.isdir(output_dir):
         os.makedirs(output_dir, exist_ok=True)
 
-    exit_code = 0
-    for source in inputs:
-        if output_dir and os.path.isdir(output_dir):
-            stem = os.path.splitext(os.path.basename(source))[0]
-            destination = os.path.join(output_dir, f"{stem}.epub")
-        elif output_dir:
-            destination = output_dir
-        else:
-            stem = os.path.splitext(source)[0]
-            destination = f"{stem}.forged.epub"
+    # Every destination is settled before the first book is touched. Deciding
+    # them one at a time is how two books with one filename used to become one
+    # book, silently, with a zero exit code.
+    batch = plan_batch(inputs, output_dir)
 
-        if os.path.abspath(destination) == os.path.abspath(source):
-            console.print(f"[red]Refusing to overwrite the source file:[/] {source}")
-            exit_code = 1
-            continue
+    for collision in batch.collisions:
+        console.print(f"[red]Two or more books would be written to:[/] {collision.destination}")
+        for claimant in collision.sources:
+            console.print(f"    [dim]{claimant}[/]")
+    for offender in batch.self_targets:
+        console.print(f"[red]Refusing to overwrite the source file:[/] {offender}")
+    if not batch.ok:
+        console.print(
+            "\n  [dim]Nothing was written. Give each book its own destination, "
+            "or write to a folder that mirrors the source tree.[/]"
+        )
+        return EXIT_NOT_WRITTEN
+
+    if args.dry_run:
+        for line in describe(batch):
+            console.print(line, highlight=False)
+        return EXIT_OK
+
+    if batch.occupied and not args.force:
+        console.print("[red]These destinations already exist:[/]")
+        for existing in batch.occupied:
+            console.print(f"    [dim]{existing}[/]")
+        console.print(
+            "\n  [dim]Nothing was written. Pass --force to replace them, "
+            "or -o to write elsewhere.[/]"
+        )
+        return EXIT_NOT_WRITTEN
+
+    exit_code = 0
+    for job in batch.jobs:
+        source, destination = job.source, job.destination
 
         console.rule(f"[bold]{os.path.basename(source)}")
         result = rebuild(source, destination, policy)
@@ -169,12 +209,20 @@ def command_build(args: argparse.Namespace) -> int:
         print_report(console, result.report, args.verbose)
         summarize(console, result.report)
 
-        if result.output_path:
+        if result.status.wrote_a_file:
             size = os.path.getsize(result.output_path)
-            console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
+            if result.status is Status.SUCCEEDED:
+                console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
+            else:
+                # Written, but carrying errors. Saying only "written" here is how
+                # a book with an unreadable image got reported as a success.
+                console.print(
+                    f"  [bold yellow]written with errors[/] {destination} ({size / 1024:.0f} KiB)"
+                )
         else:
-            console.print("  [bold red]not written[/] — see errors above")
-            exit_code = 1
+            reason = "refused" if result.status is Status.BLOCKED else "not written"
+            console.print(f"  [bold red]{reason}[/] — see the report above")
+            exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
         if args.report:
             report_path = (
@@ -185,8 +233,10 @@ def command_build(args: argparse.Namespace) -> int:
             with open(report_path, "w", encoding="utf-8") as handle:
                 handle.write(result.report.to_json())
 
-        if not result.report.ok:
-            exit_code = max(exit_code, 2 if args.strict_exit else 0)
+        if result.status is Status.SUCCEEDED_WITH_PROBLEMS:
+            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
+        elif args.strict_exit and result.report.count(Level.WARN):
+            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
 
     return exit_code
 
@@ -468,9 +518,31 @@ def build_parser() -> argparse.ArgumentParser:
 
     build.add_argument("--no-ncx", action="store_true", help="omit the legacy NCX")
     build.add_argument("--strip-scripts", action="store_true", help="remove all scripting")
-    build.add_argument("--keep-orphans", action="store_true", help="keep unreferenced files")
+    build.add_argument(
+        "--drop-orphans",
+        action="store_true",
+        help=(
+            "delete files nothing appears to reference. Off by default: the "
+            "reference graph does not yet see srcset, <picture> or references "
+            "made from inside an SVG, so a file still in use can be deleted"
+        ),
+    )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
-    build.add_argument("--strict-exit", action="store_true", help="exit non-zero when findings remain")
+    build.add_argument(
+        "--strict-exit",
+        action="store_true",
+        help="also exit non-zero on warnings (errors always do)",
+    )
+    build.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print where each book would be written, and write nothing",
+    )
+    build.add_argument(
+        "--force",
+        action="store_true",
+        help="replace a file that already exists at the destination",
+    )
     build.add_argument(
         "--keep-watermark-markup",
         action="store_true",

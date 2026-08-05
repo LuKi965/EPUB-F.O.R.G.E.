@@ -1,0 +1,25 @@
+{
+  "source": "sha256:b738cdd5c8c580fab2d2aa1c403c18bf6cae53f562501f267e8354fb8a6f9d25",
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 3,
+      "fix": 2
+    },
+    "output": "sha256:576fdf44a0d1d81f8cd457de22bb7d13f0a11cb3b9b3c67cb4477eb50fd16b59",
+    "text_characters": 14,
+    "text_invariant": true,
+    "blocks": 6
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 3,
+      "fix": 2
+    },
+    "output": "sha256:576fdf44a0d1d81f8cd457de22bb7d13f0a11cb3b9b3c67cb4477eb50fd16b59",
+    "text_characters": 14,
+    "text_invariant": true,
+    "blocks": 6
+  }
+}

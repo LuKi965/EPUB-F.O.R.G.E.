@@ -244,8 +244,25 @@ class NavigationStage(Stage):
     def _write_nav(self, ctx: Context) -> None:
         book = ctx.book
         nav_path = f"{ctx.policy.content_dir.strip('/')}/nav.xhtml"
+
+        # A navigation document is allowed to be part of the reading order, and
+        # that is how a *visible* table of contents is built — the page the
+        # reader can turn to. `Book.remove` drops the resource and its spine
+        # entry together, so replacing the old document silently deleted that
+        # page from the book. No error, no warning: the source had two spine
+        # items and the output had one.
+        #
+        # What is carried over is the fact of being in the spine, its position
+        # and its `linear` flag. Everything else about the document is
+        # regenerated, which is the point of the stage.
+        old_place = None
         if book.nav_path and book.nav_path != nav_path:
+            for index, item in enumerate(book.spine):
+                if item.path == book.nav_path:
+                    old_place = (index, item.linear, tuple(item.properties))
+                    break
             book.remove(book.nav_path)
+        self._nav_spine_place = old_place
         language = _escape(book.metadata.language or ctx.policy.default_language)
 
         sections = [
@@ -306,6 +323,25 @@ class NavigationStage(Stage):
             )
         )
         book.nav_path = nav_path
+
+        # Put it back where it was in the reading order, if it was there at all.
+        place = getattr(self, "_nav_spine_place", None)
+        if place is not None:
+            index, linear, properties = place
+            book.spine.insert(
+                min(index, len(book.spine)),
+                SpineItem(path=nav_path, linear=linear, properties=set(properties)),
+            )
+            self.note(
+                ctx,
+                Level.INFO,
+                "kept the navigation document in the reading order, where the source had it",
+                detail=(
+                    "A nav document in the spine is a page the reader can turn to. "
+                    "Regenerating it used to remove that page."
+                ),
+            )
+
         entries = sum(1 for root in book.toc for _ in root.walk())
         self.note(
             ctx,

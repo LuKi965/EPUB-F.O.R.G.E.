@@ -242,10 +242,31 @@ class TestAssets:
         font = archive.read("EPUB/fonts/moja.ttf")
         assert font.startswith(b"\x00\x01\x00\x00"), "font was not deobfuscated"
 
-    def test_unreferenced_files_and_junk_are_removed(self, archive):
+    def test_nothing_is_deleted_unless_asked(self, archive):
+        """Since 0.1.7 the default keeps every file.
+
+        The reference graph cannot yet see `srcset`, `<picture>` or a link made
+        from inside an SVG, so "nothing points at this" is not the same claim as
+        "nothing needs this" — and the difference was measured, not imagined.
+        """
         names = archive.namelist()
+        assert any("nieuzywany" in name for name in names)
+
+    def test_removal_still_works_when_asked_for(self, legacy_epub, tmp_path):
+        result = rebuild(
+            legacy_epub,
+            str(tmp_path / "swept.epub"),
+            Policy.preset("preserve", drop_orphans=True),
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            names = archive.namelist()
         assert not any("nieuzywany" in name for name in names)
         assert not any(".DS_Store" in name for name in names)
+
+    def test_operating_system_junk_goes_either_way(self, archive):
+        """`.DS_Store` and `Thumbs.db` are not book content under any reading,
+        so they are not what the orphan question is about."""
+        assert not any(".DS_Store" in name for name in archive.namelist())
 
 
 class TestPolicyModes:

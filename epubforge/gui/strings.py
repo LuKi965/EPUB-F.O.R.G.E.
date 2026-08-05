@@ -51,6 +51,7 @@ PL: dict[str, str] = {
     "status.done": "gotowe",
     "status.issues": "gotowe z uwagami",
     "status.failed": "niepowodzenie",
+    "status.blocked": "odmowa",
 
     # --- policy panel ---------------------------------------------------
     "policy.group": "Zasady przebudowy",
@@ -92,9 +93,13 @@ PL: dict[str, str] = {
     ),
     "policy.orphans": "Usuń pliki, do których nic nie prowadzi",
     "policy.orphans.tip": (
-        "Kasuje zasoby nieużywane przez żaden rozdział, arkusz stylów ani spis "
-        "treści — a także śmieci w rodzaju .DS_Store czy Thumbs.db.\n\n"
-        "Zmniejsza plik. Wyłącz, jeśli chcesz mieć pewność, że nic nie zniknie."
+        "Domyślnie WYŁĄCZONE i lepiej tak zostawić.\n\n"
+        "Kasuje zasoby, których nie widzi żaden rozdział, arkusz stylów ani spis "
+        "treści. Problem w tym, że narzędzie jeszcze nie widzi wszystkich "
+        "odwołań: nie zna „srcset”, elementu <picture> ani odsyłaczy zrobionych "
+        "wewnątrz pliku SVG. Plik używany przez którekolwiek z nich wygląda tu "
+        "jak nieużywany — i zostałby skasowany.\n\n"
+        "Zysk to kilka kilobajtów. Ryzyko to dziura w miejscu obrazka."
     ),
     "policy.layout": "Uporządkuj pliki w folderach wg typu",
     "policy.layout.tip": (
@@ -358,6 +363,7 @@ EN: dict[str, str] = {
     "status.done": "done",
     "status.issues": "done with issues",
     "status.failed": "failed",
+    "status.blocked": "refused",
     "policy.group": "Rebuild policy",
     "policy.mode.label": "When conformance and appearance conflict:",
     "policy.mode.tip": (
@@ -390,8 +396,12 @@ EN: dict[str, str] = {
     ),
     "policy.orphans": "Remove files nothing references",
     "policy.orphans.tip": (
-        "Deletes resources no chapter, stylesheet or toc uses, plus junk like .DS_Store. "
-        "Turn off if you want certainty that nothing disappears."
+        "OFF by default, and best left that way.\n\n"
+        "Deletes resources no chapter, stylesheet or table of contents points at. "
+        "The catch is that the tool cannot yet see every reference: it does not "
+        "follow srcset, <picture>, or links made from inside an SVG. A file used "
+        "by any of those looks unused here and would be deleted.\n\n"
+        "The saving is a few kilobytes. The risk is a hole where a picture was."
     ),
     "policy.layout": "Reorganise files into typed folders",
     "policy.layout.tip": (

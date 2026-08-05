@@ -1,7 +1,7 @@
 # Changelog
 
 Maturity is stated in words, not encoded in the number: `__stage__` sits beside
-`__version__` and appears wherever the version does — `pre-alpha` today. MINOR
+`__version__` and appears wherever the version does — `alpha` today. MINOR
 moves only when the stage does, against the entry conditions in
 `CONTRIBUTING.md`. PATCH moves on every release, whatever it contains, so there
 is no judgement call to make and therefore no way for one to drift upwards.
@@ -22,6 +22,182 @@ which used MINOR as a rough measure of "how much got done". Nothing was ever
 tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
+
+## 0.2.0 — alpha
+
+**Safety Gate complete.** Ten tasks, seven of the eight P0 findings from
+`audit_consolidation/` closed, and every one verified with the reproduction that
+exposed it rather than with a test written afterwards. The program can no longer
+lie about the outcome of a run, and can no longer destroy somebody else's file
+on the way.
+
+What changed, in one line each — the detail is under 0.1.7 and 0.1.8:
+
+| | |
+|---|---|
+| EF-001 | a stage that raises no longer ends in a file |
+| EF-002 | a batch settles every destination before writing, and refuses a collision |
+| EF-003 | the write is atomic; a failure leaves the previous output byte-identical |
+| EF-005 | nothing is deleted unless asked, until the dependency graph can prove it unused |
+| EF-006 | no accessibility claim without evidence for every graphic |
+| EF-007 | a nav document in the reading order stays in the reading order |
+| EF-008 | container names read through a model; collisions detected, not resolved by luck |
+| EF-011 | the exit code says what happened |
+| EF-019 | an existing destination is not replaced without `--force` |
+| EF-023 | the corpus regression runs for everybody, not for one shelf |
+
+Tests: 307 → 413.
+
+### The maturity claim, and what it is standing on
+
+`CONTRIBUTING.md` lists three conditions for leaving pre-alpha. **Three of the
+three are unmet, and this release is being called alpha anyway** — a decision by
+the project owner, recorded here rather than left for somebody to discover.
+
+| Condition | Actual state |
+|---|---|
+| corpus ≥ 30 books, metrics green across three consecutive releases | 64 books exist, recorded on 0.1.6. Releases 0.1.7 and 0.1.8 deliberately changed the output, so the signatures need re-recording and the three-release run has not happened. |
+| message catalogue ready, report translated | Neither. The report is English-only and findings have no stable identifiers (EF-018). |
+| **no known defects that lose data silently** | **False.** EF-004 is open and confirmed: Media Overlays, remote resources, `fallback`, `media:duration` and one of two collections still disappear with zero errors reported. |
+
+The third is not a formality. A book with read-aloud narration loses its
+synchronisation, passes EPUBCheck, and says nothing about it. Anyone handed this
+release should know that; the README limits section says so too.
+
+What alpha does mean here, honestly stated: the failure modes that could destroy
+your work are closed, and the ones that remain are about **completeness of the
+output**, not about safety. That is a real threshold, and it is the one worth
+crossing before giving the program to other people. It is simply not the
+threshold the version table describes.
+
+Closing EF-004 is the whole of the next block of work.
+
+## 0.1.8 — pre-alpha
+
+Closes the last of the P0 findings. Archive entry names are read through a model
+instead of being folded into shape by one expression and stored.
+
+### Fixed
+- **Two archive entries with one name no longer resolve by iteration order**
+  (EF-008). The later one won and the earlier one was gone, silently. When both
+  bodies are identical nothing is lost and the run continues with a note; when
+  they differ, one of the two documents cannot be represented whatever the tool
+  does, so the read stops rather than picking for you.
+- **A name that climbs out of the container is dropped, not copied through.**
+  An entry literally called `../outside.bin` used to survive a `minimal` rebuild
+  into the output. This tool never unpacks an archive, so it was never at risk
+  itself — whoever unpacked the result was.
+- **Names that differ only by case, or only by Unicode normalisation, are
+  reported.** Both are legal and distinct inside the archive, and both are one
+  file on a filesystem that folds case or normalisation — which is most of them
+  outside Linux. The book is not refused, because it reads perfectly well where
+  it was made; the warning names the pair.
+- Every name the reader has to rewrite — backslash separators, a leading slash,
+  a drive letter, `.` or `..` segments, percent-encoding — now appears in the
+  report. Folding them silently meant a name that had been changed looked
+  exactly like one that had not.
+
+### Added
+- `epubforge/ocf.py` — container names as a value with an account of what was
+  changed, and collision detection under four views: identical, percent-decoded,
+  NFC, case-folded.
+- `tests/test_ocf_paths.py`.
+- **A corpus regression that runs for everybody** (EF-023). The private corpus is
+  the strongest net this project has and it runs on one machine in the world;
+  everywhere else the test skipped. `tests/public_corpus.py` builds nine books
+  from what the 64-book survey established about real ones, byte-deterministically
+  so their signatures mean the same thing on every machine, and
+  `tests/corpus_public/` holds those signatures at 40 KB.
+
+  Three of the nine exist because the measured library contains **no** example:
+  right-to-left, Media Overlays and fixed layout. Those are where the model is
+  thinnest — reading direction has already been lost once, in every mode
+  including the one that promises to touch nothing — and until now nothing in
+  the repository exercised them at all.
+
+  Real public-domain books would be a better second corpus and remain wanted;
+  this environment cannot reach Project Gutenberg to fetch any.
+
+## 0.1.7 — pre-alpha
+
+First of the Safety Gate releases. Nothing here adds a capability; all of it
+stops the program from doing something it should never have been able to do.
+The findings are from `audit_consolidation/`, where each one has a runnable
+reproduction.
+
+### Changed
+- **Unreferenced files are no longer deleted by default** (EF-005). The
+  reference graph does not follow `img@srcset`, `<picture><source srcset>` or
+  links made from inside an SVG, so "nothing points at this" was not the same
+  claim as "nothing needs this" — measured, not supposed: a valid PNG used only
+  through `srcset` was deleted while the markup pointing at it stayed. The
+  output validated and rendered a hole. `--drop-orphans` brings the old
+  behaviour back for anyone who wants it; the flag that used to exist,
+  `--keep-orphans`, is gone rather than left as a silent no-op.
+- **The exit code says what happened** (EF-011). A book that produced an ERROR
+  was written, announced in green as `written`, and exited 0 unless
+  `--strict-exit` was passed — so a script read a damaged book as a finished
+  one. Now: `0` clean, `1` nothing written, `2` written with errors. The message
+  distinguishes `written` from `written with errors`, and `--strict-exit` now
+  means what its name suggests — warnings count too.
+- **An existing file at the destination is no longer replaced without asking**
+  (EF-019). The source file has always been protected by an explicit guard, and
+  that guard was the reason nobody looked at the rest: pointing `-o` at any
+  other file replaced it, silently, exit 0. `--force` is the way to say yes.
+- **The write is all or nothing** (EF-003). `write_epub` opened the destination
+  directly, so a failure partway through left a truncated file under the name
+  the user knew — measured before the fix: 2338 bytes became 1196. The archive
+  is now built under a temporary name beside the destination, closed, read back
+  and checked for the things a half-written container gets wrong, and only then
+  moved into place with `os.replace`. A `KeyboardInterrupt` is treated the same
+  as a disk filling up.
+- **A batch settles every destination before it writes anything** (EF-002).
+  Destinations were derived one book at a time from the basename, so nothing in
+  the program ever held two of them at once and had the chance to notice they
+  were the same. Two books called `tom-1.epub` under different authors resolved
+  to one file: the second overwrote the first, both were announced as written,
+  exit 0. The run is now refused with both source paths named. `--dry-run`
+  prints the plan and writes nothing.
+- **A navigation document that was part of the reading order stays there**
+  (EF-007). A visible table of contents is a nav document in the spine — the
+  page a reader can turn to. Regenerating it removed the old resource, and
+  removing a resource removes its spine entry with it, so the page vanished:
+  two spine items in, one out, no error and no warning. Position and `linear`
+  are now carried over and the change is reported.
+- **Accessibility metadata is no longer asserted without evidence** (EF-006).
+  Two claims were being made on the strength of not having looked. A document
+  whose only graphic was an inline `<svg>` with no title, desc or ARIA label
+  came out declaring `alternativeText`, because the survey counted `<img>`
+  elements and an inline SVG is not one. And `accessibilityHazard: none` was
+  decided from video and script alone, so a CSS keyframe animation, an animated
+  GIF and an animating SVG all passed as motionless. Inline SVG is now counted
+  and examined; a graphic in an unknown state blocks the positive claim; and
+  anything that might move makes the hazard `unknown` rather than `none`.
+  These are the publisher's assertions under EPUB Accessibility 1.1 — a false
+  one tells a reader who depends on it that the book is usable.
+- **A stage that raises no longer ends in a file** (EF-001). The exception
+  became an ERROR line, the remaining stages ran on a model the failure had
+  left half-modified, and the writer produced a book that looked finished.
+  Nothing about the file said otherwise — not its size, not its structure, not
+  EPUBCheck. That is what made this the worst defect in the program rather than
+  merely one of them: every other failure could leave the building through it.
+  The run now stops, nothing is written, and the report names the stage.
+
+### Added
+- `Result.status` — `succeeded`, `succeeded-with-problems`, `blocked` or
+  `failed`. Front ends used to work this out from `output_path is not None`,
+  which cannot tell "finished" from "crashed, and we wrote the pieces anyway".
+  A refusal (DRM, writing over the source) is now `blocked` rather than sharing
+  a label with a malfunction.
+- `tests/test_cli_contract.py` — the command line had no tests at all, which is
+  precisely where two of these defects lived. Exit codes and refusals are a
+  contract with whoever runs the program, and are now pinned as one.
+- `tests/test_failure_injection.py` — parameterised over every stage in the real
+  pipeline, so a stage added later is covered the day it is added. It also
+  covers the write itself: a failure at three different points, a container
+  that reads back wrong, and the temporary file not being left behind.
+- `epubforge/plan.py` — destinations, collisions and occupied targets as a value
+  that can be inspected before anything happens.
 
 ## 0.1.6 — pre-alpha
 
