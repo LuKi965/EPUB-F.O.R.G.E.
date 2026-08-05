@@ -935,8 +935,84 @@ class TestTheOneEditContainerOnlyModeMakes:
         updated, changed = modernise_doctype(data)
         assert not changed and updated == data
 
-    def test_the_rebuild_reports_it(self, legacy_epub, tmp_path):
-        result = rebuild(legacy_epub, str(tmp_path / "out.epub"), Policy.preset("minimal"))
+    def test_the_rebuild_reports_it(self, tmp_path):
+        """The legacy fixture uses `&mdash;`, so it is now correctly left alone
+        — which is the behaviour, not a gap in the test. This builds one that
+        has a legacy DOCTYPE and no named entities."""
+        from .factory import CONTAINER, MODERN_NAV, write_zip
+
+        opf = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>Stary DOCTYPE</dc:title><dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch" href="ch.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="ch"/></spine>
+</package>
+"""
+        source = write_zip(
+            str(tmp_path / "legacy-doctype.epub"),
+            {
+                "META-INF/container.xml": CONTAINER.replace(
+                    "OEBPS/content.opf", "OEBPS/package.opf"
+                ),
+                "OEBPS/package.opf": opf,
+                "OEBPS/nav.xhtml": MODERN_NAV,
+                "OEBPS/ch.xhtml": self._document(
+                    '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "x.dtd">'
+                ).decode(),
+            },
+        )
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("minimal"))
         assert any("DOCTYPE" in f.message for f in result.report.findings), [
             f.message for f in result.report.findings
         ]
+
+    def test_a_document_using_a_named_entity_is_left_alone(self):
+        """The guard that was missing, and that a real book found.
+
+        A legacy DOCTYPE declares entities two ways: an internal subset, and
+        the external DTD it names. The second is the one that matters — every
+        XHTML 1.1 document may write `&nbsp;` because `xhtml11.dtd` declares
+        it. Swapping the declaration strands the reference and EPUBCheck stops
+        dead: *Fatal Error while parsing file: The entity "nbsp" was
+        referenced, but not declared*. A book that will not open is worse than
+        a book that is merely invalid.
+        """
+        from epubforge.xhtml import modernise_doctype
+
+        data = self._document(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" '
+            '"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">',
+            body="<p>Dwa&nbsp;słowa.</p>",
+        )
+        updated, changed = modernise_doctype(data)
+        assert not changed and updated == data
+
+    def test_the_five_xml_builtins_do_not_block_it(self):
+        """`&amp;` and its four siblings need no declaration, so a document
+        using only those is still safe to modernise. Treating them as a reason
+        to stop would mean never modernising anything."""
+        from epubforge.xhtml import modernise_doctype
+
+        data = self._document(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "x.dtd">',
+            body="<p>Kowalski &amp; Wiśniewski &lt;tak&gt;</p>",
+        )
+        _, changed = modernise_doctype(data)
+        assert changed
+
+    def test_a_numeric_reference_does_not_block_it(self):
+        from epubforge.xhtml import modernise_doctype
+
+        data = self._document(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "x.dtd">',
+            body="<p>Dwa&#160;słowa.</p>",
+        )
+        _, changed = modernise_doctype(data)
+        assert changed

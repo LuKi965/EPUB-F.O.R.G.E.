@@ -23,6 +23,23 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.7 — alpha
+
+**The DOCTYPE swap released in 0.2.6 had a hole, and a real book found it.**
+A legacy DOCTYPE declares entities two ways — an internal subset, which was
+guarded, and the external DTD it names, which was not. Every XHTML 1.1 document
+may write `&nbsp;` because `xhtml11.dtd` declares it, so replacing the
+declaration stranded the reference: *Fatal Error while parsing file: The entity
+"nbsp" was referenced, but not declared*. A book that will not open, from one
+that was merely invalid. The swap now happens only when the document uses no
+named entity beyond the five XML built-ins.
+
+Numeric references are unaffected, and `&amp;` and its four siblings do not
+block the swap — treating them as a reason to stop would mean never modernising
+anything.
+
+Tests: 534 → 537.
+
 ## 0.2.6 — alpha
 
 **The container-only mode makes exactly one edit inside a document now.** A

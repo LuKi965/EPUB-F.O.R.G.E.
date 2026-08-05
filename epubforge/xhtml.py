@@ -262,6 +262,12 @@ def strip_doctype(data: bytes) -> bytes:
 #: DOCTYPE: found "-//W3C//DTD XHTML 1.1//EN", expected "<!DOCTYPE html>"*.
 EPUB3_DOCTYPE = b"<!DOCTYPE html>"
 
+#: `&name;`. Numeric references need no declaration and are not matched.
+_ENTITY_REFERENCE = re.compile(rb"&([A-Za-z][A-Za-z0-9]*);")
+
+#: The only entities an XML parser knows without being told.
+_XML_BUILTIN_ENTITIES = {b"amp", b"lt", b"gt", b"quot", b"apos"}
+
 
 def modernise_doctype(data: bytes) -> tuple[bytes, bool]:
     """Swap a legacy DOCTYPE for the EPUB 3 one, touching nothing else.
@@ -272,15 +278,25 @@ def modernise_doctype(data: bytes) -> tuple[bytes, bool]:
     container-only rebuild and a valid EPUB 3, and roughly half the older books
     in a real library carry the XHTML 1.1 one.
 
-    Returns the data unchanged when the DOCTYPE declares an internal subset.
-    Those entities are used by the document, and `<!DOCTYPE html>` does not
-    define them: swapping it would turn a book that is merely invalid into a
-    book that will not parse.
+    Returns the data unchanged whenever the document references an entity that
+    `<!DOCTYPE html>` does not define. A legacy DOCTYPE declares entities two
+    ways — an internal subset, and the external DTD it names — and the second
+    is the one that matters in practice: every XHTML 1.1 document may write
+    `&nbsp;` because `xhtml11.dtd` declares it. Swapping the declaration
+    strands the reference, and EPUBCheck stops at *Fatal Error while parsing
+    file: The entity "nbsp" was referenced, but not declared*. That turns a book
+    that is merely invalid into one that will not open, which is worse than
+    doing nothing.
+
+    Only the five XML built-ins survive without a declaration.
     """
     match = _DOCTYPE_RE.search(data)
     if match is None or match.group(0) == EPUB3_DOCTYPE:
         return data, False
-    if match.group(1):  # an internal subset — see the docstring
+    if match.group(1):  # an internal subset declares its own — leave it alone
+        return data, False
+    body = data[: match.start()] + data[match.end() :]
+    if set(_ENTITY_REFERENCE.findall(body)) - _XML_BUILTIN_ENTITIES:
         return data, False
     return data[: match.start()] + EPUB3_DOCTYPE + data[match.end() :], True
 
