@@ -47,7 +47,15 @@ class TestStructure:
         assert window.windowTitle().count("F.O.R.G.E.") == 1
 
     def test_the_title_states_the_maturity(self, window):
-        assert "pre-alpha" in window.windowTitle()
+        """Whatever the stage is, the window says it.
+
+        Asserting the literal "pre-alpha" made this a test of one release rather
+        than of the rule, and it went red on the day the stage changed — which is
+        the day it should have stayed green.
+        """
+        from epubforge import __stage__
+
+        assert __stage__ and __stage__ in window.windowTitle()
 
 
 class TestScaling:

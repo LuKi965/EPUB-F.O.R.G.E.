@@ -526,12 +526,24 @@ Wypchnij tag `v*`, żeby wydać wersję, albo uruchom workflow ręcznie.
 
 ### Wersja i dojrzałość to dwie różne rzeczy
 
-To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
+To jest **alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
 wersję:
 
 ```
-epub-forge 0.1.8 (pre-alpha)
+epub-forge 0.2.0 (alpha)
 ```
+
+> **Co ta alfa znaczy, a czego nie.** Zamknięte są te awarie, które mogły
+> zniszczyć Twoją pracę: przerwany zapis nie kasuje poprzedniego wyniku, awaria
+> etapu nie kończy się plikiem udającym gotowy, dwie książki o tej samej nazwie
+> nie zlewają się w jedną, a plik źródłowy jest chroniony osobnym strażnikiem.
+>
+> **Nie jest zamknięte** to, że wynik bywa uboższy od wejścia. Książka
+> z Media Overlays traci synchronizację narracji, zasoby zdalne i `fallback`
+> znikają, a raport milczy — patrz [Ograniczenia](#ograniczenia) i
+> `audit_consolidation/`, ustalenie EF-004. Dwa z trzech warunków wejścia
+> w alfę spisanych w [`CONTRIBUTING.md`](CONTRIBUTING.md) też nie są spełnione;
+> `CHANGELOG.md` wypisuje które i dlaczego mimo to wydajemy.
 
 Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —
 liczba rosnąca w stronę 1.0 czyta się jako postęp ku wydaniu niezależnie od tego,

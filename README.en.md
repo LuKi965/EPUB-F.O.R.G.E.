@@ -459,12 +459,25 @@ Windows installers are produced by `.github/workflows/build-windows.yml`. Push a
 
 ### Version and maturity are different things
 
-This is **pre-alpha**, and the program says so itself wherever it reports its
+This is **alpha**, and the program says so itself wherever it reports its
 version:
 
 ```
-epub-forge 0.1.8 (pre-alpha)
+epub-forge 0.2.0 (alpha)
 ```
+
+> **What that alpha means, and what it does not.** The failures that could
+> destroy your work are closed: an interrupted write no longer replaces a good
+> file with a truncated one, a stage that crashes no longer produces a book that
+> looks finished, two books with one filename no longer become one, and the
+> source file has its own guard.
+>
+> **Not closed**: the output can be poorer than the input. A book with Media
+> Overlays loses its narration sync, remote resources and `fallback` disappear,
+> and the report says nothing — see [Limits](#limits) and finding EF-004 in
+> `audit_consolidation/`. Two of the three written entry conditions for alpha in
+> [`CONTRIBUTING.md`](CONTRIBUTING.md) are also unmet; `CHANGELOG.md` lists which
+> and why this ships regardless.
 
 The number no longer tries to carry that information, because it cannot: a
 figure climbing towards 1.0 reads as progress towards a release whatever anyone

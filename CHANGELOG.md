@@ -1,7 +1,7 @@
 # Changelog
 
 Maturity is stated in words, not encoded in the number: `__stage__` sits beside
-`__version__` and appears wherever the version does — `pre-alpha` today. MINOR
+`__version__` and appears wherever the version does — `alpha` today. MINOR
 moves only when the stage does, against the entry conditions in
 `CONTRIBUTING.md`. PATCH moves on every release, whatever it contains, so there
 is no judgement call to make and therefore no way for one to drift upwards.
@@ -22,6 +22,55 @@ which used MINOR as a rough measure of "how much got done". Nothing was ever
 tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
+
+## 0.2.0 — alpha
+
+**Safety Gate complete.** Ten tasks, seven of the eight P0 findings from
+`audit_consolidation/` closed, and every one verified with the reproduction that
+exposed it rather than with a test written afterwards. The program can no longer
+lie about the outcome of a run, and can no longer destroy somebody else's file
+on the way.
+
+What changed, in one line each — the detail is under 0.1.7 and 0.1.8:
+
+| | |
+|---|---|
+| EF-001 | a stage that raises no longer ends in a file |
+| EF-002 | a batch settles every destination before writing, and refuses a collision |
+| EF-003 | the write is atomic; a failure leaves the previous output byte-identical |
+| EF-005 | nothing is deleted unless asked, until the dependency graph can prove it unused |
+| EF-006 | no accessibility claim without evidence for every graphic |
+| EF-007 | a nav document in the reading order stays in the reading order |
+| EF-008 | container names read through a model; collisions detected, not resolved by luck |
+| EF-011 | the exit code says what happened |
+| EF-019 | an existing destination is not replaced without `--force` |
+| EF-023 | the corpus regression runs for everybody, not for one shelf |
+
+Tests: 307 → 413.
+
+### The maturity claim, and what it is standing on
+
+`CONTRIBUTING.md` lists three conditions for leaving pre-alpha. **Three of the
+three are unmet, and this release is being called alpha anyway** — a decision by
+the project owner, recorded here rather than left for somebody to discover.
+
+| Condition | Actual state |
+|---|---|
+| corpus ≥ 30 books, metrics green across three consecutive releases | 64 books exist, recorded on 0.1.6. Releases 0.1.7 and 0.1.8 deliberately changed the output, so the signatures need re-recording and the three-release run has not happened. |
+| message catalogue ready, report translated | Neither. The report is English-only and findings have no stable identifiers (EF-018). |
+| **no known defects that lose data silently** | **False.** EF-004 is open and confirmed: Media Overlays, remote resources, `fallback`, `media:duration` and one of two collections still disappear with zero errors reported. |
+
+The third is not a formality. A book with read-aloud narration loses its
+synchronisation, passes EPUBCheck, and says nothing about it. Anyone handed this
+release should know that; the README limits section says so too.
+
+What alpha does mean here, honestly stated: the failure modes that could destroy
+your work are closed, and the ones that remain are about **completeness of the
+output**, not about safety. That is a real threshold, and it is the one worth
+crossing before giving the program to other people. It is simply not the
+threshold the version table describes.
+
+Closing EF-004 is the whole of the next block of work.
 
 ## 0.1.8 — pre-alpha
 
