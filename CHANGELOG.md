@@ -23,7 +23,29 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## Unreleased
+## 0.2.4 — alpha — 2026-08-05
+
+**Every finding this program can make now has a name that survives being
+reworded, and that name is what the Polish report translates.** The catalogue
+was the last of the two unmet alpha conditions; the other was the translation,
+and it could not have been done without it.
+
+### At a glance
+
+| | |
+|---|---|
+| A finding's identity was its English sentence | 79 call sites, 78 catalogued ids |
+| The report could not be translated at all | now Polish, 78 of 78 findings |
+| A corpus diff said `report.fix: 5 → 6` | now names the rule that moved |
+| A container-only rebuild emitted `../` hrefs | 70 of 70 manifest entries, EPUBCheck silent |
+| Archive entries declared no file type | every file this program ever wrote |
+| A milestone freeze was a thing to remember | now four written steps |
+
+**New:** `tools/device_variants.py`, which builds the archive-level variants
+that bisect a reader refusing a valid book. **Fixed:** the package document no
+longer walks away from the files it describes.
+
+### Everything, by subject
 
 ### Seventy manifest hrefs that climbed out of their own directory
 
@@ -50,6 +72,23 @@ Found while writing up why an InkBOOK Focus hangs on our output; whether it is
 reader like it — one file per property the specification leaves free, plus the
 control file without which no result means anything.
 
+### Every archive entry now says it is a file
+
+`create_system = 3` on a ZIP entry means "the mode field holds Unix
+attributes", and the mode this program wrote was `0o644` — permissions with the
+file-type bits left at zero, which is neither a regular file nor a directory.
+Every EPUB this program has ever produced said that about every entry in it.
+Nothing on a desktop cares. A reader that reads the field and believes it is a
+different matter, and both files known to open on the device that started this
+were `0o100644`.
+
+The content directory may also be the archive root now, which is where Calibre
+puts the package document and where some readers were built to look for it.
+Making it configurable was four lines and exposed three wrong ones: joining a
+directory that is empty produced `/content.opf` and `/images/…`, a leading
+slash that is not a container path at all, and EPUBCheck said so 214 times.
+All four join sites go through `paths.content_path` now.
+
 ### A finding now has a name that does not change (EF-018, in progress)
 
 The identity of a finding used to be its English sentence. Three consequences,
@@ -69,7 +108,7 @@ by it wherever it is present: where the identity exists, the guessing stops.
 There are more than a hundred call sites, so this lands over several changes.
 `tests/test_rules.py` holds it to a ratchet — the number of tagged sites may
 rise and may not fall, an id nothing raises fails the suite, and an id raised
-but not catalogued fails it too. **All 78 call sites are converted** and the
+but not catalogued fails it too. **All 79 call sites are converted** and the
 exemption list is empty: an id nothing raises now fails the suite outright.
 
 One call site turned out to be two findings sharing one call. Replacing a
@@ -86,12 +125,12 @@ effort: a sentence that *is* the identity of a finding cannot be swapped for its
 Polish equivalent without changing what it identifies. The catalogue is what
 made this possible, and it is exactly what a translation replaces.
 
-All 77 findings have a Polish description. `report.to_text("pl")` and the window
+All 78 findings have a Polish description. `report.to_text("pl")` and the window
 use it; English is unchanged, byte for byte, because a translation that alters
 the original is a rewrite wearing a translation's name.
 
 The original message stays underneath the translated line. Thirty-seven of the
-seventy-seven still interpolate their values straight into the sentence — how
+seventy-eight still interpolate their values straight into the sentence — how
 many entries, which file, which media type — and dropping that to gain Polish
 would trade information for language. Turning those into templates with their
 values alongside is what removes the second line; until then it is there and
