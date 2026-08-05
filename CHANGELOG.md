@@ -53,6 +53,16 @@ correction. They carried different levels and different messages through a
 conditional expression, which is how they came to share an identity neither of
 them could have.
 
+### A corpus diff now names the behaviour, not the counter
+
+Signatures record which rules fired and how often, so a book whose signature
+moves reads as `+a11y.missing-alt ×3, −nav.entry-dropped` instead of
+`report.fix: 5 → 6`. The second says a number went up; finding out which
+behaviour changed meant rebuilding the book by hand. This is what the
+identifiers were for.
+
+Both corpora are re-recorded to carry the distribution.
+
 ### The milestone cycle is a procedure now, not a memory
 
 Releasing a milestone is four steps in one turn: build and release, freeze

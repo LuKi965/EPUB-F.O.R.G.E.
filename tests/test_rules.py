@@ -148,3 +148,60 @@ class TestDescribing:
     def test_an_unknown_rule_returns_itself(self):
         """A missing dictionary entry must not stop a report from printing."""
         assert rules.describe("nie.ma-takiej") == "nie.ma-takiej"
+
+
+class TestTheCorpusRecordsWhichRulesFired:
+    """A signature that moves has to say *what* moved.
+
+    Before this, a corpus diff read "report.fix: 5 → 6" — a number went up, and
+    finding out which behaviour changed meant rebuilding the book by hand. With
+    identifiers the same diff reads "+a11y.missing-alt ×3, −nav.entry-dropped",
+    which is a sentence about the program rather than about a counter.
+    """
+
+    def test_a_signature_carries_the_distribution(self, tmp_path):
+        from epubforge.corpus import signature
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "book.epub"))
+        recorded = signature(pathlib.Path(source), tmp_path)
+        rules_fired = recorded["preserve"]["rules"]
+        assert rules_fired, recorded["preserve"]
+        for rule in rules_fired:
+            assert rules.known(rule), rule
+
+    def test_a_new_rule_reads_as_an_arrival(self):
+        from epubforge.corpus import differences
+
+        moved = differences(
+            {"preserve": {"rules": {"structure.relaid-out": 1}}},
+            {"preserve": {"rules": {"structure.relaid-out": 1, "a11y.missing-alt": 3}}},
+        )
+        assert moved == ["preserve.rules: +a11y.missing-alt ×3"]
+
+    def test_a_rule_that_stopped_reads_as_a_departure(self):
+        from epubforge.corpus import differences
+
+        moved = differences(
+            {"preserve": {"rules": {"nav.entry-dropped": 2}}},
+            {"preserve": {"rules": {}}},
+        )
+        assert moved == ["preserve.rules: −nav.entry-dropped"]
+
+    def test_a_count_that_changed_says_both_numbers(self):
+        from epubforge.corpus import differences
+
+        moved = differences(
+            {"preserve": {"rules": {"a11y.missing-alt": 1}}},
+            {"preserve": {"rules": {"a11y.missing-alt": 4}}},
+        )
+        assert moved == ["preserve.rules: a11y.missing-alt 1→4"]
+
+    def test_an_unchanged_distribution_says_nothing(self):
+        """The opposite failure: a diff that fires on every run is a diff nobody
+        reads, and the whole corpus stops being believed."""
+        from epubforge.corpus import differences
+
+        same = {"preserve": {"rules": {"structure.relaid-out": 1}}}
+        assert differences(same, same) == []

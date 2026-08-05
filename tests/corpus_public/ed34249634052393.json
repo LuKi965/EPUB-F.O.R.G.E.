@@ -7,6 +7,14 @@
       "fix": 2,
       "preserved": 1
     },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.contents-page-kept": 1,
+      "nav.ncx-written": 1,
+      "nav.regenerated": 1,
+      "package.regenerated": 1,
+      "structure.relaid-out": 1
+    },
     "output": "sha256:6a38058481c3f31dede92e3896b513edec50d8db13a739d325e6d213712ab84e",
     "text_characters": 27,
     "text_added": 0,
@@ -19,6 +27,14 @@
       "info": 3,
       "fix": 2,
       "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.contents-page-kept": 1,
+      "nav.ncx-written": 1,
+      "nav.regenerated": 1,
+      "package.regenerated": 1,
+      "structure.relaid-out": 1
     },
     "output": "sha256:6a38058481c3f31dede92e3896b513edec50d8db13a739d325e6d213712ab84e",
     "text_characters": 27,

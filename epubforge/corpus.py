@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+from collections import Counter
 from dataclasses import dataclass, field
 
 from .pipeline import rebuild
@@ -114,6 +115,12 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
     policy = Policy.preset(mode, modified_override=FROZEN_MODIFIED)
     result = rebuild(str(book), str(destination), policy)
 
+    # Counters by level say a book gained three fixes. Counters by rule say
+    # *which* three, so a signature that moves reads as "this book stopped
+    # losing its contents page" rather than as "a number went up" — which is
+    # the difference between a regression net and a tripwire (EF-018).
+    rules: Counter = Counter(f.rule for f in result.report.findings if f.rule)
+
     measurement: dict = {
         "written": result.output_path is not None,
         "report": {
@@ -121,6 +128,7 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
             for level in Level
             if result.report.count(level)
         },
+        "rules": dict(sorted(rules.items())),
     }
     if result.output_path is None:
         return measurement
@@ -172,13 +180,37 @@ def signature(book: pathlib.Path, scratch: pathlib.Path) -> dict:
     return record
 
 
+def _rule_changes(recorded: dict, measured: dict) -> str:
+    """What started happening and what stopped, in one line."""
+    parts: list[str] = []
+    for rule in sorted(set(recorded) | set(measured)):
+        before, after = recorded.get(rule, 0), measured.get(rule, 0)
+        if before == after:
+            continue
+        if not before:
+            parts.append(f"+{rule}" + (f" ×{after}" if after > 1 else ""))
+        elif not after:
+            parts.append(f"−{rule}")
+        else:
+            parts.append(f"{rule} {before}→{after}")
+    return ", ".join(parts)
+
+
 def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
     """Field-level diff, so a change reads as a sentence and not as two hashes."""
     lines: list[str] = []
     for key in sorted(set(recorded) | set(measured)):
         here = f"{path}.{key}" if path else key
         old, new = recorded.get(key), measured.get(key)
-        if isinstance(old, dict) and isinstance(new, dict):
+        if key == "rules" and isinstance(old, dict) and isinstance(new, dict):
+            # Rendered as one line naming what appeared and what stopped,
+            # because "rules.nav.repointed: None → 1" spread over eight lines is
+            # a diff nobody reads. This is the line that says *which* behaviour
+            # moved rather than that a number did.
+            change = _rule_changes(old, new)
+            if change:
+                lines.append(f"{here}: {change}")
+        elif isinstance(old, dict) and isinstance(new, dict):
             lines.extend(differences(old, new, here))
         elif old != new:
             lines.append(f"{here}: {old!r} → {new!r}")
