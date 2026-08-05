@@ -53,6 +53,21 @@ instead of being folded into shape by one expression and stored.
   changed, and collision detection under four views: identical, percent-decoded,
   NFC, case-folded.
 - `tests/test_ocf_paths.py`.
+- **A corpus regression that runs for everybody** (EF-023). The private corpus is
+  the strongest net this project has and it runs on one machine in the world;
+  everywhere else the test skipped. `tests/public_corpus.py` builds nine books
+  from what the 64-book survey established about real ones, byte-deterministically
+  so their signatures mean the same thing on every machine, and
+  `tests/corpus_public/` holds those signatures at 40 KB.
+
+  Three of the nine exist because the measured library contains **no** example:
+  right-to-left, Media Overlays and fixed layout. Those are where the model is
+  thinnest — reading direction has already been lost once, in every mode
+  including the one that promises to touch nothing — and until now nothing in
+  the repository exercised them at all.
+
+  Real public-domain books would be a better second corpus and remain wanted;
+  this environment cannot reach Project Gutenberg to fetch any.
 
 ## 0.1.7 — pre-alpha
 
