@@ -49,7 +49,6 @@ reproduction.
   (EF-019). The source file has always been protected by an explicit guard, and
   that guard was the reason nobody looked at the rest: pointing `-o` at any
   other file replaced it, silently, exit 0. `--force` is the way to say yes.
-
 - **A stage that raises no longer ends in a file** (EF-001). The exception
   became an ERROR line, the remaining stages ran on a model the failure had
   left half-modified, and the writer produced a book that looked finished.
@@ -69,6 +68,8 @@ reproduction.
   contract with whoever runs the program, and are now pinned as one.
 - `tests/test_failure_injection.py` — parameterised over every stage in the real
   pipeline, so a stage added later is covered the day it is added.
+
+## 0.1.6 — pre-alpha
 
 The other half of the same afternoon's data: the three books a 64-book survey
 could not read, and the three complaints from the person running it.
