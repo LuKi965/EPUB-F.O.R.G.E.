@@ -64,8 +64,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.write_ncx = False
     if args.strip_scripts:
         policy.strip_scripts = True
-    if args.keep_orphans:
-        policy.drop_orphans = False
+    if args.drop_orphans:
+        policy.drop_orphans = True
     if args.keep_layout:
         policy.reorganize_files = False
     if args.keep_watermark_markup:
@@ -132,6 +132,24 @@ def summarize(console: Console, report: Report) -> None:
         console.print(f"  [dim italic]{remark}[/]")
 
 
+#: What the shell learns from a run. Zero means "the file is good"; anything
+#: else means somebody has to look. Before 0.1.7 a book that produced an ERROR
+#: still exited 0 unless --strict-exit was passed, so an automated pipeline read
+#: a damaged result as a success.
+EXIT_OK = 0
+EXIT_NOT_WRITTEN = 1
+EXIT_WRITTEN_WITH_PROBLEMS = 2
+
+#: Which outcome a batch reports when its books disagree. Ranked rather than
+#: compared numerically, because the numbers are an interface for the shell and
+#: not a severity scale: "nothing was written" is the worse news, and it is 1.
+_SEVERITY = {EXIT_OK: 0, EXIT_WRITTEN_WITH_PROBLEMS: 1, EXIT_NOT_WRITTEN: 2}
+
+
+def _worse(current: int, candidate: int) -> int:
+    return candidate if _SEVERITY[candidate] > _SEVERITY[current] else current
+
+
 def command_build(args: argparse.Namespace) -> int:
     console = Console(stderr=False)
     inputs = collect_inputs(args.inputs)
@@ -157,7 +175,19 @@ def command_build(args: argparse.Namespace) -> int:
 
         if os.path.abspath(destination) == os.path.abspath(source):
             console.print(f"[red]Refusing to overwrite the source file:[/] {source}")
-            exit_code = 1
+            exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
+            continue
+
+        # Anything already at the destination is somebody's work — possibly the
+        # output of an earlier run that they have since corrected by hand. The
+        # source has always been protected; this extends the same courtesy to
+        # everything else.
+        if os.path.exists(destination) and not args.force:
+            console.print(
+                f"[red]Refusing to overwrite:[/] {destination}\n"
+                "  [dim]It already exists. Pass --force to replace it, or -o to write elsewhere.[/]"
+            )
+            exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
             continue
 
         console.rule(f"[bold]{os.path.basename(source)}")
@@ -171,10 +201,17 @@ def command_build(args: argparse.Namespace) -> int:
 
         if result.output_path:
             size = os.path.getsize(result.output_path)
-            console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
+            if result.report.ok:
+                console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
+            else:
+                # Written, but carrying errors. Saying only "written" here is how
+                # a book with an unreadable image got reported as a success.
+                console.print(
+                    f"  [bold yellow]written with errors[/] {destination} ({size / 1024:.0f} KiB)"
+                )
         else:
             console.print("  [bold red]not written[/] — see errors above")
-            exit_code = 1
+            exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
         if args.report:
             report_path = (
@@ -186,7 +223,9 @@ def command_build(args: argparse.Namespace) -> int:
                 handle.write(result.report.to_json())
 
         if not result.report.ok:
-            exit_code = max(exit_code, 2 if args.strict_exit else 0)
+            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
+        elif args.strict_exit and result.report.count(Level.WARN):
+            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
 
     return exit_code
 
@@ -468,9 +507,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     build.add_argument("--no-ncx", action="store_true", help="omit the legacy NCX")
     build.add_argument("--strip-scripts", action="store_true", help="remove all scripting")
-    build.add_argument("--keep-orphans", action="store_true", help="keep unreferenced files")
+    build.add_argument(
+        "--drop-orphans",
+        action="store_true",
+        help=(
+            "delete files nothing appears to reference. Off by default: the "
+            "reference graph does not yet see srcset, <picture> or references "
+            "made from inside an SVG, so a file still in use can be deleted"
+        ),
+    )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
-    build.add_argument("--strict-exit", action="store_true", help="exit non-zero when findings remain")
+    build.add_argument(
+        "--strict-exit",
+        action="store_true",
+        help="also exit non-zero on warnings (errors always do)",
+    )
+    build.add_argument(
+        "--force",
+        action="store_true",
+        help="replace a file that already exists at the destination",
+    )
     build.add_argument(
         "--keep-watermark-markup",
         action="store_true",

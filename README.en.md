@@ -289,7 +289,7 @@ epubforge inspect book.epub                      # diagnose without writing
 epubforge gui                                    # desktop interface
 ```
 
-Useful flags: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
+Useful flags: `--no-ncx`, `--strip-scripts`, `--drop-orphans`, `--keep-layout`,
 `--keep-watermark-markup`, `--no-a11y-metadata`, `--claim-conformance wcag-aa`,
 `--compat`, `--modified`, `--title/--author/--publisher/--series/--language`,
 `--report out.json`, `-v`.
@@ -463,7 +463,7 @@ This is **pre-alpha**, and the program says so itself wherever it reports its
 version:
 
 ```
-epub-forge 0.1.6 (pre-alpha)
+epub-forge 0.1.7 (pre-alpha)
 ```
 
 The number no longer tries to carry that information, because it cannot: a

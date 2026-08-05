@@ -307,7 +307,7 @@ epubforge inspect ksiazka.epub
 epubforge gui
 ```
 
-Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--keep-orphans`, `--keep-layout`,
+Przydatne flagi: `--no-ncx`, `--strip-scripts`, `--drop-orphans`, `--keep-layout`,
 `--keep-watermark-markup`, `--no-a11y-metadata`, `--claim-conformance wcag-aa`,
 `--compat`, `--modified`, `--title/--author/--publisher/--series/--language`,
 `--report raport.json`, `-v`.
@@ -530,7 +530,7 @@ To jest **pre-alpha**. Program mówi to o sobie sam, wszędzie tam, gdzie podaje
 wersję:
 
 ```
-epub-forge 0.1.6 (pre-alpha)
+epub-forge 0.1.7 (pre-alpha)
 ```
 
 Numer wersji nie próbuje już nieść tej informacji, bo się do tego nie nadaje —

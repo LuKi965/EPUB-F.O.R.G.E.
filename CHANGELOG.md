@@ -23,7 +23,37 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## 0.1.6 — pre-alpha
+## 0.1.7 — pre-alpha
+
+First of the Safety Gate releases. Nothing here adds a capability; all of it
+stops the program from doing something it should never have been able to do.
+The findings are from `audit_consolidation/`, where each one has a runnable
+reproduction.
+
+### Changed
+- **Unreferenced files are no longer deleted by default** (EF-005). The
+  reference graph does not follow `img@srcset`, `<picture><source srcset>` or
+  links made from inside an SVG, so "nothing points at this" was not the same
+  claim as "nothing needs this" — measured, not supposed: a valid PNG used only
+  through `srcset` was deleted while the markup pointing at it stayed. The
+  output validated and rendered a hole. `--drop-orphans` brings the old
+  behaviour back for anyone who wants it; the flag that used to exist,
+  `--keep-orphans`, is gone rather than left as a silent no-op.
+- **The exit code says what happened** (EF-011). A book that produced an ERROR
+  was written, announced in green as `written`, and exited 0 unless
+  `--strict-exit` was passed — so a script read a damaged book as a finished
+  one. Now: `0` clean, `1` nothing written, `2` written with errors. The message
+  distinguishes `written` from `written with errors`, and `--strict-exit` now
+  means what its name suggests — warnings count too.
+- **An existing file at the destination is no longer replaced without asking**
+  (EF-019). The source file has always been protected by an explicit guard, and
+  that guard was the reason nobody looked at the rest: pointing `-o` at any
+  other file replaced it, silently, exit 0. `--force` is the way to say yes.
+
+### Added
+- `tests/test_cli_contract.py` — the command line had no tests at all, which is
+  precisely where both of the above lived. Exit codes and refusals are a
+  contract with whoever runs the program, and are now pinned as one.
 
 The other half of the same afternoon's data: the three books a 64-book survey
 could not read, and the three complaints from the person running it.

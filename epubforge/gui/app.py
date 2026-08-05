@@ -333,7 +333,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.mode_combo)
 
         self.ncx_check = self._checkbox(layout, "policy.ncx", checked=True)
-        self.orphans_check = self._checkbox(layout, "policy.orphans", checked=True)
+        self.orphans_check = self._checkbox(layout, "policy.orphans", checked=False)
         self.layout_check = self._checkbox(layout, "policy.layout", checked=True)
         self.scripts_check = self._checkbox(layout, "policy.scripts", checked=False)
         self.validate_check = self._checkbox(
