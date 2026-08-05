@@ -19,6 +19,13 @@ name: Build Windows
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: >-
+          Publish a release under this tag (e.g. v0.2.0), creating the tag at
+          the commit being built. Leave empty to build without releasing.
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
@@ -99,7 +106,18 @@ jobs:
           if ($env:GITHUB_REF -like "refs/tags/v*") {
             $version = $env:GITHUB_REF -replace "refs/tags/v", ""
           }
+          $asked = "${{ inputs.release_tag }}"
+          if ($asked) {
+            $version = $asked -replace "^v", ""
+          }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+          # Whether a release is a pre-release is not a separate decision to be
+          # made at release time and got wrong; it is what `__stage__` already
+          # says. Empty means the maturity claim has been made in the source.
+          $stage = (python -c "import epubforge; print(epubforge.__stage__)").Trim()
+          $prerelease = if ($stage) { "true" } else { "false" }
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Build the installer
         shell: pwsh
@@ -126,10 +144,27 @@ jobs:
             D:\forge\dist\*-portable.zip
           retention-days: 30
 
+      # Two ways in. A tag push is the ordinary one. The `release_tag` input
+      # exists because pushing a tag needs a terminal, and the person who
+      # decides what gets released does not use one — with the input, the tag
+      # is created here, at the commit that was just built and tested, which is
+      # a stronger guarantee than a tag pushed by hand at whatever was local.
+      - name: Collect the release notes
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+        shell: pwsh
+        run: |
+          python packaging\release_notes.py "${{ steps.version.outputs.version }}" `
+            | Out-File -FilePath D:\forge\release-notes.md -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       - name: Attach to the release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: EPUB F.O.R.G.E. ${{ steps.version.outputs.version }}
+          body_path: D:\forge\release-notes.md
+          prerelease: ${{ steps.version.outputs.prerelease }}
           files: |
             D:\forge\dist\installer\*.exe
             D:\forge\dist\*-portable.zip
