@@ -57,7 +57,9 @@ class CompatibilityStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                f"unknown compatibility profile {name!r}; ignored", rule="compat.unknown-profile",
+                f"unknown compatibility profile {name!r}; ignored",
+                rule="compat.unknown-profile",
+                values={"profile": name},
                 detail=f"Known profiles: {', '.join(sorted(compat.PROFILES))}.",
             )
         if not measures:
@@ -138,7 +140,9 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            f"added {compat.COMPAT_STYLESHEET_NAME} to {linked} document(s)", rule="compat.stylesheet-added",
+            f"added {compat.COMPAT_STYLESHEET_NAME} to {linked} document(s)",
+            rule="compat.stylesheet-added",
+            values={"stylesheet": compat.COMPAT_STYLESHEET_NAME, "count": linked},
             detail=(
                 "Declares the HTML5 sectioning elements as blocks. It is linked "
                 "ahead of the book's own stylesheets, so every rule the publisher "
@@ -195,7 +199,9 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            f"mirrored {mirrored} fragmentation declaration(s) into page-break-* form", rule="compat.page-break-mirrored",
+            f"mirrored {mirrored} fragmentation declaration(s) into page-break-* form",
+            rule="compat.page-break-mirrored",
+            values={"count": mirrored},
             detail=(
                 "The modern break-* properties are left exactly as they are; the "
                 "legacy spelling is added beside them for renderers that only know "

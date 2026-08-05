@@ -134,6 +134,7 @@ class StructureStage(Stage):
                     f"repointed {rewritten} reference(s) inside a file carried as-is",
                     location=resource.path,
                     rule="structure.carried-xml-repointed",
+                    values={"count": rewritten},
                     detail=(
                         "The pipeline does not model this file type, but it does move "
                         "the files it points at. Leaving the references alone would "
@@ -246,5 +247,6 @@ class StructureStage(Stage):
                 Level.FIX,
                 f"reorganised {len(moves)} file(s) into a typed {root}/ layout with portable names",
                 rule="structure.relaid-out",
+                values={"count": len(moves), "directory": root},
                 detail=f"{renamed} file(s) needed a new name; every reference was rewritten to match",
             )

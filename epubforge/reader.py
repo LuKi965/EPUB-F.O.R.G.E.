@@ -258,6 +258,7 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
                     f"dropped an archive entry whose name is not a container path: {entry_name.reason}",
                     location=entry_name.raw,
                     rule="reader.name-dropped",
+                    values={"reason": entry_name.reason},
                     detail=(
                         "Nothing in a conforming EPUB is named this way. It is not "
                         "carried into the output, where it would be somebody else's "
@@ -353,6 +354,7 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
             f"{len(clash.names)} entries differ only by {clash.kind}",
             location=", ".join(clash.names),
             rule="reader.colliding-names",
+            values={"count": len(clash.names), "kind": clash.kind},
             detail=(
                 "They are separate files inside the archive and one file on a "
                 "filesystem that folds case or Unicode normalisation — which is "
@@ -673,6 +675,7 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                     f"{attribute.replace('_', '-')} points at an id the manifest does not define",
                     location=resource.path,
                     rule="reader.dangling-reference",
+                    values={"attribute": attribute.replace("_", "-")},
                     detail=f"{reference!r} — the reference is dropped rather than guessed at",
                 )
                 setattr(resource, attribute, None)

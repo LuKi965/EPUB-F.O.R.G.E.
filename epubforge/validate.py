@@ -120,7 +120,13 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
             payload = json.load(handle)
     except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
         if report:
-            report.add("epubcheck", Level.WARN, f"EPUBCheck could not be run: {type(exc).__name__}", rule="epubcheck.failed")
+            report.add(
+                "epubcheck",
+                Level.WARN,
+                f"EPUBCheck could not be run: {type(exc).__name__}",
+                rule="epubcheck.failed",
+                values={"error": type(exc).__name__},
+            )
         return ValidationResult(available=False)
     finally:
         try:
@@ -150,13 +156,17 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
             report.add(
                 "epubcheck",
                 Level.INFO,
-                f"EPUBCheck passed with 0 errors and {result.warnings} warning(s)", rule="epubcheck.clean",
+                f"EPUBCheck passed with 0 errors and {result.warnings} warning(s)",
+                rule="epubcheck.clean",
+                values={"warnings": result.warnings},
             )
         else:
             report.add(
                 "epubcheck",
                 Level.ERROR,
-                f"EPUBCheck reported {result.fatal} fatal and {result.errors} error(s)", rule="epubcheck.reported",
+                f"EPUBCheck reported {result.fatal} fatal and {result.errors} error(s)",
+                rule="epubcheck.reported",
+                values={"fatal": result.fatal, "errors": result.errors},
                 detail="; ".join(result.messages[:10]),
             )
     return result

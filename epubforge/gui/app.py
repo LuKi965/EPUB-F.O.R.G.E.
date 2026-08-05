@@ -660,14 +660,16 @@ class MainWindow(QMainWindow):
             where = f"  [{finding.location}]" if finding.location else ""
             # The window has been bilingual and the report has not, because the
             # English sentence *was* the identity of a finding. With the
-            # catalogue it is not, so the headline follows the interface — and
-            # the original line stays beneath it, since that is where the
-            # specifics still live.
+            # catalogue it is not, so the headline follows the interface. The
+            # original line stays beneath it only where the translation cannot
+            # state the specifics itself, which is what the templates remove.
             headline = finding.message
+            complete = False
             if language() != "en" and finding.rule:
-                headline = rules.describe(finding.rule, language())
+                headline = rules.describe(finding.rule, language(), finding.values)
+                complete = rules.renders_fully(finding.rule, language(), finding.values)
             self.report_view.append(f"{label}  {finding.stage}: {headline}{where}")
-            if language() != "en" and finding.rule and headline != finding.message:
+            if language() != "en" and finding.rule and not complete and headline != finding.message:
                 self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
                 self.report_view.append(f"{'':>{width + 2}}{finding.message}")
                 self.report_view.setTextColor(QColor(colors[finding.level]))

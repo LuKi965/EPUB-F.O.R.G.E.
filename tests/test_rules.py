@@ -79,6 +79,82 @@ class TestTheCatalogueAndTheCodeAgree:
 _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 
 
+#: How many catalogue entries are templates today — entries whose description
+#: states the specifics itself, so a translated report does not need the English
+#: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
+TEMPLATED_TODAY = 44
+
+
+class TestTheTranslationCannotStall:
+    """The English line under a translated one is the visible edge of this.
+
+    A finding whose description is generic — "images have no usable alt text" —
+    cannot say *how many*, so the original sentence has to stay underneath it.
+    Turning the description into a template with the value alongside is what
+    removes that line, and this holds the count so the work cannot quietly
+    stop halfway with nobody able to see it.
+    """
+
+    @staticmethod
+    def _templated() -> set[str]:
+        return {rule for rule in rules.CATALOGUE if rules.placeholders(rule)}
+
+    def test_the_number_of_templates_has_not_gone_down(self):
+        count = len(self._templated())
+        assert count >= TEMPLATED_TODAY, (
+            f"{count} entries are templates, down from {TEMPLATED_TODAY}. "
+            "A finding that stopped stating its specifics is a translation "
+            "quietly going backwards."
+        )
+
+    def test_the_recorded_number_is_honest(self):
+        count = len(self._templated())
+        assert count == TEMPLATED_TODAY, (
+            f"{count} entries are templates now; set TEMPLATED_TODAY to {count}."
+        )
+
+    @pytest.mark.parametrize("rule", sorted(r for r in rules.CATALOGUE if rules.placeholders(r)))
+    def test_both_languages_expect_the_same_values(self, rule):
+        """A placeholder in one language and not the other means one of the two
+        reports silently loses the number."""
+        assert rules.placeholders(rule, "en") == rules.placeholders(rule, "pl"), rule
+
+    def test_every_template_is_raised_with_the_values_it_expects(self):
+        """A template nothing fills is worse than a generic description: it
+        prints its own braces at the reader."""
+        import ast
+        import pathlib
+
+        source = pathlib.Path(rules.__file__).parent
+        supplied: dict[str, set[str]] = {}
+        for path in sorted(source.rglob("*.py")):
+            if path.name == "rules.py":
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not isinstance(node, ast.Call):
+                    continue
+                if getattr(node.func, "attr", getattr(node.func, "id", None)) not in ("note", "add"):
+                    continue
+                keywords = {k.arg: k.value for k in node.keywords}
+                rule_node = keywords.get("rule")
+                if not isinstance(rule_node, ast.Constant):
+                    continue
+                values = keywords.get("values")
+                names = (
+                    {k.value for k in values.keys if isinstance(k, ast.Constant)}
+                    if isinstance(values, ast.Dict)
+                    else set()
+                )
+                supplied.setdefault(rule_node.value, set()).update(names)
+
+        starved = sorted(
+            rule
+            for rule in self._templated()
+            if rule in supplied and not rules.placeholders(rule) <= supplied[rule]
+        )
+        assert not starved, f"templates whose call site supplies no value: {starved}"
+
+
 class TestTheMigrationCannotStall:
     def test_the_number_of_tagged_sites_has_not_gone_down(self):
         count = sum(len(files) for files in tagged_sites().values())
@@ -143,7 +219,24 @@ class TestTheFindingCarriesIt:
 
 class TestDescribing:
     def test_a_known_rule_is_described(self):
-        assert rules.describe("nav.repointed").startswith("references")
+        assert "navigation document" in rules.describe("nav.repointed")
+
+    def test_a_template_is_filled_from_the_values(self):
+        filled = rules.describe("nav.repointed", "pl", {"count": 12})
+        assert "12" in filled and "{" not in filled
+
+    def test_a_template_given_nothing_keeps_its_braces_rather_than_raising(self):
+        """A report that dies over a missing number is worse than one that
+        prints a placeholder, and the caller can see which it got."""
+        assert "{count}" in rules.describe("nav.repointed", "pl")
+        assert not rules.renders_fully("nav.repointed", "pl", {})
+
+    def test_an_entry_without_placeholders_never_claims_to_be_complete(self):
+        """`renders_fully` decides whether the English line is still needed. An
+        entry with nothing to fill in is generic by construction, so the
+        specifics are still only in the message."""
+        assert not rules.placeholders("structure.junk-removed")
+        assert not rules.renders_fully("structure.junk-removed", "pl", {"count": 1})
 
     def test_an_unknown_rule_returns_itself(self):
         """A missing dictionary entry must not stop a report from printing."""
@@ -254,13 +347,12 @@ class TestTheReportSpeaksPolish:
         tagged = [f for f in result.report.findings if f.rule]
         assert tagged
         for finding in tagged:
-            assert rules.describe(finding.rule, "pl") in text
+            assert rules.describe(finding.rule, "pl", finding.values) in text
 
     def test_the_specifics_are_not_traded_for_the_language(self, tmp_path):
-        """Thirty-seven messages still interpolate their values directly, so the
-        original line stays underneath the translated one. Dropping it would buy
-        Polish with information — how many entries, which file — and that is the
-        wrong trade."""
+        """The specifics — how many entries, which file, which media type — must
+        survive translation. Either the Polish line states them itself, or the
+        English one stays underneath; what may not happen is that they vanish."""
         from epubforge.pipeline import rebuild
         from epubforge.policy import Policy
 
@@ -270,8 +362,33 @@ class TestTheReportSpeaksPolish:
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
         text = result.report.to_text("pl")
         for finding in result.report.findings:
-            if finding.rule:
-                assert finding.message in text
+            if not finding.rule:
+                continue
+            if rules.renders_fully(finding.rule, "pl", finding.values):
+                for value in finding.values.values():
+                    assert str(value) in text, (finding.rule, value)
+            else:
+                assert finding.message in text, finding.rule
+
+    def test_a_translated_finding_that_says_everything_stands_alone(self, tmp_path):
+        """The English line underneath is the visible edge of the conversion.
+        Where the template states the specifics, it must be gone — otherwise the
+        templates bought nothing."""
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        text = result.report.to_text("pl")
+        complete = [
+            f for f in result.report.findings
+            if f.rule and rules.renders_fully(f.rule, "pl", f.values)
+        ]
+        assert complete, "no finding renders fully; the templates are not reaching the report"
+        for finding in complete:
+            assert f"      {finding.message}" not in text, finding.rule
 
     def test_english_is_unchanged(self, tmp_path):
         """Nothing about the existing report moves. A translation that alters the
@@ -286,3 +403,48 @@ class TestTheReportSpeaksPolish:
         text = result.report.to_text()
         assert text.startswith("EPUB-Forge report")
         assert "obrazy nie mają" not in text
+
+
+class TestPolishCounts:
+    """English gets away with "(s)". Polish does not.
+
+    Three forms, chosen by the number: one for exactly 1, the *few* form for
+    numbers ending 2–4 outside the teens, the *many* form for the rest. "1
+    plików" is not clumsy phrasing, it is a mistake, and a translation full of
+    them is the kind users switch off.
+    """
+
+    @pytest.mark.parametrize(
+        "count, expected",
+        [
+            (1, "1 plik przegrupowano"),
+            (2, "2 pliki przegrupowano"),
+            (4, "4 pliki przegrupowano"),
+            (5, "5 plików przegrupowano"),
+            (12, "12 plików przegrupowano"),   # the teens take the many form
+            (13, "13 plików przegrupowano"),
+            (22, "22 pliki przegrupowano"),
+            (25, "25 plików przegrupowano"),
+            (112, "112 plików przegrupowano"),
+            (0, "0 plików przegrupowano"),
+        ],
+    )
+    def test_the_noun_agrees_with_the_number(self, count, expected):
+        rendered = rules.describe(
+            "structure.relaid-out", "pl", {"count": count, "directory": "EPUB"}
+        )
+        assert rendered.startswith(expected), rendered
+
+    def test_a_plural_spec_never_leaves_its_forms_in_the_output(self):
+        for rule in rules.CATALOGUE_PL:
+            values = {name: 3 for name in rules.placeholders(rule, "pl")}
+            rendered = rules.describe(rule, "pl", values)
+            assert "|" not in rendered, (rule, rendered)
+
+    def test_a_non_numeric_value_falls_back_rather_than_raising(self):
+        """The value is whatever the call site passed. A report that dies
+        because a count arrived as a string helps nobody."""
+        rendered = rules.describe(
+            "structure.relaid-out", "pl", {"count": "kilka", "directory": "EPUB"}
+        )
+        assert "plików" in rendered

@@ -37,6 +37,11 @@ class Finding:
     #: while the call sites are being converted; `test_rules.py` holds the
     #: conversion to a ratchet so it cannot stall unnoticed.
     rule: str | None = None
+    #: The specifics the message states — how many entries, which file, which
+    #: media type. Held apart from the sentence so a translation can state them
+    #: too; without this a Polish report had to carry the English line
+    #: underneath it or lose the numbers.
+    values: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -54,8 +59,11 @@ class Report:
         location: str | None = None,
         detail: str | None = None,
         rule: str | None = None,
+        values: dict | None = None,
     ) -> None:
-        self.findings.append(Finding(stage, level, message, location, detail, rule))
+        self.findings.append(
+            Finding(stage, level, message, location, detail, rule, values or {})
+        )
 
     def count(self, level: Level) -> int:
         return sum(1 for f in self.findings if f.level is level)
@@ -85,12 +93,15 @@ class Report:
         """The report, rendered for a reader rather than for a machine.
 
         In a language other than English, a finding that carries an identifier
-        is headed by what that identifier *means* in that language, and its
-        original message follows underneath. The message is where the specifics
-        live — how many entries, which file, which media type — and dropping it
-        to gain a translation would trade information for language. Once every
-        message is a template with its values alongside (37 of the 77 still
-        interpolate directly), the second line stops being needed.
+        is headed by what that identifier *means* in that language. Where the
+        catalogue entry is a template and the finding carries its values, that
+        line says everything the English one said and stands alone.
+
+        Where it is not, the original message follows underneath. The message is
+        where the specifics live — how many entries, which file, which media
+        type — and dropping it to gain a translation would trade information for
+        language. The second line is the visible edge of the conversion, and it
+        disappears one finding at a time as the templates are written.
         """
         from . import rules
 
@@ -106,8 +117,10 @@ class Report:
                 lines.append(f"[{current_level.value.upper()}]")
             where = f" ({finding.location})" if finding.location else ""
             if language != "en" and finding.rule:
-                lines.append(f"  - {finding.stage}: {rules.describe(finding.rule, language)}{where}")
-                lines.append(f"      {finding.message}")
+                described = rules.describe(finding.rule, language, finding.values)
+                lines.append(f"  - {finding.stage}: {described}{where}")
+                if not rules.renders_fully(finding.rule, language, finding.values):
+                    lines.append(f"      {finding.message}")
             else:
                 lines.append(f"  - {finding.stage}: {finding.message}{where}")
             if finding.detail:

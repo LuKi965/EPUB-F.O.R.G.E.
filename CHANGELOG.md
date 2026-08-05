@@ -23,6 +23,36 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## Unreleased
+
+### A correction to the 0.2.4 notes
+
+Those notes said "all 79 call sites are converted". That is not what the number
+means and it is not true: 79 findings carry an identifier and **57 still do
+not**, so those still print English in a Polish report. The ratchet counts what
+is tagged, not what is left, which is exactly how a migration can look finished
+from inside. The wording above is corrected and the remaining sites are the
+next piece of work; the published 0.2.4 release notes carry the wrong sentence
+and cannot be edited after the fact.
+
+### Thirty-seven English lines that are no longer needed
+
+A translated finding used to carry its English original underneath, because the
+specifics — how many entries, which file, which media type — lived in the
+sentence and a generic description could not state them. A finding now carries
+its values beside its message, and 44 catalogue entries became templates that
+state them in either language. Where the template says everything the message
+said, the second line is gone.
+
+Polish counts agree with their nouns. English gets away with "(s)"; Polish has
+three forms, chosen by the number, and "1 plików" is a mistake rather than a
+clumsy phrasing. `{count:plik|pliki|plików}` in a catalogue entry picks the
+right one — one for exactly 1, the *few* form for numbers ending 2–4 outside
+the teens, the *many* form for the rest.
+
+Two ratchets now, not one: how many sites carry an id, and how many entries
+state their own specifics. Either may rise and neither may fall.
+
 ## 0.2.4 — alpha — 2026-08-05
 
 **Every finding this program can make now has a name that survives being
@@ -108,8 +138,8 @@ by it wherever it is present: where the identity exists, the guessing stops.
 There are more than a hundred call sites, so this lands over several changes.
 `tests/test_rules.py` holds it to a ratchet — the number of tagged sites may
 rise and may not fall, an id nothing raises fails the suite, and an id raised
-but not catalogued fails it too. **All 79 call sites are converted** and the
-exemption list is empty: an id nothing raises now fails the suite outright.
+but not catalogued fails it too. **79 call sites carry an id**, the catalogue
+and the code agree in both directions, and the exemption list is empty.
 
 One call site turned out to be two findings sharing one call. Replacing a
 navigation document the source had is routine; generating one it never had is a

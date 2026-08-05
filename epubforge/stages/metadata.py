@@ -83,7 +83,9 @@ class MetadataStage(Stage):
                 metadata.publisher = value
             elif key == "series":
                 metadata.series = value
-            self.note(ctx, Level.INFO, f"applied caller override for {key}", rule="metadata.override-applied", detail=value)
+            self.note(ctx, Level.INFO, f"applied caller override for {key}",
+                rule="metadata.override-applied",
+                values={"field": key}, detail=value)
 
     def _titles(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -103,7 +105,13 @@ class MetadataStage(Stage):
             metadata.titles = metadata.titles[:1]
             if not metadata.subtitle and extra:
                 metadata.subtitle = extra[0]
-            self.note(ctx, Level.FIX, f"collapsed {len(extra) + 1} dc:title elements to one main title", rule="metadata.titles-collapsed")
+            self.note(
+                ctx,
+                Level.FIX,
+                f"collapsed {len(extra) + 1} dc:title elements to one main title",
+                rule="metadata.titles-collapsed",
+                values={"count": len(extra) + 1},
+            )
 
     def _language(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -117,13 +125,17 @@ class MetadataStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"language tag {raw!r} is not valid BCP 47; replaced with {ctx.policy.default_language!r}", rule="metadata.language-invalid",
+                f"language tag {raw!r} is not valid BCP 47; replaced with {ctx.policy.default_language!r}",
+                rule="metadata.language-invalid",
+                values={"was": raw, "now": ctx.policy.default_language},
             )
         else:
             self.note(
                 ctx,
                 Level.WARN,
-                f"no dc:language in the source; defaulted to {ctx.policy.default_language!r}", rule="metadata.language-missing",
+                f"no dc:language in the source; defaulted to {ctx.policy.default_language!r}",
+                rule="metadata.language-missing",
+                values={"now": ctx.policy.default_language},
             )
         metadata.language = ctx.policy.default_language
 
@@ -165,10 +177,18 @@ class MetadataStage(Stage):
                     self.note(
                         ctx,
                         Level.FIX,
-                        f"normalised dc:date to ISO 8601: {metadata.published!r} -> {normalized!r}", rule="metadata.date-normalised",
+                        f"normalised dc:date to ISO 8601: {metadata.published!r} -> {normalized!r}",
+                        rule="metadata.date-normalised",
+                        values={"was": metadata.published, "now": normalized},
                     )
                 else:
-                    self.note(ctx, Level.WARN, f"could not parse dc:date {metadata.published!r}; dropped it", rule="metadata.date-unparseable")
+                    self.note(
+                        ctx,
+                        Level.WARN,
+                        f"could not parse dc:date {metadata.published!r}; dropped it",
+                        rule="metadata.date-unparseable",
+                        values={"was": metadata.published},
+                    )
                 metadata.published = normalized
 
         # EPUB 3 requires a dcterms:modified timestamp, to the second, in UTC.

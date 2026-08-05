@@ -83,7 +83,9 @@ class FontStage(Stage):
                 self.note(
                     ctx,
                     Level.FIX,
-                    f"corrected font media type to {sniffed} (was {resource.media_type})", rule="font.type-corrected",
+                    f"corrected font media type to {sniffed} (was {resource.media_type})",
+                    rule="font.type-corrected",
+                    values={"actual": sniffed, "declared": resource.media_type},
                     location=resource.path,
                 )
                 resource.media_type = sniffed
@@ -158,6 +160,8 @@ class FontStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"deobfuscated {recovered} embedded font(s) and dropped META-INF/encryption.xml", rule="font.deobfuscated",
+                f"deobfuscated {recovered} embedded font(s) and dropped META-INF/encryption.xml",
+                rule="font.deobfuscated",
+                values={"count": recovered},
                 detail="Fonts render identically and the container no longer depends on the identifier.",
             )

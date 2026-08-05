@@ -168,6 +168,7 @@ class NavigationStage(Stage):
                 Level.FIX,
                 f"dropped {removed} table-of-contents entry/entries pointing nowhere",
                 rule="nav.entry-dropped",
+                values={"count": removed},
             )
         if dangling_fragments:
             self.note(
@@ -175,6 +176,7 @@ class NavigationStage(Stage):
                 Level.FIX,
                 f"cleared {dangling_fragments} navigation fragment(s) whose anchor does not exist",
                 rule="nav.fragment-cleared",
+                values={"count": dangling_fragments},
                 detail="The entry now points at the document, which is where the reader would land anyway.",
             )
 
@@ -193,6 +195,7 @@ class NavigationStage(Stage):
                 Level.FIX,
                 f"book had no usable table of contents; built one from {len(entries)} spine documents",
                 rule="nav.toc-synthesised",
+                values={"count": len(entries)},
             )
 
     def _document_title(self, resource: Resource) -> str:
@@ -323,6 +326,7 @@ class NavigationStage(Stage):
                 "navigation document",
                 location=old_path,
                 rule="nav.repointed",
+                values={"count": moved + in_documents},
                 detail=(
                     f"{moved} in the navigation tables, {in_documents} inside content "
                     "documents. The source's own contents page is replaced, and a "
@@ -477,6 +481,7 @@ class NavigationStage(Stage):
                 Level.INFO,
                 f"regenerated the navigation document ({entries} entries)",
                 rule="nav.regenerated",
+                values={"count": entries},
             )
         else:
             self.note(
@@ -484,6 +489,7 @@ class NavigationStage(Stage):
                 Level.FIX,
                 f"generated the navigation document EPUB 3 requires ({entries} entries)",
                 rule="nav.generated",
+                values={"count": entries},
                 detail="The source had none; its table of contents came from the NCX.",
             )
 

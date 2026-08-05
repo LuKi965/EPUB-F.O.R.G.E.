@@ -74,6 +74,7 @@ def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
         Level.INFO,
         f"kept the package document at {book.source_opf_path}",
         rule="package.layout-kept",
+        values={"path": book.source_opf_path},
         detail=(
             "This rebuild does not move content files, so moving the package "
             "document away from them would leave every manifest href pointing "
@@ -91,7 +92,13 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     try:
         book = read_epub(source, report)
     except EpubReadError as exc:
-        report.add("reader", Level.ERROR, f"could not read the source file: {exc}", rule="package.unreadable-source")
+        report.add(
+            "reader",
+            Level.ERROR,
+            f"could not read the source file: {exc}",
+            rule="package.unreadable-source",
+            values={"error": str(exc)},
+        )
         return Result(report, None, None, Status.FAILED)
 
     # The version change is the single largest thing the rebuild does, so it is
@@ -101,14 +108,18 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         report.add(
             "package",
             Level.FIX,
-            f"rebuilt the package from EPUB {source_version} to EPUB 3.3", rule="package.upgraded",
+            f"rebuilt the package from EPUB {source_version} to EPUB 3.3",
+            rule="package.upgraded",
+            values={"version": source_version},
             detail="Package document, navigation and container structure were regenerated.",
         )
     elif source_version.startswith("3"):
         report.add(
             "package",
             Level.INFO,
-            f"source was already EPUB {source_version}; the package was regenerated regardless", rule="package.regenerated",
+            f"source was already EPUB {source_version}; the package was regenerated regardless",
+            rule="package.regenerated",
+            values={"version": source_version},
         )
     else:
         report.add(
@@ -139,7 +150,9 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
             report.add(
                 stage.name,
                 Level.ERROR,
-                f"stage failed: {type(exc).__name__}: {exc}", rule="package.stage-failed",
+                f"stage failed: {type(exc).__name__}: {exc}",
+                rule="package.stage-failed",
+                values={"stage": stage.name, "error": f"{type(exc).__name__}: {exc}"},
                 detail=(
                     "Nothing was written. The model was left half-modified by the "
                     "failure, so anything built from it would be a book only in shape."

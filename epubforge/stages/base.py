@@ -67,8 +67,9 @@ class Stage:
         location: str | None = None,
         detail: str | None = None,
         rule: str | None = None,
+        values: dict | None = None,
     ):
-        ctx.report.add(self.name, level, message, location, detail, rule)
+        ctx.report.add(self.name, level, message, location, detail, rule, values)
 
 
 __all__ = ["Context", "Stage", "Level", "Policy", "Report", "Book"]
