@@ -63,6 +63,23 @@ reproduction.
   to one file: the second overwrote the first, both were announced as written,
   exit 0. The run is now refused with both source paths named. `--dry-run`
   prints the plan and writes nothing.
+- **A navigation document that was part of the reading order stays there**
+  (EF-007). A visible table of contents is a nav document in the spine — the
+  page a reader can turn to. Regenerating it removed the old resource, and
+  removing a resource removes its spine entry with it, so the page vanished:
+  two spine items in, one out, no error and no warning. Position and `linear`
+  are now carried over and the change is reported.
+- **Accessibility metadata is no longer asserted without evidence** (EF-006).
+  Two claims were being made on the strength of not having looked. A document
+  whose only graphic was an inline `<svg>` with no title, desc or ARIA label
+  came out declaring `alternativeText`, because the survey counted `<img>`
+  elements and an inline SVG is not one. And `accessibilityHazard: none` was
+  decided from video and script alone, so a CSS keyframe animation, an animated
+  GIF and an animating SVG all passed as motionless. Inline SVG is now counted
+  and examined; a graphic in an unknown state blocks the positive claim; and
+  anything that might move makes the hazard `unknown` rather than `none`.
+  These are the publisher's assertions under EPUB Accessibility 1.1 — a false
+  one tells a reader who depends on it that the book is usable.
 - **A stage that raises no longer ends in a file** (EF-001). The exception
   became an ERROR line, the remaining stages ran on a model the failure had
   left half-modified, and the writer produced a book that looked finished.
