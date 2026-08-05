@@ -26,7 +26,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: How many call sites carry a rule today. Raise it as more are converted;
 #: lowering it means a finding lost its identity, which is the thing this whole
 #: module exists to prevent.
-TAGGED_TODAY = 79
+TAGGED_TODAY = 136
 
 #: Every `rule="…"` written anywhere in the package.
 _RULE_ARGUMENT = re.compile(r'rule\s*=\s*"([a-z0-9.\-]+)"')
@@ -82,7 +82,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: How many catalogue entries are templates today — entries whose description
 #: states the specifics itself, so a translated report does not need the English
 #: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
-TEMPLATED_TODAY = 44
+TEMPLATED_TODAY = 75
 
 
 class TestTheTranslationCannotStall:
@@ -231,12 +231,22 @@ class TestDescribing:
         assert "{count}" in rules.describe("nav.repointed", "pl")
         assert not rules.renders_fully("nav.repointed", "pl", {})
 
-    def test_an_entry_without_placeholders_never_claims_to_be_complete(self):
-        """`renders_fully` decides whether the English line is still needed. An
-        entry with nothing to fill in is generic by construction, so the
-        specifics are still only in the message."""
+    def test_an_entry_that_ignores_a_value_it_was_given_is_not_complete(self):
+        """`renders_fully` decides whether the English line is still needed. A
+        finding's specifics are exactly what it carries in `values`, so an entry
+        that does not state one of them would lose it."""
         assert not rules.placeholders("structure.junk-removed")
         assert not rules.renders_fully("structure.junk-removed", "pl", {"count": 1})
+
+    def test_a_finding_with_no_specifics_needs_no_second_line(self):
+        """Nothing to lose means nothing to keep. This is what removed the
+        English line from the findings that never interpolated anything."""
+        assert rules.renders_fully("structure.junk-removed", "pl", {})
+        assert rules.renders_fully("structure.junk-removed", "pl", None)
+
+    def test_a_template_missing_one_of_its_values_is_not_complete(self):
+        """The placeholder would print at the reader, braces and all."""
+        assert not rules.renders_fully("structure.relaid-out", "pl", {"count": 3})
 
     def test_an_unknown_rule_returns_itself(self):
         """A missing dictionary entry must not stop a report from printing."""

@@ -14,7 +14,9 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.dead-reference-kept": 1,
+      "xhtml.image-paragraph-centred": 1
     },
     "output": "sha256:9d155615766270e5e70928c1433a0fd9bcb3735a017b7660c595dd01b4e63a6e",
     "text_characters": 10,
@@ -33,7 +35,8 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.dead-reference-neutralised": 1
     },
     "output": "sha256:04ba4f52cc0048039f0a809b1f58c08763b276611b5bf056b6ba80b05807b37c",
     "text_characters": 10,

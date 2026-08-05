@@ -166,7 +166,12 @@ class MetadataStage(Stage):
 
         if not any(i.primary for i in metadata.identifiers):
             metadata.identifiers[0].primary = True
-            self.note(ctx, Level.FIX, "package declared no unique-identifier; promoted the first one", rule="metadata.identifier-promoted")
+            self.note(
+                ctx,
+                Level.FIX,
+                "package declared no unique-identifier; promoted the first one",
+                rule="metadata.identifier-promoted",
+            )
 
     def _dates(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -221,4 +226,9 @@ class MetadataStage(Stage):
             cleaned.append(creator)
         metadata.creators = cleaned
         if not cleaned:
-            self.note(ctx, Level.WARN, "no dc:creator in the source", rule="metadata.creator-missing")
+            self.note(
+                ctx,
+                Level.WARN,
+                "no dc:creator in the source",
+                rule="metadata.creator-missing",
+            )

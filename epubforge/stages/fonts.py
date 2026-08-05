@@ -108,7 +108,12 @@ class FontStage(Stage):
             )
             return
         if not ctx.policy.deobfuscate_fonts:
-            self.note(ctx, Level.PRESERVED, "font obfuscation left in place by policy", rule="font.obfuscation-kept")
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "font obfuscation left in place by policy",
+                rule="font.obfuscation-kept",
+            )
             return
 
         identifier = ctx.original_identifier

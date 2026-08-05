@@ -17,7 +17,10 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:be08ed451a956f971ab0d759c334c192dfb587381112ce6c0dec779524904b3a",
     "text_characters": 57,
@@ -42,7 +45,10 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:be08ed451a956f971ab0d759c334c192dfb587381112ce6c0dec779524904b3a",
     "text_characters": 57,

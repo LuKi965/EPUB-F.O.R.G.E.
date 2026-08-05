@@ -94,7 +94,33 @@ def _no_console() -> dict:
     return options
 
 
-def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
+def _detail(result: "ValidationResult", content_untouched: bool) -> str:
+    """What EPUBCheck said, and — where it matters — whose fault it is."""
+    said = "; ".join(result.messages[:10])
+    if not content_untouched:
+        return said
+    return (
+        f"{said} — this rebuild left every content document byte for byte as it "
+        "was, so an error inside one of them was already in the source. The full "
+        "rebuild corrects them; this mode is not allowed to."
+    )
+
+
+def validate(
+    epub_path: str,
+    report: Report | None = None,
+    *,
+    content_untouched: bool = False,
+) -> ValidationResult:
+    """Run EPUBCheck over *epub_path* and record what it said.
+
+    *content_untouched* says the rebuild left the content documents byte for
+    byte as they were — the container-only mode. It changes nothing about the
+    check and everything about how to read the result: an error inside a
+    document is then the source's error, carried through because that mode
+    promised not to touch it. Without saying so, the report shows an error the
+    reader will assume this program introduced.
+    """
     command = find_epubcheck()
     if command is None:
         if report:
@@ -167,6 +193,6 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
                 f"EPUBCheck reported {result.fatal} fatal and {result.errors} error(s)",
                 rule="epubcheck.reported",
                 values={"fatal": result.fatal, "errors": result.errors},
-                detail="; ".join(result.messages[:10]),
+                detail=_detail(result, content_untouched),
             )
     return result

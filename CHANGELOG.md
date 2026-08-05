@@ -28,12 +28,30 @@ written; only the current version was reset.
 ### A correction to the 0.2.4 notes
 
 Those notes said "all 79 call sites are converted". That is not what the number
-means and it is not true: 79 findings carry an identifier and **57 still do
-not**, so those still print English in a Polish report. The ratchet counts what
-is tagged, not what is left, which is exactly how a migration can look finished
-from inside. The wording above is corrected and the remaining sites are the
-next piece of work; the published 0.2.4 release notes carry the wrong sentence
-and cannot be edited after the fact.
+means and it was not true: 79 findings carried an identifier and 57 did not, so
+those still printed English in a Polish report. The ratchet counts what is
+tagged, not what is left, which is exactly how a migration can look finished
+from inside. The wording is corrected, the 57 are done (below), and the
+published 0.2.4 release notes carry the wrong sentence where it cannot be
+edited after the fact.
+
+### EF-018 is closed, and this time the number means it
+
+Every finding this program can report has an identifier: **136 call sites, 135
+catalogued ids, none left over in either direction**. The 57 that had none were
+the whole reader, the whole content stage and every stylesheet finding — which
+is why a Polish report was still half English no matter how good the catalogue
+got.
+
+Both catalogues state their own specifics now, so the English line underneath a
+translated one is gone entirely. Measured rather than assumed: across the
+fifteen books of the two public corpora, rebuilt under all three profiles, 389
+findings, **none without an identifier, none falling back to English, no
+placeholder printed at the reader**.
+
+What is still English: the `detail` line under a finding. It is prose rather
+than a sentence with a number in it, and translating it is a separate piece of
+work rather than the same one continued.
 
 ### Thirty-seven English lines that are no longer needed
 

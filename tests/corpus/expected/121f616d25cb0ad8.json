@@ -8,7 +8,16 @@
       "preserved": 12,
       "warn": 1
     },
-    "output": "sha256:7e854a8e284f1ce9760e7ee15b28101971eee01aad532e5d8a1de2f731820d8a",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 149
+    },
+    "output": "sha256:0e6e8bf13a50cec498592239bf2983340d07d12af27b7f393c123e8768adf9ef",
     "text_characters": 953295,
     "text_added": 0,
     "text_invariant": true,
@@ -27,7 +36,16 @@
       "preserved": 11,
       "warn": 1
     },
-    "output": "sha256:6958108c3148d6842a4e171c461ddb66971ec9c878f66628ce10b90ae744456a",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 149
+    },
+    "output": "sha256:d24810ae7433a252ad489ff1b6d9e997b9f4552b530ff6052841c70b991919be",
     "text_characters": 953295,
     "text_added": 0,
     "text_invariant": true,

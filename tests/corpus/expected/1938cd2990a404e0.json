@@ -8,7 +8,16 @@
       "preserved": 3,
       "warn": 1
     },
-    "output": "sha256:30484e04fed84f6a6358ce1fc39604954163f837bd2c943aaf869f82578e6aff",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 65
+    },
+    "output": "sha256:f7ac2fb195c82db476ef0e0634118debf243f79c9e55b6a71df43652029d76fb",
     "text_characters": 682767,
     "text_added": 0,
     "text_invariant": true,
@@ -27,7 +36,16 @@
       "preserved": 2,
       "warn": 1
     },
-    "output": "sha256:35215f42454b249bff0c353c476191d54d881b82af67265012d77d8f96937c84",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 65
+    },
+    "output": "sha256:4f6b3b2d679be1fe49263d357941dd76cb7fc8e7ee37e2204683d2330bb58aaf",
     "text_characters": 682767,
     "text_added": 0,
     "text_invariant": true,

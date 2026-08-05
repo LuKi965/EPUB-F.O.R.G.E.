@@ -43,7 +43,12 @@ class ImageStage(Stage):
 
     def run(self, ctx: Context) -> None:
         if not PIL_AVAILABLE:
-            self.note(ctx, Level.WARN, "Pillow is unavailable; images passed through unchecked", rule="image.pillow-unavailable")
+            self.note(
+                ctx,
+                Level.WARN,
+                "Pillow is unavailable; images passed through unchecked",
+                rule="image.pillow-unavailable",
+            )
             return
 
         for resource in list(ctx.book.resources.values()):

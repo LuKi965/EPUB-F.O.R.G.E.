@@ -42,6 +42,28 @@ CATALOGUE: dict[str, str] = {
     "reader.name-dropped": "an archive entry name could not be made into a container path: {reason}",
     "reader.duplicate-entry": "the archive holds the same entry name twice",
     "reader.colliding-names": "{count} entry names differ only by {kind}",
+    "reader.entry-too-large": "an archive entry is implausibly large and was refused: {reason}",
+    "reader.entry-unreadable": "an archive entry could not be read at all: {error}",
+    "reader.rootfile-missing": "container.xml points at a package document that is not in the archive",
+    "reader.container-missing": "META-INF/container.xml is missing, so the package was located by scanning",
+    "reader.package-scanned": "the package document was recovered by scanning the archive",
+    "reader.metadata-missing": "the package has no <metadata> element",
+    "reader.manifest-missing": "the package has no <manifest>, so the archive contents were used instead",
+    "reader.manifest-file-missing": "the manifest lists a file that is not in the archive",
+    "reader.manifest-case-matched": "a manifest entry matched a file only when case was ignored",
+    "reader.manifest-type-corrected": "the manifest declared {declared}, which is not what the file is; corrected to {actual}",
+    "reader.spine-missing": "the package has no <spine>",
+    "reader.spine-id-unknown": "the reading order referenced a manifest id that does not exist",
+    "reader.ncx-unparseable": "the legacy NCX could not be parsed",
+    "reader.nav-unparseable": "the navigation document could not be parsed",
+    "reader.encryption-unparseable": "META-INF/encryption.xml could not be parsed",
+    "reader.drm": "the archive declares real encryption, not just font obfuscation",
+    "reader.mimetype-invalid": "the mimetype entry is missing or wrong and will be regenerated",
+    "reader.page-direction-carried": "the page progression direction is {direction} and was carried through",
+    "reader.toc-from-ncx": "the table of contents was recovered from the legacy NCX",
+    "reader.ncx-unreferenced-used": "an NCX nothing referenced was found and used for the table of contents",
+    "reader.unmanifested-file": "a file is in the archive but absent from the manifest",
+    "reader.spine-rebuilt": "the reading order was empty and was rebuilt from {count} content documents",
     # -- structure: where files ended up ------------------------------------
     "structure.relaid-out": "{count} file(s) were regrouped into a typed {directory}/ layout with portable names",
     "structure.junk-removed": "packaging leftovers were removed",
@@ -59,12 +81,47 @@ CATALOGUE: dict[str, str] = {
     "nav.cover-page-generated": "a cover page was generated so the artwork is the first spine item",
     "nav.ncx-written": "a legacy NCX was written alongside the navigation document",
     "nav.ncx-dropped": "the legacy NCX was not carried over",
+    "nav.cover-image-missing": "the declared cover image is not in the archive",
     # -- content documents --------------------------------------------------
     "xhtml.untouched": "content documents were left as they were; only the container was rebuilt",
     "xhtml.doctype-modernised": "a legacy DOCTYPE was replaced with the EPUB 3 one in {count} document(s)",
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
+    # -- stylesheets --------------------------------------------------------
+    "css.url-unresolved": "{count} url() reference(s) could not be resolved and were left unchanged",
+    "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
+    "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
+    "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
+    "css.position-kept": "{count} absolute or fixed position rule(s) were kept",
+    "css.position-kept-reflowable": "{count} absolute or fixed position rule(s) were kept in a reflowable book",
+    "css.position-removed": "{count} absolute or fixed position rule(s) were removed from a reflowable book",
+    "css.reader-property-kept": "{count} reader-specific CSS propert(ies) inherited from the source were kept",
+    "css.reader-property-removed": "{count} reader-specific CSS propert(ies) were removed",
+    "css.font-stack-generic-missing": "{count} font stack(s) end without a generic family",
+    "css.unparseable": "a stylesheet could not be parsed for validation: {error}",
+    "css.no-usable-rules": "a stylesheet contains no usable rules",
+    "xhtml.unparseable": "a content document could not be parsed at all: {error}",
+    "xhtml.recovered-with-html-parser": "a document was not well-formed XML and was recovered with an HTML parser",
+    "xhtml.dtd-entities-resolved": "{count} entity/entities declared in the document's own DTD were resolved",
+    "xhtml.dtd-entities-refused": "{count} entity/entities were left as references rather than resolved",
+    "xhtml.watermark-consolidated": "{count} watermark marker(s) across {documents} document(s) became one rule",
+    "xhtml.watermark-kept": "{count} visible watermark notice(s) were left exactly as the publisher wrote them",
+    "xhtml.ids-renamed": "{count} id attribute(s) were not valid XML names and were renamed",
+    "xhtml.head-added": "a missing <head> element was added",
+    "xhtml.body-added": "a missing <body> element was added",
+    "xhtml.dead-reference-kept": "{count} reference(s) point at files not in the book and were left unchanged",
+    "xhtml.dead-reference-neutralised": "{count} reference(s) to files absent from the book were neutralised",
+    "xhtml.presentational-markup-converted": "legacy presentational markup was converted to CSS",
+    "xhtml.image-paragraph-centred": "{count} image-only paragraph(s) were centred and their text indent removed",
+    "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
+    "xhtml.image-paragraph-kept": "{count} image paragraph(s) were left as the publisher styled them",
+    "xhtml.cover-fitted": "the cover image was given page-fitting limits, because nothing in the book set any",
+    "xhtml.inline-promoted": "{count} inline element(s) containing block-level content were promoted",
+    "xhtml.cover-described": "the cover image was described with the book title",
+    "xhtml.empty-alt-added": "an empty alt attribute was added to {count} image(s)",
+    "xhtml.scripts-kept": "{count} script element(s) were kept and the document was declared scripted",
+    "xhtml.scripts-removed": "{count} script element(s) and {handlers} inline handler(s) were removed",
     # -- metadata -----------------------------------------------------------
     "metadata.override-applied": "the caller overrode the metadata field {field}",
     "metadata.title-missing": "the source has no dc:title and a placeholder was inserted",
@@ -129,6 +186,8 @@ CATALOGUE: dict[str, str] = {
     "epubcheck.clean": "EPUBCheck accepted the output, with {warnings} warning(s)",
     "epubcheck.unavailable": "EPUBCheck is not installed, so the output was not validated",
     "epubcheck.failed": "EPUBCheck could not be run at all: {error}",
+    # -- the window ---------------------------------------------------------
+    "gui.unexpected-failure": "the rebuild failed in a way nothing anticipated: {error}",
 }
 
 
@@ -144,6 +203,28 @@ CATALOGUE_PL: dict[str, str] = {
     'reader.name-dropped': 'nazwy wpisu w archiwum nie dało się zamienić na ścieżkę kontenera: {reason}',
     'reader.duplicate-entry': 'archiwum zawiera tę samą nazwę wpisu dwa razy',
     'reader.colliding-names': '{count} {count:nazwa wpisu różni się|nazwy wpisów różnią się|nazw wpisów różni się} tylko przez {kind}',
+    'reader.entry-too-large': 'wpis w archiwum jest niewiarygodnie duży i został odrzucony: {reason}',
+    'reader.entry-unreadable': 'wpisu w archiwum w ogóle nie dało się odczytać: {error}',
+    'reader.rootfile-missing': 'container.xml wskazuje na dokument pakietu, którego nie ma w archiwum',
+    'reader.container-missing': 'brakuje META-INF/container.xml, więc pakiet znaleziono przez przeszukanie archiwum',
+    'reader.package-scanned': 'dokument pakietu odzyskano, przeszukując archiwum',
+    'reader.metadata-missing': 'pakiet nie ma elementu <metadata>',
+    'reader.manifest-missing': 'pakiet nie ma elementu <manifest>, więc użyto zawartości archiwum',
+    'reader.manifest-file-missing': 'manifest wymienia plik, którego nie ma w archiwum',
+    'reader.manifest-case-matched': 'wpis manifestu pasował do pliku dopiero po pominięciu wielkości liter',
+    'reader.manifest-type-corrected': 'manifest deklarował {declared}, czym plik nie jest; poprawiono na {actual}',
+    'reader.spine-missing': 'pakiet nie ma elementu <spine>',
+    'reader.spine-id-unknown': 'kolejność czytania wskazywała na nieistniejący identyfikator w manifeście',
+    'reader.ncx-unparseable': 'starego NCX nie dało się sparsować',
+    'reader.nav-unparseable': 'dokumentu nawigacyjnego nie dało się sparsować',
+    'reader.encryption-unparseable': 'pliku META-INF/encryption.xml nie dało się sparsować',
+    'reader.drm': 'archiwum deklaruje prawdziwe szyfrowanie, a nie samo zaciemnienie czcionek',
+    'reader.mimetype-invalid': 'wpis mimetype jest nieobecny albo błędny i zostanie zapisany od nowa',
+    'reader.page-direction-carried': 'kierunek czytania to {direction} i został przeniesiony bez zmian',
+    'reader.toc-from-ncx': 'spis treści odzyskano ze starego NCX',
+    'reader.ncx-unreferenced-used': 'znaleziono NCX, do którego nic się nie odwoływało, i użyto go jako spisu treści',
+    'reader.unmanifested-file': 'plik jest w archiwum, ale nie ma go w manifeście',
+    'reader.spine-rebuilt': 'kolejność czytania była pusta i odtworzono ją z {count} {count:dokumentu treści|dokumentów treści|dokumentów treści}',
     'structure.relaid-out': '{count} {count:plik przegrupowano|pliki przegrupowano|plików przegrupowano} w układ według typów w {directory}/, z przenośnymi nazwami',
     'structure.junk-removed': 'usunięto pozostałości po pakowaniu',
     'structure.orphan-removed': 'usunięto plik, do którego nic w książce się nie odwołuje',
@@ -159,11 +240,46 @@ CATALOGUE_PL: dict[str, str] = {
     'nav.cover-page-generated': 'wygenerowano stronę okładki, żeby grafika była pierwsza w kolejności czytania',
     'nav.ncx-written': 'zapisano stary plik NCX obok dokumentu nawigacyjnego, dla starszych czytników',
     'nav.ncx-dropped': 'stary plik NCX nie został przeniesiony; EPUB 3 nawiguje dokumentem nawigacyjnym',
+    'nav.cover-image-missing': 'zadeklarowany obraz okładki nie znajduje się w archiwum',
     'xhtml.untouched': 'dokumenty treści zostały bez zmian; przebudowano wyłącznie kontener',
     'xhtml.doctype-modernised': 'stary DOCTYPE zastąpiono tym z EPUB 3 w {count} {count:dokumencie|dokumentach|dokumentach}',
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
+    # -- stylesheets --------------------------------------------------------
+    'css.url-unresolved': '{count} {count:odwołania url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać} i zostały bez zmian',
+    'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
+    'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
+    'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
+    'css.position-kept': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego',
+    'css.position-kept-reflowable': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego w książce przepływalnej',
+    'css.position-removed': 'usunięto {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego z książki przepływalnej',
+    'css.reader-property-kept': 'zachowano {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników, odziedziczoną ze źródła',
+    'css.reader-property-removed': 'usunięto {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników',
+    'css.font-stack-generic-missing': '{count} {count:lista krojów kończy się|listy krojów kończą się|list krojów kończy się} bez rodziny generycznej',
+    'css.unparseable': 'arkusza stylów nie dało się sparsować do sprawdzenia: {error}',
+    'css.no-usable-rules': 'arkusz stylów nie zawiera żadnych używalnych reguł',
+    'xhtml.unparseable': 'dokumentu treści w ogóle nie dało się sparsować: {error}',
+    'xhtml.recovered-with-html-parser': 'dokument nie był poprawnym XML-em i został odzyskany parserem HTML',
+    'xhtml.dtd-entities-resolved': 'rozwiązano {count} {count:encję|encje|encji} zadeklarowaną w DTD samego dokumentu',
+    'xhtml.dtd-entities-refused': '{count} {count:encję pozostawiono|encje pozostawiono|encji pozostawiono} jako odwołania zamiast je rozwiązać',
+    'xhtml.watermark-consolidated': '{count} {count:znacznik znaku wodnego|znaczniki znaku wodnego|znaczników znaku wodnego} w {documents} {documents:dokumencie|dokumentach|dokumentach} sprowadzono do jednej reguły',
+    'xhtml.watermark-kept': '{count} {count:widoczną adnotację|widoczne adnotacje|widocznych adnotacji} znaku wodnego zostawiono dokładnie tak, jak napisał je wydawca',
+    'xhtml.ids-renamed': '{count} {count:atrybut id nie był poprawną nazwą XML|atrybuty id nie były poprawnymi nazwami XML|atrybutów id nie było poprawnymi nazwami XML} i zostały przemianowane',
+    'xhtml.head-added': 'dodano brakujący element <head>',
+    'xhtml.body-added': 'dodano brakujący element <body>',
+    'xhtml.dead-reference-kept': '{count} {count:odwołanie wskazuje|odwołania wskazują|odwołań wskazuje} na pliki, których w książce nie ma; zostawiono je bez zmian',
+    'xhtml.dead-reference-neutralised': 'unieszkodliwiono {count} {count:odwołanie|odwołania|odwołań} do plików nieobecnych w książce',
+    'xhtml.presentational-markup-converted': 'stare znaczniki prezentacyjne zamieniono na CSS',
+    'xhtml.image-paragraph-centred': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} i usunięto z nich wcięcie',
+    'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
+    'xhtml.image-paragraph-kept': '{count} {count:akapit z obrazem zostawiono|akapity z obrazem zostawiono|akapitów z obrazem zostawiono} tak, jak {count:ostylował go|ostylował je|ostylował je} wydawca',
+    'xhtml.cover-fitted': 'obrazowi okładki nadano ograniczenia dopasowujące go do strony, bo nic w książce ich nie ustawiało',
+    'xhtml.inline-promoted': '{count} {count:element liniowy zawierający treść blokową|elementy liniowe zawierające treść blokową|elementów liniowych zawierających treść blokową} zamieniono na blokowe',
+    'xhtml.cover-described': 'obraz okładki opisano tytułem książki',
+    'xhtml.empty-alt-added': 'dodano pusty atrybut alt do {count} {count:obrazu|obrazów|obrazów}',
+    'xhtml.scripts-kept': '{count} {count:element skryptu zachowano|elementy skryptu zachowano|elementów skryptu zachowano}, a dokument zadeklarowano jako skryptowany',
+    'xhtml.scripts-removed': 'usunięto {count} {count:element skryptu|elementy skryptu|elementów skryptu} i {handlers} {handlers:liniową obsługę zdarzeń|liniowe obsługi zdarzeń|liniowych obsług zdarzeń}',
     'metadata.override-applied': 'wywołujący nadpisał pole metadanych {field}',
     'metadata.title-missing': 'źródło nie ma dc:title; wstawiono zastępczy',
     'metadata.titles-collapsed': '{count} {count:element dc:title sprowadzono|elementy dc:title sprowadzono|elementów dc:title sprowadzono} do jednego tytułu głównego',
@@ -216,6 +332,8 @@ CATALOGUE_PL: dict[str, str] = {
     'epubcheck.clean': 'EPUBCheck przyjął wynik, z {warnings} ostrzeżeniem/ami',
     'epubcheck.unavailable': 'EPUBCheck nie jest zainstalowany, więc wynik nie został zweryfikowany',
     'epubcheck.failed': 'EPUBCheck w ogóle nie dał się uruchomić: {error}',
+    # -- the window ---------------------------------------------------------
+    'gui.unexpected-failure': 'przebudowa zawiodła w sposób, którego nic nie przewidziało: {error}',
 }
 
 #: Language code → catalogue. `describe` falls back to English for a language
@@ -298,13 +416,18 @@ def renders_fully(rule: str, language: str, values: dict | None) -> bool:
     """Whether the description says everything the message says.
 
     This is what decides if the original English sentence still has to appear
-    underneath a translated one. It is true only when the entry is a template
-    and every placeholder in it has a value: an entry with no placeholders is
-    generic by construction, and the specifics — how many entries, which file —
-    live in the message and would be lost.
+    underneath a translated one. A finding's specifics — how many entries,
+    which file, which media type — are exactly what it carries in `values`, so
+    the description is complete when it states all of them. A finding carrying
+    none has no specifics to lose, and its description stands alone.
+
+    The other direction is not a failure: a template may name a value the
+    finding did not supply, and then the placeholder would print at the reader.
+    That is what makes it incomplete.
     """
+    supplied = set(values or {})
     expected = placeholders(rule, language)
-    return bool(expected) and expected <= set(values or {})
+    return supplied <= expected and expected <= supplied
 
 
 __all__ = [

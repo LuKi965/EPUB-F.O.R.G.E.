@@ -11,6 +11,7 @@
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1
     },
     "output": "sha256:c3313620af98f7df602eb3664a5d9662ba411bb2a6ab7bda9ae805dc08685576",
@@ -30,6 +31,7 @@
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1
     },
     "output": "sha256:c3313620af98f7df602eb3664a5d9662ba411bb2a6ab7bda9ae805dc08685576",

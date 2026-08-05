@@ -7,7 +7,16 @@
       "fix": 36,
       "preserved": 3
     },
-    "output": "sha256:49c78c16b64c17a92a183d86c4d598e07cf36e2b471a43682fff6a1ea593b5c4",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.contents-page-kept": 1,
+      "nav.ncx-written": 1,
+      "nav.regenerated": 1,
+      "package.regenerated": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 27
+    },
+    "output": "sha256:b2cb9031a2f8be1a7f6293173e81aa9f0bb83193ecdfc9318f622f558173d709",
     "text_characters": 818932,
     "text_added": 0,
     "text_invariant": true,
@@ -25,7 +34,16 @@
       "fix": 37,
       "preserved": 2
     },
-    "output": "sha256:2ecf6b717df31162accc970d191699cc54bd69c2db15001cf6b5a236aaa846a3",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.contents-page-kept": 1,
+      "nav.ncx-written": 1,
+      "nav.regenerated": 1,
+      "package.regenerated": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 27
+    },
+    "output": "sha256:cf9531e1027553ca6d8c4ad7cba1a7492209fc3cfbaa79ac7d332d3525d1c2d6",
     "text_characters": 818932,
     "text_added": 0,
     "text_invariant": true,

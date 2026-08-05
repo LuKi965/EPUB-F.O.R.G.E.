@@ -19,7 +19,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 1
+      "xhtml.cover-fitted": 4,
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 3,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:64b4c1b6b1901d5257c4f6970b3b32e41a3f8c3238abddff929156d209f4fb6b",
     "text_characters": 232077,
@@ -46,7 +49,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 1
+      "xhtml.cover-fitted": 4,
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 3,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:64b4c1b6b1901d5257c4f6970b3b32e41a3f8c3238abddff929156d209f4fb6b",
     "text_characters": 232077,

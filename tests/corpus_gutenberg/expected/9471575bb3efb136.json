@@ -14,7 +14,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 1
+      "xhtml.cover-fitted": 3,
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:8153dcefe6a1696194491a12119911de260e2ada109442fb82d6aeaf3d103d98",
     "text_characters": 304577,
@@ -36,7 +39,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 1
+      "xhtml.cover-fitted": 3,
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:8153dcefe6a1696194491a12119911de260e2ada109442fb82d6aeaf3d103d98",
     "text_characters": 304577,

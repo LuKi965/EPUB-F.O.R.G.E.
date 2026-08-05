@@ -232,6 +232,8 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
             f"refused an implausibly large archive entry: {reason}",
             location=name,
             detail="No real book contains this; the archive is broken or hostile.",
+            rule="reader.entry-too-large",
+            values={"reason": reason},
         )
 
     with archive:
@@ -279,7 +281,14 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
                 data = _read_bounded(archive, info)
             except (RuntimeError, zipfile.BadZipFile, NotImplementedError, EOFError) as exc:
                 # Encrypted or unsupported-compression member; keep going.
-                report.add("reader", Level.ERROR, f"unreadable archive entry: {exc}", location=name)
+                report.add(
+                    "reader",
+                    Level.ERROR,
+                    f"unreadable archive entry: {exc}",
+                    location=name,
+                    rule="reader.entry-unreadable",
+                    values={"error": str(exc)},
+                )
                 continue
             if data is None:
                 refuse(
@@ -383,16 +392,28 @@ def _locate_opf(entries: dict[str, bytes], report: Report) -> str:
                         Level.WARN,
                         "container.xml points at a missing rootfile",
                         location=candidate,
+                        rule="reader.rootfile-missing",
                     )
     else:
-        report.add("reader", Level.WARN, "META-INF/container.xml is missing; locating the OPF by scan")
+        report.add(
+            "reader",
+            Level.WARN,
+            "META-INF/container.xml is missing; locating the OPF by scan",
+            rule="reader.container-missing",
+        )
 
     opf_candidates = sorted(
         (name for name in entries if name.lower().endswith(".opf")),
         key=lambda name: (name.count("/"), len(name)),
     )
     if opf_candidates:
-        report.add("reader", Level.FIX, "recovered the package document by scanning", location=opf_candidates[0])
+        report.add(
+            "reader",
+            Level.FIX,
+            "recovered the package document by scanning",
+            location=opf_candidates[0],
+            rule="reader.package-scanned",
+        )
         return opf_candidates[0]
     raise EpubReadError("no package document (.opf) found in the archive")
 
@@ -413,7 +434,12 @@ def _parse_metadata(package, report: Report) -> Metadata:
 
     meta_nodes = children(package, "metadata")
     if not meta_nodes:
-        report.add("reader", Level.WARN, "package has no <metadata> element")
+        report.add(
+            "reader",
+            Level.WARN,
+            "package has no <metadata> element",
+            rule="reader.metadata-missing",
+        )
         return metadata
     node = meta_nodes[0]
 
@@ -595,7 +621,12 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
     remote: dict[str, RemoteResource] = {}
     manifest_nodes = children(package, "manifest")
     if not manifest_nodes:
-        report.add("reader", Level.WARN, "package has no <manifest>; falling back to archive contents")
+        report.add(
+            "reader",
+            Level.WARN,
+            "package has no <manifest>; falling back to archive contents",
+            rule="reader.manifest-missing",
+        )
         return resources, id_by_path, remote
 
     for item in children(manifest_nodes[0], "item"):
@@ -633,9 +664,16 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                     Level.WARN,
                     "manifest listed a file that is not in the archive; the entry was dropped",
                     location=path,
+                    rule="reader.manifest-file-missing",
                 )
                 continue
-            report.add("reader", Level.FIX, "matched a manifest entry by case-insensitive path", location=path)
+            report.add(
+                "reader",
+                Level.FIX,
+                "matched a manifest entry by case-insensitive path",
+                location=path,
+                rule="reader.manifest-case-matched",
+            )
             path = resolved
         declared = (item.get("media-type") or "").strip()
         media_type = guess_media_type(path, declared)
@@ -646,6 +684,8 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                 f"manifest declared {declared!r}, which is not the type this file actually is; "
                 f"corrected to {media_type!r}",
                 location=path,
+                rule="reader.manifest-type-corrected",
+                values={"declared": declared, "actual": media_type},
             )
         properties = set((item.get("properties") or "").split())
         resource = Resource(path=path, media_type=media_type, data=entries[path], properties=properties)
@@ -745,7 +785,7 @@ def _parse_spine(
 ) -> tuple[list[SpineItem], str | None, str | None]:
     spine_nodes = children(package, "spine")
     if not spine_nodes:
-        report.add("reader", Level.WARN, "package has no <spine>")
+        report.add("reader", Level.WARN, "package has no <spine>", rule="reader.spine-missing")
         return [], None, None
     spine_node = spine_nodes[0]
     items: list[SpineItem] = []
@@ -758,6 +798,7 @@ def _parse_spine(
                 Level.WARN,
                 "spine referenced an unknown manifest id; the entry was dropped",
                 location=idref or "?",
+                rule="reader.spine-id-unknown",
             )
             continue
         linear = (itemref.get("linear") or "yes").strip().lower() != "no"
@@ -783,7 +824,13 @@ def _parse_spine(
 def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoint], list[PageTarget]]:
     root = etree.fromstring(data, _XML_PARSER)
     if root is None:
-        report.add("reader", Level.WARN, "NCX could not be parsed", location=ncx_path)
+        report.add(
+            "reader",
+            Level.WARN,
+            "NCX could not be parsed",
+            location=ncx_path,
+            rule="reader.ncx-unparseable",
+        )
         return [], []
 
     def build(nav_point) -> NavPoint | None:
@@ -827,7 +874,13 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     """Extract toc / landmarks / page-list from an EPUB 3 navigation document."""
     root = etree.fromstring(data, _XML_PARSER)
     if root is None:
-        report.add("reader", Level.WARN, "navigation document could not be parsed", location=nav_path)
+        report.add(
+            "reader",
+            Level.WARN,
+            "navigation document could not be parsed",
+            location=nav_path,
+            rule="reader.nav-unparseable",
+        )
         return [], [], []
 
     def parse_list(ol) -> list[NavPoint]:
@@ -934,7 +987,12 @@ def _parse_encryption(entries: dict[str, bytes], book: Book, report: Report) -> 
         return
     root = etree.fromstring(data, _XML_PARSER)
     if root is None:
-        report.add("reader", Level.WARN, "META-INF/encryption.xml could not be parsed")
+        report.add(
+            "reader",
+            Level.WARN,
+            "META-INF/encryption.xml could not be parsed",
+            rule="reader.encryption-unparseable",
+        )
         return
     for encrypted_data in descendants(root, "EncryptedData"):
         methods = descendants(encrypted_data, "EncryptionMethod")
@@ -955,6 +1013,7 @@ def _parse_encryption(entries: dict[str, bytes], book: Book, report: Report) -> 
             Level.ERROR,
             "archive declares real encryption (DRM), not just font obfuscation",
             detail="EPUB-Forge will not attempt to decrypt DRM-protected content.",
+            rule="reader.drm",
         )
 
 
@@ -985,7 +1044,12 @@ def read_epub(source: str, report: Report) -> Book:
     archive = _read_archive(source, report)
     entries = archive.entries
     if not archive.mimetype_ok:
-        report.add("reader", Level.FIX, "missing or incorrect 'mimetype' entry; will be regenerated")
+        report.add(
+            "reader",
+            Level.FIX,
+            "missing or incorrect 'mimetype' entry; will be regenerated",
+            rule="reader.mimetype-invalid",
+        )
 
     opf_path = _locate_opf(entries, report)
     opf_dir = posixpath.dirname(opf_path)
@@ -1022,6 +1086,8 @@ def read_epub(source: str, report: Report) -> Book:
             "reader",
             Level.INFO,
             f"page progression is {book.page_progression_direction}; carried through",
+            rule="reader.page-direction-carried",
+            values={"direction": book.page_progression_direction},
         )
 
     for prefix in ("rendition:layout", "rendition:orientation", "rendition:spread", "rendition:flow"):
@@ -1048,7 +1114,12 @@ def read_epub(source: str, report: Report) -> Book:
         toc, page_list = _parse_ncx(book.resources[book.ncx_path].data, book.ncx_path, report)
         book.toc = toc
         book.page_list = book.page_list or page_list
-        report.add("reader", Level.INFO, "table of contents recovered from the legacy NCX")
+        report.add(
+            "reader",
+            Level.INFO,
+            "table of contents recovered from the legacy NCX",
+            rule="reader.toc-from-ncx",
+        )
 
     if not book.toc:
         ncx_candidates = [r for r in book.resources.values() if r.path.lower().endswith(".ncx")]
@@ -1057,7 +1128,12 @@ def read_epub(source: str, report: Report) -> Book:
             book.toc = toc
             book.page_list = book.page_list or page_list
             book.ncx_path = ncx_candidates[0].path
-            report.add("reader", Level.FIX, "found an unreferenced NCX and used it for the toc")
+            report.add(
+                "reader",
+                Level.FIX,
+                "found an unreferenced NCX and used it for the toc",
+                rule="reader.ncx-unreferenced-used",
+            )
 
     book.cover_path = _detect_cover(package, by_id, book)
     _parse_encryption(entries, book, report)
@@ -1070,7 +1146,11 @@ def read_epub(source: str, report: Report) -> Book:
         media_type = guess_media_type(name)
         book.add(Resource(path=name, media_type=media_type, data=data, manifested=False))
         report.add(
-            "reader", Level.INFO, "file present in the archive but absent from the manifest", location=name
+            "reader",
+            Level.INFO,
+            "file present in the archive but absent from the manifest",
+            location=name,
+            rule="reader.unmanifested-file",
         )
 
     if not book.spine:
@@ -1081,6 +1161,8 @@ def read_epub(source: str, report: Report) -> Book:
                 "reader",
                 Level.FIX,
                 f"spine was empty; rebuilt it from {len(recovered)} content documents in filename order",
+                rule="reader.spine-rebuilt",
+                values={"count": len(recovered)},
             )
 
     report.stats["source_version"] = book.source_version

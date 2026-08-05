@@ -91,10 +91,20 @@ class Worker(QObject):
                 result = rebuild(source, destination, self._policy)
                 if self._run_check and result.output_path:
                     self.validating.emit(index, os.path.basename(source))
-                    validate(result.output_path, result.report)
+                    validate(
+                        result.output_path,
+                        result.report,
+                        content_untouched=not self._policy.rewrite_content,
+                    )
             except Exception as exc:  # noqa: BLE001 - surfaced in the UI
                 report = Report(source=source, output=destination)
-                report.add("gui", Level.ERROR, f"unexpected failure: {type(exc).__name__}: {exc}")
+                report.add(
+                    "gui",
+                    Level.ERROR,
+                    f"unexpected failure: {type(exc).__name__}: {exc}",
+                    rule="gui.unexpected-failure",
+                    values={"error": f'{type(exc).__name__}: {exc}'},
+                )
                 from ..pipeline import Result
 
                 result = Result(report, None, None)

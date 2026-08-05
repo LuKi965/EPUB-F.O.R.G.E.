@@ -12,6 +12,7 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
+      "xhtml.dtd-entities-resolved": 1,
       "xhtml.entities-rewritten": 1
     },
     "output": "sha256:429c966faa6132697e68648b5ab3af3e2ee992d2d485b0735b94324621c00cf2",
@@ -32,6 +33,7 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
+      "xhtml.dtd-entities-resolved": 1,
       "xhtml.entities-rewritten": 1
     },
     "output": "sha256:429c966faa6132697e68648b5ab3af3e2ee992d2d485b0735b94324621c00cf2",

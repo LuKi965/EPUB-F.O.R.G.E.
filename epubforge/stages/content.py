@@ -234,6 +234,8 @@ class ContentStage(Stage):
                     Level.ERROR,
                     f"content document could not be parsed at all: {type(exc).__name__}",
                     location=resource.path,
+                    rule="xhtml.unparseable",
+                    values={"error": type(exc).__name__},
                 )
                 continue
             if mode == "html":
@@ -242,6 +244,7 @@ class ContentStage(Stage):
                     Level.FIX,
                     "document was not well-formed XML; recovered with an HTML parser",
                     location=resource.path,
+                    rule="xhtml.recovered-with-html-parser",
                 )
             elif mode == "xml-entities":
                 self.note(
@@ -301,6 +304,8 @@ class ContentStage(Stage):
                     "EPUB 3 replaces with one that declares nothing — so without this the "
                     "references would have appeared on the page as literal text."
                 ),
+                rule="xhtml.dtd-entities-resolved",
+                values={"count": len(names)},
             )
         if refused:
             names = sorted({name for names in refused.values() for name in names})
@@ -314,6 +319,8 @@ class ContentStage(Stage):
                     "tool will not fetch, or expanding them would have grown the document "
                     "past any plausible size."
                 ),
+                rule="xhtml.dtd-entities-refused",
+                values={"count": len(names)},
             )
 
     def _report_watermarks(self, ctx: Context) -> None:
@@ -328,6 +335,11 @@ class ContentStage(Stage):
                     "repeated inline !important style became one rule, and the markers are "
                     "hidden from screen readers instead of being spelled out each chapter."
                 ),
+                rule="xhtml.watermark-consolidated",
+                values={
+                    "count": self._watermarks_consolidated,
+                    "documents": self._watermark_documents,
+                },
             )
         if self._watermark_notices:
             emails = watermark.personal_data(" ".join(self._watermark_notices))
@@ -341,6 +353,8 @@ class ContentStage(Stage):
                     else ""
                 )
                 + "Meant to be read, so left exactly as the publisher wrote it.",
+                rule="xhtml.watermark-kept",
+                values={"count": len(self._watermark_notices)},
             )
 
     def _fix_identifiers(self, ctx: Context, root, path: str) -> dict[str, str]:
@@ -372,6 +386,8 @@ class ContentStage(Stage):
                 Level.FIX,
                 f"renamed {len(renamed)} id attribute(s) that were not valid XML names",
                 location=path,
+                rule="xhtml.ids-renamed",
+                values={"count": len(renamed)},
             )
         return renamed
 
@@ -385,12 +401,24 @@ class ContentStage(Stage):
         if head is None:
             head = etree.Element(xhtml.qname("head"))
             root.insert(0, head)
-            self.note(ctx, Level.FIX, "added a missing <head>", location=resource.path)
+            self.note(
+                ctx,
+                Level.FIX,
+                "added a missing <head>",
+                location=resource.path,
+                rule="xhtml.head-added",
+            )
 
         body = root.find(xhtml.qname("body"))
         if body is None:
             body = etree.SubElement(root, xhtml.qname("body"))
-            self.note(ctx, Level.FIX, "added a missing <body>", location=resource.path)
+            self.note(
+                ctx,
+                Level.FIX,
+                "added a missing <body>",
+                location=resource.path,
+                rule="xhtml.body-added",
+            )
 
         for meta in head.findall(xhtml.qname("meta")):
             if meta.get("http-equiv") or meta.get("charset"):
@@ -469,6 +497,8 @@ class ContentStage(Stage):
                 f"{broken} reference(s) point at files not present in the book; left unchanged",
                 location=resource.path,
                 detail="These are source defects and remain conformance errors. Use --strict to neutralise them.",
+                rule="xhtml.dead-reference-kept",
+                values={"count": broken},
             )
             return
         self._neutralise(ctx, dangling, resource)
@@ -493,6 +523,8 @@ class ContentStage(Stage):
             f"neutralised {unlinked + removed} reference(s) to files absent from the book",
             location=resource.path,
             detail=f"{unlinked} link(s) unlinked, {removed} element(s) removed",
+            rule="xhtml.dead-reference-neutralised",
+            values={"count": unlinked + removed},
         )
 
     def _rewrite_css_urls(self, ctx: Context, css_text: str, source_path: str, current_path: str) -> str:
@@ -566,6 +598,7 @@ class ContentStage(Stage):
                 "converted legacy presentational markup to CSS",
                 location=resource.path,
                 detail=", ".join(sorted(changed)),
+                rule="xhtml.presentational-markup-converted",
             )
 
     def _document_cascade(self, ctx: Context, root, resource) -> css_cascade.Cascade:
@@ -681,6 +714,8 @@ class ContentStage(Stage):
                     "Running-text rules were shifting the artwork; no rule targeted these "
                     "paragraphs specifically, so the layout was inherited rather than chosen."
                 ),
+                rule="xhtml.image-paragraph-centred",
+                values={"count": adjusted},
             )
         if unindented:
             self.note(
@@ -693,6 +728,8 @@ class ContentStage(Stage):
                     "A rule aimed at these paragraphs or their container decides where the "
                     "image sits; the indent reached them from a rule about body text."
                 ),
+                rule="xhtml.image-paragraph-unindented",
+                values={"count": unindented},
             )
         if respected:
             self.note(
@@ -704,6 +741,8 @@ class ContentStage(Stage):
                     "A rule aimed at these paragraphs, or at an element containing them, "
                     "sets their alignment or indent."
                 ),
+                rule="xhtml.image-paragraph-kept",
+                values={"count": respected},
             )
 
     def _cover_fits_the_page(self, ctx: Context, root, resource) -> None:
@@ -763,6 +802,7 @@ class ContentStage(Stage):
                     "No stylesheet rule and no attribute sized this image, so a reader "
                     "would show it at its own pixel dimensions."
                 ),
+                rule="xhtml.cover-fitted",
             )
 
     def _block_in_inline(self, ctx: Context, root, resource) -> None:
@@ -825,6 +865,8 @@ class ContentStage(Stage):
                     "centring behave unpredictably; inline-block is a legal container that "
                     "keeps the element where it was."
                 ),
+                rule="xhtml.inline-promoted",
+                values={"count": promoted},
             )
 
     def _watermarks(self, ctx: Context, root, resource) -> None:
@@ -1029,6 +1071,7 @@ class ContentStage(Stage):
                 Level.FIX,
                 "described the cover image with the book title",
                 location=resource.path,
+                rule="xhtml.cover-described",
             )
         if missing_alt:
             self.note(
@@ -1041,6 +1084,8 @@ class ContentStage(Stage):
                     "the accessibility stage still counts these images as undescribed, "
                     "so nothing is claimed on their behalf."
                 ),
+                rule="xhtml.empty-alt-added",
+                values={"count": missing_alt},
             )
 
     def _scripting(self, ctx: Context, root, resource) -> None:
@@ -1059,6 +1104,8 @@ class ContentStage(Stage):
                 Level.PRESERVED,
                 f"kept {len(scripts)} script element(s); document marked scripted",
                 location=resource.path,
+                rule="xhtml.scripts-kept",
+                values={"count": len(scripts)},
             )
             return
         for script in scripts:
@@ -1072,6 +1119,8 @@ class ContentStage(Stage):
             Level.FIX,
             f"removed {len(scripts)} script element(s) and {len(handlers)} inline handler(s)",
             location=resource.path,
+            rule="xhtml.scripts-removed",
+            values={"count": len(scripts), "handlers": len(handlers)},
         )
 
     def _properties(self, ctx: Context, root, resource) -> None:
@@ -1162,6 +1211,8 @@ class StyleStage(Stage):
                     Level.WARN,
                     f"{unresolved} url() reference(s) could not be resolved; left unchanged",
                     location=resource.path,
+                    rule="css.url-unresolved",
+                    values={"count": unresolved},
                 )
             self._validate(ctx, resource)
 
@@ -1215,6 +1266,8 @@ class StyleStage(Stage):
                 f"kept {len(hacks)} vendor-specific at-rule(s) that target particular readers",
                 location=resource.path,
                 detail="Use --strict to remove them.",
+                rule="css.vendor-at-rule-kept",
+                values={"count": len(hacks)},
             )
             return css_text
         cleaned = re.sub(
@@ -1228,6 +1281,7 @@ class StyleStage(Stage):
             Level.FIX,
             "removed Kindle-specific @media blocks",
             location=resource.path,
+            rule="css.kindle-media-removed",
         )
         return cleaned
 
@@ -1249,6 +1303,8 @@ class StyleStage(Stage):
                     "font-style/font-weight have no 'regular' keyword, so parsers dropped these "
                     "rules entirely. Replaced with 'normal', which is what was meant."
                 ),
+                rule="css.invalid-value-corrected",
+                values={"count": invalid_values},
             )
 
         repaired = self._repair_positioning(ctx, repaired, resource)
@@ -1274,6 +1330,8 @@ class StyleStage(Stage):
                 f"kept {len(matches)} absolute/fixed position rule(s)",
                 location=resource.path,
                 detail="This is a fixed-layout book, where out-of-flow positioning is how it works.",
+                rule="css.position-kept",
+                values={"count": len(matches)},
             )
             return css_text
 
@@ -1287,6 +1345,8 @@ class StyleStage(Stage):
                     "Out-of-flow content does not paginate on every reader, but it is a layout "
                     "the publisher chose. Use --strict to drop it."
                 ),
+                rule="css.position-kept-reflowable",
+                values={"count": len(matches)},
             )
             return css_text
 
@@ -1297,6 +1357,8 @@ class StyleStage(Stage):
             f"removed {len(matches)} absolute/fixed position rule(s) from a reflowable book",
             location=resource.path,
             detail="The affected blocks now flow with the page instead of being pinned to it.",
+            rule="css.position-removed",
+            values={"count": len(matches)},
         )
         return repaired
 
@@ -1318,6 +1380,8 @@ class StyleStage(Stage):
                 f"kept {len(found)} reader-specific CSS propert(ies) inherited from the source",
                 location=resource.path,
                 detail=f"{', '.join(names)} — validators flag these as unknown. Use --strict to remove them.",
+                rule="css.reader-property-kept",
+                values={"count": len(found)},
             )
             return css_text
         cleaned = _ADOBE_PROPERTY_RE.sub(lambda match: match.group(1), css_text)
@@ -1327,6 +1391,8 @@ class StyleStage(Stage):
             f"removed {len(found)} reader-specific CSS propert(ies)",
             location=resource.path,
             detail=", ".join(names),
+            rule="css.reader-property-removed",
+            values={"count": len(found)},
         )
         return cleaned
 
@@ -1356,6 +1422,8 @@ class StyleStage(Stage):
                 f"e.g. {', '.join(sorted(set(offenders))[:4])} — inherited from the source and left "
                 "as-is, since guessing serif vs sans-serif could change how the book looks."
             ),
+            rule="css.font-stack-generic-missing",
+            values={"count": len(offenders)},
         )
 
     def _validate(self, ctx: Context, resource) -> None:
@@ -1368,7 +1436,15 @@ class StyleStage(Stage):
                 Level.WARN,
                 f"stylesheet could not be parsed for validation: {type(exc).__name__}",
                 location=resource.path,
+                rule="css.unparseable",
+                values={"error": type(exc).__name__},
             )
             return
         if not sheet.cssRules:
-            self.note(ctx, Level.WARN, "stylesheet contains no usable rules", location=resource.path)
+            self.note(
+                ctx,
+                Level.WARN,
+                "stylesheet contains no usable rules",
+                location=resource.path,
+                rule="css.no-usable-rules",
+            )

@@ -63,7 +63,12 @@ class NavigationStage(Stage):
         book = ctx.book
         if not book.cover_path or book.cover_path not in book.resources:
             if book.cover_path:
-                self.note(ctx, Level.WARN, "declared cover image is missing from the archive")
+                self.note(
+                    ctx,
+                    Level.WARN,
+                    "declared cover image is missing from the archive",
+                    rule="nav.cover-image-missing",
+                )
                 book.cover_path = None
             return
 

@@ -8,7 +8,17 @@
       "preserved": 2,
       "warn": 2
     },
-    "output": "sha256:43d124d4eee6ab3f22bc897ce79809923771d2697d9e23f2e587de61b71c2777",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "a11y.table-without-headers": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 16
+    },
+    "output": "sha256:7c887708d579cac0e43029dc22bb563cf366718a9ef02bdc95ad436a39be5934",
     "text_characters": 1068169,
     "text_added": 0,
     "text_invariant": true,
@@ -27,7 +37,17 @@
       "preserved": 2,
       "warn": 2
     },
-    "output": "sha256:43d124d4eee6ab3f22bc897ce79809923771d2697d9e23f2e587de61b71c2777",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "a11y.table-without-headers": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 16
+    },
+    "output": "sha256:7c887708d579cac0e43029dc22bb563cf366718a9ef02bdc95ad436a39be5934",
     "text_characters": 1068169,
     "text_added": 0,
     "text_invariant": true,

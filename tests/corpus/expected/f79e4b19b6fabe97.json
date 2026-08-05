@@ -7,7 +7,15 @@
       "fix": 43,
       "preserved": 2
     },
-    "output": "sha256:9734d7348a0d700d66eea0bbdf9e2024ed359f3343933f9f42ac35aa021a8e9d",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 25
+    },
+    "output": "sha256:c1930086c858db12baa356e7331c9ac20cd5149545a0898cd52299782ff6e218",
     "text_characters": 720397,
     "text_added": 0,
     "text_invariant": true,
@@ -25,7 +33,15 @@
       "fix": 44,
       "preserved": 1
     },
-    "output": "sha256:c4253421dbb373c04c2e81f17b2ff1d90c623d21248e3c9a3a420e89bca4237d",
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 25
+    },
+    "output": "sha256:7ea09ee95c79764955bea6bef9332d3fe33a24820e67f08e270483759e89ff93",
     "text_characters": 720397,
     "text_added": 0,
     "text_invariant": true,

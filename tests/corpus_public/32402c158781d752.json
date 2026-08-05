@@ -11,7 +11,9 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "reader.page-direction-carried": 1,
+      "structure.relaid-out": 1,
+      "xhtml.image-paragraph-centred": 2
     },
     "output": "sha256:6012f085043776ee8e7218a408d2846dea09aea922d1a1cf378e4335377157aa",
     "text_characters": 1,
@@ -30,7 +32,9 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "reader.page-direction-carried": 1,
+      "structure.relaid-out": 1,
+      "xhtml.image-paragraph-centred": 2
     },
     "output": "sha256:6012f085043776ee8e7218a408d2846dea09aea922d1a1cf378e4335377157aa",
     "text_characters": 1,

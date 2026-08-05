@@ -205,7 +205,11 @@ def command_build(args: argparse.Namespace) -> int:
         result = rebuild(source, destination, policy)
 
         if args.check and result.output_path:
-            validate(result.output_path, result.report)
+            validate(
+                result.output_path,
+                result.report,
+                content_untouched=not policy.rewrite_content,
+            )
 
         print_report(console, result.report, args.verbose)
         summarize(console, result.report)

@@ -17,7 +17,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 1
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.inline-promoted": 1,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:c18166fb973e61b35ff0c37bf52b750cc25eb89f98236a4d653579e712c4cd9c",
     "text_characters": 156310,
@@ -42,7 +45,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 1
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.inline-promoted": 1,
+      "xhtml.presentational-markup-converted": 1
     },
     "output": "sha256:c18166fb973e61b35ff0c37bf52b750cc25eb89f98236a4d653579e712c4cd9c",
     "text_characters": 156310,
