@@ -463,7 +463,7 @@ This is **pre-alpha**, and the program says so itself wherever it reports its
 version:
 
 ```
-epub-forge 0.1.7 (pre-alpha)
+epub-forge 0.1.8 (pre-alpha)
 ```
 
 The number no longer tries to carry that information, because it cannot: a

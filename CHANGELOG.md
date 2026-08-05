@@ -23,6 +23,37 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.1.8 — pre-alpha
+
+Closes the last of the P0 findings. Archive entry names are read through a model
+instead of being folded into shape by one expression and stored.
+
+### Fixed
+- **Two archive entries with one name no longer resolve by iteration order**
+  (EF-008). The later one won and the earlier one was gone, silently. When both
+  bodies are identical nothing is lost and the run continues with a note; when
+  they differ, one of the two documents cannot be represented whatever the tool
+  does, so the read stops rather than picking for you.
+- **A name that climbs out of the container is dropped, not copied through.**
+  An entry literally called `../outside.bin` used to survive a `minimal` rebuild
+  into the output. This tool never unpacks an archive, so it was never at risk
+  itself — whoever unpacked the result was.
+- **Names that differ only by case, or only by Unicode normalisation, are
+  reported.** Both are legal and distinct inside the archive, and both are one
+  file on a filesystem that folds case or normalisation — which is most of them
+  outside Linux. The book is not refused, because it reads perfectly well where
+  it was made; the warning names the pair.
+- Every name the reader has to rewrite — backslash separators, a leading slash,
+  a drive letter, `.` or `..` segments, percent-encoding — now appears in the
+  report. Folding them silently meant a name that had been changed looked
+  exactly like one that had not.
+
+### Added
+- `epubforge/ocf.py` — container names as a value with an account of what was
+  changed, and collision detection under four views: identical, percent-decoded,
+  NFC, case-folded.
+- `tests/test_ocf_paths.py`.
+
 ## 0.1.7 — pre-alpha
 
 First of the Safety Gate releases. Nothing here adds a capability; all of it
