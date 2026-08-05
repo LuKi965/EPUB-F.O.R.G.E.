@@ -103,6 +103,7 @@ class NavigationStage(Stage):
             Level.FIX,
             "generated a cover page so the artwork appears as the first spine item",
             location=page_path,
+            rule="nav.cover-page-generated",
         )
 
     def _prune_toc(self, ctx: Context) -> None:
@@ -162,12 +163,18 @@ class NavigationStage(Stage):
         book.page_list = [p for p in book.page_list if p.target.split("#")[0] in book.resources]
         book.landmarks = [l for l in book.landmarks if l.target.split("#")[0] in book.resources]
         if removed:
-            self.note(ctx, Level.FIX, f"dropped {removed} table-of-contents entry/entries pointing nowhere")
+            self.note(
+                ctx,
+                Level.FIX,
+                f"dropped {removed} table-of-contents entry/entries pointing nowhere",
+                rule="nav.entry-dropped",
+            )
         if dangling_fragments:
             self.note(
                 ctx,
                 Level.FIX,
                 f"cleared {dangling_fragments} navigation fragment(s) whose anchor does not exist",
+                rule="nav.fragment-cleared",
                 detail="The entry now points at the document, which is where the reader would land anyway.",
             )
 
@@ -185,6 +192,7 @@ class NavigationStage(Stage):
                 ctx,
                 Level.FIX,
                 f"book had no usable table of contents; built one from {len(entries)} spine documents",
+                rule="nav.toc-synthesised",
             )
 
     def _document_title(self, resource: Resource) -> str:
@@ -314,6 +322,7 @@ class NavigationStage(Stage):
                 f"repointed {moved + in_documents} reference(s) at the regenerated "
                 "navigation document",
                 location=old_path,
+                rule="nav.repointed",
                 detail=(
                     f"{moved} in the navigation tables, {in_documents} inside content "
                     "documents. The source's own contents page is replaced, and a "
@@ -362,6 +371,7 @@ class NavigationStage(Stage):
                     "kept the publisher's contents page and put the regenerated "
                     "navigation beside it",
                     location=book.nav_path,
+                    rule="nav.contents-page-kept",
                     detail=(
                         "The page is in the reading order, so it is something the "
                         "reader turns to. Replacing it with generated markup would "
@@ -450,6 +460,7 @@ class NavigationStage(Stage):
                 ctx,
                 Level.INFO,
                 "kept the navigation document in the reading order, where the source had it",
+                rule="nav.kept-in-spine",
                 detail=(
                     "A nav document in the spine is a page the reader can turn to. "
                     "Regenerating it used to remove that page."

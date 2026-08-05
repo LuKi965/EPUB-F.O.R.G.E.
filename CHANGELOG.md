@@ -25,8 +25,27 @@ written; only the current version was reset.
 
 ## Unreleased
 
-Nothing here yet. Work lands under this heading and gets a number and a date
-when a release is built — see *Jak się wydaje* in `CONTRIBUTING.md`.
+### A finding now has a name that does not change (EF-018, in progress)
+
+The identity of a finding used to be its English sentence. Three consequences,
+all of which had already happened: rewording a message broke a test that was
+never about the wording; `survey.py` had to strip numbers and quoted fragments
+with regular expressions before it could count anything, which is a symptom
+rather than a solution; and the report could not be translated at all, because
+a sentence that *is* the identity cannot be replaced by its Polish equivalent
+without changing what it identifies.
+
+`epubforge/rules.py` is the catalogue — `nav.repointed`,
+`xhtml.doctype-modernised` — with one line each saying what the finding means.
+That mapping is the thing a translation replaces, and the reason it exists.
+`Finding.rule` carries it, `--report` output carries it, and `survey.py` groups
+by it wherever it is present: where the identity exists, the guessing stops.
+
+There are more than a hundred call sites, so this lands over several changes.
+`tests/test_rules.py` holds it to a ratchet — the number of tagged sites may
+rise and may not fall, an id nothing raises fails the suite, and an id raised
+but not catalogued fails it too. **21 sites so far**, covering the reader, the
+structure stage and the navigation stage.
 
 ## 0.2.3 — alpha — 2026-08-05
 

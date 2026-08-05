@@ -32,6 +32,11 @@ class Finding:
     message: str
     location: str | None = None
     detail: str | None = None
+    #: Stable identifier from :mod:`epubforge.rules`. The message is a rendering
+    #: of this, not the other way round — see that module for why. Optional
+    #: while the call sites are being converted; `test_rules.py` holds the
+    #: conversion to a ratchet so it cannot stall unnoticed.
+    rule: str | None = None
 
 
 @dataclass
@@ -48,8 +53,9 @@ class Report:
         message: str,
         location: str | None = None,
         detail: str | None = None,
+        rule: str | None = None,
     ) -> None:
-        self.findings.append(Finding(stage, level, message, location, detail))
+        self.findings.append(Finding(stage, level, message, location, detail, rule))
 
     def count(self, level: Level) -> int:
         return sum(1 for f in self.findings if f.level is level)

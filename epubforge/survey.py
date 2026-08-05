@@ -143,7 +143,12 @@ class Survey:
 def _record(survey: Survey, report: Report, name: str, with_names: bool) -> None:
     seen_here: set[tuple[str, str, str]] = set()
     for finding in report.findings:
-        message = normalise(finding.message)
+        # A finding that carries an identifier is grouped by it. Stripping
+        # numbers and quoted fragments out of a sentence to guess whether two
+        # findings are the same finding is what this module had to do while the
+        # sentence *was* the identity, and it is a symptom, not a solution
+        # (EF-018). Where the identity exists, the guessing stops.
+        message = finding.rule or normalise(finding.message)
         key = (finding.stage, finding.level.value, message)
         entry = survey.findings.get(key)
         if entry is None:

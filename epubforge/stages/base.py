@@ -59,8 +59,16 @@ class Stage:
     def run(self, ctx: Context) -> None:  # pragma: no cover - interface
         raise NotImplementedError
 
-    def note(self, ctx: Context, level: Level, message: str, location: str | None = None, detail: str | None = None):
-        ctx.report.add(self.name, level, message, location, detail)
+    def note(
+        self,
+        ctx: Context,
+        level: Level,
+        message: str,
+        location: str | None = None,
+        detail: str | None = None,
+        rule: str | None = None,
+    ):
+        ctx.report.add(self.name, level, message, location, detail, rule)
 
 
 __all__ = ["Context", "Stage", "Level", "Policy", "Report", "Book"]

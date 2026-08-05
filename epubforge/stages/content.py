@@ -175,6 +175,7 @@ class ContentStage(Stage):
                     ctx,
                     Level.FIX,
                     f"replaced the DOCTYPE in {modernised} document(s) with the EPUB 3 one",
+                    rule="xhtml.doctype-modernised",
                     detail=(
                         "The only change this mode makes inside a document. A DOCTYPE "
                         "says nothing about rendering, and a legacy one makes the book "
@@ -190,6 +191,7 @@ class ContentStage(Stage):
                     f"{len(refused)} document(s) keep a legacy DOCTYPE because an entity "
                     f"in them cannot be resolved: {', '.join(names[:5])}",
                     location=sorted(refused)[0],
+                    rule="xhtml.doctype-kept",
                     detail=(
                         "The output stays an invalid EPUB 3 in those documents, and that "
                         "is the lesser harm: replacing the declaration would strand the "
@@ -201,6 +203,7 @@ class ContentStage(Stage):
                 ctx,
                 Level.INFO,
                 "content documents left untouched; only the container was rebuilt",
+                rule="xhtml.untouched",
                 detail=(
                     "Every XHTML file comes out byte for byte as it went in, apart "
                     "from the DOCTYPE where it had to be modernised."
@@ -1121,6 +1124,7 @@ class ContentStage(Stage):
                 f"withdrew manifest {'property' if len(withdrawn) == 1 else 'properties'} "
                 f"the document does not bear out: {', '.join(withdrawn)}",
                 location=resource.path,
+                rule="xhtml.property-withdrawn",
                 detail=(
                     "Declaring one of these without the markup to match is a "
                     "conformance error in its own right, and EPUBCheck reports it "
