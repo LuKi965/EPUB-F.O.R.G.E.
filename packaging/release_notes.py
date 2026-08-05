@@ -65,7 +65,10 @@ def main(argv: list[str]) -> int:
         return 1
 
     if args.output:
-        pathlib.Path(args.output).write_text(body + "\n", encoding="utf-8")
+        # newline="" so the file says the same thing on both platforms. Text
+        # mode translates "\n" to "\r\n" on Windows, which would make the notes
+        # depend on which runner published them.
+        pathlib.Path(args.output).write_text(body + "\n", encoding="utf-8", newline="")
         return 0
 
     # The console's encoding is whatever the platform chose, and on Windows

@@ -85,9 +85,19 @@ class TestWritingThemOut:
 
         target = tmp_path / "notes.md"
         assert main(["release_notes.py", __version__, "--output", str(target)]) == 0
-        written = target.read_text(encoding="utf-8")
-        assert written.strip()
-        assert written == target.read_bytes().decode("utf-8")
+        raw = target.read_bytes()
+        assert raw.decode("utf-8").strip()
+
+    def test_the_bytes_do_not_depend_on_the_runner(self, tmp_path):
+        """Text mode turns "\\n" into "\\r\\n" on Windows, so the same release
+        published from a Windows runner and a Linux one would have differently
+        encoded notes. This caught it — on Windows, after everything else had
+        already been built."""
+        from epubforge import __version__
+
+        target = tmp_path / "notes.md"
+        main(["release_notes.py", __version__, "--output", str(target)])
+        assert b"\r" not in target.read_bytes()
 
     def test_a_leading_v_is_accepted(self, tmp_path):
         """The workflow passes whatever the tag said."""
