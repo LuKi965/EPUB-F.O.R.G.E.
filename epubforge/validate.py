@@ -101,7 +101,7 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
             report.add(
                 "epubcheck",
                 Level.WARN,
-                "EPUBCheck was not found; the output has not been independently verified",
+                "EPUBCheck was not found; the output has not been independently verified", rule="epubcheck.unavailable",
                 detail=f"Install it and set {ENV_JAR}, or put epubcheck on PATH.",
             )
         return ValidationResult(available=False)
@@ -120,7 +120,7 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
             payload = json.load(handle)
     except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
         if report:
-            report.add("epubcheck", Level.WARN, f"EPUBCheck could not be run: {type(exc).__name__}")
+            report.add("epubcheck", Level.WARN, f"EPUBCheck could not be run: {type(exc).__name__}", rule="epubcheck.failed")
         return ValidationResult(available=False)
     finally:
         try:
@@ -150,13 +150,13 @@ def validate(epub_path: str, report: Report | None = None) -> ValidationResult:
             report.add(
                 "epubcheck",
                 Level.INFO,
-                f"EPUBCheck passed with 0 errors and {result.warnings} warning(s)",
+                f"EPUBCheck passed with 0 errors and {result.warnings} warning(s)", rule="epubcheck.clean",
             )
         else:
             report.add(
                 "epubcheck",
                 Level.ERROR,
-                f"EPUBCheck reported {result.fatal} fatal and {result.errors} error(s)",
+                f"EPUBCheck reported {result.fatal} fatal and {result.errors} error(s)", rule="epubcheck.reported",
                 detail="; ".join(result.messages[:10]),
             )
     return result

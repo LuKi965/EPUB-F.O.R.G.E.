@@ -52,7 +52,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     try:
         book = read_epub(source, report)
     except EpubReadError as exc:
-        report.add("reader", Level.ERROR, f"could not read the source file: {exc}")
+        report.add("reader", Level.ERROR, f"could not read the source file: {exc}", rule="package.unreadable-source")
         return Result(report, None, None, Status.FAILED)
 
     # The version change is the single largest thing the rebuild does, so it is
@@ -62,20 +62,20 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         report.add(
             "package",
             Level.FIX,
-            f"rebuilt the package from EPUB {source_version} to EPUB 3.3",
+            f"rebuilt the package from EPUB {source_version} to EPUB 3.3", rule="package.upgraded",
             detail="Package document, navigation and container structure were regenerated.",
         )
     elif source_version.startswith("3"):
         report.add(
             "package",
             Level.INFO,
-            f"source was already EPUB {source_version}; the package was regenerated regardless",
+            f"source was already EPUB {source_version}; the package was regenerated regardless", rule="package.regenerated",
         )
     else:
         report.add(
             "package",
             Level.WARN,
-            "package declared no usable version; treating it as EPUB 2 and rebuilding to 3.3",
+            "package declared no usable version; treating it as EPUB 2 and rebuilding to 3.3", rule="package.version-unusable",
         )
 
     ctx = Context(book=book, policy=policy, report=report)
@@ -99,7 +99,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
             report.add(
                 stage.name,
                 Level.ERROR,
-                f"stage failed: {type(exc).__name__}: {exc}",
+                f"stage failed: {type(exc).__name__}: {exc}", rule="package.stage-failed",
                 detail=(
                     "Nothing was written. The model was left half-modified by the "
                     "failure, so anything built from it would be a book only in shape."
@@ -118,7 +118,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         report.add(
             "writer",
             Level.ERROR,
-            "refusing to write over the source file",
+            "refusing to write over the source file", rule="package.source-protected",
             location=source,
             detail="Nothing was written. Choose a different destination.",
         )

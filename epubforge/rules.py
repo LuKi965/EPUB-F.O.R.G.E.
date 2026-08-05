@@ -113,11 +113,18 @@ CATALOGUE: dict[str, str] = {
     "a11y.table-without-headers": "a table has no header cells",
 
     # -- package ------------------------------------------------------------
-    "package.regenerated": "the package document was regenerated",
+    "package.upgraded": "the package was rebuilt from an older EPUB version to 3.3",
+    "package.regenerated": "the source was already EPUB 3 and the package was regenerated anyway",
+    "package.version-unusable": "the package declared no usable version and was treated as EPUB 2",
+    "package.unreadable-source": "the source file could not be read",
+    "package.stage-failed": "a stage raised, so nothing was written",
+    "package.source-protected": "writing over the source file was refused",
+    "package.spine-item-vanished": "a spine item was gone by the time the package was written",
     # -- validation ---------------------------------------------------------
     "epubcheck.reported": "EPUBCheck reported problems with the output",
     "epubcheck.clean": "EPUBCheck accepted the output",
     "epubcheck.unavailable": "EPUBCheck is not installed, so the output was not validated",
+    "epubcheck.failed": "EPUBCheck could not be run at all",
 }
 
 

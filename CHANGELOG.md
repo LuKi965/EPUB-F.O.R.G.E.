@@ -44,8 +44,27 @@ by it wherever it is present: where the identity exists, the guessing stops.
 There are more than a hundred call sites, so this lands over several changes.
 `tests/test_rules.py` holds it to a ratchet — the number of tagged sites may
 rise and may not fall, an id nothing raises fails the suite, and an id raised
-but not catalogued fails it too. **21 sites so far**, covering the reader, the
-structure stage and the navigation stage.
+but not catalogued fails it too. **All 78 call sites are converted** and the
+exemption list is empty: an id nothing raises now fails the suite outright.
+
+One call site turned out to be two findings sharing one call. Replacing a
+navigation document the source had is routine; generating one it never had is a
+correction. They carried different levels and different messages through a
+conditional expression, which is how they came to share an identity neither of
+them could have.
+
+### The milestone cycle is a procedure now, not a memory
+
+Releasing a milestone is four steps in one turn: build and release, freeze
+`frozen/vX.Y.Z-<name>`, open the next milestone's branch, and print the list of
+branches that can be deleted. Written into `CONTRIBUTING.md` because step two
+was deferred once and produced a branch called `claude/safety-gate` that had
+been moved onto `main` repeatedly and held work with nothing to do with the
+Safety Gate. A label on a moving target is not a freeze.
+
+`tools/branches.py` prints what is safe to delete — merged into the trunk, not a
+`frozen/` marker, not in use — because remote deletion is refused from the build
+environment with the same 403 that refuses a tag push, so a person does it.
 
 ## 0.2.3 — alpha — 2026-08-05
 
