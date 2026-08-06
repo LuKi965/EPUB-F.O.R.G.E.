@@ -12,6 +12,12 @@ dist/
 packaging/_bundle/
 
 # Private corpus of real books — other people's work, never committed.
-# Only the metric signatures under tests/corpus/expected/ are tracked.
+# Only the metric signatures under tests/corpus/expected/ are tracked, and the
+# run ledger beside them: it holds a version, a date and five counts per run —
+# no titles, no authors, not a byte of anyone's book. Entry into alpha asks for
+# the corpus to be green "across three consecutive releases", and that is a
+# claim about this project. A claim whose evidence lives on two private disks
+# is not one anybody else can check.
 tests/corpus/*
 !tests/corpus/expected/
+!tests/corpus/runs.json
