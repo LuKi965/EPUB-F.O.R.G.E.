@@ -25,6 +25,43 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The InkBOOK case: a prefix we used and did not declare
+
+Four rounds of bisection on the device, and the answer is one attribute:
+
+```xml
+<package prefix="schema: http://schema.org/">                          ← hangs
+<package prefix="rendition: …/rendition/# schema: http://schema.org/"> ← opens
+```
+
+We emit `rendition:layout`, `rendition:orientation` and `rendition:spread`
+without declaring `rendition:`. EPUB 3 reserves the prefix, so no declaration
+is required and EPUBCheck says nothing. That reader resolves prefixes from the
+`prefix` attribute and from nowhere else.
+
+It explains the paradox the case opened with. The file with 148 validation
+errors opened because it declared `rendition:`; ours with none hung because it
+did not. Conformance was never the subject.
+
+The argument for declaring reserved prefixes **was already written down in this
+file**, beside `schema:` — "declaring it is redundant under 3.3 and legal, so
+it costs nothing and restores those readers". The same reasoning, the same
+situation, `rendition:` instead of `schema:`, and it was applied to half the
+cases.
+
+The attribute is now computed from the finished document: every
+`property="x:y"` and `scheme="x:y"` that ends up in the package gets `x`
+declared. Deciding it up front meant deciding it twice — once where the
+attribute is built and once wherever a property is emitted — and those two are
+what drifted.
+
+Excluded on the device along the way, each by a variant differing in one thing:
+the entire archive level (K0 settled that our packaging is fine), the container,
+the navigation document, the NCX, dotted manifest identifiers, the missing
+`dcterms` declaration, EPUB 3 refinements, the `schema:` accessibility block
+from both sides, and whitespace between elements. Two of those were my own
+loudest hypotheses — `S_IFREG` and the pretty-printing — and both were wrong.
+
 ### "Table of Contents" headed every Polish book this program made
 
 The generated navigation document carried English headings — "Table of
