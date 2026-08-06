@@ -265,3 +265,65 @@ class TestTheInventoryAndThePipelineAgreeOnAWatermark:
         from epubforge import watermark
 
         assert watermark.marks("<p>Rozdział pierwszy, w którym nic się nie dzieje.</p>") == (0, 0)
+
+
+class TestASignatureSaysWhenItWasTaken:
+    """Entry into alpha asks for the corpus to be green "across three
+    consecutive releases". A signature that does not say which release measured
+    it can only answer that from memory — and memory is what got the family
+    count wrong.
+    """
+
+    def test_the_release_is_recorded(self, tmp_path):
+        import pathlib
+
+        from epubforge import __version__
+        from epubforge.corpus import signature
+
+        from tests.public_corpus import build_all
+
+        book = build_all(tmp_path / "src")[0]
+        record = signature(pathlib.Path(book), tmp_path)
+        assert record["version"] == __version__
+
+    def test_the_release_is_not_part_of_the_comparison(self):
+        """Otherwise bumping the version reports every book in the corpus as
+        changed and buries the one book that really did."""
+        from epubforge.corpus import differences
+
+        before = {"version": "0.2.5", "preserve": {"blocks": 10}}
+        after = {"version": "0.2.6", "preserve": {"blocks": 10}}
+        assert differences(before, after) == []
+
+        moved = {"version": "0.2.6", "preserve": {"blocks": 11}}
+        assert differences(before, moved) == ["preserve.blocks: 10 → 11"]
+
+    def test_a_partial_run_reads_as_partial(self):
+        """35 books on one release and 38 on the next is the truth about a run
+        made away from home, and it must not look like 73 on the newer one."""
+        from epubforge.corpus import releases
+
+        records = [{"version": "0.2.4"}] * 35 + [{"version": "0.2.5"}] * 38
+        assert releases(records) == {"0.2.4": 35, "0.2.5": 38}
+
+    def test_a_release_with_a_dirty_book_is_not_green(self):
+        from epubforge.corpus import green_streak
+
+        clean = {
+            "version": "0.2.6",
+            "preserve": {"written": True, "text_invariant": True, "epubcheck": {"errors": 0}},
+            "strict": {"written": True, "text_invariant": True, "epubcheck": {"errors": 0}},
+        }
+        dirty = dict(clean, preserve=dict(clean["preserve"], epubcheck={"errors": 1}))
+        assert green_streak([clean]) == ["0.2.6"]
+        assert green_streak([clean, dirty]) == []
+
+    def test_a_book_that_lost_text_is_not_green_either(self):
+        from epubforge.corpus import green_streak
+
+        lost = {
+            "version": "0.2.6",
+            "preserve": {"written": True, "text_invariant": False, "epubcheck": {"errors": 0}},
+            "strict": {"written": True, "text_invariant": True, "epubcheck": {"errors": 0}},
+        }
+        assert green_streak([lost]) == []

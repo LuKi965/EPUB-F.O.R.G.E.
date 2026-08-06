@@ -23,7 +23,28 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## Unreleased
+## 0.2.6 — alpha — 2026-08-06
+
+**The inventory now measures the kind of watermark Polish shops actually use,
+which is the one it could not see.** A plain release: the owner has his library
+to hand and needs a build whose numbers can be trusted before running it.
+
+### At a glance
+
+| | |
+|---|---|
+| The inventory saw 4 watermarked books where the pipeline saw 29 | one definition now, held by a test |
+| A style attribute made optional inside a tag pattern | matched empty against tags that had one |
+| The bookshop family counted the watermark only | the roadmap says "znak wodny, **strony prawne**" |
+| A signature never said which release measured it | stamped, so a partial run reads as partial |
+| The stamp then reported every book as changed | it says *when*, so it is out of the diff |
+
+**Fixed:** `watermark.marks()` is the single definition, used by the inventory
+and the content stage both. **New:** `releases()` and `green_streak()` answer
+the alpha condition from the files instead of from memory.
+
+### Everything, by subject
+
 
 ### The corpus says which release measured it
 

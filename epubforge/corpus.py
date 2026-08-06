@@ -239,12 +239,20 @@ def _rule_changes(recorded: dict, measured: dict) -> str:
     return ", ".join(parts)
 
 
+#: Fields that say *when* a measurement was taken rather than *what* it found.
+#: A diff over them is noise: bumping the version would report every book in the
+#: corpus as changed and bury the one book that really did.
+_METADATA = frozenset({"version"})
+
+
 def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
     """Field-level diff, so a change reads as a sentence and not as two hashes."""
     lines: list[str] = []
     for key in sorted(set(recorded) | set(measured)):
         here = f"{path}.{key}" if path else key
         old, new = recorded.get(key), measured.get(key)
+        if not path and key in _METADATA:
+            continue
         if key == "rules" and isinstance(old, dict) and isinstance(new, dict):
             # Rendered as one line naming what appeared and what stopped,
             # because "rules.nav.repointed: None → 1" spread over eight lines is
