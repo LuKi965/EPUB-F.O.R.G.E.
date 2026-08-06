@@ -1,0 +1,13 @@
+[
+  {
+    "version": "0.2.6",
+    "date": "2026-08-06",
+    "books": 12,
+    "failed": 0,
+    "errors": 0,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "clean": true
+  }
+]
