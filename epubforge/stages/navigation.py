@@ -331,7 +331,11 @@ class NavigationStage(Stage):
                 "navigation document",
                 location=old_path,
                 rule="nav.repointed",
-                values={"count": moved + in_documents},
+                values={
+                    "count": moved + in_documents,
+                    "in_tables": moved,
+                    "in_documents": in_documents,
+                },
                 detail=(
                     f"{moved} in the navigation tables, {in_documents} inside content "
                     "documents. The source's own contents page is replaced, and a "

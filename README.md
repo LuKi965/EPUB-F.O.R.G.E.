@@ -141,8 +141,9 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 - **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
   samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
   Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
-  skryptów. **Wyjątek:** linia szczegółów pod znaleziskiem jest wciąż tylko
-  po angielsku.
+  skryptów. Dotyczy to również akapitu szczegółów pod znaleziskiem. To, co
+  zostaje po angielsku, to dane, a nie zdania: nazwy znaczników, wartości
+  metadanych i komunikaty samego EPUBCheck-a.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie — patrz
   [`docs/ROADMAP.md`](docs/ROADMAP.md), punkt 10.
 - **Nie zdejmuje DRM** i nie będzie.

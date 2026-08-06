@@ -679,8 +679,9 @@ class MainWindow(QMainWindow):
                 self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
                 self.report_view.append(f"{'':>{width + 2}}{finding.message}")
                 self.report_view.setTextColor(QColor(colors[finding.level]))
-            if finding.detail:
-                self.report_view.append(f"{'':>{width + 2}}{finding.detail}")
+            detail = result.report.detail_for(finding, language())
+            if detail:
+                self.report_view.append(f"{'':>{width + 2}}{detail}")
         self.report_view.setTextColor(default)
         self.report_view.moveCursor(QTextCursor.MoveOperation.Start)
 

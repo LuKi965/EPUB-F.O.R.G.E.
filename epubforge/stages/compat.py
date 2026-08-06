@@ -59,7 +59,7 @@ class CompatibilityStage(Stage):
                 Level.WARN,
                 f"unknown compatibility profile {name!r}; ignored",
                 rule="compat.unknown-profile",
-                values={"profile": name},
+                values={"profile": name, "known": ", ".join(sorted(compat.PROFILES))},
                 detail=f"Known profiles: {', '.join(sorted(compat.PROFILES))}.",
             )
         if not measures:

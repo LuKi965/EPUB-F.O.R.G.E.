@@ -144,8 +144,9 @@ Things worth knowing before rather than after:
 - **The report follows the language setting.** The window, the JSON file and
   the console all speak whatever the interface does; on the command line
   `--report-language` decides. The English `message` stays in the JSON either
-  way, because that is the field scripts match on. **Except:** the detail line
-  under a finding is still English only.
+  way, because that is the field scripts match on. This covers the detail
+  paragraph under a finding too. What stays English is data rather than
+  sentences: tag names, metadata values and EPUBCheck's own output.
 - **No conversion from PDF, MOBI or Word.** Different problem — see
   [`docs/ROADMAP.md`](docs/ROADMAP.md), item 10.
 - **No DRM removal**, and there will not be.

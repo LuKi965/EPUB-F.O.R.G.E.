@@ -84,6 +84,7 @@ CATALOGUE: dict[str, str] = {
     "nav.cover-image-missing": "the declared cover image is not in the archive",
     # -- content documents --------------------------------------------------
     "xhtml.untouched": "content documents were left as they were; only the container was rebuilt",
+    "xhtml.untouched-except-doctype": "content documents were left as they were apart from the DOCTYPE; only the container was rebuilt",
     "xhtml.doctype-modernised": "a legacy DOCTYPE was replaced with the EPUB 3 one in {count} document(s)",
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
@@ -107,6 +108,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.dtd-entities-refused": "{count} entity/entities were left as references rather than resolved",
     "xhtml.watermark-consolidated": "{count} watermark marker(s) across {documents} document(s) became one rule",
     "xhtml.watermark-kept": "{count} visible watermark notice(s) were left exactly as the publisher wrote them",
+    "xhtml.watermark-kept-personal-data": "{count} visible watermark notice(s) carrying personal data were left exactly as the publisher wrote them",
     "xhtml.ids-renamed": "{count} id attribute(s) were not valid XML names and were renamed",
     "xhtml.head-added": "a missing <head> element was added",
     "xhtml.body-added": "a missing <body> element was added",
@@ -242,6 +244,7 @@ CATALOGUE_PL: dict[str, str] = {
     'nav.ncx-dropped': 'stary plik NCX nie został przeniesiony; EPUB 3 nawiguje dokumentem nawigacyjnym',
     'nav.cover-image-missing': 'zadeklarowany obraz okładki nie znajduje się w archiwum',
     'xhtml.untouched': 'dokumenty treści zostały bez zmian; przebudowano wyłącznie kontener',
+    'xhtml.untouched-except-doctype': 'dokumenty treści zostały bez zmian poza DOCTYPE; przebudowano wyłącznie kontener',
     'xhtml.doctype-modernised': 'stary DOCTYPE zastąpiono tym z EPUB 3 w {count} {count:dokumencie|dokumentach|dokumentach}',
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
@@ -265,6 +268,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.dtd-entities-refused': '{count} {count:encję pozostawiono|encje pozostawiono|encji pozostawiono} jako odwołania zamiast je rozwiązać',
     'xhtml.watermark-consolidated': '{count} {count:znacznik znaku wodnego|znaczniki znaku wodnego|znaczników znaku wodnego} w {documents} {documents:dokumencie|dokumentach|dokumentach} sprowadzono do jednej reguły',
     'xhtml.watermark-kept': '{count} {count:widoczną adnotację|widoczne adnotacje|widocznych adnotacji} znaku wodnego zostawiono dokładnie tak, jak napisał je wydawca',
+    'xhtml.watermark-kept-personal-data': '{count} {count:widoczną adnotację|widoczne adnotacje|widocznych adnotacji} znaku wodnego z danymi osobowymi zostawiono dokładnie tak, jak napisał je wydawca',
     'xhtml.ids-renamed': '{count} {count:atrybut id nie był poprawną nazwą XML|atrybuty id nie były poprawnymi nazwami XML|atrybutów id nie było poprawnymi nazwami XML} i zostały przemianowane',
     'xhtml.head-added': 'dodano brakujący element <head>',
     'xhtml.body-added': 'dodano brakujący element <body>',
@@ -335,6 +339,190 @@ CATALOGUE_PL: dict[str, str] = {
     # -- the window ---------------------------------------------------------
     'gui.unexpected-failure': 'przebudowa zawiodła w sposób, którego nic nie przewidziało: {error}',
 }
+
+#: The paragraph beneath a finding, in Polish, keyed by the same identifier.
+#:
+#: Kept apart from `CATALOGUE_PL` because it is a different kind of text and
+#: has a different completion state: the headline is one sentence and every one
+#: of them is translated, while a detail is prose and some of them are not text
+#: at all — a list of names, a byte count, an example the reader is meant to
+#: read verbatim. Those have nothing to translate and are marked by their
+#: absence here rather than by a copied English line, which is what a stalled
+#: translation looks like.
+#:
+#: The English detail stays exactly where it was written, at the call site.
+#: Nothing here replaces it: this is what a Polish reader gets instead.
+DETAILS_PL: dict[str, str] = {
+    "reader.dangling-reference":
+        "{reference} — odwołanie jest pomijane, a nie zgadywane.",
+    "a11y.placeholder-alt":
+        "{examples} — to przechodzi walidację, ale użytkownikowi czytnika ekranu nie mówi nic, więc alternativeText nie jest deklarowane.",
+    "compat.unknown-profile":
+        "Znane profile: {known}.",
+    "xhtml.dead-reference-neutralised":
+        "{unlinked} {unlinked:odnośnik odlinkowano|odnośniki odlinkowano|odnośników odlinkowano}, {removed} {removed:element usunięto|elementy usunięto|elementów usunięto}.",
+    "css.font-stack-generic-missing":
+        "np. {examples} — odziedziczone ze źródła i zostawione bez zmian, bo zgadywanie między szeryfową a bezszeryfową mogłoby zmienić wygląd książki.",
+    "xhtml.untouched":
+        "Każdy plik XHTML wychodzi bajt w bajt taki, jaki wszedł.",
+    "xhtml.untouched-except-doctype":
+        "Każdy plik XHTML wychodzi bajt w bajt taki, jaki wszedł, poza DOCTYPE, który trzeba było unowocześnić.",
+    "xhtml.dtd-entities-resolved":
+        "{names}. Deklaracje mieszkały w DOCTYPE, który EPUB 3 zastępuje takim, co nie deklaruje niczego — więc bez tego odwołania pojawiłyby się na stronie jako dosłowny tekst.",
+    "xhtml.dtd-entities-refused":
+        "{names}. Albo wskazują poza plik, czego to narzędzie nie pobiera, albo ich rozwinięcie rozdęłoby dokument ponad bezpieczną granicę.",
+    "xhtml.watermark-consolidated":
+        "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów}, tekst bez zmian. Powtarzany styl liniowy z !important stał się jedną regułą, a znaczniki są ukryte przed czytnikami ekranu, zamiast być wypowiadane w każdym rozdziale.",
+    "xhtml.watermark-kept":
+        "Ma być czytane, więc zostawione dokładnie tak, jak napisał to wydawca.",
+    "xhtml.watermark-kept-personal-data":
+        "Zawiera dane osobowe ({data}). Ma być czytane, więc zostawione dokładnie tak, jak napisał to wydawca.",
+    "css.reader-property-kept":
+        "{names} — walidatory zgłaszają je jako nieznane. Użyj --strict, żeby je usunąć.",
+    "image.transcoded":
+        "było {was}",
+    "nav.repointed":
+        "{in_tables} w tablicach nawigacyjnych, {in_documents} wewnątrz dokumentów treści. Własna strona spisu treści źródła zostaje zastąpiona, a odwołanie zostawione na nią czyni książkę niepoprawną, nie tylko niespójną.",
+    "structure.orphan-removed":
+        "odzyskano {bytes} {bytes:bajt|bajty|bajtów}",
+    "structure.relaid-out":
+        "{renamed} {renamed:plik potrzebował|pliki potrzebowały|plików potrzebowało} nowej nazwy; każde odwołanie zostało przepisane, żeby się zgadzało",
+    "epubcheck.unavailable":
+        "Zainstaluj go i ustaw {variable}, albo umieść epubcheck w PATH.",
+    "package.layout-kept":
+        "Ta przebudowa nie przesuwa plików treści, więc odsunięcie od nich dokumentu pakietu zostawiłoby każdy odnośnik manifestu wskazujący z powrotem poza własny katalog, przez „../”.",
+    "package.upgraded":
+        "Dokument pakietu, nawigacja i struktura kontenera zostały wygenerowane od nowa.",
+    "package.source-protected":
+        "Nic nie zostało zapisane. Wybierz inne miejsce docelowe.",
+    "package.stage-failed":
+        "Nic nie zostało zapisane. Awaria zostawiła model w połowie zmieniony, więc cokolwiek by z niego zbudowano, byłoby książką tylko z kształtu.",
+    "reader.entry-too-large":
+        "Żadna prawdziwa książka tego nie zawiera; archiwum jest uszkodzone albo wrogie.",
+    "reader.colliding-names":
+        "W archiwum to osobne pliki, a na systemie plików zwijającym wielkość liter albo Unicode — jeden. Który z nich przetrwa, zależy od kolejności rozpakowania.",
+    "reader.drm":
+        "EPUB F.O.R.G.E. nie próbuje odszyfrowywać treści chronionej DRM.",
+    "reader.remote-resource":
+        "Nic tutaj tego nie pobiera. Nie jest to też przechowywane w kontenerze.",
+    "reader.name-dropped":
+        "Nic w poprawnym EPUB-ie nie nazywa się w ten sposób. Wpis nie trafia do wyniku, gdzie i tak byłby nieosiągalny.",
+    "a11y.conformance-declared":
+        "EPUB F.O.R.G.E. tego nie zweryfikował; to oświadczenie wydawcy.",
+    "a11y.missing-alt":
+        "Albo atrybutu nie ma, albo jest pusty. Pusty alt oświadcza, że obraz jest dekoracyjny, a tego nie da się sprawdzić maszynowo — mówi to wprost dopiero role=\"presentation\" albo aria-hidden=\"true\". Dlatego alternativeText nie jest deklarowane. Jeśli któryś z tych obrazów niesie treść, opis może napisać tylko człowiek.",
+    "a11y.table-without-headers":
+        "Bez <th> czytnik ekranu nie ma jak ogłosić, do czego odnosi się komórka.",
+    "compat.ncx-required":
+        "Czytniki starsze niż EPUB 3 budują listę rozdziałów z NCX i ignorują dokument nawigacyjny.",
+    "compat.stylesheet-added":
+        "Deklaruje elementy sekcjonujące HTML5 jako blokowe. Jest podlinkowany przed arkuszem samej książki, więc jej własne reguły nadal wygrywają.",
+    "compat.page-break-mirrored":
+        "Nowoczesne właściwości break-* zostają dokładnie takie, jakie były; stary zapis dochodzi obok nich, a nie zamiast nich.",
+    "compat.specified-fonts-added":
+        "Bez tego pliku Apple Books ignoruje każdy osadzony krój i podstawia własny.",
+    "compat.guide-added":
+        "EPUB 3.3 już nie definiuje tego elementu, choć EPUBCheck wciąż go przyjmuje: wynik pozostaje poprawny.",
+    "compat.svg-cover":
+        "To opakowanie skaluje grafikę do strony, więc jego usunięcie zmieniłoby układ na każdym czytniku, który radzi sobie z SVG.",
+    "compat.specified-fonts-skipped":
+        "Zadeklarowanie tego mimo wszystko stwierdzałoby coś, czego książka nie robi.",
+    "css.position-removed":
+        "Objęte bloki płyną teraz razem ze stroną, zamiast być do niej przypięte.",
+    "xhtml.dead-reference-kept":
+        "To są defekty źródła i pozostają błędami zgodności. Użyj --strict, żeby je unieszkodliwić.",
+    "xhtml.image-paragraph-centred":
+        "Reguły tekstu bieżącego przesuwały grafikę; żadna reguła nie celowała w te akapity z osobna, więc nic, co wybrał wydawca, nie zostało nadpisane.",
+    "xhtml.image-paragraph-unindented":
+        "O położeniu obrazu decyduje reguła celująca w te akapity albo w ich kontener; wcięcie dotyczy tekstu bieżącego, którego tu nie ma.",
+    "xhtml.image-paragraph-kept":
+        "Reguła celująca w te akapity — albo w element, który je zawiera — ustawia ich wyrównanie lub wcięcie.",
+    "xhtml.cover-fitted":
+        "Żadna reguła arkusza ani żaden atrybut nie nadał temu obrazowi rozmiaru, więc czytnik pokazałby go w jego własnych pikselach.",
+    "xhtml.inline-promoted":
+        "Pudełko blokowe wewnątrz liniowego łamie wiersz i sprawia, że marginesy oraz środkowanie zachowują się nieprzewidywalnie — różnie na różnych czytnikach.",
+    "xhtml.empty-alt-added":
+        "Wymagany przez poprawną składnię. Nie jest traktowany jako opis: etap dostępności nadal liczy te obrazy jako pozbawione tekstu alternatywnego.",
+    "xhtml.property-withdrawn":
+        "Zadeklarowanie którejś z nich bez odpowiadających jej znaczników jest samo w sobie błędem zgodności i EPUBCheck zgłasza to wobec źródła.",
+    "css.vendor-at-rule-kept":
+        "Użyj --strict, żeby je usunąć.",
+    "css.invalid-value-corrected":
+        "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal”.",
+    "css.position-kept":
+        "To książka o stałym układzie, w której pozycjonowanie poza przepływem jest sposobem działania.",
+    "css.position-kept-reflowable":
+        "Treść poza przepływem nie paginuje się na każdym czytniku, ale to układ wybrany przez wydawcę. Użyj --strict, żeby go usunąć.",
+    "xhtml.doctype-modernised":
+        "Jedyna zmiana, jaką ten tryb wprowadza wewnątrz dokumentu. DOCTYPE nie mówi nic o sposobie wyświetlania, a stary czyni książkę niepoprawną. DOCTYPE deklarujący własne encje zostaje nietknięty, bo dokument z nich korzysta.",
+    "xhtml.doctype-kept":
+        "W tych dokumentach wynik pozostaje niepoprawnym EPUB-em 3 i jest to mniejsza szkoda: zastąpienie DOCTYPE osierociłoby encję, a książka z osieroconą encją w ogóle się nie otwiera.",
+    "font.drm":
+        "Usuń DRM narzędziem, do którego masz licencję, zanim uruchomisz EPUB F.O.R.G.E.",
+    "font.deobfuscated":
+        "Czcionki wyglądają identycznie, a kontener nie zależy już od identyfikatora.",
+    "font.deobfuscation-failed":
+        "Identyfikator źródła prawdopodobnie różni się od tego, którym je zaciemniono.",
+    "metadata.title-missing":
+        "Podaj --title, żeby ustawić prawdziwy.",
+    "nav.fragment-cleared":
+        "Pozycja wskazuje teraz na sam dokument, czyli tam, gdzie czytelnik i tak by trafił.",
+    "nav.kept-in-spine":
+        "Dokument nawigacyjny w kolejności czytania to strona, na którą czytelnik może przejść. Generowanie go od nowa usuwało tę stronę — czyli usuwało z książki coś, co czytelnik widział.",
+    "nav.generated":
+        "Źródło nie miało żadnego; jego spis treści pochodził z NCX.",
+    "nav.contents-page-kept":
+        "Ta strona jest w kolejności czytania, więc czytelnik na nią przechodzi. Zastąpienie jej wygenerowaną nawigacją usuwałoby stronę, którą złożył wydawca.",
+    "structure.carried-xml-repointed":
+        "Ten typ pliku nie jest modelowany przez potok, ale pliki, na które wskazuje, potok przesuwa. Zostawienie odwołań w spokoju dałoby książkę niepoprawną, a nie tylko uboższą.",
+}
+
+#: The fixed phrases this program passes *into* a finding as data.
+#:
+#: `reader.name-dropped` says "…could not be made into a container path: {reason}",
+#: and the reason is one of a handful of sentences written in `ocf.py`. Left
+#: alone it produced a Polish sentence with an English clause inside it — a
+#: translation that looks finished and reads like neither language.
+#:
+#: This is a vocabulary, not prose: every entry is one of a closed set the
+#: program itself chose. A value that is not in it — a file name, a number, a
+#: media type — passes through untouched, which is why the mapping can be
+#: applied to every value without asking which ones are words.
+VOCABULARY_PL: dict[str, str] = {
+    # ocf.py — why an archive entry name was rejected
+    "the name climbs out of the container with '..'":
+        "nazwa wychodzi poza kontener przez „..”",
+    "the name is empty once normalised": "nazwa jest pusta po normalizacji",
+    # ocf.py — what had to be changed in a name
+    "null byte": "bajt zerowy",
+    "backslash separators": "separatory w postaci lewych ukośników",
+    "leading slash": "ukośnik na początku",
+    "drive letter": "litera dysku",
+    "percent-encoding": "kodowanie procentowe",
+    "empty or current-directory segments": "puste segmenty albo segmenty bieżącego katalogu",
+    "parent-directory segments": "segmenty katalogu nadrzędnego",
+    # ocf.py — how two entry names collide
+    "identical": "identyczność",
+    "case": "wielkość liter",
+    "normalisation": "normalizację Unicode",
+}
+
+VOCABULARIES: dict[str, dict[str, str]] = {"pl": VOCABULARY_PL}
+
+
+def translate_values(values: dict | None, language: str) -> dict:
+    """Replace values that are this program's own fixed phrases.
+
+    Everything else — names, counts, media types — is data and passes through.
+    """
+    vocabulary = VOCABULARIES.get(language)
+    if not values or not vocabulary:
+        return values or {}
+    return {
+        key: vocabulary.get(value, value) if isinstance(value, str) else value
+        for key, value in values.items()
+    }
+
 
 #: Language code → catalogue. `describe` falls back to English for a language
 #: nobody has written, which is the right failure: a report in the wrong
@@ -407,7 +595,33 @@ def describe(rule: str, language: str = "en", values: dict | None = None) -> str
     if not values:
         return text
     try:
-        return _FORMATTER.vformat(text, (), values)
+        return _FORMATTER.vformat(text, (), translate_values(values, language))
+    except (KeyError, IndexError, ValueError, AttributeError):
+        return text
+
+
+def describe_detail(rule: str, language: str = "en", values: dict | None = None) -> str | None:
+    """The paragraph beneath a finding, in the language asked for.
+
+    Returns `None` when there is nothing to put there — English asks for the
+    original, and a detail nobody has translated yet has to fall back to it
+    rather than be dropped. Losing the paragraph would be a worse translation
+    than an untranslated one: it is where the file names and the reasons live.
+    """
+    if language == "en" or rule not in DETAILS_PL:
+        return None
+    return describe_from(DETAILS_PL, rule, values, language)
+
+
+def describe_from(
+    catalogue: dict[str, str], rule: str, values: dict | None, language: str = "en"
+) -> str:
+    """Fill one catalogue entry, leaving its braces alone rather than raising."""
+    text = catalogue.get(rule, rule)
+    if not values:
+        return text
+    try:
+        return _FORMATTER.vformat(text, (), translate_values(values, language))
     except (KeyError, IndexError, ValueError, AttributeError):
         return text
 
@@ -434,7 +648,12 @@ __all__ = [
     "CATALOGUE",
     "CATALOGUES",
     "CATALOGUE_PL",
+    "DETAILS_PL",
+    "VOCABULARY_PL",
+    "translate_values",
     "describe",
+    "describe_detail",
+    "describe_from",
     "known",
     "placeholders",
     "renders_fully",

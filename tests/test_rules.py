@@ -26,7 +26,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: How many call sites carry a rule today. Raise it as more are converted;
 #: lowering it means a finding lost its identity, which is the thing this whole
 #: module exists to prevent.
-TAGGED_TODAY = 136
+TAGGED_TODAY = 138
 
 #: Every `rule="…"` written anywhere in the package.
 _RULE_ARGUMENT = re.compile(r'rule\s*=\s*"([a-z0-9.\-]+)"')
@@ -82,7 +82,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: How many catalogue entries are templates today — entries whose description
 #: states the specifics itself, so a translated report does not need the English
 #: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
-TEMPLATED_TODAY = 75
+TEMPLATED_TODAY = 76
 
 
 class TestTheTranslationCannotStall:
@@ -537,3 +537,147 @@ class TestTheLanguageIsASettingNotAReplacement:
         assert tagged
         for finding in tagged:
             assert finding["description"] == rules.describe(finding["rule"], "en", finding["values"])
+
+
+#: Call sites whose detail is data rather than prose: a list of names, a byte
+#: count, an example the reader reads verbatim, or a message EPUBCheck wrote.
+#: There is nothing in them to translate, and a Polish entry would be a copy of
+#: the English one — which is what a stalled translation looks like.
+DETAILS_THAT_ARE_DATA = {
+    "a11y.heading-jump",                      # the locations themselves
+    "a11y.metadata-added",                    # schema.org property values
+    "css.reader-property-removed",            # the property names
+    "metadata.identifier-minted",             # the generated UUID
+    "metadata.override-applied",              # the caller's own value
+    "reader.name-rewritten",                  # old name → new name
+    "xhtml.presentational-markup-converted",  # the tag names
+    "epubcheck.reported",                     # EPUBCheck's own output
+}
+
+
+class TestTheDetailIsTranslatedToo:
+    """The headline was translated and the paragraph under it was not.
+
+    On a real book that paragraph was **a third of the report's text**, so
+    calling the report translated was premature. This holds the rest of it: the
+    number of translated details may rise and may not fall, and a detail that
+    is genuinely data has to be named here rather than quietly skipped.
+    """
+
+    @staticmethod
+    def _rules_with_a_detail() -> dict[str, str]:
+        import ast
+        import pathlib
+
+        source = pathlib.Path(rules.__file__).parent
+        found: dict[str, str] = {}
+        for path in sorted(source.rglob("*.py")):
+            if path.name == "rules.py":
+                continue
+            text = path.read_text(encoding="utf-8")
+            for node in ast.walk(ast.parse(text)):
+                if not isinstance(node, ast.Call):
+                    continue
+                if getattr(node.func, "attr", getattr(node.func, "id", None)) not in ("note", "add"):
+                    continue
+                keywords = {k.arg: k.value for k in node.keywords}
+                rule_node = keywords.get("rule")
+                if "detail" not in keywords or not isinstance(rule_node, ast.Constant):
+                    continue
+                found[rule_node.value] = ast.get_source_segment(text, keywords["detail"])
+        return found
+
+    def test_every_detail_is_translated_or_named_as_data(self):
+        untranslated = sorted(
+            rule
+            for rule in self._rules_with_a_detail()
+            if rule not in rules.DETAILS_PL and rule not in DETAILS_THAT_ARE_DATA
+        )
+        assert not untranslated, (
+            f"details with no Polish and no reason recorded: {untranslated}. "
+            "Translate it, or name it in DETAILS_THAT_ARE_DATA saying why not."
+        )
+
+    def test_the_data_list_does_not_grow_by_neglect(self):
+        """Every entry there must actually be a call site with a detail — the
+        list is an explanation, not a place to put things."""
+        with_detail = set(self._rules_with_a_detail())
+        stale = sorted(DETAILS_THAT_ARE_DATA - with_detail)
+        assert not stale, f"named as data but no longer raised with a detail: {stale}"
+
+    def test_a_translated_detail_is_not_a_copy_of_the_english_one(self):
+        """The shape a stalled translation takes, and it looks finished."""
+        for rule, english in self._rules_with_a_detail().items():
+            polish = rules.DETAILS_PL.get(rule)
+            if polish and english.startswith('"'):
+                assert polish.strip('"') != english.strip('"'), rule
+
+    def test_the_report_uses_the_translation(self, tmp_path):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        report = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve")).report
+        text = report.to_text("pl")
+        translated = [
+            f for f in report.findings
+            if f.detail and report.detail_for(f, "pl") != f.detail
+        ]
+        assert translated, "no detail reached the report translated"
+        for finding in translated:
+            assert report.detail_for(finding, "pl") in text
+            assert finding.detail not in text, finding.rule
+
+    def test_english_still_gets_the_original(self, tmp_path):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        from .factory import make_legacy_epub
+
+        source = make_legacy_epub(str(tmp_path / "src.epub"))
+        report = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve")).report
+        for finding in report.findings:
+            assert report.detail_for(finding, "en") == finding.detail
+
+
+class TestOurOwnPhrasesTravelIntoFindings:
+    """`reader.name-dropped` says "…: {reason}", and the reason is one of a
+    handful of sentences this program writes in `ocf.py`. Left alone it produced
+    a Polish sentence with an English clause inside it."""
+
+    def test_a_known_phrase_is_translated_inside_a_polish_sentence(self):
+        rendered = rules.describe(
+            "reader.name-dropped", "pl",
+            {"reason": "the name climbs out of the container with '..'"},
+        )
+        assert "nazwa wychodzi poza kontener" in rendered
+        assert "climbs out" not in rendered
+
+    def test_english_is_untouched_by_the_vocabulary(self):
+        rendered = rules.describe(
+            "reader.name-dropped", "en",
+            {"reason": "the name is empty once normalised"},
+        )
+        assert rendered.endswith("the name is empty once normalised")
+
+    def test_a_value_that_is_not_one_of_our_phrases_passes_through(self):
+        """File names, counts and media types are data, not words."""
+        assert rules.translate_values({"path": "OEBPS/case.xhtml", "count": 3}, "pl") == {
+            "path": "OEBPS/case.xhtml",
+            "count": 3,
+        }
+
+    def test_every_phrase_in_the_vocabulary_is_one_the_program_writes(self):
+        """A vocabulary that drifts translates sentences nobody says."""
+        import pathlib
+
+        source = pathlib.Path(rules.__file__).parent
+        written = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(source.rglob("*.py"))
+            if path.name != "rules.py"
+        )
+        missing = [phrase for phrase in rules.VOCABULARY_PL if phrase not in written]
+        assert not missing, f"translated but nothing says it: {missing}"

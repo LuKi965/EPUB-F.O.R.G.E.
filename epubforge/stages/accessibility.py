@@ -390,7 +390,10 @@ class AccessibilityStage(Stage):
                 Level.WARN,
                 f"{survey['placeholder_alt']} image(s) have alt text that only repeats the filename",
                 rule="a11y.placeholder-alt",
-                values={"count": survey["placeholder_alt"]},
+                values={
+                    "count": survey["placeholder_alt"],
+                    "examples": "; ".join(survey["placeholder_examples"]),
+                },
                 detail=(
                     "; ".join(survey["placeholder_examples"])
                     + " — this passes validation but tells a screen-reader user nothing, "

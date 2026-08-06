@@ -201,18 +201,25 @@ class ContentStage(Stage):
                         "this book in a mode that rewrites content."
                     ),
                 )
-            self.note(
-                ctx,
-                Level.INFO,
-                "content documents left untouched; only the container was rebuilt",
-                rule="xhtml.untouched",
-                detail=(
-                    "Every XHTML file comes out byte for byte as it went in, apart "
-                    "from the DOCTYPE where it had to be modernised."
-                    if modernised
-                    else "Every XHTML file comes out byte for byte as it went in."
-                ),
-            )
+            if modernised:
+                self.note(
+                    ctx,
+                    Level.INFO,
+                    "content documents left untouched; only the container was rebuilt",
+                    rule="xhtml.untouched-except-doctype",
+                    detail=(
+                        "Every XHTML file comes out byte for byte as it went in, apart "
+                        "from the DOCTYPE where it had to be modernised."
+                    ),
+                )
+            else:
+                self.note(
+                    ctx,
+                    Level.INFO,
+                    "content documents left untouched; only the container was rebuilt",
+                    rule="xhtml.untouched",
+                    detail="Every XHTML file comes out byte for byte as it went in.",
+                )
             return
 
         documents: list[tuple[object, object, dict[str, str]]] = []
@@ -305,7 +312,7 @@ class ContentStage(Stage):
                     "references would have appeared on the page as literal text."
                 ),
                 rule="xhtml.dtd-entities-resolved",
-                values={"count": len(names)},
+                values={"count": len(names), "names": ", ".join(names[:8])},
             )
         if refused:
             names = sorted({name for names in refused.values() for name in names})
@@ -320,7 +327,7 @@ class ContentStage(Stage):
                     "past any plausible size."
                 ),
                 rule="xhtml.dtd-entities-refused",
-                values={"count": len(names)},
+                values={"count": len(names), "names": ", ".join(names[:8])},
             )
 
     def _report_watermarks(self, ctx: Context) -> None:
@@ -339,23 +346,39 @@ class ContentStage(Stage):
                 values={
                     "count": self._watermarks_consolidated,
                     "documents": self._watermark_documents,
+                    "tokens": len(self._watermark_tokens),
                 },
             )
         if self._watermark_notices:
             emails = watermark.personal_data(" ".join(self._watermark_notices))
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                f"kept {len(self._watermark_notices)} visible watermark notice(s)",
-                detail=(
-                    ("Carries personal data (" + ", ".join(sorted(set(emails))) + "). ")
-                    if emails
-                    else ""
+            kept = len(self._watermark_notices)
+            message = f"kept {kept} visible watermark notice(s)"
+            # Two findings, not one behind a conditional: a notice carrying
+            # somebody's e-mail address is a different thing to report than one
+            # that does not, and an id chosen by an expression is an id nothing
+            # can see was raised.
+            if emails:
+                data = ", ".join(sorted(set(emails)))
+                self.note(
+                    ctx,
+                    Level.PRESERVED,
+                    message,
+                    detail=(
+                        f"Carries personal data ({data}). Meant to be read, so left "
+                        "exactly as the publisher wrote it."
+                    ),
+                    rule="xhtml.watermark-kept-personal-data",
+                    values={"count": kept, "data": data},
                 )
-                + "Meant to be read, so left exactly as the publisher wrote it.",
-                rule="xhtml.watermark-kept",
-                values={"count": len(self._watermark_notices)},
-            )
+            else:
+                self.note(
+                    ctx,
+                    Level.PRESERVED,
+                    message,
+                    detail="Meant to be read, so left exactly as the publisher wrote it.",
+                    rule="xhtml.watermark-kept",
+                    values={"count": kept},
+                )
 
     def _fix_identifiers(self, ctx: Context, root, path: str) -> dict[str, str]:
         """Make every ``id`` a valid XML NCName, remembering what changed."""
@@ -524,7 +547,11 @@ class ContentStage(Stage):
             location=resource.path,
             detail=f"{unlinked} link(s) unlinked, {removed} element(s) removed",
             rule="xhtml.dead-reference-neutralised",
-            values={"count": unlinked + removed},
+            values={
+                "count": unlinked + removed,
+                "unlinked": unlinked,
+                "removed": removed,
+            },
         )
 
     def _rewrite_css_urls(self, ctx: Context, css_text: str, source_path: str, current_path: str) -> str:
@@ -1381,7 +1408,7 @@ class StyleStage(Stage):
                 location=resource.path,
                 detail=f"{', '.join(names)} — validators flag these as unknown. Use --strict to remove them.",
                 rule="css.reader-property-kept",
-                values={"count": len(found)},
+                values={"count": len(found), "names": ", ".join(names)},
             )
             return css_text
         cleaned = _ADOBE_PROPERTY_RE.sub(lambda match: match.group(1), css_text)
@@ -1423,7 +1450,10 @@ class StyleStage(Stage):
                 "as-is, since guessing serif vs sans-serif could change how the book looks."
             ),
             rule="css.font-stack-generic-missing",
-            values={"count": len(offenders)},
+            values={
+                "count": len(offenders),
+                "examples": ", ".join(sorted(set(offenders))[:4]),
+            },
         )
 
     def _validate(self, ctx: Context, resource) -> None:

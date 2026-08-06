@@ -201,6 +201,7 @@ class StructureStage(Stage):
                 "removed a file nothing in the book references",
                 location=path,
                 rule="structure.orphan-removed",
+                values={"bytes": len(resource.data)},
                 detail=f"{len(resource.data)} bytes reclaimed",
             )
 
@@ -247,6 +248,6 @@ class StructureStage(Stage):
                 Level.FIX,
                 f"reorganised {len(moves)} file(s) into a typed {root}/ layout with portable names",
                 rule="structure.relaid-out",
-                values={"count": len(moves), "directory": root},
+                values={"count": len(moves), "directory": root, "renamed": renamed},
                 detail=f"{renamed} file(s) needed a new name; every reference was rewritten to match",
             )

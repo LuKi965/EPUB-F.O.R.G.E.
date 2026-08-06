@@ -126,7 +126,8 @@ def print_report(console: Console, report: Report, verbose: bool, language: str 
             hidden += 1
             continue
         location = f" [dim]{finding.location}[/dim]" if finding.location else ""
-        detail = f"\n  [dim]{finding.detail}[/dim]" if finding.detail and verbose else ""
+        paragraph = report.detail_for(finding, language)
+        detail = f"\n  [dim]{paragraph}[/dim]" if paragraph and verbose else ""
         headline, _, original = report.headline(finding, language).partition("\n")
         beneath = f"\n  [dim]{original}[/dim]" if original else ""
         table.add_row(

@@ -127,7 +127,9 @@ def validate(
             report.add(
                 "epubcheck",
                 Level.WARN,
-                "EPUBCheck was not found; the output has not been independently verified", rule="epubcheck.unavailable",
+                "EPUBCheck was not found; the output has not been independently verified",
+                rule="epubcheck.unavailable",
+                values={"variable": ENV_JAR},
                 detail=f"Install it and set {ENV_JAR}, or put epubcheck on PATH.",
             )
         return ValidationResult(available=False)

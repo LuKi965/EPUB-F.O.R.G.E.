@@ -91,6 +91,9 @@ class Report:
             entry = asdict(finding) | {"level": finding.level.value}
             if finding.rule:
                 entry["description"] = rules.describe(finding.rule, language, finding.values)
+            translated = self.detail_for(finding, language)
+            if translated is not None and translated != finding.detail:
+                entry["detail_description"] = translated
             findings.append(entry)
         return {
             "schema": SCHEMA_VERSION,
@@ -105,6 +108,19 @@ class Report:
 
     def to_json(self, language: str = "en") -> str:
         return json.dumps(self.to_dict(language), indent=2, ensure_ascii=False)
+
+    def detail_for(self, finding: Finding, language: str = "en") -> str | None:
+        """The paragraph beneath a finding, translated where there is one.
+
+        Falls back to the English original rather than dropping it. A detail is
+        where the file names and the reasons live, so losing it would be a worse
+        translation than an untranslated one.
+        """
+        from . import rules
+
+        if not finding.rule:
+            return finding.detail
+        return rules.describe_detail(finding.rule, language, finding.values) or finding.detail
 
     def headline(self, finding: Finding, language: str = "en") -> str:
         """One line for *finding*, in the language asked for.
@@ -150,8 +166,9 @@ class Report:
             lines.append(f"  - {finding.stage}: {headline}{where}")
             if original:
                 lines.append(f"      {original}")
-            if finding.detail:
-                lines.append(f"      {finding.detail}")
+            detail = self.detail_for(finding, language)
+            if detail:
+                lines.append(f"      {detail}")
         return "\n".join(lines)
 
 

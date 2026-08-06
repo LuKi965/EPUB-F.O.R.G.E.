@@ -25,6 +25,36 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The paragraph under a finding speaks Polish too
+
+The headline was translated and the paragraph beneath it was not. On a real
+book that paragraph was **a third of the report's text**, so calling the report
+translated was premature — and saying so in a release note was worse.
+
+Sixty-one of the sixty-nine details are translated. The eight that are not are
+named in `tests/test_rules.py` with the reason: they are not prose. A list of
+tag names, a generated UUID, the caller's own value, EPUBCheck's output — there
+is nothing in them to translate, and a Polish entry would be a copy of the
+English one, which is exactly what a stalled translation looks like.
+
+Two findings were hiding behind conditional expressions and are now two
+findings, the same split the navigation stage got and for the same reason: an
+id chosen by an expression is an id nothing can see was raised. A book whose
+watermark carries somebody's e-mail address is a different thing to report than
+one that does not.
+
+**Our own phrases travel into findings as data**, and that produced a Polish
+sentence with an English clause inside it: `reader.name-dropped` ends in a
+reason written in `ocf.py`. Those reasons are a closed vocabulary — twelve
+phrases this program itself chose — so they are translated on the way out. A
+value that is not one of them, a file name or a count, passes through
+untouched, which is why the mapping can be applied to every value without
+asking which ones are words.
+
+Measured across the six Gutenberg books under all three profiles: **11.3% of a
+Polish report is still English, and every character of it is data** — tag
+names, `schema:` metadata values, and the locations of heading jumps.
+
 ### The corpus milestone was closed on the wrong number
 
 `docs/ROADMAP.md` point 1 does not ask for thirty books. It asks for books

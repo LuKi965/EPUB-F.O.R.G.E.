@@ -715,7 +715,7 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                     f"{attribute.replace('_', '-')} points at an id the manifest does not define",
                     location=resource.path,
                     rule="reader.dangling-reference",
-                    values={"attribute": attribute.replace("_", "-")},
+                    values={"attribute": attribute.replace("_", "-"), "reference": reference},
                     detail=f"{reference!r} — the reference is dropped rather than guessed at",
                 )
                 setattr(resource, attribute, None)

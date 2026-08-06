@@ -151,7 +151,7 @@ class ImageStage(Stage):
             Level.FIX,
             f"transcoded {old_type} to PNG for universal reader support",
             rule="image.transcoded",
-            values={"media_type": old_type},
+            values={"media_type": old_type, "was": old_path},
             location=new_path,
             detail=f"was {old_path}",
         )
