@@ -179,3 +179,71 @@ class TestAReplacedNavTakesItsReferencesWithIt:
             "repointed" in f.message and "navigation" in f.message
             for f in rebuilt.report.findings
         ), [f.message for f in rebuilt.report.findings]
+
+
+class TestTheNavigationSpeaksTheBooksLanguage:
+    """"Table of Contents" headed a Polish novel whose own `lang` says `pl`.
+
+    These headings are the only words this program puts in front of a reader
+    *inside their book*, and they were English in every book it ever produced.
+    The bilingual report made that worse rather than better: the one piece of
+    text nobody could change was the piece printed in the book itself.
+    """
+
+    @staticmethod
+    def nav(source, tmp_path, name="out.epub"):
+        import zipfile
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        result = rebuild(source, str(tmp_path / name), Policy.preset("preserve"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            return archive.read("EPUB/nav.xhtml").decode()
+
+    def test_a_polish_book_gets_a_polish_heading(self, tmp_path):
+        from tests.factory import make_legacy_epub
+
+        markup = self.nav(make_legacy_epub(str(tmp_path / "src.epub")), tmp_path)
+        assert "<h1>Spis treści</h1>" in markup
+        assert "Table of Contents" not in markup
+
+    def test_an_english_book_still_gets_english(self, tmp_path):
+        """The fix must not swap one hard-coded language for another."""
+        import pathlib
+
+        from epubforge.stages.navigation import heading
+
+        assert heading("en", "toc") == "Table of Contents"
+        assert heading("pl", "toc") == "Spis treści"
+        source = pathlib.Path("tests/corpus_gutenberg/oliver-twist-vol-2-of-3.epub")
+        if source.is_file():
+            markup = self.nav(str(source), tmp_path, "en.epub")
+            assert "<h1>Table of Contents</h1>" in markup
+
+    def test_a_regional_tag_resolves_to_its_language(self):
+        from epubforge.stages.navigation import heading
+
+        assert heading("pl-PL", "toc") == "Spis treści"
+        assert heading("pl_PL", "toc") == "Spis treści"
+        assert heading("PL", "toc") == "Spis treści"
+
+    def test_a_language_nobody_wrote_falls_back_rather_than_failing(self):
+        """A heading in the wrong language is a blemish; a book that fails to
+        build is not."""
+        from epubforge.stages.navigation import heading
+
+        assert heading("de", "toc") == "Table of Contents"
+        assert heading("", "toc") == "Table of Contents"
+
+    def test_every_section_is_translated_in_every_language(self):
+        """A half-translated navigation is the shape a stalled translation
+        takes, and it is visible to the reader rather than to us."""
+        from epubforge.stages.navigation import NAV_HEADINGS
+
+        sections = set(NAV_HEADINGS["en"])
+        for language, headings in NAV_HEADINGS.items():
+            assert set(headings) == sections, language
+            if language != "en":
+                shared = [k for k in sections if headings[k] == NAV_HEADINGS["en"][k]]
+                assert not shared, (language, shared)

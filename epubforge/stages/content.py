@@ -52,6 +52,39 @@ _FONT_SIZE_SCALE = {
 _NCNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9._\-]*$")
 _LENGTH_RE = re.compile(r"^\d+(\.\d+)?$")
 
+#: An `@import` in either spelling — `url(…)` or a bare string — with whatever
+#: media query trails it, up to the semicolon.
+_IMPORT_RULE = re.compile(
+    r"""@import\s+(?:url\(\s*(['"]?)(?P<url>[^'")]*)\1\s*\)|(['"])(?P<quoted>[^'"]*)\3)[^;}]*;?""",
+    re.IGNORECASE,
+)
+
+
+def strip_remote_imports(css_text: str) -> tuple[str, int]:
+    """Drop `@import` rules that fetch a stylesheet over the network.
+
+    EPUB 3 permits exactly one kind of remote resource — a font, declared on
+    its manifest item — and a stylesheet is not one. Google Docs exports every
+    document with `@import url(https://themes.googleusercontent.com/…)` at the
+    head of its stylesheet, and EPUBCheck rejects the publication for it.
+
+    Nothing is lost by removing it. The sheet keeps its `font-family`
+    declarations, so the reader falls back exactly as it would have: no e-reader
+    is going to fetch a font from Google mid-page, and one that tried would be
+    reporting the owner's reading to a third party.
+    """
+    dropped = 0
+
+    def replace(match: re.Match) -> str:
+        nonlocal dropped
+        url = (match.group("url") or match.group("quoted") or "").strip()
+        if not paths.is_remote(url):
+            return match.group(0)
+        dropped += 1
+        return ""
+
+    return _IMPORT_RULE.sub(replace, css_text), dropped
+
 #: Anything a font stack may legally end with instead of a concrete font.
 GENERIC_FAMILIES = {
     "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
@@ -233,10 +266,22 @@ class ContentStage(Stage):
             resource.path: id_map for resource, _, id_map in documents if id_map
         }
         ctx.id_map = global_ids
+        # And which ids each document actually *has*, for the same reason: a
+        # link to `chapter.xhtml#238` where nothing is called `238` is an error
+        # EPUBCheck reports, and the only way to know is to have read every
+        # document first. `global_ids` cannot answer it — it holds renames.
+        present_ids = {
+            resource.path: {
+                element.get("id")
+                for element in xhtml.iter_elements(root)
+                if element.get("id")
+            }
+            for resource, root, _ in documents
+        }
 
         for resource, root, _ in documents:
             self._skeleton(ctx, root, resource)
-            self._rewrite_references(ctx, root, resource, global_ids)
+            self._rewrite_references(ctx, root, resource, global_ids, present_ids)
             self._modernise(ctx, root, resource)
             self._image_paragraphs(ctx, root, resource)
             self._cover_fits_the_page(ctx, root, resource)
@@ -384,11 +429,25 @@ class ContentStage(Stage):
         stem = posixpath.basename(resource.path).rpartition(".")[0]
         return re.sub(r"^\d+-", "", stem).replace("-", " ").replace("_", " ").strip() or "Section"
 
-    def _rewrite_references(self, ctx: Context, root, resource, global_ids: dict) -> None:
+    def _rewrite_references(
+        self, ctx: Context, root, resource, global_ids: dict, present_ids: dict
+    ) -> None:
         """Repoint every href/src at the resource's new location."""
         source_path = resource.original_path or resource.path
         broken = 0
+        lost_fragments = 0
         dangling: list[tuple[object, str]] = []
+
+        def resolves(path: str, fragment: str) -> bool:
+            """Is there anything in `path` carrying that id?
+
+            Only answerable for documents this stage parsed. A fragment into a
+            resource nobody here has read — an SVG, say — is left alone: an
+            unanswered question is not the same as a "no", and dropping the
+            fragment on a guess would break a link that works.
+            """
+            known = present_ids.get(path)
+            return known is None or fragment in known
 
         for element in xhtml.iter_elements(root):
             for attribute in REFERENCE_ATTRS:
@@ -403,6 +462,11 @@ class ContentStage(Stage):
                     local_map = global_ids.get(resource.path, {})
                     if fragment in local_map:
                         element.set(attribute, f"#{local_map[fragment]}")
+                    elif fragment and not resolves(resource.path, fragment):
+                        # Nothing here answers to that name. A bare "#" is not a
+                        # legal reference either, so the attribute goes.
+                        element.attrib.pop(attribute, None)
+                        lost_fragments += 1
                     continue
 
                 target = paths.resolve(source_path, value)
@@ -417,6 +481,14 @@ class ContentStage(Stage):
                 if fragment:
                     remapped = global_ids.get(new_target, {}).get(fragment)
                     fragment = remapped or fragment
+                    if not resolves(new_target, fragment):
+                        # The file is there and the anchor is not — what a PDF
+                        # conversion leaves behind when it writes a page-number
+                        # strip and only half the pages get an id. Keeping the
+                        # link and dropping the fragment lands the reader in the
+                        # right file instead of nowhere at all.
+                        fragment = ""
+                        lost_fragments += 1
                 href = paths.relative(resource.path, new_target)
                 element.set(attribute, f"{href}#{fragment}" if fragment else href)
 
@@ -424,11 +496,32 @@ class ContentStage(Stage):
             if style and "url(" in style:
                 element.set("style", self._rewrite_css_urls(ctx, style, source_path, resource.path))
 
+        remote_imports = 0
         for style_element in root.iter(xhtml.qname("style")):
-            if style_element.text and "url(" in style_element.text:
-                style_element.text = self._rewrite_css_urls(
-                    ctx, style_element.text, source_path, resource.path
-                )
+            if not style_element.text:
+                continue
+            text, dropped = strip_remote_imports(style_element.text)
+            remote_imports += dropped
+            if "url(" in text:
+                text = self._rewrite_css_urls(ctx, text, source_path, resource.path)
+            style_element.text = text
+
+        if lost_fragments:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.dead-fragment-dropped",
+                values={"count": lost_fragments},
+                location=resource.path,
+            )
+        if remote_imports:
+            self.note(
+                ctx,
+                Level.FIX,
+                "css.remote-import-removed",
+                values={"count": remote_imports},
+                location=resource.path,
+            )
 
         if not broken:
             return
@@ -893,6 +986,16 @@ class ContentStage(Stage):
                 element.attrib.pop(attribute, None)
                 changed.add(attribute)
 
+        # HTML 5 allows `value` on a list item only inside an ordered list,
+        # where it sets the number. Inside `<ul>` it numbers nothing and no
+        # renderer has ever drawn it — but it makes the document invalid, and
+        # a MOBI back-conversion carries one on every bullet it ever had.
+        if tag == "li" and element.get("value") is not None:
+            parent = element.getparent()
+            if parent is None or xhtml.local_name(parent).lower() != "ol":
+                element.attrib.pop("value", None)
+                changed.add("li[value]")
+
         if tag == "br" and element.get("clear"):
             clear = element.get("clear").strip().lower()
             declarations.append(f"clear: {'both' if clear == 'all' else clear};")
@@ -1086,7 +1189,18 @@ class StyleStage(Stage):
         for resource in ctx.book.by_type("style"):
             source_path = resource.original_path or resource.path
             text = resource.text()
-            rewritten, unresolved = self._rewrite_urls(ctx, text, source_path, resource.path)
+            rewritten, remote_imports = strip_remote_imports(text)
+            if remote_imports:
+                self.note(
+                    ctx,
+                    Level.FIX,
+                    "css.remote-import-removed",
+                    values={"count": remote_imports},
+                    location=resource.path,
+                )
+            rewritten, unresolved = self._rewrite_urls(
+                ctx, rewritten, source_path, resource.path
+            )
             rewritten = self._strip_vendor_hacks(ctx, rewritten, resource)
             rewritten = self._repair(ctx, rewritten, resource)
             rewritten = self._vendor_properties(ctx, rewritten, resource)

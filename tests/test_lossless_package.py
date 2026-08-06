@@ -18,6 +18,7 @@ and quiet about it.
 
 from __future__ import annotations
 
+import re
 import zipfile
 
 import pytest
@@ -352,3 +353,82 @@ class TestPropertiesWithNoFieldOfTheirOwn:
             m for m in root.iter(f"{{{OPF}}}meta")
             if m.get("property") == "dcterms:modified"
         ]) == 1
+
+
+class TestEveryPrefixThePackageUsesIsDeclared:
+    """An InkBOOK Focus hangs on a package that uses `rendition:` without
+    declaring it, and opens the same package with the declaration added —
+    everything else byte for byte identical. That was the answer after four
+    rounds of bisection on the device.
+
+    EPUB 3 reserves the prefix and EPUBCheck agrees no declaration is needed,
+    so this writer declared `schema:` and `a11y:` — with the reason written
+    down beside them — and left the rest to the rule. The rule is not enough:
+    whatever table that reader consults, ours is not in it.
+
+    The declaration is computed from the finished document rather than decided
+    up front, because deciding it up front means deciding it twice — once where
+    the attribute is built and once wherever a property is emitted — and those
+    two are exactly what drifted apart.
+    """
+
+    @staticmethod
+    def package(source, tmp_path, preset="preserve", name="out.epub"):
+        import zipfile
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        result = rebuild(str(source), str(tmp_path / name), Policy.preset(preset))
+        with zipfile.ZipFile(result.output_path) as archive:
+            container = archive.read("META-INF/container.xml").decode()
+            path = re.search(r'full-path="([^"]+)"', container).group(1)
+            return archive.read(path).decode()
+
+    @staticmethod
+    def used(document: str) -> set[str]:
+        return {
+            match.group(1)
+            for match in re.finditer(r'(?:property|scheme)="([A-Za-z][\w.-]*):', document)
+        }
+
+    @staticmethod
+    def declared(document: str) -> set[str]:
+        found = re.search(r'\sprefix="([^"]*)"', document)
+        return set(re.findall(r"([A-Za-z][\w.-]*):\s+\S+", found.group(1))) if found else set()
+
+    def test_nothing_is_used_undeclared(self, legacy_epub, tmp_path):
+        document = self.package(legacy_epub, tmp_path)
+        assert self.used(document), "no prefixed property at all; the check proves nothing"
+        assert self.used(document) <= self.declared(document)
+
+    def test_rendition_in_particular(self, legacy_epub, tmp_path):
+        """The one the device actually refused."""
+        document = self.package(legacy_epub, tmp_path)
+        if "rendition:" in document:
+            assert "rendition: http://www.idpf.org/vocab/rendition/#" in document
+
+    @pytest.mark.parametrize("preset", ["preserve", "strict", "minimal"])
+    def test_in_every_profile(self, legacy_epub, tmp_path, preset):
+        document = self.package(legacy_epub, tmp_path, preset, f"{preset}.epub")
+        assert self.used(document) <= self.declared(document), preset
+
+    def test_nothing_is_declared_that_is_not_used(self, legacy_epub, tmp_path):
+        """A declaration for a prefix nothing uses is noise in somebody's book,
+        and noise is what this program is supposed to be removing."""
+        document = self.package(legacy_epub, tmp_path)
+        assert self.declared(document) <= self.used(document)
+
+    def test_it_follows_the_document_rather_than_a_prediction(self, tmp_path):
+        """The check that would have caught the original defect: ask the
+        finished text, not the code that intended to write it."""
+        from epubforge.writer import _declare_prefixes
+
+        class Metadata:
+            prefixes: dict = {}
+
+        document = '<meta property="rendition:layout">reflowable</meta>'
+        assert "rendition: http://www.idpf.org/vocab/rendition/#" in _declare_prefixes(
+            document, Metadata()
+        )
+        assert _declare_prefixes("<meta>nothing prefixed</meta>", Metadata()) == ""

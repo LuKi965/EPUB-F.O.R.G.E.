@@ -1,6 +1,6 @@
 {
   "source": "sha256:d28776b446000a23906696a730c36180fe983a4d7d80fdfcabce7c0c85418e0f",
-  "version": "0.2.4",
+  "version": "0.2.6",
   "preserve": {
     "written": true,
     "report": {
@@ -12,12 +12,17 @@
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.reader-property-kept": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 17
+      "xhtml.cover-described": 1,
+      "xhtml.entities-rewritten": 17,
+      "xhtml.image-paragraph-centred": 2,
+      "xhtml.inline-promoted": 3
     },
     "output": "sha256:6114e90f05db49a3ac05e842779fbb7492c73bcbf9c04f6596a0f35e62eb146e",
     "text_characters": 1016167,
@@ -41,12 +46,17 @@
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.reader-property-removed": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 17
+      "xhtml.cover-described": 1,
+      "xhtml.entities-rewritten": 17,
+      "xhtml.image-paragraph-centred": 2,
+      "xhtml.inline-promoted": 3
     },
     "output": "sha256:d7d455b74b4edc7a3fe36596688a892ed7c5538bfdbd287b6439628d465af3ea",
     "text_characters": 1016167,

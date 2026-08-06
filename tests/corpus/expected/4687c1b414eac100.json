@@ -1,6 +1,6 @@
 {
   "source": "sha256:4687c1b414eac1006b41029ad50e2e72b59c2375bfa4a1e20942f0b0d8ac78b1",
-  "version": "0.2.4",
+  "version": "0.2.6",
   "preserve": {
     "written": true,
     "report": {
@@ -10,13 +10,16 @@
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
       "nav.contents-page-kept": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "reader.manifest-type-corrected": 5,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 38
+      "xhtml.entities-rewritten": 38,
+      "xhtml.image-paragraph-kept": 32
     },
     "output": "sha256:5abfe6c41dedf38aeb7bfa4084d88838b409000c5fb81dfa3083761c09dd4e7e",
     "text_characters": 501978,
@@ -38,13 +41,16 @@
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
       "nav.contents-page-kept": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "reader.manifest-type-corrected": 5,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 38
+      "xhtml.entities-rewritten": 38,
+      "xhtml.image-paragraph-kept": 32
     },
     "output": "sha256:5abfe6c41dedf38aeb7bfa4084d88838b409000c5fb81dfa3083761c09dd4e7e",
     "text_characters": 501978,

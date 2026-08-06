@@ -45,11 +45,31 @@ from .report import Report
 GENERATOR_SIGNATURES: dict[str, tuple[str, ...]] = {
     "calibre": (r"(?i)\bcalibre\b", r'class="[^"]*\bcalibre\d+\b', r"calibre:series"),
     "indesign": (r"_idGenParaOverride", r"_idGenObjectStyle", r"(?i)InDesign"),
-    "word": (r"\bMsoNormal\b", r"\bmso-[a-z-]+\s*:", r"<o:p>"),
+    # Word proper, and Google Docs — which the roadmap puts in the same family
+    # and which leaves a different trace entirely: `kix` is the name of the
+    # editor inside Google, and every list it exports is numbered with it.
+    "word": (
+        r"\bMsoNormal\b",
+        r"\bmso-[a-z-]+\s*:",
+        r"<o:p>",
+        r"\blst-kix_",
+        r"\bdocs-internal-guid",
+        r"themes\.googleusercontent\.com",
+    ),
     "sigil": (r"(?i)Sigil version", r'class="[^"]*\bsgc-'),
     "vellum": (r"(?i)\bvellum\b",),
     "pressbooks": (r"(?i)pressbooks", r'class="[^"]*\bwp-'),
-    "pdf-or-ocr": (r'class="[^"]*\bft\d+\b', r"(?i)ABBYY", r"(?i)pdftohtml"),
+    # The first three are pdftohtml and ABBYY leaving their names behind. The
+    # last two are Calibre's PDF input plugin, which says so in a `generator`
+    # meta and names the pictures it lifts out `index-<page>_<n>` — the only
+    # trace once Calibre has rewritten the class names to its own.
+    "pdf-or-ocr": (
+        r'class="[^"]*\bft\d+\b',
+        r"(?i)ABBYY",
+        r"(?i)pdftohtml",
+        r"(?i)PDF Reflow conversion",
+        r"\bindex-\d+_\d+\.(?:png|jpe?g)\b",
+    ),
     "from-mobi": (r"\bfilepos\d+", r"kindle:pos"),
     "gutenberg": (r"x-ebookmaker", r"(?i)Project Gutenberg"),
     "self-publishing": (r"(?i)\b(epubli|lulu\.com|blurb|draft2digital)\b",),
@@ -234,6 +254,8 @@ def measure(path: pathlib.Path) -> Book:
     empty_paragraphs = 0
     images_without_alt = 0
     images_empty_alt = 0
+    image_pages = 0
+    spine_documents = 0
     text_parts: list[str] = []
     spine_text_parts: list[str] = []
 
@@ -244,10 +266,15 @@ def measure(path: pathlib.Path) -> Book:
             continue
         rendered = _rendered_text(root)
         text_parts.append(rendered)
-        if document.path in spine_paths:
+        in_spine = document.path in spine_paths
+        if in_spine:
             spine_text_parts.append(rendered)
+            spine_documents += 1
+        pictures = 0
         for element in xhtml.iter_elements(root):
             tag = xhtml.local_name(element).lower()
+            if tag in ("img", "image"):
+                pictures += 1
             if tag in _BLOCK_TAGS:
                 blocks += 1
                 if tag == "p" and not (element.text or "").strip() and not len(element):
@@ -267,9 +294,13 @@ def measure(path: pathlib.Path) -> Book:
                     images_without_alt += 1
                 elif not alt.strip():
                     images_empty_alt += 1
+        if in_spine and pictures and len(rendered.strip()) < IMAGE_PAGE_TEXT:
+            image_pages += 1
 
     book.fields.update(
         blocks=blocks,
+        image_pages=image_pages,
+        spine_documents=spine_documents,
         distinct_classes=len(classes),
         meaningless_classes=sum(1 for name in classes if _MEANINGLESS_CLASS.match(name)),
         classes_per_100_blocks=round(100 * len(classes) / blocks, 1) if blocks else 0.0,
@@ -344,6 +375,29 @@ def measure(path: pathlib.Path) -> Book:
 #: the one family the detector was blind to.
 PDF_HYPHEN_FLOOR = 5
 
+#: A page that is a picture and nothing else: at least one image, and less text
+#: than a caption. Forty characters is a title, not a page of prose.
+IMAGE_PAGE_TEXT = 40
+
+#: A book made of such pages, holding no prose at all, is a comic — whatever
+#: the package says about itself.
+#:
+#: This exists for the same reason as the hyphen floor above. The `fixed_layout`
+#: field means what its name says — the publication *declares* pre-paginated
+#: rendition — and a comic converted from CBZ by Calibre declares nothing of the
+#: kind: EPUB 2, reflowable, one `<img>` per document. The family the roadmap
+#: calls "fixed-layout, komiks" was therefore invisible to the only detector
+#: that could have seen it, and three comics on the owner's disk counted as zero.
+#:
+#: The first rule tried here counted image pages as a *share* of the spine, and
+#: it called Pan Tadeusz a comic: that edition packs its whole text into three
+#: documents and its three engraved plates into three more, which is 50%. The
+#: share of documents measures how a book was split into files. What separates a
+#: comic from an illustrated novel is that a comic has no prose in it at all,
+#: and that is measured directly. Eighteen books in reach: the three comics
+#: carry **one** character per page; the thinnest ordinary book carries 2686.
+IMAGE_PAGE_FLOOR = 2
+
 CORPUS_FAMILIES: dict[str, tuple[int, str]] = {
     "polish-bookshop": (5, "księgarnie polskie — znak wodny, strony prawne"),
     "indesign-vellum": (4, "InDesign / Vellum — wydawcy dbający o skład"),
@@ -356,6 +410,15 @@ CORPUS_FAMILIES: dict[str, tuple[int, str]] = {
     "pathological": (3, "patologie — brzegi pamięciowe i wydajnościowe"),
     "public-domain": (3, "domena publiczna — jedyne, które wolno commitować"),
 }
+
+
+def _mostly_pictures(fields: dict) -> bool:
+    """A comic that never says it is one — pages of image, and no prose."""
+    pages = fields.get("image_pages", 0)
+    spine = fields.get("spine_documents", 0)
+    if not spine or pages < IMAGE_PAGE_FLOOR:
+        return False
+    return fields.get("spine_text_characters", 0) < IMAGE_PAGE_TEXT * spine
 
 
 def families(fields: dict) -> set[str]:
@@ -389,7 +452,7 @@ def families(fields: dict) -> set[str]:
         found.add("from-mobi")
     if str(fields.get("version", "")).startswith("2"):
         found.add("epub2")
-    if fields.get("fixed_layout"):
+    if fields.get("fixed_layout") or _mostly_pictures(fields):
         found.add("fixed-layout")
     if "gutenberg" in generators:
         found.add("public-domain")

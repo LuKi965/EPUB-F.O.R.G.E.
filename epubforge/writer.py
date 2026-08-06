@@ -29,6 +29,29 @@ _OVERLAY_END = "__END__"
 #: Prefixes EPUB 3.3 reserves, which must not be declared again.
 _RESERVED_PREFIXES = frozenset({"dcterms", "marc", "media", "onix", "rendition", "schema", "xsd", "a11y", "msv", "prism"})
 
+#: Where each reserved prefix points, so one this writer *uses* can be declared
+#: outright instead of left to the reader's own table.
+#:
+#: EPUB 3 says a reserved prefix needs no declaration and EPUBCheck agrees, so
+#: for two releases this writer declared `schema:` and `a11y:` — with the reason
+#: written down beside them — and left `rendition:` and the rest to the rule.
+#: An InkBOOK Focus proved the rule is not enough: it opened a package with
+#: `rendition:` declared and hung on the same package without it, everything
+#: else byte for byte identical. Whatever table that reader consults, ours is
+#: not in it.
+#:
+#: A declaration is redundant under 3.3, legal, and about eighty bytes. Leaving
+#: it out was worth nothing and cost a reader.
+_RESERVED_URIS = {
+    "a11y": "http://www.idpf.org/epub/vocab/package/a11y/#",
+    "dcterms": "http://purl.org/dc/terms/",
+    "marc": "http://id.loc.gov/vocabulary/",
+    "media": "http://www.idpf.org/epub/vocab/overlays/#",
+    "onix": "http://www.editeur.org/ONIX/book/codelists/current.html#",
+    "rendition": "http://www.idpf.org/vocab/rendition/#",
+    "schema": "http://schema.org/",
+}
+
 #: Properties this writer produces from the model. A carried-through copy of
 #: one of these would be a duplicate, and the model's version is the one that
 #: has been through the pipeline.
@@ -178,6 +201,30 @@ def _element(tag: str, text: str | None = None, **attributes) -> str:
     return f"<{opened}>{escape(text)}</{tag}>"
 
 
+#: Stands in for the `<package>` line until the rest of the document exists.
+_PACKAGE_PLACEHOLDER = "\x00package\x00"
+
+
+def _declare_prefixes(document: str, metadata) -> str:
+    """The `prefix` attribute, derived from the properties actually written.
+
+    Every `property="x:y"` and `scheme="x:y"` in the finished document needs
+    `x` to mean something to whoever reads it. Reserved prefixes are supposed
+    to need no declaration, and a reader that does not know one is the reason
+    this is computed rather than assumed.
+    """
+    used = {
+        match.group(1)
+        for match in re.finditer(r'(?:property|scheme)="([A-Za-z][\w.-]*):', document)
+    }
+    declarations = []
+    for prefix in sorted(used):
+        uri = _RESERVED_URIS.get(prefix) or metadata.prefixes.get(prefix)
+        if uri:
+            declarations.append(f"{prefix}: {uri}")
+    return f" prefix={quoteattr(' '.join(declarations))}" if declarations else ""
+
+
 def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str, str]]:
     """Render the package document; also returns the path→manifest-id map."""
     metadata = book.metadata
@@ -189,30 +236,16 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     # may reject the package document outright — which looks to the user like a
     # book that will not open. Declaring it is redundant under 3.3 and legal,
     # so it costs nothing and restores those readers.
-    prefixes = []
-    if metadata.accessibility or metadata.accessibility_summary:
-        prefixes.append("schema: http://schema.org/")
-    if metadata.conforms_to:
-        prefixes.append("a11y: http://www.idpf.org/epub/vocab/package/a11y/#")
-    # A carried-through property brings its prefix with it or it is not a
-    # property at all — EPUBCheck: "Undeclared prefix". The source's whole
-    # declaration is not copied, only the parts still in use, which is what
-    # made regenerating this attribute worth doing in the first place.
-    for prefix in sorted(_prefixes_used(metadata)):
-        declaration = metadata.prefixes.get(prefix)
-        if declaration and not any(p.startswith(f"{prefix}:") for p in prefixes):
-            prefixes.append(f"{prefix}: {declaration}")
-    prefix_attribute = f" prefix={quoteattr(' '.join(prefixes))}" if prefixes else ""
-
     # Base text direction for the whole package. A structural attribute, so it
     # has to be carried deliberately: a Hebrew or Arabic edition that loses it
     # renders its metadata the wrong way round.
     direction = f" dir={quoteattr(metadata.direction)}" if metadata.direction else ""
-    lines.append(
-        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
-        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}'
-        f"{direction}{prefix_attribute}>"
-    )
+    # The prefix attribute is filled in at the end, from the document that was
+    # actually written. Deciding it up front means deciding it twice — once
+    # here and once wherever a property is emitted — and the two drifted: the
+    # writer declared `schema:` while emitting `rendition:` undeclared, which
+    # is exactly the package an InkBOOK Focus hangs on.
+    lines.append(_PACKAGE_PLACEHOLDER)
 
     # --- metadata -----------------------------------------------------------
     lines.append('  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">')
@@ -490,6 +523,14 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             opf = opf.replace("__COVER_ID__", cover_id)
         else:
             opf = re.sub(r'\s*<meta name="cover" content="__COVER_ID__"/>\n', "\n", opf)
+
+    # Last, so it describes the finished document rather than a prediction of it.
+    opf = opf.replace(
+        _PACKAGE_PLACEHOLDER,
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+        f'unique-identifier="pub-id" xml:lang={quoteattr(language)}'
+        f"{direction}{_declare_prefixes(opf, metadata)}>",
+    )
     return opf, id_by_path
 
 

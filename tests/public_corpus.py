@@ -436,6 +436,142 @@ def collections_and_refinements(path: pathlib.Path) -> pathlib.Path:
 
 #: Name → builder. The name becomes the filename, so it is part of the corpus's
 #: identity and should not be changed casually.
+# ------------------------------------------------------- the edges
+
+# The roadmap's tenth family: "brak okładki, jeden plik 8 MB, 400 pozycji
+# spine". Unlike every other family these are not files anyone owns — a
+# publisher does not ship a book with four hundred chapters and no cover — so
+# they are built rather than collected. Each stresses exactly one thing and is
+# otherwise ordinary, because a file broken in six ways tells you nothing when
+# it fails.
+#
+# `tools/make_edge_cases.py` writes them into a real corpus folder; the three
+# cheap ones are also registered below so they are exercised on every run.
+
+def _item(identifier: str, href: str, media_type: str, properties: str = "") -> str:
+    extra = f' properties="{properties}"' if properties else ""
+    return f'    <item id="{identifier}" href="{href}" media-type="{media_type}"{extra}/>\n'
+
+
+def no_cover(path: pathlib.Path) -> pathlib.Path:
+    """A book with no cover image and nothing claiming to be one.
+
+    Every reader shows *something* in a library list, so the question is what
+    this program does when there is nothing to show it — and whether it invents
+    a cover, which would be adding to somebody's book.
+    """
+    pages = {f"text/ch{i}.xhtml": _page(f"Rozdział {i}", f"<h1>Rozdział {i}</h1><p>Treść.</p>")
+             for i in range(1, 4)}
+    manifest = "".join(_item(f"ch{i}", f"text/ch{i}.xhtml", "application/xhtml+xml")
+                       for i in range(1, 4))
+    manifest += _item("nav", "nav.xhtml", "application/xhtml+xml", "nav")
+    spine = "".join(f'    <itemref idref="ch{i}"/>\n' for i in range(1, 4))
+    return _write(path, {
+        "META-INF/container.xml": _CONTAINER,
+        "EPUB/package.opf": _opf(manifest=manifest, spine=spine, title="Bez okładki"),
+        "EPUB/nav.xhtml": _nav([(f"text/ch{i}.xhtml", f"Rozdział {i}") for i in range(1, 4)]),
+        **{f"EPUB/{name}": body for name, body in pages.items()},
+    })
+
+
+def one_huge_image(path: pathlib.Path, megabytes: int = 9) -> pathlib.Path:
+    """A single image larger than most whole books.
+
+    The model holds every resource as bytes, so this is the shape that turns a
+    comfortable rebuild into an uncomfortable one. Nine megabytes is over the
+    eight the roadmap names and small enough to keep in a repository nobody
+    wants to clone twice.
+    """
+    # Incompressible: a PNG of noise, so the archive is as large as the file.
+    import os
+
+    from .factory import png_bytes
+
+    payload = png_bytes() + os.urandom(megabytes * 1024 * 1024)
+    manifest = (
+        _item("plate", "images/plate.png", "image/png", "cover-image")
+        + _item("ch1", "text/ch1.xhtml", "application/xhtml+xml")
+        + _item("nav", "nav.xhtml", "application/xhtml+xml", "nav")
+    )
+    return _write(path, {
+        "META-INF/container.xml": _CONTAINER,
+        "EPUB/package.opf": _opf(
+            manifest=manifest,
+            spine='    <itemref idref="ch1"/>\n',
+            title="Jedna wielka plansza",
+        ),
+        "EPUB/nav.xhtml": _nav([("text/ch1.xhtml", "Plansza")]),
+        "EPUB/text/ch1.xhtml": _page(
+            "Plansza", '<p><img src="../images/plate.png" alt="Plansza"/></p>'
+        ),
+        "EPUB/images/plate.png": payload,
+    })
+
+
+def four_hundred_documents(path: pathlib.Path, count: int = 400) -> pathlib.Path:
+    """Four hundred spine items, which is where per-document work stops being free.
+
+    Anything the rebuild does once per document — parsing, cascade resolution,
+    rewriting every href — is multiplied here, and a cost that hides at thirty
+    documents does not hide at four hundred.
+    """
+    entries: dict[str, bytes | str] = {}
+    manifest = ""
+    spine = ""
+    toc: list[tuple[str, str]] = []
+    for index in range(1, count + 1):
+        name = f"text/s{index:04d}.xhtml"
+        entries[f"EPUB/{name}"] = _page(
+            f"Sekcja {index}",
+            f"<h1>Sekcja {index}</h1><p>Krótki akapit numer {index}.</p>",
+        )
+        manifest += _item(f"s{index:04d}", name, "application/xhtml+xml")
+        spine += f'    <itemref idref="s{index:04d}"/>\n'
+        if index <= 40:  # A table of contents nobody would write in full.
+            toc.append((name, f"Sekcja {index}"))
+    manifest += _item("nav", "nav.xhtml", "application/xhtml+xml", "nav")
+    entries["META-INF/container.xml"] = _CONTAINER
+    entries["EPUB/package.opf"] = _opf(
+        manifest=manifest, spine=spine, title="Czterysta sekcji"
+    )
+    entries["EPUB/nav.xhtml"] = _nav(toc)
+    return _write(path, entries)
+
+
+def single_document(path: pathlib.Path, paragraphs: int = 4000) -> pathlib.Path:
+    """The opposite edge: one document holding the whole book.
+
+    A back-conversion or a scan-to-EPUB often produces this, and it is the case
+    where nothing can be split, skipped or streamed — the whole text is one
+    parse.
+    """
+    body = "<h1>Całość</h1>" + "".join(
+        f"<p>Akapit numer {i}, wypełniający tekst o umiarkowanej długości.</p>"
+        for i in range(1, paragraphs + 1)
+    )
+    manifest = (
+        _item("all", "text/all.xhtml", "application/xhtml+xml")
+        + _item("nav", "nav.xhtml", "application/xhtml+xml", "nav")
+    )
+    return _write(path, {
+        "META-INF/container.xml": _CONTAINER,
+        "EPUB/package.opf": _opf(
+            manifest=manifest, spine='    <itemref idref="all"/>\n', title="Jeden plik"
+        ),
+        "EPUB/nav.xhtml": _nav([("text/all.xhtml", "Całość")]),
+        "EPUB/text/all.xhtml": _page("Całość", body),
+    })
+
+
+_CONTAINER = """<?xml version="1.0" encoding="utf-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+
+
 BOOKS = {
     "epub2-ncx-only": epub2_ncx_only,
     "nav-in-spine": nav_in_spine,
@@ -446,6 +582,11 @@ BOOKS = {
     "watermarked": watermarked,
     "declared-entities": declared_entities,
     "collections-and-refinements": collections_and_refinements,
+    # The huge-image book is deliberately absent: it is about memory, not
+    # correctness, and nine megabytes of noise per test run is a poor trade.
+    "edge-no-cover": no_cover,
+    "edge-400-sections": four_hundred_documents,
+    "edge-single-document": single_document,
 }
 
 
