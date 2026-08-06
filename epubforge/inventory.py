@@ -313,6 +313,20 @@ def measure(path: pathlib.Path) -> Book:
 #:
 #: A book counts towards every family it belongs to; layered files are real
 #: (InDesign → Calibre → Sigil) and pretending otherwise would undercount both.
+#: Hyphens frozen at what used to be a line end — "sta- rożytności" — is what a
+#: PDF leaves behind when its line breaks become text. Measured rather than
+#: guessed: nine properly typeset books in this repository and on the owner's
+#: disk score exactly **0**, and the one book known to come from a PDF scores
+#: 16. The floor sits well above the noise because a false positive here is
+#: worse than a miss: it tells someone a family is covered when it is not.
+#:
+#: This exists because the generator signatures cannot see the case that
+#: matters most. They look for ABBYY, pdftohtml and `ft0` class names — traces
+#: of three specific tools — and a conversion done by a language model leaves
+#: none of them. The family the roadmap calls the worst case for typography was
+#: the one family the detector was blind to.
+PDF_HYPHEN_FLOOR = 5
+
 CORPUS_FAMILIES: dict[str, tuple[int, str]] = {
     "polish-bookshop": (5, "księgarnie polskie — znak wodny, strony prawne"),
     "indesign-vellum": (4, "InDesign / Vellum — wydawcy dbający o skład"),
@@ -347,7 +361,7 @@ def families(fields: dict) -> set[str]:
         found.add("calibre")
     if "word" in generators:
         found.add("word")
-    if "pdf-or-ocr" in generators:
+    if "pdf-or-ocr" in generators or fields.get("broken_hyphens", 0) >= PDF_HYPHEN_FLOOR:
         found.add("pdf-or-ocr")
     if "from-mobi" in generators:
         found.add("from-mobi")
@@ -473,6 +487,7 @@ def to_json(books: list[Book]) -> str:
 __all__ = [
     "Book",
     "CORPUS_FAMILIES",
+    "PDF_HYPHEN_FLOOR",
     "GENERATOR_SIGNATURES",
     "coverage",
     "coverage_report",

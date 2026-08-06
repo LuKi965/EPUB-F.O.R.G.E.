@@ -19,6 +19,7 @@ import pytest
 
 from epubforge.inventory import (
     CORPUS_FAMILIES,
+    PDF_HYPHEN_FLOOR,
     Book,
     coverage,
     coverage_report,
@@ -38,6 +39,7 @@ def book(**fields) -> Book:
         "spine_items": 20,
         "largest_image_mb": 0.2,
         "documents": 20,
+        "broken_hyphens": 0,
     }
     entry = Book("0" * 16, 1.0)
     entry.fields.update(base | fields)
@@ -68,6 +70,23 @@ class TestAFamilyIsWhatTheBookWasMadeBy:
         picking one would undercount both."""
         found = families(book(generators=["indesign", "calibre"]).fields)
         assert {"indesign-vellum", "calibre"} <= found
+
+    def test_a_pdf_conversion_is_recognised_by_its_damage(self):
+        """The generator signatures look for ABBYY, pdftohtml and `ft0` class
+        names — three specific tools. A conversion done by a language model
+        leaves none of them, and the file that started the InkBOOK case is
+        exactly that: no generator trace at all, and hyphens frozen where a PDF
+        line used to end. The family the roadmap calls the worst case for
+        typography was the one the detector could not see."""
+        assert "pdf-or-ocr" in families(book(broken_hyphens=16).fields)
+        assert "pdf-or-ocr" in families(book(generators=["pdf-or-ocr"]).fields)
+
+    def test_a_stray_hyphen_is_not_a_pdf(self):
+        """Nine properly typeset books score exactly zero, so the floor has
+        room. A false positive here says a family is covered when it is not,
+        which is worse than saying nothing."""
+        assert "pdf-or-ocr" not in families(book(broken_hyphens=0).fields)
+        assert "pdf-or-ocr" not in families(book(broken_hyphens=PDF_HYPHEN_FLOOR - 1).fields)
 
     def test_gutenberg_is_not_a_polish_bookshop(self):
         """Its licence page reads as a purchase notice to the watermark
