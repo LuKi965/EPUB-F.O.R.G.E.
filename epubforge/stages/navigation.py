@@ -41,6 +41,39 @@ def _escape(value: str) -> str:
     return html.escape(value or "", quote=True)
 
 
+#: What the generated navigation calls its own sections, by language.
+#:
+#: These are the only words this program puts in front of a reader inside their
+#: book, and they were English in every book it produced — "Table of Contents"
+#: heading a Polish novel whose own `lang` attribute says `pl`. The report being
+#: bilingual made that worse rather than better: the part nobody could change
+#: was the part printed in the book itself.
+#:
+#: A language with no entry falls back to English, which is the same rule the
+#: message catalogue uses and for the same reason: a heading in the wrong
+#: language is a blemish, and a book that fails to build is not.
+NAV_HEADINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "toc": "Table of Contents",
+        "landmarks": "Landmarks",
+        "page-list": "Page List",
+        "title": "Contents",
+    },
+    "pl": {
+        "toc": "Spis treści",
+        "landmarks": "Punkty orientacyjne",
+        "page-list": "Numery stron",
+        "title": "Spis treści",
+    },
+}
+
+
+def heading(language: str, section: str) -> str:
+    """One navigation heading, in the book's language where we have it."""
+    tag = (language or "en").replace("_", "-").split("-")[0].lower()
+    return NAV_HEADINGS.get(tag, NAV_HEADINGS["en"])[section]
+
+
 class NavigationStage(Stage):
     name = "navigation"
 
@@ -364,14 +397,14 @@ class NavigationStage(Stage):
 
         sections = [
             '    <nav epub:type="toc" id="toc" role="doc-toc">',
-            "      <h1>Table of Contents</h1>",
+            f"      <h1>{_escape(heading(language, 'toc'))}</h1>",
             self._render_nav_list(book.toc, nav_path, "      "),
             "    </nav>",
         ]
 
         if book.landmarks:
             sections.append('    <nav epub:type="landmarks" id="landmarks" hidden="hidden">')
-            sections.append("      <h1>Landmarks</h1>")
+            sections.append(f"      <h1>{_escape(heading(language, 'landmarks'))}</h1>")
             sections.append("      <ol>")
             for landmark in book.landmarks:
                 target_path, _, fragment = landmark.target.partition("#")
@@ -387,7 +420,7 @@ class NavigationStage(Stage):
 
         if book.page_list:
             sections.append('    <nav epub:type="page-list" id="page-list" hidden="hidden">')
-            sections.append("      <h1>Page List</h1>")
+            sections.append(f"      <h1>{_escape(heading(language, 'page-list'))}</h1>")
             sections.append("      <ol>")
             for page in book.page_list:
                 target_path, _, fragment = page.target.partition("#")
@@ -404,7 +437,7 @@ class NavigationStage(Stage):
 <html xmlns="{XHTML_NS}" xmlns:epub="{EPUB_NS}" lang="{language}" xml:lang="{language}">
   <head>
     <meta charset="utf-8"/>
-    <title>{_escape(book.metadata.title)} — Contents</title>
+    <title>{_escape(book.metadata.title)} — {_escape(heading(language, "title"))}</title>
   </head>
   <body>
 {body}

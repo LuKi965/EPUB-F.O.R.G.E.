@@ -25,6 +25,39 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### "Table of Contents" headed every Polish book this program made
+
+The generated navigation document carried English headings — "Table of
+Contents", "Landmarks", "Page List" — inside books whose own `lang` attribute
+says `pl`. These are the only words this program puts in front of a reader
+*inside their book*, and they were English in every file it has ever produced.
+The bilingual report made it worse rather than better: the one piece of text
+nobody could change was the piece printed in the book itself.
+
+`NAV_HEADINGS` holds them per language, falling back to English for a language
+nobody has written — the same rule the message catalogue uses, and for the same
+reason: a heading in the wrong language is a blemish, and a book that fails to
+build is not.
+
+Found while diffing our rebuild against a file an InkBOOK Focus opens, which is
+not what that comparison was looking for and is the more useful of the two
+findings.
+
+### E, F and G all failed, which is a result
+
+The friend tested all three. None opens, and that exhausts the archive level:
+timestamps, Unix attributes, `S_IFREG`, directory layout and compression are
+all excluded. The case file has said since it was written what to do when this
+happens, and `tools/bisect_reader.py` does it.
+
+A container-only rebuild leaves **71 of 75 entries byte for byte** as they were,
+so four files carry the difference. The tool writes five variants, ours in every
+respect except that each differs from the original in exactly one of the four —
+plus a control holding only the original's files, because if the device refuses
+that one the packaging is at fault and the other four prove nothing.
+
+Four steps, one answer, and no debugger on a device nobody can attach one to.
+
 ### The corpus keeps a log of its runs, because a signature cannot
 
 Stamping the release into each signature made a partial run visible and still

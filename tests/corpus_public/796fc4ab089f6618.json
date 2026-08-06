@@ -19,7 +19,7 @@
       "xhtml.dead-reference-kept": 1,
       "xhtml.image-paragraph-centred": 1
     },
-    "output": "sha256:9d155615766270e5e70928c1433a0fd9bcb3735a017b7660c595dd01b4e63a6e",
+    "output": "sha256:4d99500ad87002848a78c16884e72737b3d48d36b7b7dea164e7358aefc131f5",
     "text_characters": 10,
     "text_added": 0,
     "text_invariant": true,
@@ -39,7 +39,7 @@
       "structure.relaid-out": 1,
       "xhtml.dead-reference-neutralised": 1
     },
-    "output": "sha256:04ba4f52cc0048039f0a809b1f58c08763b276611b5bf056b6ba80b05807b37c",
+    "output": "sha256:9ef8dc72751105997a6fb2cf558278b8d70a474de32863c910a88b19f566e8a4",
     "text_characters": 10,
     "text_added": 0,
     "text_invariant": true,
