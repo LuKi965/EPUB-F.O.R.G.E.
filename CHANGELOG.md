@@ -41,6 +41,8 @@ one whose family numbers can be trusted before going out to fill the gaps.
 | A stylesheet fetched from Google, in a Word family book | EPUB 3 allows one remote resource, and it is a font |
 | A link to an anchor no document defines | what a PDF reflow leaves in a page-number strip |
 | `rendition:` used and never declared | the InkBOOK case, closed on the device |
+| The pathological family needed a command line | it needed a button, and now has one |
+| Coverage was printed only where nobody was looking | the window shows it |
 
 **Fixed:** three conformance defects that only converted books produce, and
 three family detectors that could not see the books made for them. **New:**
@@ -49,6 +51,42 @@ three family detectors that could not see the books made for them. **New:**
 what changed.
 
 ### Everything, by subject
+
+### A corpus family you could only fill from a command line
+
+`pathological` sat at zero across four releases while every coverage report
+named it as what was missing. The books have to be built — no publisher ships
+one with four hundred chapters and no cover — and the thing that built them was
+`tools/make_edge_cases.py`, importing from `tests/public_corpus.py`: a checkout,
+a Python and a terminal.
+
+The person who can fill that family runs Windows and the installer. "Just run
+the script" was, to him, an instruction to do nothing, and I gave it four times.
+
+* The four books moved into `epubforge/edge_cases.py` — one definition, two ways
+  in: **Korpus → „Dołóż brzegi"** and the same script. Run twice it leaves four
+  files, not eight, because the corpus counts books and a duplicate would
+  inflate the family being filled.
+* **Family coverage is now shown in the window.** It was written from the start
+  and printed only by the command line, so the one question the inventory exists
+  to answer was the one part not on screen.
+
+A feature reachable only through a development environment is, to the person who
+needs it, a feature that does not exist.
+
+### The window now speaks one language at a time
+
+Three places where it did not, all found while fixing the above:
+
+* `coverage_report` had an English heading and English closing sentence over a
+  table of Polish descriptions, whichever way the interface was set. Both
+  languages now, chosen by the setting.
+* The survey renderer wrote its own headings — "wersje źródła", "awarii etapu" —
+  straight into the output, so an English window printed an English report under
+  Polish headings.
+* `tr()` used plain `str.format`, so a count in the interface could not agree
+  with its noun: "Gotowe — 1 książek". It uses the message catalogue's formatter
+  now, and `{count:książka|książki|książek}` works in window strings.
 
 ### Three defects the corpus found the day it first held conversions
 

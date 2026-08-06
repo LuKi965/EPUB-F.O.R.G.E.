@@ -161,6 +161,20 @@ class TestAFamilyIsWhatTheBookWasMadeBy:
         assert families(entry.fields) == set()
 
 
+_TRAITS = {
+    "polish-bookshop": {"legal_page": True, "language": "pl"},
+    "indesign-vellum": {"generators": ["indesign"]},
+    "calibre": {"generators": ["calibre"]},
+    "word": {"generators": ["word"]},
+    "pdf-or-ocr": {"generators": ["pdf-or-ocr"]},
+    "from-mobi": {"generators": ["from-mobi"]},
+    "epub2": {"version": "2.0"},
+    "fixed-layout": {"fixed_layout": True},
+    "pathological": {"has_cover": False},
+    "public-domain": {"generators": ["gutenberg"]},
+}
+
+
 class TestTheGapIsCountedNotRemembered:
     def test_every_roadmap_family_is_reported_even_at_zero(self):
         """A family with no books is the one worth seeing, so it cannot be
@@ -171,7 +185,7 @@ class TestTheGapIsCountedNotRemembered:
             "have": 0,
             "want": 3,
             "short": 3,
-            "what": CORPUS_FAMILIES["pdf-or-ocr"][1],
+            "what": CORPUS_FAMILIES["pdf-or-ocr"][2],  # [1] is Polish, [2] English
         }
 
     def test_a_surplus_is_not_a_shortfall(self):
@@ -184,21 +198,37 @@ class TestTheGapIsCountedNotRemembered:
         assert "pdf-or-ocr" in text
         assert "families short" in text
 
+    def test_the_report_speaks_the_language_the_window_does(self):
+        """The table used to hold one Polish description and the sentences
+        around it were English, so the report came out half-and-half however
+        the interface was set — in the one place a Polish reader is reading."""
+        books = [book(generators=["calibre"])]
+        polish = coverage_report(books, "pl")
+        english = coverage_report(books, "en")
+        assert "pokrycie korpusu" in polish
+        assert "rodzin niepełnych" in polish
+        assert "najgorszy przypadek dla typografii" in polish
+        assert "corpus coverage" in english
+        assert "families short" in english
+        assert "the worst case for typography" in english
+        # Family names are identifiers, not prose, and stay put in both.
+        for text in (polish, english):
+            assert "pdf-or-ocr" in text
+
+    def test_one_short_family_is_singular_in_both_languages(self):
+        rows = {name: want for name, (want, _p, _e) in CORPUS_FAMILIES.items()}
+        books = []
+        for name, want in rows.items():
+            trait = _TRAITS[name]
+            # Every family filled but one, so exactly one comes up short.
+            books += [book(**trait) for _ in range(want if name != "word" else want - 1)]
+        assert "1 family short" in coverage_report(books, "en")
+        assert "1 rodzina niepełna" in coverage_report(books, "pl")
+
     def test_a_complete_corpus_says_so(self):
         books = []
-        for name, (want, _) in CORPUS_FAMILIES.items():
-            trait = {
-                "polish-bookshop": {"legal_page": True, "language": "pl"},
-                "indesign-vellum": {"generators": ["indesign"]},
-                "calibre": {"generators": ["calibre"]},
-                "word": {"generators": ["word"]},
-                "pdf-or-ocr": {"generators": ["pdf-or-ocr"]},
-                "from-mobi": {"generators": ["from-mobi"]},
-                "epub2": {"version": "2.0"},
-                "fixed-layout": {"fixed_layout": True},
-                "pathological": {"has_cover": False},
-                "public-domain": {"generators": ["gutenberg"]},
-            }[name]
+        for name, (want, _polish, _english) in CORPUS_FAMILIES.items():
+            trait = _TRAITS[name]
             books += [book(**trait) for _ in range(want)]
         assert "every family is represented" in coverage_report(books)
 

@@ -53,6 +53,11 @@ excludes = [
 hiddenimports = [
     # cssutils resolves its profile and codec modules dynamically.
     "cssutils.css", "cssutils.stylesheets", "cssutils.scripts", "encodings.idna",
+    # The corpus panel imports this inside the worker, to keep the window's
+    # start-up free of it. Named here as well: if the analysis ever missed it
+    # the button would fail in the installed build and nowhere else, which is
+    # the one place nobody here can test.
+    "epubforge.edge_cases",
 ]
 
 common = dict(

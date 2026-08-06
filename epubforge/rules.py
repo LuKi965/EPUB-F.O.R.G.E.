@@ -717,6 +717,22 @@ class _Plural(string.Formatter):
 _FORMATTER = _Plural()
 
 
+def fill(text: str, values: dict | None = None) -> str:
+    """Fill one template, plural forms and all, without raising over a gap.
+
+    Exposed because the window needs the same agreement the report has. The
+    string tables held a second, plainer formatter, so a count in the interface
+    could only say "4 plik" or hedge with a parenthesis — in the one place a
+    Polish reader is looking at Polish.
+    """
+    if not values:
+        return text
+    try:
+        return _FORMATTER.vformat(text, (), values)
+    except (KeyError, IndexError, ValueError, AttributeError):
+        return text
+
+
 def placeholders(rule: str, language: str = "en") -> set[str]:
     """The names a catalogue entry expects to be given."""
     catalogue = CATALOGUES.get(language, CATALOGUE)
