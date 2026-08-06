@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.4` · alpha · 819 tests · Windows / Linux / macOS
+`0.2.5` · alpha · 867 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Development](CONTRIBUTING.md) · [Changes](CHANGELOG.md)
@@ -136,11 +136,13 @@ repeat in every chapter, and they stay.
 
 Things worth knowing before rather than after:
 
-- **Alpha.** One of the three entry conditions written down in
-  [`CONTRIBUTING.md`](CONTRIBUTING.md) is still unmet: the 64-book corpus is
-  green across two releases (0.2.3 and 0.2.4) and the condition asks for three.
-  The other two — no known defects that lose data silently, and a translated
-  report — have been met since 0.2.2 and 0.2.5 respectively.
+- **Alpha.** One of the three entry conditions is still unmet, and it is
+  closer than it looks: the 64-book corpus is green across two releases (0.2.3
+  and 0.2.4) where the condition asks for three — **and** for coverage of the
+  generator families, which nobody had counted. `epubforge inventory <folder>
+  --json inventory.json` reports it. The other two — no known defects that lose
+  data silently, and a translated report — have been met since 0.2.2 and 0.2.5
+  respectively.
 - **The report follows the language setting.** The window, the JSON file and
   the console all speak whatever the interface does; on the command line
   `--report-language` decides. The English `message` stays in the JSON either
@@ -155,7 +157,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-819 tests, including three independent safety nets:
+867 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

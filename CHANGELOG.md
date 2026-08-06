@@ -23,7 +23,35 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## Unreleased
+## 0.2.5 — alpha — 2026-08-06
+
+**A finding's sentence now lives in exactly one place, and the report speaks
+whichever language the interface does — including the paragraph underneath.**
+A plain release rather than a milestone one: the owner needs a build to measure
+the corpus with, and `CONTRIBUTING.md` says PATCH moves on every release,
+whatever it contains.
+
+### At a glance
+
+| | |
+|---|---|
+| The English sentence lived at the call site *and* in the catalogue | 137 call sites, one home now |
+| An identifier spliced into a string concatenation went unnoticed | `compat.appliedapple, kindle`, two releases |
+| 20 tests asserted English fragments | now assert identifiers |
+| Saved JSON and the console were English whatever the setting said | both follow it |
+| A third of a Polish report was the untranslated paragraph | 11.3%, and all of it data |
+| The corpus milestone was counted by books, not by families | coverage is measured now |
+
+**New:** `epubforge inventory --json` reports corpus coverage family by family;
+`--report-language` on the command line. **Fixed:** `compat.applied` was
+reported under a computed identifier; `renders_fully` judged a finding by its
+headline alone and put the English line back under a complete Polish one.
+
+**`schema` is 2** — `message` is rendered from the catalogue so its English
+wording moved; `rule` did not change and is the field to match on.
+
+### Everything, by subject
+
 
 ### One sentence, one home (EF-018 in the shape the roadmap asked for)
 

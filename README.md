@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.4` · alpha · 819 testów · Windows / Linux / macOS
+`0.2.5` · alpha · 867 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
@@ -133,11 +133,13 @@ się w każdym rozdziale, i zostają.
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Z trzech warunków wejścia w alfę spisanych w
-  [`CONTRIBUTING.md`](CONTRIBUTING.md) został jeden: korpus 64 książek ma
-  metryki zielone przez dwa wydania (0.2.3 i 0.2.4), a warunkiem są trzy.
-  Pozostałe dwa — zero defektów gubiących dane po cichu i przetłumaczony
-  raport — są spełnione, odpowiednio od 0.2.2 i od 0.2.5.
+- **Alpha.** Z trzech warunków wejścia w alfę został jeden, i jest bliżej,
+  niż wygląda: korpus 64 książek ma metryki zielone przez dwa wydania (0.2.3
+  i 0.2.4), a warunek mówi o trzech — **oraz** o pokryciu rodzin generatorów,
+  którego nikt dotąd nie policzył. Od tego jest
+  `epubforge inventory <katalog> --json inwentarz.json`. Pozostałe dwa warunki
+  — zero defektów gubiących dane po cichu i przetłumaczony raport — są
+  spełnione, odpowiednio od 0.2.2 i od 0.2.5.
 - **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
   samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
   Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
@@ -152,7 +154,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-819 testów, w tym trzy niezależne siatki bezpieczeństwa:
+867 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;
