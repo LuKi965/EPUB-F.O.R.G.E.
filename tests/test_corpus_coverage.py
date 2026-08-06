@@ -420,7 +420,17 @@ class TestTheStreakIsReadFromHistory:
 
     def test_the_ledger_lives_beside_the_signatures_not_among_them(self):
         """That folder means "one file per book". The owner's inventory landed
-        in it once by accident and broke the analysis on the spot."""
+        in it once by accident and broke the analysis on the spot.
+
+        The second assertion cost a build. It passed on the two machines that
+        had run a corpus check and failed on CI, which had not — `.gitignore`
+        excluded everything under `tests/corpus/` but the signatures, so the
+        ledger existed nowhere else. A test that reads a file the repository is
+        designed never to hold is testing the machine it runs on. The ledger is
+        tracked now, which is the answer that makes the assertion true rather
+        than the one that deletes it: it holds counts and dates, and it is the
+        evidence for a claim about this project.
+        """
         import pathlib
 
         from epubforge.corpus import RUNS, signature_files
