@@ -1,35 +1,35 @@
 {
-  "source": "sha256:339c3aeeeb14bb74d4f00ad742a330c77c8f88e024f0c9073929634c86bda395",
+  "source": "sha256:8a15f36f407831388dba8d66c47abed796a1d83612d4b45780eb60edb0781aab",
   "version": "0.2.6",
   "preserve": {
     "written": true,
     "report": {
       "info": 3,
-      "fix": 5,
-      "preserved": 14,
-      "warn": 1
+      "fix": 18,
+      "preserved": 3
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "a11y.missing-alt": 1,
+      "css.font-stack-generic-missing": 1,
       "css.reader-property-kept": 1,
+      "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
-      "xhtml.cover-fitted": 1,
-      "xhtml.image-paragraph-kept": 13,
-      "xhtml.watermark-consolidated": 1
+      "xhtml.entities-rewritten": 9,
+      "xhtml.image-paragraph-centred": 2,
+      "xhtml.inline-promoted": 4
     },
-    "output": "sha256:a7b8453da837cd0ee0f9736d7551ddac18ec2cc087fbcdd087794d91a6f20466",
-    "text_characters": 80197,
+    "output": "sha256:0dda72dbd844fe83acef622f956b147652dca4ef32744469161de59cfddcc9a3",
+    "text_characters": 432601,
     "text_added": 0,
     "text_invariant": true,
-    "blocks": 523,
+    "blocks": 2563,
     "epubcheck": {
       "errors": 0,
-      "warnings": 0,
+      "warnings": 1,
       "fatal": 0
     }
   },
@@ -37,31 +37,31 @@
     "written": true,
     "report": {
       "info": 3,
-      "fix": 6,
-      "preserved": 13,
-      "warn": 1
+      "fix": 19,
+      "preserved": 2
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "a11y.missing-alt": 1,
+      "css.font-stack-generic-missing": 1,
       "css.reader-property-removed": 1,
+      "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
-      "xhtml.cover-fitted": 1,
-      "xhtml.image-paragraph-kept": 13,
-      "xhtml.watermark-consolidated": 1
+      "xhtml.entities-rewritten": 9,
+      "xhtml.image-paragraph-centred": 2,
+      "xhtml.inline-promoted": 4
     },
-    "output": "sha256:b9758803d7c0e80e1e0a0ce4177e58a88d0bfeea65b9acd078818015eac67e10",
-    "text_characters": 80197,
+    "output": "sha256:ebb6ee8890b59095740c1a164de6ef5d413a6cc8657102c795326217a079c2be",
+    "text_characters": 432601,
     "text_added": 0,
     "text_invariant": true,
-    "blocks": 523,
+    "blocks": 2563,
     "epubcheck": {
       "errors": 0,
-      "warnings": 0,
+      "warnings": 1,
       "fatal": 0
     }
   }

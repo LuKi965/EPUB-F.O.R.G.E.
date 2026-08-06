@@ -1,6 +1,6 @@
 {
   "source": "sha256:ac6dd1d2cc6e461fe1942fdd26085f8ab9eeb6a87a90f58cfca646a7d430df4c",
-  "version": "0.2.4",
+  "version": "0.2.6",
   "preserve": {
     "written": true,
     "report": {
@@ -17,8 +17,13 @@
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.manifest-type-corrected": 4,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 82
+      "xhtml.entities-rewritten": 82,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.watermark-consolidated": 1,
+      "xhtml.watermark-kept": 1
     },
     "output": "sha256:fd0a6f0101b4d93cb54998bfdaf86f8a6e75e4d15b8a863f48fe57f8fa7ce2db",
     "text_characters": 1213449,
@@ -47,8 +52,13 @@
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.manifest-type-corrected": 4,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 82
+      "xhtml.entities-rewritten": 82,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.watermark-consolidated": 1,
+      "xhtml.watermark-kept": 1
     },
     "output": "sha256:fd0a6f0101b4d93cb54998bfdaf86f8a6e75e4d15b8a863f48fe57f8fa7ce2db",
     "text_characters": 1213449,

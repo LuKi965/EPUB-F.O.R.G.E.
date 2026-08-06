@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -54,6 +55,17 @@ class Comparison:
 
 def digest(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+#: A signature file is named after the book's digest: sixteen hex characters.
+#: Matching on the name rather than on the extension is what keeps a stray
+#: document in the folder from being read as a book that never existed.
+_SIGNATURE_NAME = re.compile(r"^[0-9a-f]{16}\.json$")
+
+
+def signature_files(folder: pathlib.Path) -> "list[pathlib.Path]":
+    """Every signature in *folder*, and nothing else that happens to be there."""
+    return sorted(p for p in folder.glob("*.json") if _SIGNATURE_NAME.match(p.name))
 
 
 def identifier_for(book: pathlib.Path) -> str:
@@ -197,30 +209,27 @@ def releases(records: "list[dict]") -> "dict[str, int]":
     return dict(sorted(counted.items()))
 
 
-def green_streak(records: "list[dict]") -> "list[str]":
-    """Releases on which every measured book came out clean, newest last.
+def green_streak(history: "list[dict]", *, minimum: int = 1) -> "list[str]":
+    """The run of consecutive releases that came out clean, most recent last.
 
-    A release counts only if nothing measured on it lost text, failed to write,
-    or drew an EPUBCheck error. It says nothing about the books measured on a
-    *different* release — that is what makes a partial run visible instead of
-    silently topping up a streak it did not earn.
+    Read from the run ledger rather than from the signatures: a signature keeps
+    a book's latest measurement only, so re-measuring a book erases the release
+    it was green on before. History is the question being asked here.
+
+    *minimum* is how many books a run must cover to count at all. A run over
+    three books says nothing about a corpus of eighty-six, and letting it extend
+    a streak would be the same mistake as counting books instead of families.
     """
-    by_release: dict[str, bool] = {}
-    for record in records:
-        version = record.get("version", "?")
-        clean = True
-        for mode in MODES:
-            measured = record.get(mode) or {}
-            check = measured.get("epubcheck") or {}
-            if (
-                not measured.get("written")
-                or not measured.get("text_invariant", True)
-                or check.get("errors")
-                or check.get("fatal")
-            ):
-                clean = False
-        by_release[version] = by_release.get(version, True) and clean
-    return [version for version, clean in sorted(by_release.items()) if clean]
+    streak: list[str] = []
+    for entry in history:
+        if entry.get("books", 0) < minimum:
+            continue
+        if entry.get("clean"):
+            if not streak or streak[-1] != entry.get("version"):
+                streak.append(entry.get("version", "?"))
+        else:
+            streak = []
+    return streak
 
 
 def _rule_changes(recorded: dict, measured: dict) -> str:
@@ -322,7 +331,66 @@ def compare(
                     encoding="utf-8",
                 )
             results.append(Comparison(label, identifier, status, changes))
+
+    if record:
+        _log_run(signatures, results)
     return results
+
+
+#: One entry per corpus run, in the folder *containing* the signatures.
+#:
+#: Not among them. That folder means "one file per book", and anything else
+#: living there is a trap for every loop that reads it — the owner's inventory
+#: landed there once by accident and broke the analysis on the spot.
+RUNS = "runs.json"
+
+
+def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
+    """Append what this run measured, because a signature cannot remember.
+
+    A signature holds a book's *latest* measurement, so the moment a book is
+    re-measured its previous release is gone from the record. Entry into alpha
+    asks for the corpus to be green "across three consecutive releases", and
+    that is a question about history — which the signatures, by design, do not
+    keep. Recording the release into them made a partial run visible and still
+    could not answer it.
+
+    So the runs are logged. One entry per `--record`, appended, never rewritten:
+    what was measured, on which release, and whether it came out clean.
+    """
+    import datetime
+
+    from . import __version__
+
+    entry = {
+        "version": __version__,
+        "date": datetime.date.today().isoformat(),
+        "books": len(results),
+        "failed": sum(1 for r in results if r.status == "failed"),
+    }
+    errors = fatal = lost = unwritten = 0
+    for result in results:
+        record_path = signatures / f"{result.identifier}.json"
+        if not record_path.is_file():
+            continue
+        measured = json.loads(record_path.read_text(encoding="utf-8"))
+        for mode in MODES:
+            found = measured.get(mode) or {}
+            if not found.get("written"):
+                unwritten += 1
+                continue
+            check = found.get("epubcheck") or {}
+            errors += check.get("errors", 0)
+            fatal += check.get("fatal", 0)
+            if not found.get("text_invariant", True):
+                lost += 1
+    entry.update(errors=errors, fatal=fatal, text_lost=lost, unwritten=unwritten)
+    entry["clean"] = not (errors or fatal or lost or unwritten or entry["failed"])
+
+    ledger = signatures.parent / RUNS
+    history = json.loads(ledger.read_text(encoding="utf-8")) if ledger.is_file() else []
+    history.append(entry)
+    ledger.write_text(json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def summarise(results: list[Comparison]) -> str:
@@ -343,6 +411,8 @@ __all__ = [
     "compare",
     "differences",
     "identifier_for",
+    "signature_files",
+    "RUNS",
     "signature",
     "summarise",
 ]

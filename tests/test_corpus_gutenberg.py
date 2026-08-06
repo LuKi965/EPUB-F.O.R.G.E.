@@ -31,7 +31,7 @@ import sys
 
 import pytest
 
-from epubforge.corpus import books_in, compare, summarise
+from epubforge.corpus import books_in, compare, signature_files, summarise
 
 CORPUS = pathlib.Path(__file__).parent / "corpus_gutenberg"
 EXPECTED = CORPUS / "expected"
@@ -70,7 +70,7 @@ def test_no_book_loses_text():
     """
     import json
 
-    for path in sorted(EXPECTED.glob("*.json")):
+    for path in signature_files(EXPECTED):
         recorded = json.loads(path.read_text(encoding="utf-8"))
         for mode, measurement in recorded.items():
             if not isinstance(measurement, dict) or "text_invariant" not in measurement:

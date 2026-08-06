@@ -23,6 +23,47 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## Unreleased
+
+### The corpus keeps a log of its runs, because a signature cannot
+
+Stamping the release into each signature made a partial run visible and still
+could not answer the condition it was added for. A signature holds a book's
+**latest** measurement, so re-measuring a book erases the release it was green
+on before — after the owner's full run on 0.2.6, the 0.2.5 evidence was simply
+gone. "Green across three consecutive releases" is a question about history,
+and history is exactly what per-book files do not keep.
+
+`tests/corpus/runs.json` is appended on every `--record`: the release, the
+date, how many books, and whether it came out clean. `green_streak()` reads
+that, and takes a minimum book count — a run over three books says nothing
+about a corpus of eighty-six, and letting it extend a streak would be the same
+mistake as counting books instead of families.
+
+The ledger lives **beside** the signature folder rather than in it, because
+that folder means one file per book: the owner's inventory landed there once by
+accident and broke the analysis on the spot. `signature_files()` now recognises
+a signature by its name — sixteen hex characters — so a stray document cannot
+pass for a book that never existed.
+
+**Where the corpus stands: 86 books, and the streak is `0.2.5 → 0.2.6`.** One
+more clean release closes half the last alpha condition; the other half is the
+six empty families.
+
+### The watermark fix, checked against the shelf it was written for
+
+The owner's full run on 0.2.6, 70 books: **zero EPUBCheck errors, zero fatal,
+no text lost, nothing unwritten**. Of the 63 that are not Project Gutenberg,
+the inventory now finds a watermark in **42** — it found four before the fix,
+on a smaller sample of the same library. 35 carry the hidden marker, 13 a
+readable notice, and all 63 a legal page.
+
+Nineteen books changed against their recorded signature. All nineteen were the
+ones still measured on 0.2.4, and every change was a rule identifier appearing
+— none disappeared, no counter moved, nothing outside `rules` differed at all.
+That is what naming the 57 untagged findings was supposed to look like from the
+outside.
+
 ## 0.2.6 — alpha — 2026-08-06
 
 **The inventory now measures the kind of watermark Polish shops actually use,

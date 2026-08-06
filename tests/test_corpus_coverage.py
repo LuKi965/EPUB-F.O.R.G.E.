@@ -306,24 +306,56 @@ class TestASignatureSaysWhenItWasTaken:
         records = [{"version": "0.2.4"}] * 35 + [{"version": "0.2.5"}] * 38
         assert releases(records) == {"0.2.4": 35, "0.2.5": 38}
 
-    def test_a_release_with_a_dirty_book_is_not_green(self):
+class TestTheStreakIsReadFromHistory:
+    """"Green across three consecutive releases" is a question about history,
+    and a signature holds a book's *latest* measurement only — so the moment a
+    book is re-measured, the release it was green on before is gone from the
+    record. Stamping the release into signatures made a partial run visible and
+    still could not answer the question. The runs are logged instead.
+    """
+
+    @staticmethod
+    def run(version, *, books=50, clean=True):
+        return {"version": version, "books": books, "clean": clean}
+
+    def test_consecutive_clean_runs_build_a_streak(self):
         from epubforge.corpus import green_streak
 
-        clean = {
-            "version": "0.2.6",
-            "preserve": {"written": True, "text_invariant": True, "epubcheck": {"errors": 0}},
-            "strict": {"written": True, "text_invariant": True, "epubcheck": {"errors": 0}},
-        }
-        dirty = dict(clean, preserve=dict(clean["preserve"], epubcheck={"errors": 1}))
-        assert green_streak([clean]) == ["0.2.6"]
-        assert green_streak([clean, dirty]) == []
+        history = [self.run("0.2.4"), self.run("0.2.5"), self.run("0.2.6")]
+        assert green_streak(history) == ["0.2.4", "0.2.5", "0.2.6"]
 
-    def test_a_book_that_lost_text_is_not_green_either(self):
+    def test_one_dirty_run_starts_the_count_again(self):
+        """Not "two out of three". The condition is consecutive, and a release
+        that lost text is where the counting starts over."""
         from epubforge.corpus import green_streak
 
-        lost = {
-            "version": "0.2.6",
-            "preserve": {"written": True, "text_invariant": False, "epubcheck": {"errors": 0}},
-            "strict": {"written": True, "text_invariant": True, "epubcheck": {"errors": 0}},
-        }
-        assert green_streak([lost]) == []
+        history = [self.run("0.2.4"), self.run("0.2.5", clean=False), self.run("0.2.6")]
+        assert green_streak(history) == ["0.2.6"]
+
+    def test_a_run_too_small_to_mean_anything_does_not_extend_it(self):
+        """A run over three books says nothing about a corpus of eighty-six,
+        and letting it count would be the same mistake as counting books
+        instead of families."""
+        from epubforge.corpus import green_streak
+
+        history = [self.run("0.2.4"), self.run("0.2.5", books=3), self.run("0.2.6")]
+        assert green_streak(history, minimum=30) == ["0.2.4", "0.2.6"]
+
+    def test_the_same_release_twice_counts_once(self):
+        from epubforge.corpus import green_streak
+
+        history = [self.run("0.2.6"), self.run("0.2.6")]
+        assert green_streak(history) == ["0.2.6"]
+
+    def test_the_ledger_lives_beside_the_signatures_not_among_them(self):
+        """That folder means "one file per book". The owner's inventory landed
+        in it once by accident and broke the analysis on the spot."""
+        import pathlib
+
+        from epubforge.corpus import RUNS, signature_files
+
+        expected = pathlib.Path("tests/corpus/expected")
+        assert not (expected / RUNS).exists()
+        assert (expected.parent / RUNS).is_file()
+        # And a stray file could not pass for a book even if it were there.
+        assert all(len(p.stem) == 16 for p in signature_files(expected))
