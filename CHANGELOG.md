@@ -23,6 +23,36 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## Unreleased
+
+### 0.2.7 measured, and the one rule id that named the wrong stage
+
+The owner's run on 0.2.7 — **91 books, zero EPUBCheck errors, zero fatal, no
+text lost, nothing unwritten.** The seven books 0.2.6 could not make conformant
+come out clean, and the four generated edges were built from the window. It is
+also the first run the application logged into the ledger by itself; every entry
+above it was typed in by hand. The green streak starts at `0.2.7` and needs two
+more.
+
+Coverage stands at eight families of ten. `word` and `pdf-or-ocr` are one book
+short each, and those two have to be real: a provenance family exists because a
+converter leaves defects nobody would think to invent, so a synthetic "Google
+Docs export" would test my idea of Google Docs rather than Google Docs.
+
+The survey over those 91 books caught something no test did. Of 135 rule ids,
+**one** was reported under a stage its prefix did not name:
+`css.remote-import-removed`, emitted by the content stage, whose findings carry
+`stage: "xhtml"`. The prefix is not decoration — it is how a report is grouped
+and filtered — and the repair genuinely happens in two places, so it now has two
+ids: `xhtml.` for an import inside a `<style>` element, `css.` for one in a
+linked sheet. Two ids are not duplication when they send you to two different
+places to look.
+
+The check that found it was ninety-one real books on the one machine that has
+them, which is the slowest feedback available and not available to anyone else.
+It is now an AST walk over the stage modules, in a tenth of a second, and it
+fails if the pair is broken back apart.
+
 ## 0.2.7 — alpha — 2026-08-06
 
 **The first conversions the corpus ever held broke three things, and the

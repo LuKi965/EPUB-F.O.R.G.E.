@@ -34,5 +34,17 @@
     "unwritten": 0,
     "clean": false,
     "note": "the same release over 17 more books — the first conversions the corpus ever held. Seven of them carried an EPUBCheck error the previous seventy never produced: `value` on a bullet, a link to an anchor nobody defines, a stylesheet fetched from Google. All three are source defects the rebuild had no rule for; all three are fixed in 0.2.7. Entered by hand, computed from the signatures — the build that took them did not write a ledger."
+  },
+  {
+    "version": "0.2.7",
+    "date": "2026-08-07",
+    "books": 91,
+    "failed": 0,
+    "errors": 0,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "clean": true,
+    "note": "the first run the application logged by itself — 0.2.6 had no ledger, so everything above was entered by hand. Four of the 91 are the generated edges, built from the window. The seven books 0.2.6 could not make conformant come out clean."
   }
 ]

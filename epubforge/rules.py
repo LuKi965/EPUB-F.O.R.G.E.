@@ -92,6 +92,7 @@ CATALOGUE: dict[str, str] = {
     # -- stylesheets --------------------------------------------------------
     "css.url-unresolved": "{count} url() reference(s) could not be resolved and were left unchanged",
     "css.remote-import-removed": "{count} @import rule(s) fetching a stylesheet over the network were removed",
+    "xhtml.remote-import-removed": "{count} @import rule(s) fetching a stylesheet over the network were removed from a style element",
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
@@ -254,6 +255,7 @@ CATALOGUE_PL: dict[str, str] = {
     # -- stylesheets --------------------------------------------------------
     'css.url-unresolved': '{count} {count:odwołania url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać} i zostały bez zmian',
     'css.remote-import-removed': 'usunięto {count} {count:regułę @import pobierającą arkusz stylów z sieci|reguły @import pobierające arkusz stylów z sieci|reguł @import pobierających arkusz stylów z sieci}',
+    'xhtml.remote-import-removed': 'usunięto z elementu <style> {count} {count:regułę @import pobierającą arkusz stylów z sieci|reguły @import pobierające arkusz stylów z sieci|reguł @import pobierających arkusz stylów z sieci}',
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
@@ -448,6 +450,8 @@ DETAILS: dict[str, str] = {
         "The file each link names is present; the anchor inside it is not. Keeping the fragment leaves an error nobody can act on, so the link now lands at the top of the right document instead of nowhere.",
     "css.remote-import-removed":
         "EPUB 3 allows one kind of remote resource — a font declared on its manifest item — and a stylesheet is not one. The font-family declarations are untouched, so the book falls back exactly as it would have.",
+    "xhtml.remote-import-removed":
+        "EPUB 3 allows one kind of remote resource — a font declared on its manifest item — and a stylesheet is not one. The font-family declarations are untouched, so the book falls back exactly as it would have.",
     "xhtml.dead-reference-neutralised":
         "{unlinked} link(s) unlinked, {removed} element(s) removed",
     "xhtml.doctype-kept":
@@ -576,6 +580,8 @@ DETAILS_PL: dict[str, str] = {
     "xhtml.dead-fragment-dropped":
         "Plik, który wskazuje każdy z tych odnośników, jest na miejscu; kotwicy w nim nie ma. Zostawienie fragmentu to błąd, z którym nikt nic nie zrobi, więc odnośnik prowadzi teraz na początek właściwego dokumentu, a nie donikąd.",
     "css.remote-import-removed":
+        "EPUB 3 dopuszcza jeden rodzaj zasobu zdalnego — font zadeklarowany przy pozycji manifestu — a arkusz stylów nim nie jest. Deklaracje font-family zostają nietknięte, więc książka podstawia kroje dokładnie tak, jak podstawiłaby wcześniej.",
+    "xhtml.remote-import-removed":
         "EPUB 3 dopuszcza jeden rodzaj zasobu zdalnego — font zadeklarowany przy pozycji manifestu — a arkusz stylów nim nie jest. Deklaracje font-family zostają nietknięte, więc książka podstawia kroje dokładnie tak, jak podstawiłaby wcześniej.",
     "xhtml.image-paragraph-centred":
         "Reguły tekstu bieżącego przesuwały grafikę; żadna reguła nie celowała w te akapity z osobna, więc nic, co wybrał wydawca, nie zostało nadpisane.",
