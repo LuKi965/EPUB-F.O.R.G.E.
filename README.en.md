@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.6` · alpha · 879 tests · Windows / Linux / macOS
+`0.2.7` · alpha · 920 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Development](CONTRIBUTING.md) · [Changes](CHANGELOG.md)
@@ -136,13 +136,14 @@ repeat in every chapter, and they stay.
 
 Things worth knowing before rather than after:
 
-- **Alpha.** One of the three entry conditions is still unmet, and it is
-  closer than it looks: the 64-book corpus is green across two releases (0.2.3
-  and 0.2.4) where the condition asks for three — **and** for coverage of the
-  generator families, which nobody had counted. `epubforge inventory <folder>
-  --json inventory.json` reports it. The other two — no known defects that lose
-  data silently, and a translated report — have been met since 0.2.2 and 0.2.5
-  respectively.
+- **Alpha.** One of the three entry conditions is still unmet. Coverage of the
+  generator families is now counted (`epubforge inventory <folder> --json
+  inventory.json`) and stands at **eight of ten**: `word` and `pdf-or-ocr` need
+  one book each, `pathological` is one command away. The corpus metrics are
+  **not** green across three releases — 0.2.6 re-run over the full 87 books
+  produced fourteen EPUBCheck errors (fixed in 0.2.7), so the count starts
+  again. The other two — no known defects that lose data silently, and a
+  translated report — have been met since 0.2.2 and 0.2.5 respectively.
 - **The report follows the language setting.** The window, the JSON file and
   the console all speak whatever the interface does; on the command line
   `--report-language` decides. The English `message` stays in the JSON either

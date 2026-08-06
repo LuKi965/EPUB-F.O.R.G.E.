@@ -1,0 +1,19 @@
+# The corpus signatures are written on Windows and read here, and git was
+# showing all sixty lines of a file as changed when one number had moved.
+# A diff that says "everything changed" is a diff nobody reads, which is the
+# opposite of what a signature is for.
+*.json text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+
+# Books are archives. Nothing may touch a byte inside them — a corpus whose
+# files git has "helpfully" corrected is a corpus measuring the wrong thing.
+*.epub binary
+*.cbz binary
+*.cbr binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ttf binary
+*.otf binary

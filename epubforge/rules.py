@@ -91,6 +91,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
     # -- stylesheets --------------------------------------------------------
     "css.url-unresolved": "{count} url() reference(s) could not be resolved and were left unchanged",
+    "css.remote-import-removed": "{count} @import rule(s) fetching a stylesheet over the network were removed",
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
@@ -114,6 +115,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.body-added": "a missing <body> element was added",
     "xhtml.dead-reference-kept": "{count} reference(s) point at files not in the book and were left unchanged",
     "xhtml.dead-reference-neutralised": "{count} reference(s) to files absent from the book were neutralised",
+    "xhtml.dead-fragment-dropped": "{count} link(s) pointed at an anchor no document defines; the fragment was dropped",
     "xhtml.presentational-markup-converted": "legacy presentational markup was converted to CSS",
     "xhtml.image-paragraph-centred": "{count} image-only paragraph(s) were centred and their text indent removed",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
@@ -251,6 +253,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
     # -- stylesheets --------------------------------------------------------
     'css.url-unresolved': '{count} {count:odwołania url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać} i zostały bez zmian',
+    'css.remote-import-removed': 'usunięto {count} {count:regułę @import pobierającą arkusz stylów z sieci|reguły @import pobierające arkusz stylów z sieci|reguł @import pobierających arkusz stylów z sieci}',
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
@@ -274,6 +277,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.body-added': 'dodano brakujący element <body>',
     'xhtml.dead-reference-kept': '{count} {count:odwołanie wskazuje|odwołania wskazują|odwołań wskazuje} na pliki, których w książce nie ma; zostawiono je bez zmian',
     'xhtml.dead-reference-neutralised': 'unieszkodliwiono {count} {count:odwołanie|odwołania|odwołań} do plików nieobecnych w książce',
+    'xhtml.dead-fragment-dropped': '{count} {count:odnośnik wskazywał|odnośniki wskazywały|odnośników wskazywało} na kotwicę, której żaden dokument nie definiuje; usunięto fragment',
     'xhtml.presentational-markup-converted': 'stare znaczniki prezentacyjne zamieniono na CSS',
     'xhtml.image-paragraph-centred': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} i usunięto z nich wcięcie',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
@@ -440,6 +444,10 @@ DETAILS: dict[str, str] = {
         "No stylesheet rule and no attribute sized this image, so a reader would show it at its own pixel dimensions.",
     "xhtml.dead-reference-kept":
         "These are source defects and remain conformance errors. Use --strict to neutralise them.",
+    "xhtml.dead-fragment-dropped":
+        "The file each link names is present; the anchor inside it is not. Keeping the fragment leaves an error nobody can act on, so the link now lands at the top of the right document instead of nowhere.",
+    "css.remote-import-removed":
+        "EPUB 3 allows one kind of remote resource — a font declared on its manifest item — and a stylesheet is not one. The font-family declarations are untouched, so the book falls back exactly as it would have.",
     "xhtml.dead-reference-neutralised":
         "{unlinked} link(s) unlinked, {removed} element(s) removed",
     "xhtml.doctype-kept":
@@ -565,6 +573,10 @@ DETAILS_PL: dict[str, str] = {
         "Objęte bloki płyną teraz razem ze stroną, zamiast być do niej przypięte.",
     "xhtml.dead-reference-kept":
         "To są defekty źródła i pozostają błędami zgodności. Użyj --strict, żeby je unieszkodliwić.",
+    "xhtml.dead-fragment-dropped":
+        "Plik, który wskazuje każdy z tych odnośników, jest na miejscu; kotwicy w nim nie ma. Zostawienie fragmentu to błąd, z którym nikt nic nie zrobi, więc odnośnik prowadzi teraz na początek właściwego dokumentu, a nie donikąd.",
+    "css.remote-import-removed":
+        "EPUB 3 dopuszcza jeden rodzaj zasobu zdalnego — font zadeklarowany przy pozycji manifestu — a arkusz stylów nim nie jest. Deklaracje font-family zostają nietknięte, więc książka podstawia kroje dokładnie tak, jak podstawiłaby wcześniej.",
     "xhtml.image-paragraph-centred":
         "Reguły tekstu bieżącego przesuwały grafikę; żadna reguła nie celowała w te akapity z osobna, więc nic, co wybrał wydawca, nie zostało nadpisane.",
     "xhtml.image-paragraph-unindented":

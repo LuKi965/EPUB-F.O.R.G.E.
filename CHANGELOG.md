@@ -23,7 +23,103 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
-## Unreleased
+## 0.2.7 — alpha — 2026-08-06
+
+**The first conversions the corpus ever held broke three things, and the
+detector could not see three families it was asked to count.** A plain release:
+the InkBOOK fix needs a build to be confirmed on the device, and the owner needs
+one whose family numbers can be trusted before going out to fill the gaps.
+
+### At a glance
+
+| | |
+|---|---|
+| Seventeen files made for six empty families | seven of them landed nowhere |
+| `fixed_layout` reads a declaration a comic never makes | so three comics counted as zero |
+| The first comic rule called Pan Tadeusz a comic | a share of documents measures how a book was split |
+| Five MOBI back-conversions, one error each | `value` on a bullet in `<ul>` |
+| A stylesheet fetched from Google, in a Word family book | EPUB 3 allows one remote resource, and it is a font |
+| A link to an anchor no document defines | what a PDF reflow leaves in a page-number strip |
+| `rendition:` used and never declared | the InkBOOK case, closed on the device |
+
+**Fixed:** three conformance defects that only converted books produce, and
+three family detectors that could not see the books made for them. **New:**
+`strip_remote_imports()`, `xhtml.dead-fragment-dropped`,
+`css.remote-import-removed`, and a `.gitattributes` so a signature diff shows
+what changed.
+
+### Everything, by subject
+
+### Three defects the corpus found the day it first held conversions
+
+Seventeen files arrived, made specifically to fill six empty families. Seven of
+them came out of the rebuild with an EPUBCheck error the previous seventy books
+had never produced — one error each, in `preserve` and in `strict`, none in
+`minimal`:
+
+| what | where it came from | how many |
+|---|---|---|
+| `value` on a bullet in `<ul>` | Calibre's MOBI back-conversion | 5 |
+| a link to an anchor no document defines | Calibre's PDF reflow | 1 |
+| `@import url(https://…)` — a stylesheet fetched from Google | Google Docs export | 1 |
+
+None is our regression. Each sits in the source and survived because the
+rebuild had no rule for it, which is exactly the failure the provenance
+families exist to expose. The book that carried five of them went from **nine**
+source errors to one; now it goes to zero.
+
+* HTML 5 allows `value` on a list item only inside `<ol>`, where it sets the
+  number. Inside `<ul>` it numbers nothing and no renderer has ever drawn it, so
+  it goes — and stays where it means something.
+* The file each dangling link names is present; the anchor inside it is not.
+  What a PDF conversion leaves when it writes a page-number strip and gives only
+  some pages an id. The fragment goes and the link lands at the top of the right
+  document instead of nowhere.
+* EPUB 3 permits one remote resource — a font declared on its manifest item —
+  and a stylesheet is not one. The `font-family` declarations are untouched, so
+  the book falls back exactly as it would have. No e-reader was going to fetch
+  that font from Google anyway, and one that tried would be reporting the
+  owner's reading to a third party.
+
+### Six empty families, and a detector that could not see three of them
+
+Of the seventeen new files, **seven landed nowhere**. That was a fault in the
+measurement, not in the effort: a coverage number reading zero for a family
+somebody has just filled sends them out to do the work twice.
+
+* **`pdf-or-ocr`** — Calibre's PDF input rewrites `pdftohtml`'s class names to
+  its own, so `ft0` is gone. It writes `PDF Reflow conversion` into a
+  `<meta name="generator">` and names the pictures it lifts `index-<page>_<n>`.
+* **`word`** — the family is "Word / Google Docs" and only Word had patterns.
+  `kix` is what Google calls the editor inside Docs, and it numbers every list
+  it exports with it.
+* **`fixed-layout`** — a comic converted from CBZ declares nothing about layout:
+  EPUB 2, reflowable, one `<img>` per document. `fixed_layout` reads the
+  declaration, so three comics counted as zero.
+
+The first rule written for the comics counted image pages as a *share* of the
+spine, and called Pan Tadeusz a comic: that edition packs its whole text into
+three documents and its three engraved plates into three more, which is 50%. A
+share of documents measures how a book was split into files. What separates a
+comic from an illustrated novel is that a comic has no prose at all, and that is
+now measured directly — eighteen books in reach, three comics at **one**
+character per page, the thinnest ordinary book at 2686.
+
+Coverage after the fixes: eight families of ten. `word` and `pdf-or-ocr` are one
+book short each; `pathological` is one command away
+(`python tools/make_edge_cases.py`).
+
+### The run ledger says 0.2.6 was not green, because it was not
+
+The ledger held one 0.2.6 entry, clean, over seventy books. The same release
+over eighty-seven found fourteen EPUBCheck errors. Both are recorded, and the
+streak is empty — the entry conditions for alpha ask for three consecutive
+green releases across the corpus, and that count starts again from 0.2.7.
+
+A `.gitattributes` also arrives, because sixteen signature files written on
+Windows showed all sixty of their lines as changed when one number had moved. A
+diff that says "everything changed" is a diff nobody reads, which is the
+opposite of what a signature is for.
 
 ### The InkBOOK case: a prefix we used and did not declare
 

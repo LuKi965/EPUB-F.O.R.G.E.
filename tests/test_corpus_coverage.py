@@ -41,6 +41,9 @@ def book(**fields) -> Book:
         "documents": 20,
         "broken_hyphens": 0,
         "legal_page": False,
+        "image_pages": 0,
+        "spine_documents": 20,
+        "spine_text_characters": 200_000,
     }
     entry = Book("0" * 16, 1.0)
     entry.fields.update(base | fields)
@@ -124,6 +127,34 @@ class TestAFamilyIsWhatTheBookWasMadeBy:
         """Memory and performance failures surface here and nowhere else."""
         assert "pathological" in families(book(**fields).fields)
 
+    def test_a_comic_is_recognised_by_what_it_holds(self):
+        """A CBZ converted by Calibre declares nothing about layout: EPUB 2,
+        reflowable, one `<img>` per document. Three comics on the owner's disk
+        counted as zero because `fixed_layout` reads the declaration, and the
+        declaration was never made."""
+        found = families(
+            book(image_pages=5, spine_documents=5, spine_text_characters=9).fields
+        )
+        assert "fixed-layout" in found
+
+    def test_an_illustrated_novel_is_not_a_comic(self):
+        """The rule tried first counted image pages as a share of the spine, and
+        called Pan Tadeusz a comic: that edition packs its whole text into three
+        documents and its engraved plates into three more, which is 50%. What
+        separates the two is that a comic has no prose in it at all."""
+        found = families(
+            book(image_pages=3, spine_documents=6, spine_text_characters=232_075).fields
+        )
+        assert "fixed-layout" not in found
+
+    def test_a_cover_alone_does_not_make_a_picture_book(self):
+        """Every ordinary book has exactly one image-only page, and it is the
+        cover. A two-page pamphlet must not trip the floor."""
+        found = families(
+            book(image_pages=1, spine_documents=2, spine_text_characters=20).fields
+        )
+        assert "fixed-layout" not in found
+
     def test_an_unreadable_book_belongs_to_nothing(self):
         entry = Book("0" * 16, 1.0)
         entry.fields["error"] = "not an EPUB"
@@ -192,6 +223,46 @@ class TestTheCommittedCorpusIsMeasuredForReal:
         short = [name for name, row in rows.items() if row["short"]]
         assert "pdf-or-ocr" in short
         assert len(short) >= 8
+
+
+class TestTheToolsThatLeaveNoNameBehind:
+    """Two conversions the signatures could not see, and what gives them away.
+
+    Seventeen files were made specifically to fill six empty families, and seven
+    of them landed nowhere: the detector had no pattern for what made them. That
+    is a fault in the measurement, not in the effort — a coverage number that
+    reads zero for a family somebody has just filled sends them out to do the
+    work twice.
+    """
+
+    def test_calibres_pdf_input_says_so_in_a_meta_element(self):
+        """It rewrites pdftohtml's class names to its own, so `ft0` is gone —
+        but it writes `PDF Reflow conversion` into every document it produces,
+        and names the pictures it lifts `index-<page>_<n>`."""
+        from epubforge.inventory import GENERATOR_SIGNATURES
+        import re
+
+        patterns = GENERATOR_SIGNATURES["pdf-or-ocr"]
+        for material in (
+            '<meta content="PDF Reflow conversion" name="generator"/>',
+            '<item id="id7" href="index-1_1.jpg" media-type="image/jpeg"/>',
+        ):
+            assert any(re.search(p, material) for p in patterns), material
+
+    def test_google_docs_numbers_its_lists_with_its_own_editors_name(self):
+        """`kix` is what Google calls the editor inside Docs. The roadmap puts
+        Word and Google Docs in one family; only Word had any patterns."""
+        from epubforge.inventory import GENERATOR_SIGNATURES
+        import re
+
+        patterns = GENERATOR_SIGNATURES["word"]
+        for material in (
+            "ol.lst-kix_list_7-0{list-style-type:none}",
+            "@import url(https://themes.googleusercontent.com/fonts/css?kit=abc);",
+            '<span id="docs-internal-guid-1234">',
+            "<p class=MsoNormal>",
+        ):
+            assert any(re.search(p, material) for p in patterns), material
 
 
 class TestTheInventoryAndThePipelineAgreeOnAWatermark:
