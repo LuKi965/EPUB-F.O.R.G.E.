@@ -40,6 +40,7 @@ def book(**fields) -> Book:
         "largest_image_mb": 0.2,
         "documents": 20,
         "broken_hyphens": 0,
+        "legal_page": False,
     }
     entry = Book("0" * 16, 1.0)
     entry.fields.update(base | fields)
@@ -60,6 +61,7 @@ class TestAFamilyIsWhatTheBookWasMadeBy:
             ({"version": "2.0"}, "epub2"),
             ({"fixed_layout": True}, "fixed-layout"),
             ({"watermarked": True, "language": "pl"}, "polish-bookshop"),
+            ({"legal_page": True, "language": "pl"}, "polish-bookshop"),
         ],
     )
     def test_each_family_is_recognised(self, fields, expected):
@@ -88,10 +90,24 @@ class TestAFamilyIsWhatTheBookWasMadeBy:
         assert "pdf-or-ocr" not in families(book(broken_hyphens=0).fields)
         assert "pdf-or-ocr" not in families(book(broken_hyphens=PDF_HYPHEN_FLOOR - 1).fields)
 
+    def test_the_legal_page_counts_as_well_as_the_watermark(self):
+        """The roadmap names both — "znak wodny, strony prawne" — and only the
+        watermark was implemented. On the owner's shelf that found 4 books out
+        of 32 that were plainly bought, and a coverage number saying a family
+        is empty when it is nearly full sends somebody out to buy books they
+        already own."""
+        assert "polish-bookshop" in families(book(legal_page=True, language="pl").fields)
+        assert "polish-bookshop" not in families(book(language="pl").fields)
+
+    def test_a_book_in_another_language_is_not_a_polish_bookshop(self):
+        assert "polish-bookshop" not in families(book(legal_page=True, language="en").fields)
+
     def test_gutenberg_is_not_a_polish_bookshop(self):
         """Its licence page reads as a purchase notice to the watermark
         detector, and nobody bought that book."""
-        found = families(book(generators=["gutenberg"], watermarked=True, language="pl").fields)
+        found = families(
+            book(generators=["gutenberg"], watermarked=True, legal_page=True, language="pl").fields
+        )
         assert "polish-bookshop" not in found
         assert "public-domain" in found
 
@@ -141,7 +157,7 @@ class TestTheGapIsCountedNotRemembered:
         books = []
         for name, (want, _) in CORPUS_FAMILIES.items():
             trait = {
-                "polish-bookshop": {"watermarked": True, "language": "pl"},
+                "polish-bookshop": {"legal_page": True, "language": "pl"},
                 "indesign-vellum": {"generators": ["indesign"]},
                 "calibre": {"generators": ["calibre"]},
                 "word": {"generators": ["word"]},

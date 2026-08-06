@@ -1,5 +1,6 @@
 {
   "source": "sha256:315aaaf10557fd6a1453075c209125d36dc47c03213072bc1af31e7a9bb671a0",
+  "version": "0.2.5",
   "preserve": {
     "written": true,
     "report": {
@@ -12,13 +13,18 @@
       "a11y.metadata-added": 1,
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
+      "css.font-stack-generic-missing": 1,
       "nav.contents-page-kept": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "reader.manifest-type-corrected": 5,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 33
+      "xhtml.entities-rewritten": 33,
+      "xhtml.image-paragraph-kept": 27,
+      "xhtml.inline-promoted": 1,
+      "xhtml.watermark-consolidated": 1
     },
     "output": "sha256:040abdd8f4d40dbc03d6f7103b12d78fac37ab488eb3b266aab2d069657f61e4",
     "text_characters": 548414,
@@ -43,13 +49,18 @@
       "a11y.metadata-added": 1,
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
+      "css.font-stack-generic-missing": 1,
       "nav.contents-page-kept": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "reader.manifest-type-corrected": 5,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 33
+      "xhtml.entities-rewritten": 33,
+      "xhtml.image-paragraph-kept": 27,
+      "xhtml.inline-promoted": 1,
+      "xhtml.watermark-consolidated": 1
     },
     "output": "sha256:040abdd8f4d40dbc03d6f7103b12d78fac37ab488eb3b266aab2d069657f61e4",
     "text_characters": 548414,

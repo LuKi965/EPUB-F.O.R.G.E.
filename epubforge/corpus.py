@@ -174,10 +174,53 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
 
 
 def signature(book: pathlib.Path, scratch: pathlib.Path) -> dict:
-    record: dict = {"source": digest(book.read_bytes())}
+    """One book's measurements, stamped with the release that took them.
+
+    The stamp is not decoration. Entry into alpha asks for the corpus to be
+    green "across three consecutive releases", and until now a signature said
+    nothing about which release produced it — so the condition could only be
+    answered from memory, which is how the family count came to be wrong. A
+    partial run stamps only the books it touched, and the rest keep the release
+    they were last measured on: mixed is the truth, and it is now visible.
+    """
+    from . import __version__
+
+    record: dict = {"source": digest(book.read_bytes()), "version": __version__}
     for mode in MODES:
         record[mode] = _measure(book, scratch / f"{mode}.epub", mode)
     return record
+
+
+def releases(records: "list[dict]") -> "dict[str, int]":
+    """How many books were last measured on each release."""
+    counted: Counter = Counter(record.get("version", "?") for record in records)
+    return dict(sorted(counted.items()))
+
+
+def green_streak(records: "list[dict]") -> "list[str]":
+    """Releases on which every measured book came out clean, newest last.
+
+    A release counts only if nothing measured on it lost text, failed to write,
+    or drew an EPUBCheck error. It says nothing about the books measured on a
+    *different* release — that is what makes a partial run visible instead of
+    silently topping up a streak it did not earn.
+    """
+    by_release: dict[str, bool] = {}
+    for record in records:
+        version = record.get("version", "?")
+        clean = True
+        for mode in MODES:
+            measured = record.get(mode) or {}
+            check = measured.get("epubcheck") or {}
+            if (
+                not measured.get("written")
+                or not measured.get("text_invariant", True)
+                or check.get("errors")
+                or check.get("fatal")
+            ):
+                clean = False
+        by_release[version] = by_release.get(version, True) and clean
+    return [version for version, clean in sorted(by_release.items()) if clean]
 
 
 def _rule_changes(recorded: dict, measured: dict) -> str:

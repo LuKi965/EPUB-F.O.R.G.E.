@@ -1,5 +1,6 @@
 {
   "source": "sha256:a8cf2189a9b874be0b3eb6fc8a1b001db72f3f134a9e572bebf6614f217a69a1",
+  "version": "0.2.5",
   "preserve": {
     "written": true,
     "report": {
@@ -12,8 +13,13 @@
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.manifest-type-corrected": 8,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 72
+      "xhtml.entities-rewritten": 72,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.presentational-markup-converted": 2,
+      "xhtml.watermark-consolidated": 1
     },
     "output": "sha256:f4fb9d54f212df0e462cb880378f19bae53aa7ce12ab6058d5d98963c4e1a283",
     "text_characters": 710954,
@@ -38,8 +44,13 @@
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.manifest-type-corrected": 8,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 72
+      "xhtml.entities-rewritten": 72,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.presentational-markup-converted": 2,
+      "xhtml.watermark-consolidated": 1
     },
     "output": "sha256:f4fb9d54f212df0e462cb880378f19bae53aa7ce12ab6058d5d98963c4e1a283",
     "text_characters": 710954,

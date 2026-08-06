@@ -1,5 +1,6 @@
 {
   "source": "sha256:2cecf1f2160a8b84d272f492d436124b8a5b2593806d1956b46db013bd10e2ab",
+  "version": "0.2.5",
   "preserve": {
     "written": true,
     "report": {
@@ -11,11 +12,17 @@
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.placeholder-alt": 1,
+      "css.font-stack-generic-missing": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.manifest-type-corrected": 3,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 79
+      "xhtml.cover-described": 1,
+      "xhtml.entities-rewritten": 79,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.watermark-consolidated": 1
     },
     "output": "sha256:69652be68191a12f0b1aad1fe551e9039039f2870252921ecffe0dfce319ee4e",
     "text_characters": 1203059,
@@ -39,11 +46,17 @@
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.placeholder-alt": 1,
+      "css.font-stack-generic-missing": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
+      "reader.manifest-type-corrected": 3,
+      "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
-      "xhtml.entities-rewritten": 79
+      "xhtml.cover-described": 1,
+      "xhtml.entities-rewritten": 79,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.watermark-consolidated": 1
     },
     "output": "sha256:69652be68191a12f0b1aad1fe551e9039039f2870252921ecffe0dfce319ee4e",
     "text_characters": 1203059,

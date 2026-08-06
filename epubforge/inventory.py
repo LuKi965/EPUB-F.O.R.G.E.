@@ -90,6 +90,17 @@ _CONJUNCTION_BOUND = re.compile(r"(?i)(?<![^\s(„«])[aiouwz] ")
 #: never leave a hyphen hanging at the end of a line.
 _BROKEN_HYPHEN = re.compile(r"(?i)[a-ząćęłńóśźż]- (?=[a-ząćęłńóśźż])")
 
+#: The publisher's legal page, which is the half of "bookshop EPUB" that a file
+#: without a visible watermark still has. An ISBN is assigned to a commercial
+#: edition and to nothing else here; the rights boilerplate catches editions
+#: that carry no ISBN in the package.
+_ISBN = re.compile(r"(?i)\bisbn\b[^0-9]{0,12}(?:97[89][- ]?)?(?:[0-9][- ]?){9}[0-9Xx]")
+_RIGHTS = re.compile(
+    r"(?i)(wszelkie prawa zastrzeżone|all rights reserved"
+    r"|żadna część (?:tej )?(?:książki|publikacji)"
+    r"|no part of this (?:book|publication))"
+)
+
 _BLOCK_TAGS = {"p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote"}
 
 
@@ -195,12 +206,16 @@ def measure(path: pathlib.Path) -> Book:
         for name, patterns in GENERATOR_SIGNATURES.items()
         if any(re.search(pattern, material) for pattern in patterns)
     )
-    # A visible watermark is what makes a bookshop file a bookshop file, and it
-    # is the family the roadmap wants most of. Nothing else here can stand in
-    # for it: shop EPUBs carry no generator trace of their own.
+    # A shop EPUB carries no generator trace of its own, so the family has to be
+    # recognised by what a publisher puts in a book and nobody else does. The
+    # roadmap names two things and both are measured: a visible watermark, and
+    # the legal page — ISBN, imprint, "wszelkie prawa zastrzeżone".
     book.fields["watermarked"] = any(
         watermark.is_visible_notice(fragment)
         for fragment in re.findall(r">([^<>]{20,400})<", markup)
+    )
+    book.fields["legal_page"] = bool(_ISBN.search(material)) or bool(
+        _RIGHTS.search(markup)
     )
 
     # --- damage ------------------------------------------------------------
@@ -348,12 +363,17 @@ def families(fields: dict) -> set[str]:
     generators = set(fields.get("generators") or ())
     found = set()
     if (
-        fields.get("watermarked")
+        (fields.get("watermarked") or fields.get("legal_page"))
         and str(fields.get("language", "")).lower().startswith("pl")
         and "gutenberg" not in generators
     ):
-        # Gutenberg's licence page reads as a purchase notice to the watermark
-        # detector, and it is not one: nobody bought that book.
+        # Either half of the roadmap's definition counts. Requiring the
+        # watermark alone found four books out of thirty-two that were plainly
+        # bought from a shop — a coverage number that says a family is empty
+        # when it is nearly full sends somebody out to buy books they own.
+        #
+        # Gutenberg is excluded by name because its licence page reads as a
+        # purchase notice to both detectors, and nobody bought that book.
         found.add("polish-bookshop")
     if generators & {"indesign", "vellum"}:
         found.add("indesign-vellum")

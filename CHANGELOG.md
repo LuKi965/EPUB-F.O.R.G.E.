@@ -23,6 +23,40 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## Unreleased
+
+### The corpus says which release measured it
+
+Entry into alpha asks for the corpus to be green "across three consecutive
+releases", and a signature said nothing about which release produced it — so
+the condition could only be answered from memory. That is the same shape as the
+family count, which was answered from memory and was wrong.
+
+Every signature carries the release now. A partial run stamps only the books it
+touched and the rest keep the release they were last measured on, so a mixed
+corpus reads as mixed instead of quietly topping up a streak it did not earn.
+`releases()` and `green_streak()` report it.
+
+The owner's first partial run, on 0.2.5: **38 books, zero EPUBCheck errors,
+zero fatal, no text lost, nothing unwritten.** Nine of them are books the corpus
+had not seen before. All 29 books measured on both 0.2.4 and 0.2.5 gained rule
+identifiers and lost none — the shape you would expect from naming the 57
+findings that had none, and the reason to record the distribution at all.
+
+### Half a definition counted a family as empty
+
+The roadmap says the bookshop family is recognised by "znak wodny, **strony
+prawne**" and only the watermark was implemented. Against a real shelf that
+found **4 books out of 32** that were plainly bought from a shop: 28 commercial
+Polish EPUBs with no visible watermark fell through, and the coverage report
+called the family short. A number that says a family is empty when it is nearly
+full sends someone out to buy books they already own — worse than no number.
+
+The legal page is measured now: an ISBN, or the rights boilerplate for editions
+that carry none. Checked in both directions — it fires on a commercial edition
+and on none of the six Project Gutenberg books, whose licence page reads as a
+purchase notice to both detectors and which are excluded by name.
+
 ## 0.2.5 — alpha — 2026-08-06
 
 **A finding's sentence now lives in exactly one place, and the report speaks
