@@ -192,3 +192,76 @@ class TestTheCommittedCorpusIsMeasuredForReal:
         short = [name for name, row in rows.items() if row["short"]]
         assert "pdf-or-ocr" in short
         assert len(short) >= 8
+
+
+class TestTheInventoryAndThePipelineAgreeOnAWatermark:
+    """They did not, and the disagreement was invisible until a real shelf.
+
+    The inventory looked for a visible notice and recorded the answer in a
+    field called `watermarked`. Against 32 books bought from Polish shops it
+    said "yes" about **four** — while the pipeline, on the very same books,
+    found and consolidated a marker in **29**. Polish shops watermark with an
+    opaque token hidden by an inline style, not with a sentence, and the
+    inventory could not see the kind of watermark that is actually used.
+
+    Two implementations of one idea, and the shorter one was wrong. There is
+    one now, in `watermark.py`, and this holds them to it.
+    """
+
+    @staticmethod
+    def _pipeline_markers(path) -> int:
+        import tempfile
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        with tempfile.TemporaryDirectory() as tmp:
+            report = rebuild(str(path), f"{tmp}/out.epub", Policy.preset("preserve")).report
+        for finding in report.findings:
+            if finding.rule == "xhtml.watermark-consolidated":
+                return finding.values.get("count", 0)
+        return 0
+
+    def test_a_marker_the_pipeline_consolidates_is_a_marker_the_inventory_counts(self):
+        """The check that would have caught it: run both over one book and
+        compare. Any book carrying markers will do — the fixture carries some
+        by construction."""
+        import pathlib
+        import tempfile
+
+        from tests.public_corpus import build_all
+
+        with tempfile.TemporaryDirectory() as tmp:
+            books = build_all(pathlib.Path(tmp))
+            watermarked = [
+                book for book in books
+                if measure(book).fields["watermark_markers"] or self._pipeline_markers(book)
+            ]
+            assert watermarked, "no fixture carries a watermark marker any more"
+            for book in watermarked:
+                counted = measure(book).fields["watermark_markers"]
+                consolidated = self._pipeline_markers(book)
+                assert counted >= consolidated, (book.name, counted, consolidated)
+
+    def test_a_hidden_marker_counts_even_with_no_notice_anywhere(self):
+        """The exact case the old detector missed: a token, hidden by an inline
+        style, and not one readable sentence in the book."""
+        from epubforge import watermark
+
+        markup = '<p style="font-size:0">a1b2c3d4e5f6g7h8</p>'
+        assert watermark.marks(markup) == (0, 1)
+
+    def test_a_readable_notice_counts_wherever_it_sits(self):
+        """Styled or not — a notice is defined by what it says."""
+        from epubforge import watermark
+
+        plain = "<p>Kopia dla: jan@example.com</p>"
+        styled = '<p style="font-size:0">Kopia dla: jan@example.com</p>'
+        assert watermark.marks(plain)[0] == 1
+        # Styled, but a sentence the buyer is meant to read is never a token.
+        assert watermark.marks(styled) == (1, 0)
+
+    def test_ordinary_prose_is_neither(self):
+        from epubforge import watermark
+
+        assert watermark.marks("<p>Rozdział pierwszy, w którym nic się nie dzieje.</p>") == (0, 0)

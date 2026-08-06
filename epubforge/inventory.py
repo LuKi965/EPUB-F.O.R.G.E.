@@ -210,10 +210,12 @@ def measure(path: pathlib.Path) -> Book:
     # recognised by what a publisher puts in a book and nobody else does. The
     # roadmap names two things and both are measured: a visible watermark, and
     # the legal page — ISBN, imprint, "wszelkie prawa zastrzeżone".
-    book.fields["watermarked"] = any(
-        watermark.is_visible_notice(fragment)
-        for fragment in re.findall(r">([^<>]{20,400})<", markup)
-    )
+    notices, markers = watermark.marks(markup)
+    book.fields["watermark_notices"] = notices
+    book.fields["watermark_markers"] = markers
+    # Kept as a field because a family predicate reads it, but it now means what
+    # its name says: the book carries a watermark of either kind.
+    book.fields["watermarked"] = bool(notices or markers)
     book.fields["legal_page"] = bool(_ISBN.search(material)) or bool(
         _RIGHTS.search(markup)
     )

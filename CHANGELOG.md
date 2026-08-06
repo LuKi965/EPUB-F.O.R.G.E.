@@ -43,6 +43,29 @@ had not seen before. All 29 books measured on both 0.2.4 and 0.2.5 gained rule
 identifiers and lost none — the shape you would expect from naming the 57
 findings that had none, and the reason to record the distribution at all.
 
+### The inventory could not see the kind of watermark shops actually use
+
+The owner said every book he buys is watermarked. The inventory said four out
+of thirty-two. He was right and the inventory was wrong, and the proof was
+already in the same archive: on those same books the **pipeline** found and
+consolidated a marker in **twenty-nine** of them.
+
+Polish shops watermark with an opaque token hidden by an inline style, not with
+a sentence. The inventory looked only for a readable notice and recorded the
+answer in a field called `watermarked` — a name that claimed the whole idea
+while measuring a third of it.
+
+The cause is the familiar one: two implementations of one concept. `watermark.marks()`
+is the only one now, and both the inventory and the content stage go through
+it. `tests/test_corpus_coverage.py` runs both over the same book and fails if
+they disagree, which is the check that would have caught this without a shelf
+of real books.
+
+One bug found on the way: the pattern made the style attribute optional inside
+the tag, so it matched the empty string against tags that *did* carry one and
+scored every marker as unstyled — which is to say, as nothing. The attributes
+are captured whole and the style picked out of them afterwards.
+
 ### Half a definition counted a family as empty
 
 The roadmap says the bookshop family is recognised by "znak wodny, **strony

@@ -105,6 +105,48 @@ def is_visible_notice(text: str) -> bool:
     return any(phrase in lowered for phrase in _NOTICE_PHRASES)
 
 
+def marks(markup: str) -> tuple[int, int]:
+    """How many watermark notices and opaque markers a document carries.
+
+    One definition, used by the pipeline and by the inventory both. The
+    inventory had its own, narrower one — it looked for visible notices only
+    and recorded the answer in a field called `watermarked`, which said "no"
+    about 28 books out of 32 that carried a marker the pipeline could see and
+    consolidate. Two implementations of one idea, and the shorter one was
+    wrong; measuring a thing twice is how a coverage report comes to disagree
+    with the program it is reporting on.
+
+    Text-level rather than parsed, because the inventory has the markup as a
+    string and refuses to build a second document tree for a count.
+    """
+    notices = markers = 0
+    for match in _LEAF.finditer(markup):
+        text = (match.group("text") or "").strip()
+        if not text:
+            continue
+        # A notice is defined by what it says, so it counts wherever it sits —
+        # styled or not. A marker is defined by being unreadable, so it needs
+        # the style. Notices are checked first, exactly as the pipeline does:
+        # a styled sentence a buyer is meant to read is not an opaque token.
+        if is_visible_notice(text):
+            notices += 1
+            continue
+        found = _STYLE.search(match.group("attributes") or "")
+        style = found.group(1) if found else ""
+        if is_token(text) and is_negligibly_styled(style):
+            markers += 1
+    return notices, markers
+
+
+#: An element carrying text and no child elements — the shape both a marker and
+#: a notice take. The attributes are captured whole and `style` picked out of
+#: them afterwards: an optional group inside the tag pattern matches the empty
+#: string against a tag that *does* carry a style, which silently scored every
+#: marker as unstyled and therefore as nothing at all.
+_LEAF = re.compile(r"<[a-zA-Z][a-zA-Z0-9]*(?P<attributes>[^>]*)>(?P<text>[^<>]{1,400})</")
+_STYLE = re.compile(r"\bstyle=\"([^\"]*)\"")
+
+
 def personal_data(text: str) -> list[str]:
     """Any e-mail addresses carried in a watermark notice."""
     return _EMAIL_RE.findall(text)
