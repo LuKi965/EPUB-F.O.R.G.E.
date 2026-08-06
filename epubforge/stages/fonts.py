@@ -83,46 +83,26 @@ class FontStage(Stage):
                 self.note(
                     ctx,
                     Level.FIX,
-                    f"corrected font media type to {sniffed} (was {resource.media_type})",
-                    rule="font.type-corrected",
+                    "font.type-corrected",
                     values={"actual": sniffed, "declared": resource.media_type},
                     location=resource.path,
                 )
                 resource.media_type = sniffed
             elif not sniffed and resource.is_font:
-                self.note(
-                    ctx,
-                    Level.WARN,
-                    "font has no recognisable signature; it may still be obfuscated or corrupt", rule="font.unrecognised",
-                    location=resource.path,
-                )
+                self.note(ctx, Level.WARN, "font.unrecognised", location=resource.path)
 
     def _handle_encrypted(self, ctx: Context) -> None:
         book = ctx.book
         if book.has_drm:
-            self.note(
-                ctx,
-                Level.ERROR,
-                "content is DRM-encrypted; rebuild cannot proceed safely", rule="font.drm",
-                detail="Remove DRM with a tool you are licensed to use before running EPUB-Forge.",
-            )
+            self.note(ctx, Level.ERROR, "font.drm")
             return
         if not ctx.policy.deobfuscate_fonts:
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                "font obfuscation left in place by policy",
-                rule="font.obfuscation-kept",
-            )
+            self.note(ctx, Level.PRESERVED, "font.obfuscation-kept")
             return
 
         identifier = ctx.original_identifier
         if not identifier:
-            self.note(
-                ctx,
-                Level.ERROR,
-                "fonts are obfuscated but the package has no unique identifier to key on", rule="font.obfuscation-unkeyed",
-            )
+            self.note(ctx, Level.ERROR, "font.obfuscation-unkeyed")
             return
 
         recovered = 0
@@ -135,25 +115,14 @@ class FontStage(Stage):
             elif algorithm == ADOBE_OBFUSCATION:
                 key = adobe_key(identifier)
                 if key is None:
-                    self.note(
-                        ctx,
-                        Level.ERROR,
-                        "Adobe-obfuscated font needs a UUID identifier, which this book lacks", rule="font.obfuscation-unkeyed",
-                        location=path,
-                    )
+                    self.note(ctx, Level.ERROR, "font.obfuscation-unkeyed", location=path)
                     continue
                 plain = deobfuscate(resource.data, key, ADOBE_PREFIX_LENGTH)
             else:
                 continue
 
             if sniff_font_type(plain) is None:
-                self.note(
-                    ctx,
-                    Level.ERROR,
-                    "deobfuscation did not yield a valid font; leaving the file untouched", rule="font.deobfuscation-failed",
-                    location=path,
-                    detail="The source identifier likely differs from the one used to obfuscate it.",
-                )
+                self.note(ctx, Level.ERROR, "font.deobfuscation-failed", location=path)
                 continue
             resource.data = plain
             recovered += 1
@@ -162,11 +131,4 @@ class FontStage(Stage):
             # encryption.xml is never carried into the output, so the fonts must
             # be plain by the time the writer runs.
             book.encrypted.clear()
-            self.note(
-                ctx,
-                Level.FIX,
-                f"deobfuscated {recovered} embedded font(s) and dropped META-INF/encryption.xml",
-                rule="font.deobfuscated",
-                values={"count": recovered},
-                detail="Fonts render identically and the container no longer depends on the identifier.",
-            )
+            self.note(ctx, Level.FIX, "font.deobfuscated", values={"count": recovered})

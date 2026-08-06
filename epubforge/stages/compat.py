@@ -57,10 +57,8 @@ class CompatibilityStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                f"unknown compatibility profile {name!r}; ignored",
-                rule="compat.unknown-profile",
+                "compat.unknown-profile",
                 values={"profile": name, "known": ", ".join(sorted(compat.PROFILES))},
-                detail=f"Known profiles: {', '.join(sorted(compat.PROFILES))}.",
             )
         if not measures:
             return
@@ -68,11 +66,8 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            "applying compatibility profile(s): ", rule="compat.applied" + ", ".join(sorted(ctx.policy.compat_profiles)),
-            detail=(
-                "These are concessions to specific devices, not corrections. "
-                "Nothing below removes or rewrites what the book already had."
-            ),
+            "compat.applied",
+            values={"profiles": ", ".join(sorted(ctx.policy.compat_profiles))},
         )
 
         if "ncx" in measures:
@@ -94,15 +89,7 @@ class CompatibilityStage(Stage):
         """The NCX is a policy switch; a profile that needs it says so loudly."""
         if ctx.book.ncx_path:
             return
-        self.note(
-            ctx,
-            Level.WARN,
-            "the selected profile needs the legacy NCX, but it was switched off", rule="compat.ncx-required",
-            detail=(
-                "Readers predating EPUB 3 build their chapter list from the NCX and "
-                "ignore the navigation document. Drop --no-ncx to restore it."
-            ),
-        )
+        self.note(ctx, Level.WARN, "compat.ncx-required")
 
     # ---------------------------------------------------------- html5 blocks
     def _html5_blocks(self, ctx: Context) -> None:
@@ -140,14 +127,8 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            f"added {compat.COMPAT_STYLESHEET_NAME} to {linked} document(s)",
-            rule="compat.stylesheet-added",
+            "compat.stylesheet-added",
             values={"stylesheet": compat.COMPAT_STYLESHEET_NAME, "count": linked},
-            detail=(
-                "Declares the HTML5 sectioning elements as blocks. It is linked "
-                "ahead of the book's own stylesheets, so every rule the publisher "
-                "wrote still overrides it."
-            ),
             location=sheet_path,
         )
 
@@ -199,14 +180,8 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            f"mirrored {mirrored} fragmentation declaration(s) into page-break-* form",
-            rule="compat.page-break-mirrored",
+            "compat.page-break-mirrored",
             values={"count": mirrored},
-            detail=(
-                "The modern break-* properties are left exactly as they are; the "
-                "legacy spelling is added beside them for renderers that only know "
-                "that one."
-            ),
             location=touched[0] if len(touched) == 1 else None,
         )
 
@@ -249,12 +224,7 @@ class CompatibilityStage(Stage):
     # ----------------------------------------------------------- apple fonts
     def _apple_fonts(self, ctx: Context) -> None:
         if not ctx.book.by_type("font"):
-            self.note(
-                ctx,
-                Level.INFO,
-                "skipped the Apple specified-fonts declaration: this book embeds no fonts", rule="compat.specified-fonts-skipped",
-                detail="Declaring it anyway would state something the book does not do.",
-            )
+            self.note(ctx, Level.INFO, "compat.specified-fonts-skipped")
             return
         ctx.book.container_files[compat.APPLE_DISPLAY_OPTIONS_PATH] = (
             compat.APPLE_DISPLAY_OPTIONS.encode("utf-8")
@@ -262,35 +232,17 @@ class CompatibilityStage(Stage):
         self.note(
             ctx,
             Level.INFO,
-            "declared specified-fonts for Apple Books", rule="compat.specified-fonts-added",
-            detail=(
-                "Without this file Apple Books ignores every embedded face and "
-                "substitutes its own."
-            ),
+            "compat.specified-fonts-added",
             location=compat.APPLE_DISPLAY_OPTIONS_PATH,
         )
 
     # ----------------------------------------------------------------- guide
     def _guide(self, ctx: Context) -> None:
         if not compat.guide_references(ctx.book):
-            self.note(
-                ctx,
-                Level.INFO,
-                "skipped the legacy <guide>: nothing in the book maps onto it", rule="compat.guide-skipped",
-            )
+            self.note(ctx, Level.INFO, "compat.guide-skipped")
             return
         ctx.book.compat.add("guide")
-        self.note(
-            ctx,
-            Level.PRESERVED,
-            "added the EPUB 2 <guide> element for readers that look for it", rule="compat.guide-added",
-            detail=(
-                "EPUB 3.3 no longer defines this element, though EPUBCheck still "
-                "accepts it: the output stays valid, but it carries something the "
-                "current specification dropped. Amazon's converter and RMSDK readers "
-                "find the cover and the start-reading position here and nowhere else."
-            ),
-        )
+        self.note(ctx, Level.PRESERVED, "compat.guide-added")
 
     # -------------------------------------------------------- kindle advice
     def _kindle_cover_advice(self, ctx: Context) -> None:
@@ -305,15 +257,4 @@ class CompatibilityStage(Stage):
         text = resource.text()
         if "<svg" not in text.lower():
             return
-        self.note(
-            ctx,
-            Level.WARN,
-            "the cover page wraps its image in SVG, which Amazon's converter handles poorly", rule="compat.svg-cover",
-            detail=(
-                "The wrapper is what scales the artwork to the page, so removing it "
-                "would change the layout on every other reader. Left as it is; "
-                "replace it with a plain <img> by hand if the Kindle cover comes out "
-                "wrong."
-            ),
-            location=resource.path,
-        )
+        self.note(ctx, Level.WARN, "compat.svg-cover", location=resource.path)

@@ -156,7 +156,7 @@ CATALOGUE: dict[str, str] = {
 
     # -- compatibility profiles ---------------------------------------------
     "compat.unknown-profile": "the compatibility profile {profile} does not exist and was ignored",
-    "compat.applied": "compatibility profiles were applied",
+    "compat.applied": "compatibility profiles were applied: {profiles}",
     "compat.ncx-required": "a selected profile needs the legacy NCX, which was switched off",
     "compat.stylesheet-added": "{stylesheet} was linked into {count} document(s)",
     "compat.page-break-mirrored": "{count} fragmentation declaration(s) were mirrored into page-break-*",
@@ -309,7 +309,7 @@ CATALOGUE_PL: dict[str, str] = {
     'font.deobfuscation-failed': 'odciemnianie nie dało poprawnej czcionki; plik został bez zmian',
     'font.deobfuscated': 'odciemniono {count} {count:osadzoną czcionkę|osadzone czcionki|osadzonych czcionek} i usunięto plik szyfrowania',
     'compat.unknown-profile': 'profil zgodności {profile} nie istnieje i został pominięty',
-    'compat.applied': 'zastosowano profile zgodności',
+    'compat.applied': 'zastosowano profile zgodności: {profiles}',
     'compat.ncx-required': 'wybrany profil wymaga starego NCX, który był wyłączony',
     'compat.stylesheet-added': '{stylesheet} podlinkowano do {count} {count:dokumentu|dokumentów|dokumentów}',
     'compat.page-break-mirrored': '{count} {count:deklarację łamania odwzorowano|deklaracje łamania odwzorowano|deklaracji łamania odwzorowano} na page-break-*',
@@ -338,6 +338,140 @@ CATALOGUE_PL: dict[str, str] = {
     'epubcheck.failed': 'EPUBCheck w ogóle nie dał się uruchomić: {error}',
     # -- the window ---------------------------------------------------------
     'gui.unexpected-failure': 'przebudowa zawiodła w sposób, którego nic nie przewidziało: {error}',
+}
+
+#: The paragraph beneath a finding, in English, keyed by the same identifier.
+#:
+#: It used to be written at the call site, where it lived beside the sentence it
+#: explains and nowhere near the Polish version of itself. Two homes for one
+#: fact is one home too many: they drifted, and nothing could see them drift.
+#:
+#: A rule missing from here has a paragraph that is data rather than prose — a
+#: list of names, a generated identifier, EPUBCheck's own output — and passes it
+#: at the call site instead. `test_rules.py` names those and their reason.
+DETAILS: dict[str, str] = {
+    "a11y.conformance-declared":
+        "EPUB-Forge did not verify this; it is the publisher's assertion.",
+    "a11y.missing-alt":
+        "Either the attribute is absent or it is empty. An empty alt asserts the image is decorative, and that cannot be checked mechanically — only role=\"presentation\" or aria-hidden=\"true\" says it outright. So alternativeText is not claimed. If any of these images carry meaning, only a human can write the description.",
+    "a11y.placeholder-alt":
+        "{examples} — this passes validation but tells a screen-reader user nothing, so alternativeText is not claimed.",
+    "a11y.table-without-headers":
+        "Screen readers cannot announce what a cell relates to without <th>.",
+    "compat.guide-added":
+        "EPUB 3.3 no longer defines this element, though EPUBCheck still accepts it: the output stays valid, but it carries something the current specification dropped. Amazon's converter and RMSDK readers find the cover and the start-reading position here and nowhere else.",
+    "compat.ncx-required":
+        "Readers predating EPUB 3 build their chapter list from the NCX and ignore the navigation document. Drop --no-ncx to restore it.",
+    "compat.page-break-mirrored":
+        "The modern break-* properties are left exactly as they are; the legacy spelling is added beside them for renderers that only know that one.",
+    "compat.specified-fonts-added":
+        "Without this file Apple Books ignores every embedded face and substitutes its own.",
+    "compat.specified-fonts-skipped":
+        "Declaring it anyway would state something the book does not do.",
+    "compat.stylesheet-added":
+        "Declares the HTML5 sectioning elements as blocks. It is linked ahead of the book's own stylesheets, so every rule the publisher wrote still overrides it.",
+    "compat.svg-cover":
+        "The wrapper is what scales the artwork to the page, so removing it would change the layout on every other reader. Left as it is; replace it with a plain <img> by hand if the Kindle cover comes out wrong.",
+    "compat.unknown-profile":
+        "Known profiles: {known}.",
+    "css.font-stack-generic-missing":
+        "e.g. {examples} — inherited from the source and left as-is, since guessing serif vs sans-serif could change how the book looks.",
+    "css.invalid-value-corrected":
+        "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant.",
+    "css.position-kept":
+        "This is a fixed-layout book, where out-of-flow positioning is how it works.",
+    "css.position-kept-reflowable":
+        "Out-of-flow content does not paginate on every reader, but it is a layout the publisher chose. Use --strict to drop it.",
+    "css.position-removed":
+        "The affected blocks now flow with the page instead of being pinned to it.",
+    "css.reader-property-kept":
+        "{names} — validators flag these as unknown. Use --strict to remove them.",
+    "css.vendor-at-rule-kept":
+        "Use --strict to remove them.",
+    "epubcheck.unavailable":
+        "Install it and set {variable}, or put epubcheck on PATH.",
+    "font.deobfuscated":
+        "Fonts render identically and the container no longer depends on the identifier.",
+    "font.deobfuscation-failed":
+        "The source identifier likely differs from the one used to obfuscate it.",
+    "font.drm":
+        "Remove DRM with a tool you are licensed to use before running EPUB-Forge.",
+    "image.transcoded":
+        "was {was}",
+    "metadata.title-missing":
+        "Pass --title to set the real one.",
+    "nav.contents-page-kept":
+        "The page is in the reading order, so it is something the reader turns to. Replacing it with generated markup would lose whatever the publisher wrote there.",
+    "nav.fragment-cleared":
+        "The entry now points at the document, which is where the reader would land anyway.",
+    "nav.generated":
+        "The source had none; its table of contents came from the NCX.",
+    "nav.kept-in-spine":
+        "A nav document in the spine is a page the reader can turn to. Regenerating it used to remove that page.",
+    "nav.repointed":
+        "{in_tables} in the navigation tables, {in_documents} inside content documents. The source's own contents page is replaced, and a reference left pointing at it makes the book invalid, not merely inconsistent.",
+    "package.layout-kept":
+        "This rebuild does not move content files, so moving the package document away from them would leave every manifest href pointing back out of its own directory with `../`.",
+    "package.source-protected":
+        "Nothing was written. Choose a different destination.",
+    "package.stage-failed":
+        "Nothing was written. The model was left half-modified by the failure, so anything built from it would be a book only in shape.",
+    "package.upgraded":
+        "Package document, navigation and container structure were regenerated.",
+    "reader.colliding-names":
+        "They are separate files inside the archive and one file on a filesystem that folds case or Unicode normalisation — which is most of them outside Linux. Anyone unpacking this book loses one.",
+    "reader.dangling-reference":
+        "{reference} — the reference is dropped rather than guessed at",
+    "reader.drm":
+        "EPUB-Forge will not attempt to decrypt DRM-protected content.",
+    "reader.entry-too-large":
+        "No real book contains this; the archive is broken or hostile.",
+    "reader.name-dropped":
+        "Nothing in a conforming EPUB is named this way. It is not carried into the output, where it would be somebody else's problem to unpack safely.",
+    "reader.remote-resource":
+        "Nothing here fetches it. It is not stored in the container either.",
+    "structure.carried-xml-repointed":
+        "The pipeline does not model this file type, but it does move the files it points at. Leaving the references alone would have produced an invalid book rather than a poorer one.",
+    "structure.orphan-removed":
+        "{bytes} bytes reclaimed",
+    "structure.relaid-out":
+        "{renamed} file(s) needed a new name; every reference was rewritten to match",
+    "xhtml.cover-fitted":
+        "No stylesheet rule and no attribute sized this image, so a reader would show it at its own pixel dimensions.",
+    "xhtml.dead-reference-kept":
+        "These are source defects and remain conformance errors. Use --strict to neutralise them.",
+    "xhtml.dead-reference-neutralised":
+        "{unlinked} link(s) unlinked, {removed} element(s) removed",
+    "xhtml.doctype-kept":
+        "The output stays an invalid EPUB 3 in those documents, and that is the lesser harm: replacing the declaration would strand the reference and the book would no longer open at all. Rebuild this book in a mode that rewrites content.",
+    "xhtml.doctype-modernised":
+        "The only change this mode makes inside a document. A DOCTYPE says nothing about rendering, and a legacy one makes the book invalid. A DOCTYPE that declares its own entities is left alone, because the document uses them.",
+    "xhtml.dtd-entities-refused":
+        "{names}. Either they point outside the file, which this tool will not fetch, or expanding them would have grown the document past any plausible size.",
+    "xhtml.dtd-entities-resolved":
+        "{names}. The declarations lived in the DOCTYPE, which EPUB 3 replaces with one that declares nothing — so without this the references would have appeared on the page as literal text.",
+    "xhtml.empty-alt-added":
+        "Required for valid markup. It is not treated as a description: the accessibility stage still counts these images as undescribed, so nothing is claimed on their behalf.",
+    "xhtml.image-paragraph-centred":
+        "Running-text rules were shifting the artwork; no rule targeted these paragraphs specifically, so the layout was inherited rather than chosen.",
+    "xhtml.image-paragraph-kept":
+        "A rule aimed at these paragraphs, or at an element containing them, sets their alignment or indent.",
+    "xhtml.image-paragraph-unindented":
+        "A rule aimed at these paragraphs or their container decides where the image sits; the indent reached them from a rule about body text.",
+    "xhtml.inline-promoted":
+        "A block box inside an inline box splits the line and makes margins and centring behave unpredictably; inline-block is a legal container that keeps the element where it was.",
+    "xhtml.property-withdrawn":
+        "Declaring one of these without the markup to match is a conformance error in its own right, and EPUBCheck reports it against the source.",
+    "xhtml.untouched":
+        "Every XHTML file comes out byte for byte as it went in.",
+    "xhtml.untouched-except-doctype":
+        "Every XHTML file comes out byte for byte as it went in, apart from the DOCTYPE where it had to be modernised.",
+    "xhtml.watermark-consolidated":
+        "{tokens} distinct token(s), text unchanged. The repeated inline !important style became one rule, and the markers are hidden from screen readers instead of being spelled out each chapter.",
+    "xhtml.watermark-kept":
+        "Meant to be read, so left exactly as the publisher wrote it.",
+    "xhtml.watermark-kept-personal-data":
+        "Carries personal data ({data}). Meant to be read, so left exactly as the publisher wrote it.",
 }
 
 #: The paragraph beneath a finding, in Polish, keyed by the same identifier.
@@ -600,6 +734,19 @@ def describe(rule: str, language: str = "en", values: dict | None = None) -> str
         return text
 
 
+def detail_placeholders(rule: str, language: str = "en") -> set[str]:
+    """The names the paragraph beneath a finding expects to be given."""
+    catalogue = DETAILS_PL if language == "pl" else DETAILS
+    return set(_PLACEHOLDER.findall(catalogue.get(rule, "")))
+
+
+def describe_detail_en(rule: str, values: dict | None = None) -> str | None:
+    """The English paragraph for a rule, or `None` where there is none to give."""
+    if rule not in DETAILS:
+        return None
+    return describe_from(DETAILS, rule, values)
+
+
 def describe_detail(rule: str, language: str = "en", values: dict | None = None) -> str | None:
     """The paragraph beneath a finding, in the language asked for.
 
@@ -640,15 +787,22 @@ def renders_fully(rule: str, language: str, values: dict | None) -> bool:
     That is what makes it incomplete.
     """
     supplied = set(values or {})
+    # A finding's specifics may be stated by either line. `a11y.placeholder-alt`
+    # counts the images in its headline and lists them in its paragraph, and
+    # judging the headline alone declared the finding incomplete and put the
+    # English sentence back underneath a perfectly complete Polish one.
     expected = placeholders(rule, language)
-    return supplied <= expected and expected <= supplied
+    consumed = expected | detail_placeholders(rule, language)
+    return supplied <= consumed and expected <= supplied
 
 
 __all__ = [
     "CATALOGUE",
     "CATALOGUES",
     "CATALOGUE_PL",
+    "DETAILS",
     "DETAILS_PL",
+    "describe_detail_en",
     "VOCABULARY_PL",
     "translate_values",
     "describe",
@@ -656,5 +810,6 @@ __all__ = [
     "describe_from",
     "known",
     "placeholders",
+    "detail_placeholders",
     "renders_fully",
 ]

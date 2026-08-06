@@ -193,7 +193,7 @@ class TestAPropertyThatWasNotTrue:
 
     def test_the_withdrawal_is_reported(self, sink, tmp_path):
         result = rebuild(sink, str(tmp_path / "out.epub"), Policy.preset("preserve"))
-        withdrawn = [f for f in result.report.findings if "withdrew manifest" in f.message]
+        withdrawn = [f for f in result.report.findings if f.rule == "xhtml.property-withdrawn"]
         assert withdrawn, [f.message for f in result.report.findings]
         assert "scripted" in withdrawn[0].message
 
@@ -239,7 +239,7 @@ class TestAPropertyThatWasNotTrue:
             item for item in root.iter(f"{{{OPF}}}item")
             if "scripted" in (item.get("properties") or "")
         ]
-        assert not [f for f in result.report.findings if "withdrew manifest" in f.message]
+        assert not [f for f in result.report.findings if f.rule == "xhtml.property-withdrawn"]
 
 
 class TestPropertiesWithNoFieldOfTheirOwn:

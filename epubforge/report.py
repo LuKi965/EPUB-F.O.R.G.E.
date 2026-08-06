@@ -20,9 +20,16 @@ _ORDER = {Level.ERROR: 0, Level.WARN: 1, Level.PRESERVED: 2, Level.FIX: 3, Level
 
 #: Version of the JSON shape written by :meth:`Report.to_dict`. The moment
 #: anything outside this project reads ``--report`` output, that shape is an
-#: interface; stamping it now costs one field and means a later change can be
-#: announced instead of guessed at.
-SCHEMA_VERSION = 1
+#: interface; stamping it costs one field and means a change can be announced
+#: instead of guessed at.
+#:
+#: **2** — `message` is now rendered from the catalogue rather than written at
+#: the call site, so its English wording changed for most findings. `rule` did
+#: not change and is the field to match on; that is what it is for. Two fields
+#: were added: `description`, the finding in the language asked for, and
+#: `detail_description`, the same for the paragraph beneath it. Nothing was
+#: removed.
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -55,14 +62,37 @@ class Report:
         self,
         stage: str,
         level: Level,
-        message: str,
+        rule: str,
+        *,
+        values: dict | None = None,
         location: str | None = None,
         detail: str | None = None,
-        rule: str | None = None,
-        values: dict | None = None,
     ) -> None:
+        """Record a finding by its identifier.
+
+        The sentence is not passed in. It used to be, and then it lived twice —
+        once at the call site and once in the catalogue that translates it —
+        which is two places for one fact and therefore a place for them to
+        disagree. The catalogue is the source; `message` is the English
+        rendering of it, and `detail` the paragraph beneath.
+
+        A caller may still pass `detail` for the eight findings whose paragraph
+        is data rather than prose — a list of names, a generated identifier —
+        where there is nothing to catalogue.
+        """
+        from . import rules
+
+        values = values or {}
         self.findings.append(
-            Finding(stage, level, message, location, detail, rule, values or {})
+            Finding(
+                stage,
+                level,
+                rules.describe(rule, "en", values),
+                location,
+                detail if detail is not None else rules.describe_detail_en(rule, values),
+                rule,
+                values,
+            )
         )
 
     def count(self, level: Level) -> int:

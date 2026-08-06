@@ -25,6 +25,44 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### One sentence, one home (EF-018 in the shape the roadmap asked for)
+
+A call site used to pass the sentence *and* the identifier, so the English text
+lived twice: once at the call site and once in the catalogue that translates
+it. Two homes for one fact is one home too many, and the drift is not
+hypothetical — a tagging pass had spliced an identifier into the middle of a
+string concatenation, and findings went out under `compat.appliedapple, kindle`
+without a single test noticing.
+
+A call site now passes what the catalogue cannot know and nothing else:
+
+```python
+self.note(ctx, Level.FIX, "css.invalid-value-corrected", values={"count": 5})
+```
+
+137 call sites converted. Both sentences — the finding and the paragraph
+beneath it — come from `rules.py`, in either language, from one place.
+
+Two tests replace the grep that missed the mangled call: the identifier must be
+a literal, and no call site may write a sentence. Both parse the source rather
+than matching text on it, which is why they catch what a regular expression
+over `rule="…"` could not.
+
+**Twenty tests asserted English fragments** — "reorganised", "pointing
+nowhere", "contain block-level content". Those are the fragile tests EF-018
+exists to remove, so they assert identifiers now. That was the first of the
+three reasons the roadmap gave for doing any of this, and it had gone unfixed
+while the other two were being celebrated.
+
+**`schema` is 2.** The English `message` is rendered from the catalogue now, so
+its wording changed for most findings; `rule` did not change and is the field
+to match on. `description` and `detail_description` are added, nothing removed.
+
+The divergence from the roadmap's exact spelling — a string rather than an
+`M.*` module constant — is written down in `docs/ROADMAP.md` with its reason,
+because the roadmap's own preamble says an unrecorded change of mind comes back
+in six months as an accidental regression.
+
 ### The paragraph under a finding speaks Polish too
 
 The headline was translated and the paragraph beneath it was not. On a real

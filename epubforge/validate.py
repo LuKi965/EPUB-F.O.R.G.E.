@@ -127,10 +127,8 @@ def validate(
             report.add(
                 "epubcheck",
                 Level.WARN,
-                "EPUBCheck was not found; the output has not been independently verified",
-                rule="epubcheck.unavailable",
+                "epubcheck.unavailable",
                 values={"variable": ENV_JAR},
-                detail=f"Install it and set {ENV_JAR}, or put epubcheck on PATH.",
             )
         return ValidationResult(available=False)
 
@@ -151,8 +149,7 @@ def validate(
             report.add(
                 "epubcheck",
                 Level.WARN,
-                f"EPUBCheck could not be run: {type(exc).__name__}",
-                rule="epubcheck.failed",
+                "epubcheck.failed",
                 values={"error": type(exc).__name__},
             )
         return ValidationResult(available=False)
@@ -184,16 +181,14 @@ def validate(
             report.add(
                 "epubcheck",
                 Level.INFO,
-                f"EPUBCheck passed with 0 errors and {result.warnings} warning(s)",
-                rule="epubcheck.clean",
+                "epubcheck.clean",
                 values={"warnings": result.warnings},
             )
         else:
             report.add(
                 "epubcheck",
                 Level.ERROR,
-                f"EPUBCheck reported {result.fatal} fatal and {result.errors} error(s)",
-                rule="epubcheck.reported",
+                "epubcheck.reported",
                 values={"fatal": result.fatal, "errors": result.errors},
                 detail=_detail(result, content_untouched),
             )

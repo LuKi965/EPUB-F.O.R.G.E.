@@ -72,14 +72,8 @@ def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
     report.add(
         "package",
         Level.INFO,
-        f"kept the package document at {book.source_opf_path}",
-        rule="package.layout-kept",
+        "package.layout-kept",
         values={"path": book.source_opf_path},
-        detail=(
-            "This rebuild does not move content files, so moving the package "
-            "document away from them would leave every manifest href pointing "
-            "back out of its own directory with `../`."
-        ),
     )
     return replace(policy, content_dir=directory, package_name=name)
 
@@ -95,8 +89,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
         report.add(
             "reader",
             Level.ERROR,
-            f"could not read the source file: {exc}",
-            rule="package.unreadable-source",
+            "package.unreadable-source",
             values={"error": str(exc)},
         )
         return Result(report, None, None, Status.FAILED)
@@ -105,28 +98,16 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     # stated outright rather than left for the reader to infer from the output.
     source_version = book.source_version
     if source_version.startswith("2"):
-        report.add(
-            "package",
-            Level.FIX,
-            f"rebuilt the package from EPUB {source_version} to EPUB 3.3",
-            rule="package.upgraded",
-            values={"version": source_version},
-            detail="Package document, navigation and container structure were regenerated.",
-        )
+        report.add("package", Level.FIX, "package.upgraded", values={"version": source_version})
     elif source_version.startswith("3"):
         report.add(
             "package",
             Level.INFO,
-            f"source was already EPUB {source_version}; the package was regenerated regardless",
-            rule="package.regenerated",
+            "package.regenerated",
             values={"version": source_version},
         )
     else:
-        report.add(
-            "package",
-            Level.WARN,
-            "package declared no usable version; treating it as EPUB 2 and rebuilding to 3.3", rule="package.version-unusable",
-        )
+        report.add("package", Level.WARN, "package.version-unusable")
 
     policy = _settle_layout(book, policy, report)
     ctx = Context(book=book, policy=policy, report=report)
@@ -150,13 +131,8 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
             report.add(
                 stage.name,
                 Level.ERROR,
-                f"stage failed: {type(exc).__name__}: {exc}",
-                rule="package.stage-failed",
+                "package.stage-failed",
                 values={"stage": stage.name, "error": f"{type(exc).__name__}: {exc}"},
-                detail=(
-                    "Nothing was written. The model was left half-modified by the "
-                    "failure, so anything built from it would be a book only in shape."
-                ),
             )
             return Result(report, book, None, Status.FAILED)
 
@@ -168,13 +144,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     # be able to destroy: everything else it writes can be produced again from
     # it, and it cannot.
     if os.path.abspath(destination) == os.path.abspath(source):
-        report.add(
-            "writer",
-            Level.ERROR,
-            "refusing to write over the source file", rule="package.source-protected",
-            location=source,
-            detail="Nothing was written. Choose a different destination.",
-        )
+        report.add("writer", Level.ERROR, "package.source-protected", location=source)
         return Result(report, book, None, Status.BLOCKED)
 
     parent = os.path.dirname(os.path.abspath(destination))

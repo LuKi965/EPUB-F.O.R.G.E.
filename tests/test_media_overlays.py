@@ -156,7 +156,7 @@ class TestTheChainThatWasNeverWritten:
         result = rebuild(path, str(tmp_path / "out.epub"), Policy.preset("preserve"))
 
         assert any(
-            "points at an id the manifest does not define" in f.message
+            f.rule == "reader.dangling-reference"
             for f in result.report.findings
         ), [f.message for f in result.report.findings]
         assert "fallback=" not in package_of(result.output_path)

@@ -101,8 +101,7 @@ class Worker(QObject):
                 report.add(
                     "gui",
                     Level.ERROR,
-                    f"unexpected failure: {type(exc).__name__}: {exc}",
-                    rule="gui.unexpected-failure",
+                    "gui.unexpected-failure",
                     values={"error": f'{type(exc).__name__}: {exc}'},
                 )
                 from ..pipeline import Result

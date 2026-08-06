@@ -153,7 +153,7 @@ class TestTheArchiveIsReadThroughThatModel:
         with zipfile.ZipFile(result.output_path) as handle:
             assert not [n for n in handle.namelist() if ".." in n.split("/")]
         assert any(
-            "not a container path" in f.message
+            f.rule == "reader.name-dropped"
             for f in result.report.findings
             if f.level is Level.WARN
         )
@@ -191,7 +191,7 @@ class TestTheArchiveIsReadThroughThatModel:
         result = rebuild(str(path), str(tmp_path / "out.epub"), Policy.preset("preserve"))
 
         assert result.status.wrote_a_file
-        assert any("the same entry twice" in f.message for f in result.report.findings)
+        assert any(f.rule == "reader.duplicate-entry" for f in result.report.findings)
 
     def test_names_differing_only_by_case_are_kept_and_reported(self, tmp_path):
         """Legal and distinct inside the archive; one file on Windows. Refusing

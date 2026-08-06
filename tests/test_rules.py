@@ -28,19 +28,70 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: module exists to prevent.
 TAGGED_TODAY = 138
 
-#: Every `rule="…"` written anywhere in the package.
-_RULE_ARGUMENT = re.compile(r'rule\s*=\s*"([a-z0-9.\-]+)"')
+def report_calls():
+    """Every `note(...)` / `add(...)` in the package, as parsed syntax.
+
+    Parsed rather than grepped. A regular expression over `rule="…"` used to be
+    enough, and it silently stopped being enough the moment the identifier
+    became the third positional argument — it also once matched an id that had
+    been spliced into the middle of a string concatenation, which meant a
+    finding was reported under an identifier like `compat.appliedapple, kindle`
+    and the ratchet said everything was fine.
+    """
+    import ast
+
+    for path in sorted(SOURCE.rglob("*.py")):
+        if path.name in ("rules.py", "report.py", "base.py"):
+            continue
+        text = path.read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(text)):
+            if not isinstance(node, ast.Call):
+                continue
+            if getattr(node.func, "attr", getattr(node.func, "id", None)) not in ("note", "add"):
+                continue
+            keywords = {k.arg: k.value for k in node.keywords}
+            rule_node = node.args[2] if len(node.args) > 2 else keywords.get("rule")
+            yield path, text, node, rule_node, keywords
 
 
 def tagged_sites() -> dict[str, list[str]]:
     """rule id → the files that report it."""
+    import ast
+
     found: dict[str, list[str]] = {}
-    for path in sorted(SOURCE.rglob("*.py")):
-        if path.name == "rules.py":
-            continue
-        for rule in _RULE_ARGUMENT.findall(path.read_text(encoding="utf-8")):
-            found.setdefault(rule, []).append(path.name)
+    for path, _text, _node, rule_node, _keywords in report_calls():
+        if isinstance(rule_node, ast.Constant) and isinstance(rule_node.value, str):
+            found.setdefault(rule_node.value, []).append(path.name)
     return found
+
+
+def test_no_call_site_computes_its_identifier():
+    """An id built at runtime is an id nothing can check, and it has happened:
+    a tagging pass spliced one into a string concatenation and the finding went
+    out under `compat.appliedapple, kindle` for two releases."""
+    import ast
+
+    computed = [
+        f"{path.name}:{node.lineno}"
+        for path, _text, node, rule_node, _keywords in report_calls()
+        if rule_node is not None and not isinstance(rule_node, ast.Constant)
+    ]
+    assert not computed, f"identifier is not a literal at: {computed}"
+
+
+def test_no_call_site_writes_its_own_sentence():
+    """The sentence lives in the catalogue. Passing one here would put it in two
+    places, which is one place too many and exactly where they drift apart."""
+    import ast
+
+    literal = [
+        f"{path.name}:{node.lineno}"
+        for path, _text, node, _rule, keywords in report_calls()
+        if "message" in keywords
+        or (len(node.args) > 2 and isinstance(node.args[2], ast.Constant)
+            and " " in str(node.args[2].value))
+    ]
+    assert not literal, f"a message was written at: {literal}"
 
 
 class TestTheCatalogueAndTheCodeAgree:
@@ -82,7 +133,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: How many catalogue entries are templates today — entries whose description
 #: states the specifics itself, so a translated report does not need the English
 #: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
-TEMPLATED_TODAY = 76
+TEMPLATED_TODAY = 77
 
 
 class TestTheTranslationCannotStall:
@@ -177,8 +228,33 @@ class TestTheFindingCarriesIt:
         from epubforge.report import Level, Report
 
         report = Report()
-        report.add("stage", Level.FIX, "coś zrobiono", rule="nav.repointed")
+        report.add("stage", Level.FIX, "nav.repointed", values={"count": 3})
         assert report.findings[0].rule == "nav.repointed"
+
+    def test_the_sentence_comes_from_the_catalogue(self):
+        """The call site no longer writes one, so this is where it comes from."""
+        from epubforge.report import Level, Report
+
+        report = Report()
+        report.add("stage", Level.FIX, "nav.repointed", values={"count": 3})
+        assert report.findings[0].message == rules.describe("nav.repointed", "en", {"count": 3})
+        assert "3" in report.findings[0].message
+
+    def test_the_paragraph_comes_from_the_catalogue_too(self):
+        from epubforge.report import Level, Report
+
+        report = Report()
+        report.add("stage", Level.FIX, "nav.generated", values={"count": 7})
+        assert report.findings[0].detail == rules.DETAILS["nav.generated"]
+
+    def test_a_caller_may_still_supply_a_paragraph_that_is_data(self):
+        """Eight findings have a paragraph that is a list of names or a
+        generated identifier. There is nothing to catalogue, so it is passed."""
+        from epubforge.report import Level, Report
+
+        report = Report()
+        report.add("stage", Level.INFO, "metadata.identifier-minted", detail="urn:uuid:1234")
+        assert report.findings[0].detail == "urn:uuid:1234"
 
     def test_the_json_carries_it_too(self):
         """Anything reading `--report` output gets the stable name, not only the
@@ -188,19 +264,9 @@ class TestTheFindingCarriesIt:
         from epubforge.report import Level, Report
 
         report = Report()
-        report.add("stage", Level.FIX, "coś zrobiono", rule="nav.repointed")
+        report.add("stage", Level.FIX, "nav.repointed", values={"count": 3})
         payload = json.loads(report.to_json())
         assert payload["findings"][0]["rule"] == "nav.repointed"
-
-    def test_an_untagged_finding_still_works(self):
-        """Until the migration finishes, most findings have no id and the
-        program must not care."""
-        from epubforge.report import Level, Report
-
-        report = Report()
-        report.add("stage", Level.INFO, "jeszcze bez identyfikatora")
-        assert report.findings[0].rule is None
-        assert report.to_json()
 
     def test_a_real_rebuild_produces_tagged_findings(self, tmp_path):
         """The mechanism has to survive an actual run, not only a unit test."""
@@ -566,25 +632,18 @@ class TestTheDetailIsTranslatedToo:
 
     @staticmethod
     def _rules_with_a_detail() -> dict[str, str]:
-        import ast
-        import pathlib
+        """Every rule that has a paragraph, wherever that paragraph lives.
 
-        source = pathlib.Path(rules.__file__).parent
-        found: dict[str, str] = {}
-        for path in sorted(source.rglob("*.py")):
-            if path.name == "rules.py":
+        Most are in the catalogue now. The handful whose paragraph is data
+        rather than prose still pass it at the call site, and both count.
+        """
+        import ast
+
+        found: dict[str, str] = {rule: text for rule, text in rules.DETAILS.items()}
+        for _path, text, _node, rule_node, keywords in report_calls():
+            if "detail" not in keywords or not isinstance(rule_node, ast.Constant):
                 continue
-            text = path.read_text(encoding="utf-8")
-            for node in ast.walk(ast.parse(text)):
-                if not isinstance(node, ast.Call):
-                    continue
-                if getattr(node.func, "attr", getattr(node.func, "id", None)) not in ("note", "add"):
-                    continue
-                keywords = {k.arg: k.value for k in node.keywords}
-                rule_node = keywords.get("rule")
-                if "detail" not in keywords or not isinstance(rule_node, ast.Constant):
-                    continue
-                found[rule_node.value] = ast.get_source_segment(text, keywords["detail"])
+            found[rule_node.value] = ast.get_source_segment(text, keywords["detail"])
         return found
 
     def test_every_detail_is_translated_or_named_as_data(self):
@@ -599,11 +658,31 @@ class TestTheDetailIsTranslatedToo:
         )
 
     def test_the_data_list_does_not_grow_by_neglect(self):
-        """Every entry there must actually be a call site with a detail — the
-        list is an explanation, not a place to put things."""
-        with_detail = set(self._rules_with_a_detail())
-        stale = sorted(DETAILS_THAT_ARE_DATA - with_detail)
-        assert not stale, f"named as data but no longer raised with a detail: {stale}"
+        """Every entry there must be a rule that really does pass its paragraph
+        at the call site — the list is an explanation, not a place to put
+        things. A rule that has since been catalogued does not belong."""
+        import ast
+
+        passed_at_call_site = {
+            rule_node.value
+            for _path, _text, _node, rule_node, keywords in report_calls()
+            if "detail" in keywords and isinstance(rule_node, ast.Constant)
+        }
+        stale = sorted(DETAILS_THAT_ARE_DATA - passed_at_call_site)
+        assert not stale, f"named as data but no longer passing one: {stale}"
+
+    def test_nothing_passes_a_paragraph_the_catalogue_already_has(self):
+        """Two homes for one fact is one home too many."""
+        import ast
+
+        both = sorted(
+            rule_node.value
+            for _path, _text, _node, rule_node, keywords in report_calls()
+            if "detail" in keywords
+            and isinstance(rule_node, ast.Constant)
+            and rule_node.value in rules.DETAILS
+        )
+        assert not both, f"paragraph written at the call site and catalogued: {both}"
 
     def test_a_translated_detail_is_not_a_copy_of_the_english_one(self):
         """The shape a stalled translation takes, and it looks finished."""

@@ -333,20 +333,16 @@ class AccessibilityStage(Stage):
             self.note(
                 ctx,
                 Level.INFO,
-                f"declared conformance with {metadata.conforms_to} because the caller asked for it",
-                rule="a11y.conformance-declared",
+                "a11y.conformance-declared",
                 values={"profile": metadata.conforms_to},
-                detail="EPUB-Forge did not verify this; it is the publisher's assertion.",
             )
 
         self.note(
             ctx,
             Level.FIX,
-            "added EPUB Accessibility 1.1 discovery metadata", rule="a11y.metadata-added",
-            detail=(
-                f"accessMode={'/'.join(access_modes)}; "
-                f"features={', '.join(sorted(set(features)))}; hazard={hazards[0]}"
-            ),
+            "a11y.metadata-added",
+            detail=f"accessMode={'/'.join(access_modes)}; "
+                f"features={', '.join(sorted(set(features)))}; hazard={hazards[0]}",
         )
 
     def _summary(self, ctx: Context, survey: dict, missing_alt: int) -> str:
@@ -371,42 +367,27 @@ class AccessibilityStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                f"{survey['images_without_alt']} image(s) have no usable alt text",
-                rule="a11y.missing-alt",
+                "a11y.missing-alt",
                 values={"count": survey["images_without_alt"]},
                 location=locations[0] if len(locations) == 1 else f"{len(locations)} documents",
-                detail=(
-                    "Either the attribute is absent or it is empty. An empty alt asserts "
-                    "the image is decorative, and that cannot be checked mechanically — "
-                    "only role=\"presentation\" or aria-hidden=\"true\" says it outright. "
-                    "So alternativeText is not claimed. If any of these images carry "
-                    "meaning, only a human can write the description."
-                ),
             )
 
         if survey["placeholder_alt"]:
             self.note(
                 ctx,
                 Level.WARN,
-                f"{survey['placeholder_alt']} image(s) have alt text that only repeats the filename",
-                rule="a11y.placeholder-alt",
+                "a11y.placeholder-alt",
                 values={
                     "count": survey["placeholder_alt"],
                     "examples": "; ".join(survey["placeholder_examples"]),
                 },
-                detail=(
-                    "; ".join(survey["placeholder_examples"])
-                    + " — this passes validation but tells a screen-reader user nothing, "
-                    "so alternativeText is not claimed."
-                ),
             )
 
         if survey["heading_jumps"]:
             self.note(
                 ctx,
                 Level.WARN,
-                f"heading levels skip a rank in {len(survey['heading_jumps'])} place(s)",
-                rule="a11y.heading-jump",
+                "a11y.heading-jump",
                 values={"count": len(survey["heading_jumps"])},
                 detail="; ".join(survey["heading_jumps"][:3]),
             )
@@ -415,10 +396,8 @@ class AccessibilityStage(Stage):
             self.note(
                 ctx,
                 Level.WARN,
-                f"{survey['tables_without_headers']} table(s) have no header cells",
-                rule="a11y.table-without-headers",
+                "a11y.table-without-headers",
                 values={"count": survey["tables_without_headers"]},
-                detail="Screen readers cannot announce what a cell relates to without <th>.",
             )
 
         # Deliberately not reported: the absence of print page numbers. A survey

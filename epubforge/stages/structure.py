@@ -131,25 +131,16 @@ class StructureStage(Stage):
                 self.note(
                     ctx,
                     Level.FIX,
-                    f"repointed {rewritten} reference(s) inside a file carried as-is",
-                    location=resource.path,
-                    rule="structure.carried-xml-repointed",
+                    "structure.carried-xml-repointed",
                     values={"count": rewritten},
-                    detail=(
-                        "The pipeline does not model this file type, but it does move "
-                        "the files it points at. Leaving the references alone would "
-                        "have produced an invalid book rather than a poorer one."
-                    ),
+                    location=resource.path,
                 )
 
     def _drop_junk(self, ctx: Context) -> None:
         for path in list(ctx.book.resources):
             if JUNK_PATHS.search(path):
                 ctx.book.remove(path)
-                self.note(
-                    ctx, Level.FIX, "removed packaging junk", location=path,
-                    rule="structure.junk-removed",
-                )
+                self.note(ctx, Level.FIX, "structure.junk-removed", location=path)
 
     def _reachable(self, ctx: Context) -> set[str]:
         """Transitive closure of references starting from the spine and the cover."""
@@ -198,11 +189,9 @@ class StructureStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                "removed a file nothing in the book references",
-                location=path,
-                rule="structure.orphan-removed",
+                "structure.orphan-removed",
                 values={"bytes": len(resource.data)},
-                detail=f"{len(resource.data)} bytes reclaimed",
+                location=path,
             )
 
     def _relayout(self, ctx: Context) -> None:
@@ -246,8 +235,6 @@ class StructureStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"reorganised {len(moves)} file(s) into a typed {root}/ layout with portable names",
-                rule="structure.relaid-out",
+                "structure.relaid-out",
                 values={"count": len(moves), "directory": root, "renamed": renamed},
-                detail=f"{renamed} file(s) needed a new name; every reference was rewritten to match",
             )

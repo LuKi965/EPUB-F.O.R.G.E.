@@ -287,7 +287,7 @@ class TestEntitiesDeclaredByTheDocumentItself:
     def test_the_change_is_reported(self, tmp_path):
         """K6: it is a change to the text, so it needs an entry of its own."""
         _, result = self.rebuilt_text(tmp_path, self.DOCUMENT)
-        assert any("own DTD" in f.message for f in result.report.findings)
+        assert any(f.rule == "xhtml.dtd-entities-resolved" for f in result.report.findings)
 
     def test_an_external_entity_is_refused_not_fetched(self, tmp_path):
         """The file does not get to make this tool go and read something."""
@@ -295,7 +295,7 @@ class TestEntitiesDeclaredByTheDocumentItself:
 
         _, result = self.rebuilt_text(tmp_path, self.EXTERNAL, name="ext.epub")
         warnings = [f for f in result.report.findings if f.level is Level.WARN]
-        assert any("refused to resolve" in f.message for f in warnings), [
+        assert any(f.rule == "xhtml.dtd-entities-refused" for f in warnings), [
             f.message for f in result.report.findings
         ]
 
@@ -396,7 +396,7 @@ class TestAlignmentInheritedFromAContainer:
             extra="body.cover { text-align: center; }",
         )
         assert "text-align: center;" not in html, "it was already centred"
-        assert not any("image-only paragraph" in f.message for f in result.report.findings)
+        assert not any(f.rule == "xhtml.image-paragraph-centred" for f in result.report.findings)
 
     def test_a_deliberately_aligned_container_is_not_overruled(self, tmp_path):
         """`body.prawa { text-align: right }` decides where the image goes.
@@ -418,13 +418,13 @@ class TestAlignmentInheritedFromAContainer:
         )
         assert "text-indent: 0" in html
         assert "text-align: center" not in html
-        assert any("running-text indent" in f.message for f in result.report.findings)
+        assert any(f.rule == "xhtml.image-paragraph-unindented" for f in result.report.findings)
 
     def test_an_image_nobody_aligned_is_still_centred(self, tmp_path):
         """The behaviour this whole repair exists for, unchanged."""
         html, result = self.rebuild_with(tmp_path, extra="body { text-indent: 1em; }")
         assert "text-indent: 0; text-align: center;" in html
-        assert any("image-only paragraph" in f.message for f in result.report.findings)
+        assert any(f.rule == "xhtml.image-paragraph-centred" for f in result.report.findings)
 
 
 # ------------------------------------------- a comment inside <metadata>

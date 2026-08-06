@@ -432,13 +432,7 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for item in book.spine:
         item_id = id_by_path.get(item.path)
         if item_id is None:
-            report.add(
-                "writer",
-                Level.ERROR,
-                "spine item vanished before writing",
-                rule="package.spine-item-vanished",
-                location=item.path,
-            )
+            report.add("writer", Level.ERROR, "package.spine-item-vanished", location=item.path)
             continue
         attributes = [f"idref={quoteattr(item_id)}"]
         if not item.linear:

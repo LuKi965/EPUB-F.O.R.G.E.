@@ -210,7 +210,7 @@ class TestReferenceIntegrity:
     def test_toc_entries_pointing_nowhere_are_dropped(self, rebuilt):
         nav = [
             f for f in rebuilt.report.findings
-            if f.stage == "navigation" and "pointing nowhere" in f.message
+            if f.stage == "navigation" and f.rule == "nav.entry-dropped"
         ]
         assert nav
 
@@ -281,7 +281,7 @@ class TestPolicyModes:
             html = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
         assert "brakujacy.xhtml" in html
         preserved = [f for f in rebuilt.report.findings if f.level is Level.PRESERVED]
-        assert any("not present in the book" in f.message for f in preserved)
+        assert any(f.rule == "xhtml.dead-reference-kept" for f in preserved)
 
     def test_strict_removes_kindle_only_css(self, rebuilt_strict):
         with zipfile.ZipFile(rebuilt_strict.output_path) as archive:
@@ -309,21 +309,17 @@ class TestReportHonesty:
     reporting "0 fixed" is worse than useless — it reads as a no-op.
     """
 
-    def messages(self, rebuilt, level: Level) -> list[str]:
-        return [f.message for f in rebuilt.report.findings if f.level is level]
+    def rules(self, rebuilt, level: Level) -> set[str]:
+        return {f.rule for f in rebuilt.report.findings if f.level is level}
 
     def test_version_upgrade_is_reported(self, rebuilt):
-        assert any(
-            "EPUB 2.0 to EPUB 3.3" in message for message in self.messages(rebuilt, Level.FIX)
-        )
+        assert "package.upgraded" in self.rules(rebuilt, Level.FIX)
 
     def test_file_reorganisation_is_reported_as_a_change(self, rebuilt):
-        assert any("reorganised" in message for message in self.messages(rebuilt, Level.FIX))
+        assert "structure.relaid-out" in self.rules(rebuilt, Level.FIX)
 
     def test_generated_navigation_is_reported_as_a_fix(self, rebuilt):
-        assert any(
-            "navigation document" in message for message in self.messages(rebuilt, Level.FIX)
-        )
+        assert self.rules(rebuilt, Level.FIX) & {"nav.generated", "nav.regenerated"}
 
     def test_corrected_manifest_media_types_are_reported(self, rebuilt):
         # The fixture declares chapter 2 as text/html, which it is not.
@@ -354,7 +350,7 @@ class TestPublisherErrorRepair:
         """A publisher pinning content to the page foot is intent, not a defect."""
         assert "position: absolute" in self.stylesheet(rebuilt)
         assert any(
-            f.level is Level.PRESERVED and "absolute/fixed position" in f.message
+            f.level is Level.PRESERVED and f.rule == "css.position-kept-reflowable"
             for f in rebuilt.report.findings
         )
 
@@ -478,7 +474,7 @@ class TestEpub2ToEpub3Migration:
 
     def test_promotion_is_reported(self, rebuilt):
         assert any(
-            "contain block-level content" in f.message
+            f.rule == "xhtml.inline-promoted"
             for f in rebuilt.report.findings
             if f.level is Level.FIX
         )

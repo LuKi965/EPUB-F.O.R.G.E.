@@ -63,12 +63,7 @@ class NavigationStage(Stage):
         book = ctx.book
         if not book.cover_path or book.cover_path not in book.resources:
             if book.cover_path:
-                self.note(
-                    ctx,
-                    Level.WARN,
-                    "declared cover image is missing from the archive",
-                    rule="nav.cover-image-missing",
-                )
+                self.note(ctx, Level.WARN, "nav.cover-image-missing")
                 book.cover_path = None
             return
 
@@ -103,13 +98,7 @@ class NavigationStage(Stage):
         book.spine.insert(0, SpineItem(page_path, linear=True))
         book.landmarks = [l for l in book.landmarks if l.epub_type != "cover"]
         book.landmarks.insert(0, Landmark("cover", "Cover", page_path))
-        self.note(
-            ctx,
-            Level.FIX,
-            "generated a cover page so the artwork appears as the first spine item",
-            location=page_path,
-            rule="nav.cover-page-generated",
-        )
+        self.note(ctx, Level.FIX, "nav.cover-page-generated", location=page_path)
 
     def _prune_toc(self, ctx: Context) -> None:
         book = ctx.book
@@ -168,21 +157,13 @@ class NavigationStage(Stage):
         book.page_list = [p for p in book.page_list if p.target.split("#")[0] in book.resources]
         book.landmarks = [l for l in book.landmarks if l.target.split("#")[0] in book.resources]
         if removed:
-            self.note(
-                ctx,
-                Level.FIX,
-                f"dropped {removed} table-of-contents entry/entries pointing nowhere",
-                rule="nav.entry-dropped",
-                values={"count": removed},
-            )
+            self.note(ctx, Level.FIX, "nav.entry-dropped", values={"count": removed})
         if dangling_fragments:
             self.note(
                 ctx,
                 Level.FIX,
-                f"cleared {dangling_fragments} navigation fragment(s) whose anchor does not exist",
-                rule="nav.fragment-cleared",
+                "nav.fragment-cleared",
                 values={"count": dangling_fragments},
-                detail="The entry now points at the document, which is where the reader would land anyway.",
             )
 
     def _synthesize_toc(self, ctx: Context) -> None:
@@ -195,13 +176,7 @@ class NavigationStage(Stage):
             entries.append(NavPoint(self._document_title(resource), item.path))
         book.toc = entries
         if entries:
-            self.note(
-                ctx,
-                Level.FIX,
-                f"book had no usable table of contents; built one from {len(entries)} spine documents",
-                rule="nav.toc-synthesised",
-                values={"count": len(entries)},
-            )
+            self.note(ctx, Level.FIX, "nav.toc-synthesised", values={"count": len(entries)})
 
     def _document_title(self, resource: Resource) -> str:
         text = resource.text()
@@ -327,21 +302,13 @@ class NavigationStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"repointed {moved + in_documents} reference(s) at the regenerated "
-                "navigation document",
-                location=old_path,
-                rule="nav.repointed",
+                "nav.repointed",
                 values={
                     "count": moved + in_documents,
                     "in_tables": moved,
                     "in_documents": in_documents,
                 },
-                detail=(
-                    f"{moved} in the navigation tables, {in_documents} inside content "
-                    "documents. The source's own contents page is replaced, and a "
-                    "reference left pointing at it makes the book invalid, not merely "
-                    "inconsistent."
-                ),
+                location=old_path,
             )
 
     def _write_nav(self, ctx: Context) -> None:
@@ -381,15 +348,8 @@ class NavigationStage(Stage):
                 self.note(
                     ctx,
                     Level.PRESERVED,
-                    "kept the publisher's contents page and put the regenerated "
-                    "navigation beside it",
+                    "nav.contents-page-kept",
                     location=book.nav_path,
-                    rule="nav.contents-page-kept",
-                    detail=(
-                        "The page is in the reading order, so it is something the "
-                        "reader turns to. Replacing it with generated markup would "
-                        "lose whatever the publisher wrote there."
-                    ),
                 )
             else:
                 # Not a page anyone can turn to — only the machinery. Replacing
@@ -469,49 +429,22 @@ class NavigationStage(Stage):
                 min(index, len(book.spine)),
                 SpineItem(path=nav_path, linear=linear, properties=set(properties)),
             )
-            self.note(
-                ctx,
-                Level.INFO,
-                "kept the navigation document in the reading order, where the source had it",
-                rule="nav.kept-in-spine",
-                detail=(
-                    "A nav document in the spine is a page the reader can turn to. "
-                    "Regenerating it used to remove that page."
-                ),
-            )
+            self.note(ctx, Level.INFO, "nav.kept-in-spine")
 
         entries = sum(1 for root in book.toc for _ in root.walk())
         # Two findings, not one with a conditional: replacing a navigation
         # document is routine and generating one the source never had is a
         # correction, and they are read differently.
         if self._had_nav:
-            self.note(
-                ctx,
-                Level.INFO,
-                f"regenerated the navigation document ({entries} entries)",
-                rule="nav.regenerated",
-                values={"count": entries},
-            )
+            self.note(ctx, Level.INFO, "nav.regenerated", values={"count": entries})
         else:
-            self.note(
-                ctx,
-                Level.FIX,
-                f"generated the navigation document EPUB 3 requires ({entries} entries)",
-                rule="nav.generated",
-                values={"count": entries},
-                detail="The source had none; its table of contents came from the NCX.",
-            )
+            self.note(ctx, Level.FIX, "nav.generated", values={"count": entries})
 
     def _drop_ncx(self, ctx: Context) -> None:
         if ctx.book.ncx_path:
             ctx.book.remove(ctx.book.ncx_path)
             ctx.book.ncx_path = None
-            self.note(
-                ctx,
-                Level.INFO,
-                "did not carry the legacy NCX over; EPUB 3 navigates by the nav document",
-                rule="nav.ncx-dropped",
-            )
+            self.note(ctx, Level.INFO, "nav.ncx-dropped")
 
     def _write_ncx(self, ctx: Context) -> None:
         book = ctx.book
@@ -570,12 +503,7 @@ class NavigationStage(Stage):
             Resource(path=ncx_path, media_type="application/x-dtbncx+xml", data=markup.encode("utf-8"))
         )
         book.ncx_path = ncx_path
-        self.note(
-            ctx,
-            Level.INFO,
-            "wrote a legacy NCX alongside the nav document for older readers",
-            rule="nav.ncx-written",
-        )
+        self.note(ctx, Level.INFO, "nav.ncx-written")
 
     def _depth(self, nodes: list[NavPoint], level: int = 1) -> int:
         if not nodes:

@@ -83,21 +83,20 @@ class MetadataStage(Stage):
                 metadata.publisher = value
             elif key == "series":
                 metadata.series = value
-            self.note(ctx, Level.INFO, f"applied caller override for {key}",
-                rule="metadata.override-applied",
-                values={"field": key}, detail=value)
+            self.note(
+                ctx,
+                Level.INFO,
+                "metadata.override-applied",
+                values={"field": key},
+                detail=value,
+            )
 
     def _titles(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
         metadata.titles = [t.strip() for t in metadata.titles if t and t.strip()]
         if not metadata.titles:
             metadata.titles = ["Untitled"]
-            self.note(
-                ctx,
-                Level.WARN,
-                "no dc:title in the source; inserted a placeholder", rule="metadata.title-missing",
-                detail="Pass --title to set the real one.",
-            )
+            self.note(ctx, Level.WARN, "metadata.title-missing")
         elif len(metadata.titles) > 1:
             # A package may carry several titles, but only the first is the
             # main one; the rest become subtitles rather than being dropped.
@@ -108,8 +107,7 @@ class MetadataStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"collapsed {len(extra) + 1} dc:title elements to one main title",
-                rule="metadata.titles-collapsed",
+                "metadata.titles-collapsed",
                 values={"count": len(extra) + 1},
             )
 
@@ -125,16 +123,14 @@ class MetadataStage(Stage):
             self.note(
                 ctx,
                 Level.FIX,
-                f"language tag {raw!r} is not valid BCP 47; replaced with {ctx.policy.default_language!r}",
-                rule="metadata.language-invalid",
+                "metadata.language-invalid",
                 values={"was": raw, "now": ctx.policy.default_language},
             )
         else:
             self.note(
                 ctx,
                 Level.WARN,
-                f"no dc:language in the source; defaulted to {ctx.policy.default_language!r}",
-                rule="metadata.language-missing",
+                "metadata.language-missing",
                 values={"now": ctx.policy.default_language},
             )
         metadata.language = ctx.policy.default_language
@@ -156,22 +152,12 @@ class MetadataStage(Stage):
         if not metadata.identifiers:
             generated = f"urn:uuid:{uuid.uuid4()}"
             metadata.identifiers = [Identifier(generated, None, primary=True)]
-            self.note(
-                ctx,
-                Level.FIX,
-                "no dc:identifier in the source; minted a UUID", rule="metadata.identifier-minted",
-                detail=generated,
-            )
+            self.note(ctx, Level.FIX, "metadata.identifier-minted", detail=generated)
             return
 
         if not any(i.primary for i in metadata.identifiers):
             metadata.identifiers[0].primary = True
-            self.note(
-                ctx,
-                Level.FIX,
-                "package declared no unique-identifier; promoted the first one",
-                rule="metadata.identifier-promoted",
-            )
+            self.note(ctx, Level.FIX, "metadata.identifier-promoted")
 
     def _dates(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -182,16 +168,14 @@ class MetadataStage(Stage):
                     self.note(
                         ctx,
                         Level.FIX,
-                        f"normalised dc:date to ISO 8601: {metadata.published!r} -> {normalized!r}",
-                        rule="metadata.date-normalised",
+                        "metadata.date-normalised",
                         values={"was": metadata.published, "now": normalized},
                     )
                 else:
                     self.note(
                         ctx,
                         Level.WARN,
-                        f"could not parse dc:date {metadata.published!r}; dropped it",
-                        rule="metadata.date-unparseable",
+                        "metadata.date-unparseable",
                         values={"was": metadata.published},
                     )
                 metadata.published = normalized
@@ -226,9 +210,4 @@ class MetadataStage(Stage):
             cleaned.append(creator)
         metadata.creators = cleaned
         if not cleaned:
-            self.note(
-                ctx,
-                Level.WARN,
-                "no dc:creator in the source",
-                rule="metadata.creator-missing",
-            )
+            self.note(ctx, Level.WARN, "metadata.creator-missing")
