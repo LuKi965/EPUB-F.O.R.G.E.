@@ -144,8 +144,8 @@ now measured directly — eighteen books in reach, three comics at **one**
 character per page, the thinnest ordinary book at 2686.
 
 Coverage after the fixes: eight families of ten. `word` and `pdf-or-ocr` are one
-book short each; `pathological` is one command away
-(`python tools/make_edge_cases.py`).
+book short each; `pathological` is one button away — **Korpus → „Dołóż brzegi"**,
+for the reason given above.
 
 ### The run ledger says 0.2.6 was not green, because it was not
 
