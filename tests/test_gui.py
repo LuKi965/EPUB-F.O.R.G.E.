@@ -142,3 +142,92 @@ class TestPanels:
 # wiring, and the work itself is covered by `test_survey.py`,
 # `test_inventory.py` and the corpus tests, which exercise exactly the
 # functions these panels call.
+
+
+class TestTheEdgeCasesAreReachableFromTheWindow:
+    """The corpus family nobody can buy, behind a button rather than a script.
+
+    It was a command line importing from the test suite, on a machine with a
+    checkout. The person who can fill that family runs the installer, so the
+    instruction "just run the script" asked him to do nothing — and the family
+    stayed at zero across four releases while being named as what was missing.
+    """
+
+    def corpus_panel(self, window):
+        from epubforge.gui.tabs import CorpusPanel
+
+        for index in range(window.tabs.count()):
+            panel = window.tabs.widget(index)
+            if isinstance(panel, CorpusPanel):
+                return panel
+        raise AssertionError("no corpus panel")
+
+    def test_the_button_is_there_and_explains_itself(self, window):
+        panel = self.corpus_panel(window)
+        assert panel.edges_button.text()
+        # A tooltip that restates the label helps nobody decide anything.
+        assert len(panel.edges_button.toolTip()) > len(panel.edges_button.text())
+
+    def test_it_writes_the_books_and_says_what_they_are(self, window, tmp_path):
+        panel = self.corpus_panel(window)
+        panel.books.setText(str(tmp_path))
+
+        from epubforge.edge_cases import build_edges
+
+        panel._handle_edges(build_edges(tmp_path))
+        text = panel.output.toPlainText()
+        assert len(list(tmp_path.glob("*.epub"))) == 4
+        for name in ("brzeg-bez-okladki", "brzeg-400-sekcji"):
+            assert name in text
+        # Not just four filenames: what each one is at the limit of.
+        assert "400" in text
+
+    def test_it_refuses_politely_without_a_folder(self, window, monkeypatch):
+        panel = self.corpus_panel(window)
+        panel.books.setText("")
+        asked = []
+        monkeypatch.setattr(
+            "epubforge.gui.tabs.QMessageBox.information",
+            lambda *args, **kwargs: asked.append(args),
+        )
+        # No folder: it says so and starts no job, rather than building four
+        # books into whatever the working directory happens to be.
+        panel._build_edges()
+        assert asked
+        assert not panel.busy
+
+
+class TestTheWindowSpeaksOneLanguageAtATime:
+    def test_the_survey_headings_follow_the_setting(self, window):
+        from epubforge.gui import strings
+        from epubforge.gui.tabs import LibraryPanel
+
+        panel = next(
+            window.tabs.widget(i)
+            for i in range(window.tabs.count())
+            if isinstance(window.tabs.widget(i), LibraryPanel)
+        )
+
+        class FakeSurvey:
+            books = 3
+            source_versions = __import__("collections").Counter({"2.0": 3})
+            unreadable: list = []
+            crashed: list = []
+            drm: list = []
+
+            def ranked(self):
+                return []
+
+        before = strings.language()
+        try:
+            strings.set_language("pl")
+            polish = panel._render_survey(FakeSurvey())
+            strings.set_language("en")
+            english = panel._render_survey(FakeSurvey())
+        finally:
+            strings.set_language(before)
+
+        assert "3 książki" in polish and "wersje źródła" in polish
+        assert "3 book(s)" in english and "source versions" in english
+        # The defect this guards: Polish headings printed over an English report.
+        assert "książki" not in english

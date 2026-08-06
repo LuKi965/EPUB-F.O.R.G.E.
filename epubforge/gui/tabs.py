@@ -269,13 +269,27 @@ class LibraryPanel(Panel):
                 result = survey_library(books, with_names=with_names, on_book=tick)
                 return ("survey", result, to_json(result, with_names=with_names))
 
-            from ..inventory import measure, summarise, to_json as inventory_json
+            from ..inventory import (
+                coverage_report,
+                measure,
+                summarise,
+                to_json as inventory_json,
+            )
 
             measured = []
             for index, path in enumerate(books):
                 emit(index, total, os.path.basename(path))
                 measured.append(measure(pathlib.Path(path)))
-            return ("inventory", measured, inventory_json(measured), summarise(measured))
+            # Coverage was written from the beginning and shown only by the
+            # command line, which the person holding the library does not use.
+            # Which families are short is the *question* the inventory answers;
+            # printing everything but the answer was the wrong half.
+            from .strings import language
+
+            report = (
+                summarise(measured) + "\n\n" + coverage_report(measured, language())
+            )
+            return ("inventory", measured, inventory_json(measured), report)
 
         self.start(work, [self.run_button, self.save_button])
 
@@ -294,24 +308,30 @@ class LibraryPanel(Panel):
         self.save_button.setEnabled(True)
 
     def _render_survey(self, survey) -> str:
-        lines = [f"{survey.books} książek", ""]
+        lines = [tr("survey.books", count=survey.books), ""]
         versions = ", ".join(f"{v}: {n}" for v, n in survey.source_versions.most_common())
         if versions:
-            lines.append(f"wersje źródła: {versions}")
-        # The reason, not just the count. "awarii etapu: 3" on screen and
+            lines.append(tr("survey.versions", versions=versions))
+        # The reason, not just the count. "stage failures: 3" on screen and
         # nothing else is a dead end for whoever has the three books.
-        for label, entries in (
-            ("nieodczytanych", survey.unreadable),
-            ("awarii etapu", survey.crashed),
+        for key, entries in (
+            ("survey.unreadable", survey.unreadable),
+            ("survey.crashed", survey.crashed),
         ):
             if not entries:
                 continue
-            lines.append(f"{label}: {len(entries)}")
+            lines.append(f"{tr(key)}: {len(entries)}")
             for name, reason in entries[:5]:
                 lines.append(f"    {name}: {reason}")
         if survey.drm:
-            lines.append(f"z DRM (odrzucone): {len(survey.drm)}")
-        lines += ["", f"{'ksiąg':>6} {'razem':>6}  {'poziom':<10} {'etap':<14} znalezisko", ""]
+            lines.append(tr("survey.drm", count=len(survey.drm)))
+        lines += [
+            "",
+            f"{tr('survey.head.books'):>6} {tr('survey.head.total'):>6}  "
+            f"{tr('survey.head.level'):<10} {tr('survey.head.stage'):<14} "
+            f"{tr('survey.head.finding')}",
+            "",
+        ]
         for finding in survey.ranked():
             lines.append(
                 f"{finding.books:>6} {finding.occurrences:>6}  "
@@ -351,6 +371,13 @@ class CorpusPanel(Panel):
         self.record_button.setToolTip(tr("corpus.record.tip"))
         self.record_button.clicked.connect(lambda: self._run(record=True))
         row.addWidget(self.record_button)
+        # The one family nobody can go and buy. It used to be a command-line
+        # script importing from the test suite, which put it out of reach of the
+        # only person able to fill it.
+        self.edges_button = QPushButton(tr("corpus.edges"))
+        self.edges_button.setToolTip(tr("corpus.edges.tip"))
+        self.edges_button.clicked.connect(self._build_edges)
+        row.addWidget(self.edges_button)
         row.addStretch(1)
         self.layout_.addWidget(buttons)
 
@@ -377,7 +404,27 @@ class CorpusPanel(Panel):
 
         self.start(work, [self.check_button, self.record_button])
 
+    def _build_edges(self) -> None:
+        books = self.books.text().strip()
+        if not books or not os.path.isdir(books):
+            QMessageBox.information(self, tr("common.pickfolder"), tr("common.nofolder"))
+            return
+
+        def work(emit):
+            from ..edge_cases import EDGES, build_edges
+
+            emit(0, len(EDGES), tr("corpus.edges.working"))
+            written = build_edges(books)
+            return ("edges", written)
+
+        self.start(work, [self.check_button, self.record_button, self.edges_button])
+
     def handle(self, results) -> None:
+        # Two jobs land here, so the result says which it was rather than being
+        # guessed at from its shape.
+        if isinstance(results, tuple) and results and results[0] == "edges":
+            self._handle_edges(results[1])
+            return
         labels = {
             "unchanged": tr("corpus.status.unchanged"),
             "changed": tr("corpus.status.changed"),
@@ -396,3 +443,18 @@ class CorpusPanel(Panel):
         summary = summarise(results)
         self.output.setPlainText(summary + ("\n\n" + "\n".join(lines) if lines else ""))
         self.window().statusBar().showMessage(summary)
+
+    def _handle_edges(self, written) -> None:
+        from ..edge_cases import EDGES
+        from ..gui.strings import language
+
+        # What each file is for, in the language the window is speaking. Four
+        # unfamiliar names appearing in a corpus folder is not an explanation.
+        index = 2 if language() == "en" else 1
+        what = {name: entry[index] for name, entry in EDGES.items()}
+        headline = tr("corpus.edges.done", count=len(written))
+        lines = [
+            f"    {path.name:26} {what.get(path.stem, '')}" for path in written
+        ]
+        self.output.setPlainText(headline + "\n" + "\n".join(lines))
+        self.window().statusBar().showMessage(headline)

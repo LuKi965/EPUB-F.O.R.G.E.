@@ -398,17 +398,51 @@ IMAGE_PAGE_TEXT = 40
 #: carry **one** character per page; the thinnest ordinary book carries 2686.
 IMAGE_PAGE_FLOOR = 2
 
-CORPUS_FAMILIES: dict[str, tuple[int, str]] = {
-    "polish-bookshop": (5, "księgarnie polskie — znak wodny, strony prawne"),
-    "indesign-vellum": (4, "InDesign / Vellum — wydawcy dbający o skład"),
-    "calibre": (4, "Calibre — konwersja z czegokolwiek"),
-    "word": (3, "Word / Google Docs — self-publishing"),
-    "pdf-or-ocr": (3, "konwersja z PDF, OCR — najgorszy przypadek dla typografii"),
-    "from-mobi": (2, "back-konwersja z MOBI/AZW3 — puste kotwice filepos"),
-    "epub2": (3, "EPUB 2 sprzed 2012 — <guide>, NCX, brak nawigacji"),
-    "fixed-layout": (2, "fixed-layout, komiks — sprawdzian trybu minimalnego"),
-    "pathological": (3, "patologie — brzegi pamięciowe i wydajnościowe"),
-    "public-domain": (3, "domena publiczna — jedyne, które wolno commitować"),
+#: Each family: how many books it needs, and what it is — in both languages,
+#: because this table is printed in the window and the window follows the
+#: language setting. It used to hold one Polish string, so the report came out
+#: as an English heading over Polish rows however the interface was set.
+CORPUS_FAMILIES: dict[str, tuple[int, str, str]] = {
+    "polish-bookshop": (
+        5, "księgarnie polskie — znak wodny, strony prawne",
+        "Polish bookshops — watermark, legal page",
+    ),
+    "indesign-vellum": (
+        4, "InDesign / Vellum — wydawcy dbający o skład",
+        "InDesign / Vellum — publishers who care about typesetting",
+    ),
+    "calibre": (
+        4, "Calibre — konwersja z czegokolwiek",
+        "Calibre — a conversion from anything",
+    ),
+    "word": (
+        3, "Word / Google Docs — self-publishing",
+        "Word / Google Docs — self-publishing",
+    ),
+    "pdf-or-ocr": (
+        3, "konwersja z PDF, OCR — najgorszy przypadek dla typografii",
+        "PDF or OCR conversion — the worst case for typography",
+    ),
+    "from-mobi": (
+        2, "back-konwersja z MOBI/AZW3 — puste kotwice filepos",
+        "back-conversion from MOBI/AZW3 — empty filepos anchors",
+    ),
+    "epub2": (
+        3, "EPUB 2 sprzed 2012 — <guide>, NCX, brak nawigacji",
+        "EPUB 2 from before 2012 — <guide>, NCX, no navigation",
+    ),
+    "fixed-layout": (
+        2, "fixed-layout, komiks — sprawdzian trybu minimalnego",
+        "fixed layout, comics — the test of minimal mode",
+    ),
+    "pathological": (
+        3, "patologie — brzegi pamięciowe i wydajnościowe",
+        "pathologies — the memory and performance edges",
+    ),
+    "public-domain": (
+        3, "domena publiczna — jedyne, które wolno commitować",
+        "public domain — the only ones we may commit",
+    ),
 }
 
 
@@ -467,7 +501,7 @@ def families(fields: dict) -> set[str]:
     return found
 
 
-def coverage(books: list[Book]) -> dict[str, dict]:
+def coverage(books: list[Book], language: str = "en") -> dict[str, dict]:
     """How far the library is from the corpus the roadmap describes.
 
     A corpus is not "enough books". It is enough books *of each kind*, because
@@ -483,31 +517,52 @@ def coverage(books: list[Book]) -> dict[str, dict]:
             "have": counts.get(name, 0),
             "want": want,
             "short": max(want - counts.get(name, 0), 0),
-            "what": description,
+            "what": polish if language == "pl" else english,
         }
-        for name, (want, description) in CORPUS_FAMILIES.items()
+        for name, (want, polish, english) in CORPUS_FAMILIES.items()
     }
 
 
-def coverage_report(books: list[Book]) -> str:
+#: The sentences around the table, in both languages. The table itself is
+#: numbers and family names, which do not translate.
+_COVERAGE_TEXT = {
+    "en": {
+        "heading": "corpus coverage (docs/ROADMAP.md, point 1):",
+        "short": (
+            "{count} famil{count:y|ies|ies} short. A rule written for a family the "
+            "corpus does not hold is untested in the only way that counts."
+        ),
+        "done": "every family is represented.",
+    },
+    "pl": {
+        "heading": "pokrycie korpusu (docs/ROADMAP.md, punkt 1):",
+        "short": (
+            "{count} {count:rodzina niepełna|rodziny niepełne|rodzin niepełnych}. "
+            "Reguła napisana dla rodziny, której w korpusie nie ma, jest "
+            "nieprzetestowana w jedyny sposób, który się liczy."
+        ),
+        "done": "każda rodzina jest reprezentowana.",
+    },
+}
+
+
+def coverage_report(books: list[Book], language: str = "en") -> str:
     """The gap, as a list of what to go and find."""
-    rows = coverage(books)
+    from .rules import fill
+
+    words = _COVERAGE_TEXT.get(language, _COVERAGE_TEXT["en"])
+    rows = coverage(books, language)
     short = {name: row for name, row in rows.items() if row["short"]}
-    lines = ["corpus coverage (docs/ROADMAP.md, point 1):"]
+    lines = [words["heading"]]
     for name, row in rows.items():
         mark = "  " if not row["short"] else "->"
         lines.append(
             f"{mark} {name:18} {row['have']:3} / {row['want']:<3}  {row['what']}"
         )
     if short:
-        lines += [
-            "",
-            f"{len(short)} famil{'y' if len(short) == 1 else 'ies'} short. "
-            "A rule written for a family the corpus does not hold is untested "
-            "in the only way that counts.",
-        ]
+        lines += ["", fill(words["short"], {"count": len(short)})]
     else:
-        lines += ["", "every family is represented."]
+        lines += ["", words["done"]]
     return "\n".join(lines)
 
 

@@ -139,7 +139,7 @@ PL: dict[str, str] = {
     "common.pickfolder": "Wybierz folder",
     "common.nofolder": "Najpierw wskaż folder z książkami.",
     "common.working": "Pracuję: {name}",
-    "common.done": "Gotowe — {count} książek",
+    "common.done": "Gotowe — {count} {count:książka|książki|książek}",
 
     # --- library tab ----------------------------------------------------
     "library.intro": (
@@ -170,6 +170,18 @@ PL: dict[str, str] = {
         "Włącz, jeśli chcesz móc odnaleźć konkretną książkę stojącą za liczbą."
     ),
     "library.empty": "Wskaż folder z ebookami i naciśnij „Uruchom”.",
+    # The survey renderer used to write these into the output itself, so a
+    # window switched to English printed an English report with Polish headings.
+    "survey.books": "{count} {count:książka|książki|książek}",
+    "survey.versions": "wersje źródła: {versions}",
+    "survey.unreadable": "nieodczytanych",
+    "survey.crashed": "awarii etapu",
+    "survey.drm": "z DRM (odrzucone): {count}",
+    "survey.head.books": "ksiąg",
+    "survey.head.total": "razem",
+    "survey.head.level": "poziom",
+    "survey.head.stage": "etap",
+    "survey.head.finding": "znalezisko",
 
     # --- corpus tab -----------------------------------------------------
     "corpus.intro": (
@@ -204,6 +216,16 @@ PL: dict[str, str] = {
     "corpus.status.changed": "inny wynik",
     "corpus.status.new": "nowa",
     "corpus.status.failed": "błąd",
+    "corpus.edges": "Dołóż brzegi",
+    "corpus.edges.tip": (
+        "Dopisuje do folderu z książkami cztery pliki, których nie da się kupić: "
+        "bez okładki, jedna grafika 9 MB, 400 pozycji spine, cała książka w jednym "
+        "pliku.\n\n"
+        "Roadmapa nazywa je rodziną „patologie” — awarie pamięciowe i wydajnościowe "
+        "wychodzą tylko na nich. Uruchomione dwa razy zostawiają cztery pliki, nie osiem."
+    ),
+    "corpus.edges.done": "Dopisano {count} {count:plik brzegowy|pliki brzegowe|plików brzegowych}:",
+    "corpus.edges.working": "buduję brzegi…",
 
     # --- reader compatibility -------------------------------------------
     "compat.group": "Zgodność z czytnikami (opcjonalne)",
@@ -467,6 +489,16 @@ EN: dict[str, str] = {
         "Turn on if you need to find the book behind a number."
     ),
     "library.empty": "Point at a folder of e-books and press Run.",
+    "survey.books": "{count} book(s)",
+    "survey.versions": "source versions: {versions}",
+    "survey.unreadable": "unreadable",
+    "survey.crashed": "stage failures",
+    "survey.drm": "with DRM (refused): {count}",
+    "survey.head.books": "books",
+    "survey.head.total": "total",
+    "survey.head.level": "level",
+    "survey.head.stage": "stage",
+    "survey.head.finding": "finding",
 
     "corpus.intro": (
         "A safety net for this program, not for your files.\n\n"
@@ -496,6 +528,16 @@ EN: dict[str, str] = {
     "corpus.status.changed": "different result",
     "corpus.status.new": "new",
     "corpus.status.failed": "failed",
+    "corpus.edges": "Add the edge cases",
+    "corpus.edges.tip": (
+        "Writes four books into the folder that nobody can buy: no cover, one 9 MB "
+        "image, 400 spine items, the whole book in one document.\n\n"
+        "The roadmap calls them the pathological family — memory and performance "
+        "failures surface there and nowhere else. Run twice, it leaves four files, "
+        "not eight."
+    ),
+    "corpus.edges.done": "Wrote {count} edge case(s):",
+    "corpus.edges.working": "building the edge cases…",
 
     "compat.group": "Reader compatibility (optional)",
     "compat.hint": "Concessions to particular devices:",
@@ -645,6 +687,14 @@ def set_language(code: str) -> None:
 
 
 def tr(key: str, **kwargs) -> str:
-    """Look up *key*, falling back to English and then to the key itself."""
+    """Look up *key*, falling back to English and then to the key itself.
+
+    Filled with the same formatter the message catalogue uses, so a window
+    string may say `{count:plik|pliki|plików}` and get the form the number
+    actually takes. English gets away with "(s)"; Polish has three forms and
+    "1 plików" is a mistake rather than a clumsy phrasing.
+    """
+    from ..rules import fill
+
     text = LANGUAGES[_ACTIVE].get(key) or EN.get(key) or key
-    return text.format(**kwargs) if kwargs else text
+    return fill(text, kwargs) if kwargs else text
