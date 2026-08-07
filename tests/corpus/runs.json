@@ -46,5 +46,17 @@
     "unwritten": 0,
     "clean": true,
     "note": "the first run the application logged by itself — 0.2.6 had no ledger, so everything above was entered by hand. Four of the 91 are the generated edges, built from the window. The seven books 0.2.6 could not make conformant come out clean."
+  },
+  {
+    "version": "0.2.7",
+    "date": "2026-08-07",
+    "books": 93,
+    "failed": 0,
+    "errors": 0,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "clean": true,
+    "note": "every family represented — the closing condition for roadmap point [1]. Two books added for `word` and `pdf-or-ocr`; the other 91 measured identically to the run before. Two modes only: `minimal` joins the corpus after this run, so the next one re-measures every book once."
   }
 ]

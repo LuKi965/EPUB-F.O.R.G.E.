@@ -435,7 +435,13 @@ def command_corpus(args: argparse.Namespace) -> int:
     def announce(index: int, name: str) -> None:
         console.print(f"[dim][{index + 1}] {name[:60]}[/]", highlight=False)
 
-    results = compare(books, signatures, record=args.record, on_book=announce)
+    results = compare(
+        books,
+        signatures,
+        record=args.record,
+        on_book=announce,
+        workers=getattr(args, "workers", None),
+    )
     console.print()
     for result in results:
         if result.status == "changed":
@@ -699,6 +705,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--record",
         action="store_true",
         help="rewrite the signatures from this run, after showing what moved",
+    )
+    corpus.add_argument(
+        "--workers",
+        type=int,
+        metavar="N",
+        help="how many books to measure at once (default: one per core, at most 8)",
     )
     corpus.set_defaults(func=command_corpus)
 

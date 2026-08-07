@@ -1,6 +1,30 @@
 {
   "source": "sha256:75f69ab9b5549ff7541fc146618bbdc7a79c1fe66b34feb2b7bcaf8f157f25d0",
-  "version": "0.2.6",
+  "version": "0.2.7",
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 2,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.table-without-headers": 1,
+      "nav.cover-page-generated": 1,
+      "nav.ncx-written": 1,
+      "nav.regenerated": 1,
+      "package.layout-kept": 1,
+      "package.regenerated": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:1dfa205f2741b04419d02b8f10a95334995e7aec375f5e5d8a30fbde9717e45d",
+    "text_characters": 156310,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 1307
+  },
   "preserve": {
     "written": true,
     "report": {

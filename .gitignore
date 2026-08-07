@@ -21,3 +21,11 @@ packaging/_bundle/
 tests/corpus/*
 !tests/corpus/expected/
 !tests/corpus/runs.json
+
+# The public corpora are generated and committed, so they are green by
+# construction and a log of their runs is evidence for nothing. Recording them
+# also drops a `runs.json` straight into `tests/`, beside the test modules,
+# which is the same trap as the ledger landing among the signatures: a file in
+# a directory that means something else.
+tests/runs.json
+tests/corpus_gutenberg/runs.json
