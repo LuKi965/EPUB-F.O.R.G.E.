@@ -53,7 +53,27 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
-## Unreleased
+## 0.2.8 — alpha — 2026-08-07 — **kamień milowy: prywatny korpus**
+
+**Roadmap point [1] is closed.** Not on a total — sixty-four books were once
+called enough — but on the condition the roadmap actually states: every family
+represented, counted by a program rather than remembered.
+
+### At a glance
+
+| | |
+|---|---|
+| 93 books, ten families of ten | zero errors, zero fatal, no text lost |
+| The corpus justified a family with a mode it never ran | `minimal` is measured now |
+| The run sat at 6% CPU on eight cores | a reused verdict skips the JVM entirely |
+| Every book built into `scratch/preserve.epub` | side by side that is a race, so each gets its own |
+| Two run ledgers tracked by accident | evidence for nothing, gone |
+
+**Closed:** the first roadmap milestone. **Faster:** a check where nothing moved
+is **5–6×** quicker, measured — work removed rather than spread out. **New:**
+`--workers N`, `checker_identity()`, `workers_for()`.
+
+### Everything, by subject
 
 ### Roadmap point [1] is closed, measured rather than remembered
 

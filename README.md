@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.7` · alpha · 937 testów · Windows / Linux / macOS
+`0.2.8` · alpha · 959 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
@@ -133,15 +133,14 @@ się w każdym rozdziale, i zostają.
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Z trzech warunków wejścia w alfę został jeden. Pokrycie rodzin
-  generatorów jest już liczone (`epubforge inventory <katalog> --json
-  inwentarz.json`) i stoi na **ośmiu z dziesięciu**: `word` i `pdf-or-ocr`
-  potrzebują po jednej książce, `pathological` domyka się jedną komendą.
-  Metryki korpusu **nie** są zielone przez trzy wydania — 0.2.6 przeliczone na
-  pełnych 87 książkach dało czternaście błędów EPUBCheck (poprawione w 0.2.7),
-  więc licznik startuje od nowa. Pozostałe dwa warunki — zero defektów
-  gubiących dane po cichu i przetłumaczony raport — są spełnione, odpowiednio
-  od 0.2.2 i od 0.2.5.
+- **Alpha.** Z trzech warunków wejścia w alfę został jeden, i jest nim czas.
+  Pokrycie rodzin generatorów jest **domknięte**: 93 książki, wszystkie
+  dziesięć rodzin, przebieg czysty — zero błędów EPUBCheck, zero utraconego
+  tekstu. Zostaje wymóg trzech kolejnych wydań z zielonymi metrykami, a licznik
+  stoi na **jednym** (0.2.7): 0.2.6 przeliczone na pełnym korpusie dało
+  czternaście błędów, więc wystartował od nowa. Pozostałe dwa warunki — zero
+  defektów gubiących dane po cichu i przetłumaczony raport — są spełnione,
+  odpowiednio od 0.2.2 i od 0.2.5.
 - **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
   samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
   Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
