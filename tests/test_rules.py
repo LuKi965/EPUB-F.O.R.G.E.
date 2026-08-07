@@ -133,7 +133,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: How many catalogue entries are templates today — entries whose description
 #: states the specifics itself, so a translated report does not need the English
 #: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
-TEMPLATED_TODAY = 79
+TEMPLATED_TODAY = 80
 
 
 class TestTheTranslationCannotStall:
@@ -760,3 +760,82 @@ class TestOurOwnPhrasesTravelIntoFindings:
         )
         missing = [phrase for phrase in rules.VOCABULARY_PL if phrase not in written]
         assert not missing, f"translated but nothing says it: {missing}"
+
+
+class TestARuleIdNamesTheStageThatReportsIt:
+    """The prefix is not decoration: it is how a report is grouped and filtered.
+
+    `css.remote-import-removed` was emitted by the content stage, whose findings
+    carry `stage: "xhtml"` — one entry out of 135 where the two disagreed, and
+    it shipped. What caught it was a survey over ninety-one real books, which is
+    both the slowest possible feedback and available only to the one person with
+    the library. This is the same check, in the source, in a tenth of a second.
+
+    Stage `name` and rule prefix are not spelled identically everywhere — the
+    accessibility stage reports `a11y.`, navigation reports `nav.` — so the
+    aliases are written down rather than guessed at.
+    """
+
+    ALIASES = {
+        "accessibility": "a11y",
+        "navigation": "nav",
+        "images": "image",
+        "fonts": "font",
+    }
+
+    def stages(self):
+        """Every Stage subclass in the package, with its declared `name`."""
+        import ast
+        import pathlib
+
+        found = []
+        for path in sorted(pathlib.Path("epubforge/stages").glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+                for item in cls.body:
+                    if (
+                        isinstance(item, ast.Assign)
+                        and any(
+                            isinstance(t, ast.Name) and t.id == "name"
+                            for t in item.targets
+                        )
+                        and isinstance(item.value, ast.Constant)
+                    ):
+                        found.append((path, cls, item.value.value))
+        return found
+
+    def test_every_stage_was_found(self):
+        """A parser that silently matches nothing would pass the next test."""
+        assert len({name for _, _, name in self.stages()}) >= 8
+
+    def test_no_stage_reports_under_another_stages_prefix(self):
+        import ast
+
+        wrong = []
+        for path, cls, stage in self.stages():
+            want = self.ALIASES.get(stage, stage)
+            for call in (n for n in ast.walk(cls) if isinstance(n, ast.Call)):
+                function = call.func
+                if not (
+                    isinstance(function, ast.Attribute) and function.attr == "note"
+                ):
+                    continue
+                for argument in call.args:
+                    if (
+                        isinstance(argument, ast.Constant)
+                        and isinstance(argument.value, str)
+                        and "." in argument.value
+                        and argument.value.split(".")[0] != want
+                    ):
+                        wrong.append(
+                            f"{path.name}:{call.lineno} {cls.name} "
+                            f"(stage {stage!r}, expects {want!r}.) -> {argument.value!r}"
+                        )
+        assert not wrong, "rule ids reported under the wrong stage:\n" + "\n".join(wrong)
+
+    def test_both_halves_of_the_remote_import_pair_exist(self):
+        """One repair, two places to find it, two ids. Deleting either would
+        put the survivor back in the position the test above forbids."""
+        for rule in ("css.remote-import-removed", "xhtml.remote-import-removed"):
+            assert rule in rules.CATALOGUE, rule
+            assert rule in rules.CATALOGUE_PL, rule

@@ -1,6 +1,27 @@
 {
   "source": "sha256:c2a167e46c00748337cbc8c15bff20cb067b0d761ecd72d2d7e4095c8856f418",
-  "version": "0.2.6",
+  "version": "0.2.7",
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 3
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:e0620716e79d266a8d5ad677033492e9cf0c4111b43434118f5946822de8a688",
+    "text_characters": 51,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 9
+  },
   "preserve": {
     "written": true,
     "report": {

@@ -515,10 +515,15 @@ class ContentStage(Stage):
                 location=resource.path,
             )
         if remote_imports:
+            # `xhtml.` rather than `css.`: the prefix on a rule id names the
+            # stage that reports it, and this is the content stage finding an
+            # import inside a `<style>` element. The stylesheet stage has its
+            # own id for the same repair in a linked sheet — which is not
+            # duplication, because they are different places to go and look.
             self.note(
                 ctx,
                 Level.FIX,
-                "css.remote-import-removed",
+                "xhtml.remote-import-removed",
                 values={"count": remote_imports},
                 location=resource.path,
             )

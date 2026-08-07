@@ -34,9 +34,18 @@ from .validate import find_epubcheck, validate
 #: Pinned, so a signature is a function of the book and not of the day it ran.
 FROZEN_MODIFIED = "2020-01-01T00:00:00Z"
 
-#: Both modes are measured. `preserve` is what people actually get, and
+#: Every mode is measured. `preserve` is what people actually get, and
 #: measuring only `strict` would leave the default path unwatched.
-MODES = ("preserve", "strict")
+#:
+#: `minimal` was missing until the corpus was complete enough to notice. The
+#: roadmap justifies a whole family — fixed layout and comics — with the words
+#: "a test of whether minimal mode engages", and the corpus never ran that mode
+#: on anything. The family was filled for a purpose nothing measured, which is
+#: the same shape of mistake as counting books instead of counting families.
+#:
+#: It costs a third more wall time per book, which is why it arrives together
+#: with the run being parallel.
+MODES = ("minimal", "preserve", "strict")
 
 
 @dataclass
@@ -88,6 +97,22 @@ def books_in(folder: pathlib.Path) -> list[pathlib.Path]:
 
 
 def _text_survived(before: pathlib.Path, after: pathlib.Path) -> bool:
+    """Whether every character of *before*'s reading order is still in *after*.
+
+    The reading half of `_survives`, kept because "did this book's text survive
+    into that one" is the question, and two paths are how it is naturally asked.
+    A corpus run has already read the source — once, for all three modes — and
+    calls the inner form directly rather than parsing it again per mode.
+    """
+    from .inventory import spine_text
+
+    try:
+        return _survives(" ".join(spine_text(before).split()), after)
+    except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
+        return False
+
+
+def _survives(source_text: str, after: pathlib.Path) -> bool:
     """Whether every character of the source's reading order is still there.
 
     K1 as it is actually written: *no character is lost*. Not "the counts
@@ -101,12 +126,9 @@ def _text_survived(before: pathlib.Path, after: pathlib.Path) -> bool:
     """
     from .inventory import spine_text
 
-    def normalise(text: str) -> str:
-        return " ".join(text.split())
-
     try:
-        source = normalise(spine_text(before))
-        result = normalise(spine_text(after))
+        source = source_text
+        result = " ".join(spine_text(after).split())
     except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
         return False
 
@@ -121,9 +143,98 @@ def _text_survived(before: pathlib.Path, after: pathlib.Path) -> bool:
     return True
 
 
-def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
+_checker_identity: "str | None" = None
+
+
+def checker_identity() -> str:
+    """Which EPUBCheck this is, as a hash of the jar that will run.
+
+    Recorded beside a verdict so the verdict can be reused. A version string
+    would be cheaper to read and worse to trust: two builds can carry the same
+    version, and reading it costs a JVM start of its own. The jar's bytes are
+    the thing that decides the answer, so the jar's bytes are what is compared.
+
+    Hashed once per process. Thirty megabytes takes a tenth of a second, against
+    the five and a half seconds one validation costs.
+    """
+    global _checker_identity
+    if _checker_identity is not None:
+        return _checker_identity
+    command = find_epubcheck()
+    if command is None:
+        _checker_identity = "none"
+        return _checker_identity
+    jars = [part for part in command if part.lower().endswith(".jar")]
+    try:
+        payload = b"".join(pathlib.Path(jar).read_bytes() for jar in jars) or b"".join(
+            part.encode() for part in command
+        )
+        _checker_identity = hashlib.sha256(payload).hexdigest()[:16]
+    except OSError:
+        _checker_identity = "unreadable"
+    return _checker_identity
+
+
+def _reusable_verdict(previous: "dict | None", output_digest: str) -> "dict | None":
+    """The recorded EPUBCheck verdict, when it cannot have changed.
+
+    EPUBCheck is a pure function of two things: the jar and the bytes it reads.
+    When both match what produced the recorded verdict, running it again is four
+    fifths of the corpus's wall time spent to learn something already written
+    down — and on a check where nothing has moved, that is every book.
+
+    Both halves are required. Matching bytes alone would keep serving an old
+    answer across an EPUBCheck upgrade, which is precisely when the answer is
+    expected to change and precisely when nobody would think to look.
+    """
+    if not previous:
+        return None
+    verdict = previous.get("epubcheck")
+    if not verdict or previous.get("output") != output_digest:
+        return None
+    if previous.get("checker") != checker_identity():
+        return None
+    return verdict
+
+
+@dataclass
+class _Source:
+    """What a book is before the rebuild touches it, measured once.
+
+    Only the two things a mode's measurement compares against: how many
+    characters the reading order held, and that text itself for the K1
+    subsequence check. Not the whole inventory — nothing else was ever read.
+    """
+
+    characters: int
+    text: str
+
+
+def _read_source(book: pathlib.Path) -> _Source:
+    from .inventory import measure as inventory_measure, spine_text
+
+    try:
+        characters = inventory_measure(book).fields.get("spine_text_characters", 0)
+        text = " ".join(spine_text(book).split())
+    except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
+        return _Source(0, "")
+    return _Source(characters, text)
+
+
+def _measure(
+    book: pathlib.Path,
+    destination: pathlib.Path,
+    mode: str,
+    source: "_Source | None" = None,
+    previous: "dict | None" = None,
+) -> dict:
     from .inventory import measure as inventory_measure  # local: avoids a cycle
 
+    # Everything about the *source* is the same for every mode, and it used to
+    # be recomputed for each: two full inventory passes and a spine-text parse
+    # per mode, over a file that had not changed since the last one. With three
+    # modes that is two thirds of the source work thrown away.
+    source = source or _read_source(book)
     policy = Policy.preset(mode, modified_override=FROZEN_MODIFIED)
     result = rebuild(str(book), str(destination), policy)
 
@@ -148,7 +259,6 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
     output = pathlib.Path(result.output_path)
     measurement["output"] = digest(output.read_bytes())
 
-    before = inventory_measure(book).fields
     after = inventory_measure(output).fields
     # Spine text only. The rebuild generates a navigation document when the
     # source had none, and its chapter titles are text — counting them made
@@ -167,25 +277,32 @@ def _measure(book: pathlib.Path, destination: pathlib.Path, mode: str) -> dict:
     # text has to still be *in* the output's, in order, and the count is kept
     # beside it as a number a human can read.
     measurement["text_characters"] = after.get("spine_text_characters", 0)
-    measurement["text_added"] = after.get("spine_text_characters", 0) - before.get(
-        "spine_text_characters", 0
+    measurement["text_added"] = (
+        after.get("spine_text_characters", 0) - source.characters
     )
-    measurement["text_invariant"] = _text_survived(book, output)
+    measurement["text_invariant"] = _survives(source.text, output)
     # K1 compares a stream of characters and cannot see two paragraphs merged
     # into one. Recording the count gives that change its own line in the diff.
     measurement["blocks"] = after.get("blocks", 0)
 
     if find_epubcheck() is not None:
-        check = validate(result.output_path)
-        measurement["epubcheck"] = {
-            "errors": check.errors,
-            "warnings": check.warnings,
-            "fatal": check.fatal,
-        }
+        measurement["checker"] = checker_identity()
+        recorded = _reusable_verdict(previous, measurement["output"])
+        if recorded is not None:
+            measurement["epubcheck"] = recorded
+        else:
+            check = validate(result.output_path)
+            measurement["epubcheck"] = {
+                "errors": check.errors,
+                "warnings": check.warnings,
+                "fatal": check.fatal,
+            }
     return measurement
 
 
-def signature(book: pathlib.Path, scratch: pathlib.Path) -> dict:
+def signature(
+    book: pathlib.Path, scratch: pathlib.Path, previous: "dict | None" = None
+) -> dict:
     """One book's measurements, stamped with the release that took them.
 
     The stamp is not decoration. Entry into alpha asks for the corpus to be
@@ -197,9 +314,19 @@ def signature(book: pathlib.Path, scratch: pathlib.Path) -> dict:
     """
     from . import __version__
 
+    # A directory of this book's own. Books are measured side by side now, and
+    # two threads writing `scratch/preserve.epub` would each be checking a file
+    # the other had just overwritten — a race that produces a plausible wrong
+    # answer rather than a crash, which is the worst kind to introduce.
+    room = scratch / identifier_for(book)
+    room.mkdir(parents=True, exist_ok=True)
+
+    source = _read_source(book)
     record: dict = {"source": digest(book.read_bytes()), "version": __version__}
     for mode in MODES:
-        record[mode] = _measure(book, scratch / f"{mode}.epub", mode)
+        record[mode] = _measure(
+            book, room / f"{mode}.epub", mode, source, (previous or {}).get(mode)
+        )
     return record
 
 
@@ -251,7 +378,12 @@ def _rule_changes(recorded: dict, measured: dict) -> str:
 #: Fields that say *when* a measurement was taken rather than *what* it found.
 #: A diff over them is noise: bumping the version would report every book in the
 #: corpus as changed and bury the one book that really did.
+#: Fields that describe the *measurement* rather than the book. A release stamp
+#: and the identity of the validator both move without anything about the book
+#: having changed, and reporting them as differences would drown the ones that
+#: matter — which is what happened the first time the version was recorded.
 _METADATA = frozenset({"version"})
+_MODE_METADATA = frozenset({"checker"})
 
 
 def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
@@ -261,6 +393,16 @@ def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
         here = f"{path}.{key}" if path else key
         old, new = recorded.get(key), measured.get(key)
         if not path and key in _METADATA:
+            continue
+        if path in MODES and key in _MODE_METADATA:
+            continue
+        # A mode the recorded signature never held. Adding `minimal` made every
+        # book in the corpus report the whole block as a difference — ninety
+        # lines each, ninety-three times, for a change in what is measured
+        # rather than in how a book rebuilds. There is nothing to compare
+        # against, so say that and say it once.
+        if not path and key in MODES and old is None and new is not None:
+            lines.append(f"{here}: not measured before")
             continue
         if key == "rules" and isinstance(old, dict) and isinstance(new, dict):
             # Rendered as one line naming what appeared and what stopped,
@@ -277,60 +419,114 @@ def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
     return lines
 
 
+def workers_for(books: int, requested: int | None = None) -> int:
+    """How many books to measure at once.
+
+    Four fifths of a book's cost is EPUBCheck, and EPUBCheck is a JVM this
+    program starts, waits for, and reads the output of. Waiting is not work:
+    during it the interpreter holds nothing and the machine does nothing. On an
+    eight-core desktop the corpus ran at 6% CPU for exactly that reason —
+    ninety-three books, three modes, two hundred and seventy-nine JVMs, one
+    after another.
+
+    Threads rather than processes, deliberately. The expensive part is a
+    subprocess wait, which releases the GIL, so threads buy nearly all of the
+    available speedup; and this runs inside a frozen Windows GUI, where a
+    process pool without `freeze_support` relaunches the whole application once
+    per worker. That failure is a fork bomb on a user's desktop, and the
+    remaining fraction of a speedup is not worth standing next to it.
+
+    Capped at eight: each JVM wants a few hundred megabytes, and a machine that
+    starts sixteen of them at once spends the difference in swap.
+    """
+    import os
+
+    if requested is not None:
+        return max(1, requested)
+    return max(1, min(8, os.cpu_count() or 1, books))
+
+
 def compare(
     books: pathlib.Path,
     signatures: pathlib.Path,
     *,
     record: bool = False,
     on_book=None,
+    workers: int | None = None,
 ) -> list[Comparison]:
     """Check every book against its signature, optionally rewriting them.
 
     With ``record`` off this is a regression test. With it on, it is how a
     deliberate change gets accepted — and it still reports what moved, because
     "40 hashes changed" is not something anybody can review.
+
+    Books are measured side by side; the results come back in shelf order
+    regardless, because a corpus report that shuffles itself between runs is one
+    nobody can diff.
     """
+    import concurrent.futures
     import tempfile
+    import threading
 
     signatures.mkdir(parents=True, exist_ok=True)
-    results: list[Comparison] = []
+    shelf = books_in(books)
+    if not shelf:
+        return []
 
-    with tempfile.TemporaryDirectory(prefix="epubforge-corpus-") as scratch:
-        for index, book in enumerate(books_in(books)):
-            # Relative to the corpus root: two shelves may hold a file of the
-            # same name, and "changed: ksiazka.epub" would then be ambiguous.
-            label = str(book.relative_to(books)) if book.is_relative_to(books) else book.name
-            if on_book is not None:
-                on_book(index, label)
+    done = 0
+    progress_lock = threading.Lock()
 
-            identifier = identifier_for(book)
-            reference = signatures / f"{identifier}.json"
-            previous = (
-                json.loads(reference.read_text(encoding="utf-8"))
-                if reference.is_file()
-                else None
+    def label_for(book: pathlib.Path) -> str:
+        # Relative to the corpus root: two shelves may hold a file of the same
+        # name, and "changed: ksiazka.epub" would then be ambiguous.
+        return str(book.relative_to(books)) if book.is_relative_to(books) else book.name
+
+    def measure_one(book: pathlib.Path, scratch: str) -> Comparison:
+        nonlocal done
+        label = label_for(book)
+        identifier = identifier_for(book)
+        reference = signatures / f"{identifier}.json"
+        previous = (
+            json.loads(reference.read_text(encoding="utf-8"))
+            if reference.is_file()
+            else None
+        )
+
+        try:
+            current = signature(book, pathlib.Path(scratch), previous)
+        except Exception as exc:  # noqa: BLE001 — one bad book is a finding
+            outcome = Comparison(
+                label, identifier, "failed", [f"{type(exc).__name__}: {exc}"]
             )
-
-            try:
-                current = signature(book, pathlib.Path(scratch))
-            except Exception as exc:  # noqa: BLE001 — one bad book is a finding
-                results.append(
-                    Comparison(label, identifier, "failed", [f"{type(exc).__name__}: {exc}"])
-                )
-                continue
-
+        else:
             if previous is None:
                 status, changes = "new", []
             else:
                 changes = differences(previous, current)
                 status = "unchanged" if not changes else "changed"
-
             if record:
                 reference.write_text(
                     json.dumps(current, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
                 )
-            results.append(Comparison(label, identifier, status, changes))
+            outcome = Comparison(label, identifier, status, changes)
+
+        # Reported on completion rather than on start: with several books in
+        # flight, "starting number 40" while 33 to 39 are still running is a
+        # progress bar that lies about how much is left.
+        if on_book is not None:
+            with progress_lock:
+                done += 1
+                on_book(done - 1, label)
+        return outcome
+
+    with tempfile.TemporaryDirectory(prefix="epubforge-corpus-") as scratch:
+        count = workers_for(len(shelf), workers)
+        if count == 1:
+            results = [measure_one(book, scratch) for book in shelf]
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=count) as pool:
+                results = list(pool.map(lambda b: measure_one(b, scratch), shelf))
 
     if record:
         _log_run(signatures, results)
@@ -415,4 +611,5 @@ __all__ = [
     "RUNS",
     "signature",
     "summarise",
+    "workers_for",
 ]

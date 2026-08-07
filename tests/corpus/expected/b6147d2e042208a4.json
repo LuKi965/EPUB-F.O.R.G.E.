@@ -1,6 +1,6 @@
 {
   "source": "sha256:b6147d2e042208a48320d14a615abe78ddaad29a56b9822059bdfb97e165f206",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "preserve": {
     "written": true,
     "report": {
@@ -22,7 +22,7 @@
       "xhtml.watermark-consolidated": 1,
       "xhtml.watermark-kept": 1
     },
-    "output": "sha256:302520e13ec9fb88d3ddf46ccf2ba3abb03a470136da85ec044049bbfc316579",
+    "output": "sha256:cd06477258db2f9ecda2cd18fabe0e1003e1366a7c2456028256bb4d08b0a487",
     "text_characters": 222951,
     "text_added": 0,
     "text_invariant": true,
@@ -54,7 +54,7 @@
       "xhtml.watermark-consolidated": 1,
       "xhtml.watermark-kept": 1
     },
-    "output": "sha256:302520e13ec9fb88d3ddf46ccf2ba3abb03a470136da85ec044049bbfc316579",
+    "output": "sha256:cd06477258db2f9ecda2cd18fabe0e1003e1366a7c2456028256bb4d08b0a487",
     "text_characters": 222951,
     "text_added": 0,
     "text_invariant": true,

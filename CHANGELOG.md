@@ -23,6 +23,107 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## Unreleased
+
+### 0.2.7 measured, and the one rule id that named the wrong stage
+
+The owner's run on 0.2.7 — **91 books, zero EPUBCheck errors, zero fatal, no
+text lost, nothing unwritten.** The seven books 0.2.6 could not make conformant
+come out clean, and the four generated edges were built from the window. It is
+also the first run the application logged into the ledger by itself; every entry
+above it was typed in by hand. The green streak starts at `0.2.7` and needs two
+more.
+
+Coverage stands at eight families of ten. `word` and `pdf-or-ocr` are one book
+short each, and those two have to be real: a provenance family exists because a
+converter leaves defects nobody would think to invent, so a synthetic "Google
+Docs export" would test my idea of Google Docs rather than Google Docs.
+
+The survey over those 91 books caught something no test did. Of 135 rule ids,
+**one** was reported under a stage its prefix did not name:
+`css.remote-import-removed`, emitted by the content stage, whose findings carry
+`stage: "xhtml"`. The prefix is not decoration — it is how a report is grouped
+and filtered — and the repair genuinely happens in two places, so it now has two
+ids: `xhtml.` for an import inside a `<style>` element, `css.` for one in a
+linked sheet. Two ids are not duplication when they send you to two different
+places to look.
+
+The check that found it was ninety-one real books on the one machine that has
+them, which is the slowest feedback available and not available to anyone else.
+It is now an AST walk over the stage modules, in a tenth of a second, and it
+fails if the pair is broken back apart.
+
+## 0.2.8 — alpha — 2026-08-07 — **kamień milowy: prywatny korpus**
+
+**Roadmap point [1] is closed.** Not on a total — sixty-four books were once
+called enough — but on the condition the roadmap actually states: every family
+represented, counted by a program rather than remembered.
+
+### At a glance
+
+| | |
+|---|---|
+| 93 books, ten families of ten | zero errors, zero fatal, no text lost |
+| The corpus justified a family with a mode it never ran | `minimal` is measured now |
+| The run sat at 6% CPU on eight cores | a reused verdict skips the JVM entirely |
+| Every book built into `scratch/preserve.epub` | side by side that is a race, so each gets its own |
+| Two run ledgers tracked by accident | evidence for nothing, gone |
+
+**Closed:** the first roadmap milestone. **Faster:** a check where nothing moved
+is **5–6×** quicker, measured — work removed rather than spread out. **New:**
+`--workers N`, `checker_identity()`, `workers_for()`.
+
+### Everything, by subject
+
+### Roadmap point [1] is closed, measured rather than remembered
+
+**93 books, every family represented, the run clean** — zero EPUBCheck errors,
+zero fatal, no text lost, nothing unwritten. Two books closed the last two
+families; the other 91 measured identically to the run before, so nothing broke
+on the way.
+
+### The corpus was justifying a family with a mode it never ran
+
+The family table asks for fixed-layout books and comics as "a test of whether
+minimal mode engages", and the corpus measured `preserve` and `strict` only. The
+family was filled for a purpose nothing measured — the same shape as counting
+books instead of counting families, one floor up.
+
+`minimal` is now measured. The first run after this re-measures every book once
+and prints `minimal: not measured before` against each: not a regression, a
+reading that did not exist. That line is deliberate — the change first made
+every book report its whole `minimal` block as a difference, ninety lines each,
+ninety-three times, for a change in what is measured rather than in how a book
+rebuilds.
+
+### The corpus ran at 6% CPU, and a third more work just landed on it
+
+On an eight-core desktop: one JVM at a time, fifteen threads idle. Four fifths
+of the wall time is EPUBCheck, and 93 books across three modes is 279 starts of
+it, one after another.
+
+* **A recorded verdict is reused when it cannot have changed.** EPUBCheck is a
+  pure function of the jar and the bytes it reads; both are compared, and either
+  one moving means it runs again. The jar is identified by the hash of its
+  bytes, recorded beside the verdict — a version string is cheaper to read and
+  worse to trust. On a check where nothing has moved this skips every JVM start
+  there is: **5–6× faster**, measured, and it is work removed rather than work
+  spread out, so it does not depend on the machine.
+* **Books are measured side by side**, threads rather than processes: the
+  expensive part is a subprocess wait, and a process pool inside a frozen
+  Windows GUI without `freeze_support` relaunches the application once per
+  worker. Capped at eight, because each JVM wants a few hundred megabytes.
+* Everything about the *source* is now read once per book rather than once per
+  mode — two inventory passes and a spine-text parse that had been thrown away
+  and redone three times over a file that had not changed.
+
+Results still come back in shelf order however the pool finishes, and every book
+gets its own scratch directory: they all built into `scratch/preserve.epub`
+before, which side by side is two threads checking a file the other had just
+overwritten — a race that produces a plausible wrong answer rather than a crash.
+
+`--workers N` on the command line for anyone who wants to pick.
+
 ## 0.2.7 — alpha — 2026-08-06
 
 **The first conversions the corpus ever held broke three things, and the

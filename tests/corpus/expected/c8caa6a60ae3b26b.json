@@ -1,11 +1,11 @@
 {
   "source": "sha256:c8caa6a60ae3b26b6ac38078b2272a6847f21fcf0faadc502932c1baf68c72fd",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "preserve": {
     "written": true,
     "report": {
       "info": 2,
-      "fix": 12,
+      "fix": 13,
       "preserved": 1,
       "warn": 1
     },
@@ -18,17 +18,18 @@
       "package.upgraded": 1,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
+      "xhtml.dead-fragment-dropped": 1,
       "xhtml.image-paragraph-centred": 6,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:0ebd79380fdd1227910990f3f292069a01010b7a99b2558a722f030da980af58",
+    "output": "sha256:cbf968f083840ff83c4f336e054c227a330df4e3d232926c3126dc0e8d14ff5e",
     "text_characters": 473333,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 3480,
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0
     }
@@ -37,7 +38,7 @@
     "written": true,
     "report": {
       "info": 2,
-      "fix": 12,
+      "fix": 13,
       "preserved": 1,
       "warn": 1
     },
@@ -50,17 +51,18 @@
       "package.upgraded": 1,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
+      "xhtml.dead-fragment-dropped": 1,
       "xhtml.image-paragraph-centred": 6,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:0ebd79380fdd1227910990f3f292069a01010b7a99b2558a722f030da980af58",
+    "output": "sha256:cbf968f083840ff83c4f336e054c227a330df4e3d232926c3126dc0e8d14ff5e",
     "text_characters": 473333,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 3480,
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0
     }

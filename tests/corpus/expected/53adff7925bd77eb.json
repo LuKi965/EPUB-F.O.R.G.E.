@@ -1,27 +1,27 @@
 {
-  "source": "sha256:b434a6ebb27e245d0710667323e5238c403aa347f531aa1f0b1d9728acb6dc96",
+  "source": "sha256:53adff7925bd77eb054a06f47950bd18a64385f6ae8aa8374befb6a05f95949d",
   "version": "0.2.7",
   "preserve": {
     "written": true,
     "report": {
       "info": 3,
-      "fix": 3,
-      "preserved": 5
+      "fix": 5
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.image-paragraph-kept": 5,
-      "xhtml.watermark-consolidated": 1
+      "xhtml.cover-fitted": 1,
+      "xhtml.image-paragraph-centred": 1
     },
-    "output": "sha256:18002e4e44d6f9f355b18ac28f641176b7c5ab9cc27cd85ff445928807557ed7",
-    "text_characters": 1130675,
-    "text_added": 0,
+    "output": "sha256:d34acd371c1fdab3d2c0038e81454b2c9ccaa60d2f6f6820df67f9defad2dc70",
+    "text_characters": 2,
+    "text_added": 2,
     "text_invariant": true,
-    "blocks": 7041,
+    "blocks": 6,
     "epubcheck": {
       "errors": 0,
       "warnings": 0,
@@ -32,23 +32,23 @@
     "written": true,
     "report": {
       "info": 3,
-      "fix": 3,
-      "preserved": 5
+      "fix": 5
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "structure.relaid-out": 1,
-      "xhtml.image-paragraph-kept": 5,
-      "xhtml.watermark-consolidated": 1
+      "xhtml.cover-fitted": 1,
+      "xhtml.image-paragraph-centred": 1
     },
-    "output": "sha256:18002e4e44d6f9f355b18ac28f641176b7c5ab9cc27cd85ff445928807557ed7",
-    "text_characters": 1130675,
-    "text_added": 0,
+    "output": "sha256:d34acd371c1fdab3d2c0038e81454b2c9ccaa60d2f6f6820df67f9defad2dc70",
+    "text_characters": 2,
+    "text_added": 2,
     "text_invariant": true,
-    "blocks": 7041,
+    "blocks": 6,
     "epubcheck": {
       "errors": 0,
       "warnings": 0,

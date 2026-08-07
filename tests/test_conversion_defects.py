@@ -146,6 +146,13 @@ class TestALinkToAnAnchorNobodyDefines:
 class TestAStylesheetFetchedOverTheNetwork:
     """Google Docs exports `@import url(https://themes.googleusercontent.com/…)`.
 
+    Reported under two ids, by where it was found: `xhtml.` when the import is
+    inside a `<style>` element and `css.` when it is in a linked sheet. The
+    prefix on a rule id names the stage that reports it, and the survey caught
+    the one entry in the whole catalogue that broke that — `css.` coming out of
+    the xhtml stage. Two ids are not duplication when they send you to two
+    different places to look.
+
     EPUB 3 permits one remote resource — a font declared on its manifest item —
     and a stylesheet is not one. The rule is dropped; the font-family
     declarations are not, so the fallback is exactly what it was.
@@ -163,7 +170,7 @@ class TestAStylesheetFetchedOverTheNetwork:
         chapter = chapter_of(result)
         assert "googleusercontent" not in chapter
         assert "font-family" in chapter
-        assert "css.remote-import-removed" in rules_of(result)
+        assert "xhtml.remote-import-removed" in rules_of(result)
 
     def test_it_is_a_fix_not_a_thing_merely_reported(self, tmp_path):
         source = book(
@@ -173,7 +180,7 @@ class TestAStylesheetFetchedOverTheNetwork:
         )
         result = built(source, tmp_path)
         levels = {
-            f.level for f in result.report.findings if f.rule == "css.remote-import-removed"
+            f.level for f in result.report.findings if f.rule == "xhtml.remote-import-removed"
         }
         assert levels == {Level.FIX}
 

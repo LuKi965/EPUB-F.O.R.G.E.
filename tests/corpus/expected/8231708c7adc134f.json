@@ -1,11 +1,11 @@
 {
   "source": "sha256:8231708c7adc134f47d616957b2a840f216bd9d3bffb94ec6efacccee88fc63a",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "preserve": {
     "written": true,
     "report": {
       "info": 2,
-      "fix": 17,
+      "fix": 18,
       "preserved": 6,
       "warn": 2
     },
@@ -21,15 +21,15 @@
       "structure.relaid-out": 1,
       "xhtml.empty-alt-added": 9,
       "xhtml.image-paragraph-kept": 6,
-      "xhtml.presentational-markup-converted": 3
+      "xhtml.presentational-markup-converted": 4
     },
-    "output": "sha256:918c11f8be160a5cf582f184fb5cd1db5682c7a0a6b61f0b4869bc0488bcd974",
+    "output": "sha256:c22a7665b1d0414af1b7af6bd6c891103f1aa9cfb23c9b8c2fb0eccda756baaf",
     "text_characters": 233289,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 318,
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0
     }
@@ -38,7 +38,7 @@
     "written": true,
     "report": {
       "info": 2,
-      "fix": 17,
+      "fix": 18,
       "preserved": 6,
       "warn": 2
     },
@@ -54,15 +54,15 @@
       "structure.relaid-out": 1,
       "xhtml.empty-alt-added": 9,
       "xhtml.image-paragraph-kept": 6,
-      "xhtml.presentational-markup-converted": 3
+      "xhtml.presentational-markup-converted": 4
     },
-    "output": "sha256:918c11f8be160a5cf582f184fb5cd1db5682c7a0a6b61f0b4869bc0488bcd974",
+    "output": "sha256:c22a7665b1d0414af1b7af6bd6c891103f1aa9cfb23c9b8c2fb0eccda756baaf",
     "text_characters": 233289,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 318,
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0
     }
