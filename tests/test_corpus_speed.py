@@ -206,3 +206,65 @@ class TestTheScratchIsNotShared:
         assert {r.status for r in many} == {"unchanged"}, [
             (r.book, r.status, r.differences) for r in many if r.status != "unchanged"
         ]
+
+
+class TestTheJvmIsToldItDoesNotOwnTheMachine:
+    """A JVM sizes its garbage collector and its compilers from the core count.
+
+    That is right for a server running for a week and wrong for a process that
+    validates one book and exits — and catastrophic eight at a time, where an
+    eight-core desktop ends up with over a hundred GC and JIT threads fighting
+    for eight cores. Making the corpus parallel without this made it *slower*
+    while pushing the machine to 95%, which is the signature of a computer
+    working hard at coordinating itself.
+
+    Measured, four validations at a time: 17.4s with nothing, 7.0s with these.
+    The largest single contributor helps a lone validation too, so this is not
+    only about the corpus.
+    """
+
+    def test_the_options_are_inserted_into_a_java_invocation(self):
+        from epubforge.validate import TUNING, _tuned, accepted_tuning
+
+        command = _tuned(["/usr/bin/java", "-jar", "/opt/epubcheck.jar"])
+        assert command[0] == "/usr/bin/java"
+        assert command[-2:] == ["-jar", "/opt/epubcheck.jar"]
+        # Either every option or none: a partially applied set is a set nobody
+        # measured, and the probe answers for the whole group.
+        assert tuple(command[1:-2]) in (TUNING, ())
+        assert tuple(command[1:-2]) == accepted_tuning("/usr/bin/java")
+
+    def test_no_heap_cap_is_imposed(self):
+        """`-Xmx512m` was measured and made no difference at all. A cap that
+        buys nothing can still make a large book fail to validate, and a false
+        error is worse than a slow answer."""
+        from epubforge.validate import TUNING
+
+        assert not any(option.startswith("-Xm") for option in TUNING)
+
+    def test_a_command_that_is_not_java_is_left_alone(self):
+        """A system `epubcheck` wrapper takes no JVM options."""
+        from epubforge.validate import _tuned
+
+        assert _tuned(["/usr/bin/epubcheck"]) == ["/usr/bin/epubcheck"]
+        assert _tuned(None) is None
+
+    def test_a_runtime_that_refuses_the_options_gets_none_of_them(self):
+        """HotSpot *fails to start* on an `-XX:` option it does not know, so a
+        flag wrong for somebody's Java would not make validation slow, it would
+        make it impossible. Other runtimes exist."""
+        from epubforge.validate import accepted_tuning
+
+        assert accepted_tuning("/definitely/not/a/java/binary") == ()
+
+    def test_the_options_do_not_change_which_checker_this_is(self):
+        """`checker_identity` decides whether a recorded verdict may be reused.
+        JIT and GC settings cannot change a verdict, so they must not look like
+        a different validator — that would throw away every cached answer."""
+        from epubforge.validate import find_epubcheck
+
+        command = find_epubcheck()
+        if command is None:
+            pytest.skip("no EPUBCheck here")
+        assert not any(part.startswith("-XX:") for part in command if part.endswith(".jar"))
+        assert checker_identity() == checker_identity()
