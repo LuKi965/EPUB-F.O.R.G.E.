@@ -8,6 +8,7 @@ it, just unverified.
 from __future__ import annotations
 
 import json
+import functools
 import os
 import shutil
 import subprocess
@@ -38,6 +39,65 @@ class ValidationResult:
         return self.available and self.fatal == 0 and self.errors == 0
 
 
+#: What a JVM assumes when nobody tells it otherwise: that it owns the machine.
+#: It sizes its garbage collector and its compiler threads from the core count,
+#: which is right for a server running for a week and wrong for a process that
+#: validates one book and exits.
+#:
+#: Measured, on one book, four validations at a time:
+#:
+#: ===========================  ======
+#: nothing                       17.4s
+#: TieredStopAtLevel=1            7.7s
+#: ActiveProcessorCount=1        12.8s
+#: UseSerialGC                   16.0s
+#: all three                      7.0s
+#: ===========================  ======
+#:
+#: `TieredStopAtLevel=1` is the large one and it helps a single validation too:
+#: EPUBCheck runs for a few seconds, and the optimising compiler never earns
+#: back what it costs to run. The other two stop eight concurrent JVMs from
+#: each starting a garbage collector sized for every core on the machine —
+#: which on an eight-core desktop is over a hundred threads fighting for eight.
+#:
+#: `-Xmx512m` was measured too and made no difference at all, so it is not here:
+#: a heap cap that buys nothing can still make a large book fail to validate,
+#: and a false error is worse than a slow answer.
+TUNING = (
+    "-XX:TieredStopAtLevel=1",
+    "-XX:ActiveProcessorCount=1",
+    "-XX:+UseSerialGC",
+)
+
+
+@functools.lru_cache(maxsize=8)
+def accepted_tuning(java: str) -> tuple[str, ...]:
+    """The options above, if this JVM takes them, or nothing at all.
+
+    HotSpot *fails to start* on an `-XX:` option it does not recognise, so a
+    flag that is wrong for somebody's Java would not make validation slower, it
+    would make it impossible. Other runtimes exist — OpenJ9 is the common one —
+    and a user may point `EPUBCHECK_JAR` at whatever java is on their path.
+
+    Asked once per interpreter, and answered by the only authority there is:
+    starting that java with those options and seeing whether it comes up.
+    """
+    try:
+        probe = subprocess.run(
+            [java, *TUNING, "-version"], capture_output=True, timeout=60, **_no_console()
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    return TUNING if probe.returncode == 0 else ()
+
+
+def _tuned(command: list[str] | None) -> list[str] | None:
+    """Insert the options into a `java -jar …` invocation, and nothing else."""
+    if command and len(command) >= 3 and command[1] == "-jar":
+        return [command[0], *accepted_tuning(command[0]), *command[1:]]
+    return command
+
+
 def find_epubcheck() -> list[str] | None:
     """Return the command prefix that runs EPUBCheck, or ``None``.
 
@@ -47,18 +107,18 @@ def find_epubcheck() -> list[str] | None:
     """
     jar = os.environ.get(ENV_JAR)
     if jar and os.path.isfile(jar):
-        return _java_command(jar)
+        return _tuned(_java_command(jar))
 
     bundled = resources.bundled_epubcheck_command()
     if bundled:
-        return bundled
+        return _tuned(bundled)
 
     executable = shutil.which("epubcheck")
     if executable:
         return [executable]
     for candidate in SEARCH_PATHS:
         if os.path.isfile(candidate):
-            return _java_command(candidate)
+            return _tuned(_java_command(candidate))
     return None
 
 

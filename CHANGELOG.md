@@ -53,6 +53,65 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
+## 0.2.9 — alpha — 2026-08-07
+
+**0.2.8 made the corpus run slower and pushed the machine to 95%.** That is
+this release's whole subject: a regression I shipped, reported within the hour,
+and it was mine rather than the hardware's.
+
+### At a glance
+
+| | |
+|---|---|
+| Eight JVMs, each sized for the whole machine | over a hundred GC and JIT threads for eight cores |
+| 95% CPU and a longer wall clock | a computer working hard at coordinating itself |
+| `-XX:TieredStopAtLevel=1` | the large one: 17.4s → 7.7s, four at a time |
+| `-XX:ActiveProcessorCount=1`, `-XX:+UseSerialGC` | the rest: 7.0s together |
+| `-Xmx512m` | measured, changed nothing, **not shipped** |
+
+**Fixed:** a single validation drops from 10.1s to 5.3s, so this helps one book
+in the window as much as it helps ninety-three in the corpus. The full corpus
+run here went 88.5s → 53.2s on four throttled cores; the effect is larger the
+more cores a machine has, because oversubscription is what it removes.
+
+### Everything, by subject
+
+### A JVM assumes it owns the machine, and eight of them cannot all be right
+
+Making the corpus parallel without saying anything to the JVM was the mistake.
+Each one sizes its garbage collector and its compiler threads from the core
+count — correct for a server running for a week, wrong for a process that
+validates one book and exits, and catastrophic eight at a time.
+
+Measured rather than reasoned about, one book, four validations at once:
+
+| options | wall |
+|---|---|
+| none | 17.4s |
+| `TieredStopAtLevel=1` | 7.7s |
+| `ActiveProcessorCount=1` | 12.8s |
+| `UseSerialGC` | 16.0s |
+| all three | 7.0s |
+
+`TieredStopAtLevel=1` is the large one and it is not about parallelism at all:
+EPUBCheck runs for a few seconds, and the optimising compiler never earns back
+what it costs to run. The other two stop each JVM from starting a collector
+sized for every core on the machine.
+
+`-Xmx512m` was measured in the same pass and made no difference whatsoever, so
+it is not shipped. A heap cap that buys nothing can still make a large book fail
+to validate, and a false error is worse than a slow answer.
+
+HotSpot *fails to start* on an `-XX:` option it does not recognise, so the
+options are probed once per interpreter — that java, those flags, `-version` —
+and dropped as a group if it does not come up. A user may point `EPUBCHECK_JAR`
+at any runtime they like, and OpenJ9 is not HotSpot.
+
+The options are invisible to `checker_identity()`, which decides whether a
+recorded verdict may be reused: JIT and GC settings cannot change a verdict, and
+treating them as a different validator would have discarded every cached answer
+in the corpus.
+
 ## 0.2.8 — alpha — 2026-08-07 — **kamień milowy: prywatny korpus**
 
 **Roadmap point [1] is closed.** Not on a total — sixty-four books were once
