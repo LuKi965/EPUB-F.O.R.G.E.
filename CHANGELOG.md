@@ -53,11 +53,24 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
-## Unreleased
+## 0.2.10 — alpha — 2026-08-08
 
-> **No build available.** GitHub Actions minutes are exhausted for about 24
-> days, so this cannot be released yet. Everything below is in the repository
-> and will ship in the first build after that.
+**The corpus marked itself down for keeping a promise.** One release, one
+subject: the run summary could not tell a defect carried from a defect created,
+so the mode that promises not to touch content was scored for the defects it
+faithfully carried.
+
+### At a glance
+
+| | |
+|---|---|
+| 44 errors, 31 books, all in `minimal` | `preserve` and `strict`: zero on the same 93 |
+| Nothing had ever measured the sources | so both kinds of error counted as ours |
+| Alpha needs three green releases in a row | the corpus could never be green again |
+| A signature now records the source's verdict | read once; a book's id *is* its hash |
+| 0.2.9's entry in the ledger | left exactly as measured, not back-dated |
+
+### Everything, by subject
 
 ### The corpus marked itself down for keeping a promise
 
