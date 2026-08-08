@@ -1,10 +1,16 @@
 {
   "source": "sha256:f9eda348240ce249156f2be703ccb8a8b47d406228a95883c82d97b6e1c0c94c",
-  "version": "0.2.9",
+  "version": "0.2.11",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 0,
+    "warnings": 0,
+    "fatal": 0
+  },
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 10,
       "fix": 1
     },
     "rules": {
@@ -13,6 +19,11 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:65409ab3cdcb6970b12c3eefa18ebbc5c8857fea389bf83fcf16ee012edacebf",
@@ -30,7 +41,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 3,
       "preserved": 4
     },
@@ -39,6 +50,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.image-paragraph-kept": 4,
       "xhtml.watermark-consolidated": 1
@@ -58,7 +74,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 3,
       "preserved": 4
     },
@@ -67,6 +83,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.image-paragraph-kept": 4,
       "xhtml.watermark-consolidated": 1

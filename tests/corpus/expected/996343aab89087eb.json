@@ -1,10 +1,16 @@
 {
   "source": "sha256:996343aab89087ebc5e13292687883d3dc09a30869eb951081426a2f4ae3c622",
-  "version": "0.2.9",
+  "version": "0.2.11",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 0,
+    "warnings": 0,
+    "fatal": 0
+  },
   "minimal": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 1
     },
     "rules": {
@@ -12,6 +18,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:d07013f1d919f5c55f4abab39186841ce7e0577d6005988ebb3fe724e6055614",
@@ -29,7 +36,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 2
     },
     "rules": {
@@ -37,6 +44,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "structure.relaid-out": 1
     },
     "output": "sha256:6e7fc3a9f77b5a7a4e446fa99ba23b7ba5c4e09b9c08f8011617ce16077a36f8",
@@ -54,7 +62,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 2
     },
     "rules": {
@@ -62,6 +70,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "structure.relaid-out": 1
     },
     "output": "sha256:6e7fc3a9f77b5a7a4e446fa99ba23b7ba5c4e09b9c08f8011617ce16077a36f8",

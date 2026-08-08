@@ -1,10 +1,16 @@
 {
   "source": "sha256:eb79e242659b2997bd37d797040bfd7d05607d22d3be8212148259ab6b264739",
-  "version": "0.2.9",
+  "version": "0.2.11",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 1,
+    "warnings": 0,
+    "fatal": 0
+  },
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 10,
       "fix": 2,
       "preserved": 1,
       "warn": 1
@@ -17,6 +23,11 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.scene-separators-found": 1,
       "xhtml.doctype-modernised": 1,
       "xhtml.untouched-except-doctype": 1
     },
@@ -35,7 +46,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 35,
       "preserved": 3
     },
@@ -47,6 +58,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.scene-separators-found": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.entities-rewritten": 27,
@@ -68,7 +84,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 36,
       "preserved": 2
     },
@@ -80,6 +96,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.scene-separators-found": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.entities-rewritten": 27,

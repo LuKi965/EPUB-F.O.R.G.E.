@@ -203,6 +203,19 @@ class ContentStage(Stage):
                     for element in xhtml.iter_elements(root)
                     if element.get("id")
                 }
+                # The same parse also decides the manifest properties, and this
+                # mode needs them as much as any other: the package is rebuilt
+                # as EPUB 3 whatever happens to the content, and EPUB 3 requires
+                # a document containing SVG to say so. Calibre wraps its cover
+                # in `<svg>` and writes an EPUB 2 package, where no such
+                # declaration exists — so nineteen books came out of this mode
+                # with "The property svg should be declared in the OPF file",
+                # having gone in valid. The one mode that promises to break
+                # nothing was breaking something.
+                #
+                # It costs nothing here: reading properties writes no bytes, and
+                # the document has already been parsed a line above.
+                self._properties(ctx, root, resource)
             if modernised:
                 self.note(
                     ctx,

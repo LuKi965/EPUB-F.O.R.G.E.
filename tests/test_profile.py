@@ -401,3 +401,100 @@ class TestTheInventoryCarriesTheProfile:
         broken = tmp_path / "broken.epub"
         broken.write_bytes(b"not an epub at all")
         assert "profile" not in inventory_measure(broken).fields
+
+
+class TestTheMarginShorthand:
+    """`margin: 1em 0` is how most people write it, and it was invisible.
+
+    Twenty-nine books out of ninety-three came back with no paragraph paradigm
+    at all — a third of a real shelf — because this measurement looked only for
+    `margin-top` and `margin-bottom` in full. It never showed on the six Project
+    Gutenberg books it was built against, whose stylesheet happens to write the
+    longhand. Six books cannot find a gap that six books do not have.
+    """
+
+    def paradigm(self, css: str) -> str:
+        return measure(roots('<p class="a">Zdanie.</p>' * 8), css).paragraphs.paradigm
+
+    @pytest.mark.parametrize(
+        "css",
+        [
+            ".a { margin-top: 1em; margin-bottom: 1em }",
+            ".a { margin: 1em }",
+            ".a { margin: 1em 0 }",
+            ".a { margin: 0 0 1em }",
+            ".a { margin: 1em 0 1em 0 }",
+        ],
+    )
+    def test_every_spelling_of_a_spaced_paragraph_is_seen(self, css):
+        assert self.paradigm(css) == "SPACED"
+
+    @pytest.mark.parametrize(
+        "css",
+        [
+            ".a { margin: 0 1em }",  # horizontal only — not paragraph spacing
+            ".a { margin: 0 0 0.25em }",  # under the floor
+            ".a { margin: 0 }",
+        ],
+    )
+    def test_a_margin_that_is_not_vertical_space_is_not_spacing(self, css):
+        assert self.paradigm(css) == "UNKNOWN"
+
+    def test_the_longhand_wins_where_both_are_given(self):
+        """Not a renderer: the specific declaration is the one a publisher
+        reached for, and guessing about cascade order would be inventing."""
+        assert self.paradigm(".a { margin: 0; margin-bottom: 1em }") == "SPACED"
+
+    def test_an_indent_beside_a_shorthand_margin_is_still_both(self):
+        assert self.paradigm(".a { margin: 1em 0; text-indent: 1.5em }") == "BOTH"
+
+
+class TestAVerdictNeedsMostOfTheBook:
+    """Ninety-three real books said `SPACED` on one paragraph out of 3413.
+
+    A ratio over a sample of one is 1.0, and under the first rule it carried
+    exactly as much confidence as a book where 2036 paragraphs out of 2036
+    agreed. Nine books in that shelf held a verdict on under a tenth of their
+    text, and one of the three `MIXED` findings — the signal this measurement
+    exists for — rested on 3.5% of its book.
+
+    The shelf also said where the line goes: coverage is sharply bimodal, 38
+    books under 10%, nothing at all between 10% and 33%, 41 in the 90–100%
+    band. Half sits inside the empty stretch, so nothing hangs on the figure.
+    """
+
+    def test_one_paragraph_decides_nothing(self):
+        from epubforge.profile import Paragraphs
+
+        assert Paragraphs(spaced=1, neither=3412).paradigm == "UNKNOWN"
+
+    def test_a_thin_mixture_is_not_a_mixed_book(self):
+        """The costliest case: `MIXED` claims two files were glued together."""
+        from epubforge.profile import Paragraphs
+
+        thin = Paragraphs(indented=49, spaced=161, neither=5754)
+        assert thin.coverage < 0.05
+        assert thin.paradigm == "UNKNOWN"
+
+    def test_a_book_that_was_read_through_still_gets_its_verdict(self):
+        from epubforge.profile import Paragraphs
+
+        assert Paragraphs(indented=6048, spaced=143, both=31, neither=369).paradigm == "INDENTED"
+        assert Paragraphs(spaced=2036).paradigm == "SPACED"
+        assert Paragraphs(indented=5, spaced=5).paradigm == "MIXED"
+
+    def test_the_coverage_is_reported_beside_the_verdict(self):
+        """It is what says whether to believe it, and the number that will move
+        this threshold next time."""
+        summary = measure(
+            roots('<p style="margin-bottom: 1em">A.</p>' * 3 + "<p>B.</p>"), ""
+        ).to_dict()
+        assert summary["paradigm_coverage"] == 0.75
+        assert summary["paradigm"] == "SPACED"
+
+    def test_exactly_half_is_enough(self):
+        from epubforge.profile import PARADIGM_COVERAGE, Paragraphs
+
+        assert PARADIGM_COVERAGE == 0.50
+        assert Paragraphs(spaced=5, neither=5).paradigm == "SPACED"
+        assert Paragraphs(spaced=4, neither=5).paradigm == "UNKNOWN"

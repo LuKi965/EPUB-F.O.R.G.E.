@@ -870,6 +870,102 @@ class TestTheCoverFitsThePage:
         assert len(styled) == 1, styled
 
 
+class TestContainerOnlyModeStillDeclaresWhatTheDocumentsHold:
+    """It rebuilds the package as EPUB 3, so it owes EPUB 3 an honest manifest.
+
+    Nineteen books in the private corpus went into this mode valid and came out
+    with "The property svg should be declared in the OPF file". Calibre wraps a
+    cover in `<svg>` and writes an EPUB 2 package, where no such declaration
+    exists; we regenerate the package as EPUB 3, where it is required, and the
+    code that works the properties out lived in the branch this mode skips.
+
+    The one mode that promises to break nothing was breaking something, and it
+    took a corpus that could tell "carried through" from "introduced" to see it
+    at all — the same nineteen books had been counted as source defects.
+
+    Reading a document to decide its properties writes no bytes, and this mode
+    had already parsed every one of them to collect ids.
+    """
+
+    def book(self, tmp_path):
+        from tests.factory import png_bytes, write_zip
+
+        svg_page = (
+            b'<?xml version="1.0" encoding="utf-8"?>\n'
+            b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>C</title></head>'
+            b'<body><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            b'<image xlink:href="c.png" xmlns:xlink="http://www.w3.org/1999/xlink"/>'
+            b"</svg></body></html>\n"
+        )
+        opf = (
+            b'<?xml version="1.0" encoding="utf-8"?>\n'
+            b'<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="i">'
+            b'<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+            b"<dc:identifier id=\"i\">urn:uuid:1</dc:identifier><dc:title>T</dc:title>"
+            b"<dc:language>pl</dc:language></metadata>"
+            b'<manifest><item id="t" href="titlepage.xhtml" media-type="application/xhtml+xml"/>'
+            b'<item id="c" href="c.png" media-type="image/png"/>'
+            b'<item id="n" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest>'
+            b'<spine toc="n"><itemref idref="t"/></spine></package>\n'
+        )
+        ncx = (
+            b'<?xml version="1.0" encoding="utf-8"?>\n'
+            b'<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+            b'<head><meta name="dtb:uid" content="urn:uuid:1"/></head>'
+            b"<docTitle><text>T</text></docTitle><navMap><navPoint id=\"p1\" playOrder=\"1\">"
+            b'<navLabel><text>C</text></navLabel><content src="titlepage.xhtml"/>'
+            b"</navPoint></navMap></ncx>\n"
+        )
+        container = (
+            b'<?xml version="1.0" encoding="utf-8"?>\n'
+            b'<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            b'<rootfiles><rootfile full-path="OEBPS/content.opf" '
+            b'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / "svg.epub"),
+            {
+                "META-INF/container.xml": container,
+                "OEBPS/content.opf": opf,
+                "OEBPS/titlepage.xhtml": svg_page,
+                "OEBPS/toc.ncx": ncx,
+                "OEBPS/c.png": png_bytes(),
+            },
+        )
+
+    def rebuilt(self, tmp_path):
+        return rebuild(
+            self.book(tmp_path), str(tmp_path / "out.epub"), Policy.preset("minimal")
+        )
+
+    def test_the_svg_property_is_declared(self, tmp_path):
+        result = self.rebuilt(tmp_path)
+        with zipfile.ZipFile(result.output_path) as archive:
+            # This mode leaves the package where the source had it — moving it
+            # would rewrite every href — so the container is what says where.
+            container = etree.fromstring(archive.read("META-INF/container.xml"))
+            rootfile = container.find(
+                ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
+            )
+            package = etree.fromstring(archive.read(rootfile.get("full-path")))
+        item = package.xpath(
+            './/opf:item[contains(@href, "titlepage")]', namespaces=OPF_NS
+        )[0]
+        assert "svg" in (item.get("properties") or "")
+
+    def test_the_document_itself_is_untouched(self, tmp_path):
+        """The property is a claim in the package about the document. Making it
+        must not edit the document, which is this mode's entire promise."""
+        source = self.book(tmp_path)
+        with zipfile.ZipFile(source) as archive:
+            before = archive.read("OEBPS/titlepage.xhtml")
+        result = rebuild(source, str(tmp_path / "o.epub"), Policy.preset("minimal"))
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith("titlepage.xhtml"))
+            after = archive.read(name)
+        assert after == before
+
+
 class TestTheOneEditContainerOnlyModeMakes:
     """A legacy DOCTYPE makes a container-only rebuild an invalid EPUB 3.
 

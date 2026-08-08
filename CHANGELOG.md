@@ -53,6 +53,77 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
+## 0.2.12 — alpha — 2026-08-08
+
+**One real defect, and three thresholds a real shelf settled.** The release the
+profile was cut to make possible: ninety-three books measured, and every number
+in it either moved or was confirmed by them rather than by six.
+
+### At a glance
+
+| | |
+|---|---|
+| 44 errors split into 24 carried, 20 introduced | and the 20 were a real defect |
+| Container-only mode, 19 valid books in, errors out | it rebuilt an EPUB 3 package without checking its claims |
+| 29 books of 93 had no paragraph paradigm | `margin: 1em 0` was invisible to the measurement |
+| `SPACED` declared on 1 paragraph out of 3413 | a ratio over a sample of one is 1.0 |
+| `BODY_TEXT_SHARE = 0.60` | confirmed: 0.57 below it, 0.62 above, the threshold in the gap |
+
+### Everything, by subject
+
+### A verdict has to rest on most of the book
+
+Nine books held a paradigm decided by under a tenth of their text, one of them
+by a single paragraph out of 3413 — and one of the three `MIXED` findings, the
+signal this whole measurement exists for, rested on 3.5% of its book.
+
+`PARADIGM_COVERAGE` is new and the shelf chose it. Coverage across the 93 is
+sharply bimodal: 38 books under 10%, **nothing at all between 10% and 33%**, 41
+in the 90–100% band. Half is a plain sentence — most of the book — and it sits
+inside the empty stretch, so nothing hangs on the exact figure. The coverage
+travels beside the verdict now, because it is what says whether to believe it.
+
+### The mode that promises to break nothing was breaking something
+
+0.2.10 taught the corpus to tell a defect *carried* from a defect *created*.
+The first run under that rule split the 44 errors into **24 carried and 20
+introduced** — and the second number is a real defect in container-only mode,
+across 19 books whose sources were clean.
+
+`The property "svg" should be declared in the OPF file.` Calibre wraps a cover
+in `<svg>` and writes an EPUB 2 package, where no such declaration exists. We
+rebuild the package as EPUB 3, where it is required — and the code that works
+manifest properties out lives in the branch container-only mode skips. So the
+mode regenerated a package that made a claim it had not checked.
+
+The fix costs nothing: that branch already parses every document to collect
+ids, and reading properties writes no bytes. The promise is intact — the
+documents come out byte for byte identical, and a test says so.
+
+**Under the old rule this was invisible.** All 44 errors were one number, and
+the honest reading of that number was "the sources' own defects, carried
+faithfully" — which was true of 24 of them and quite wrong about the other 20.
+
+### A third of a real shelf had no paragraph paradigm at all
+
+Of 93 books, 61 came out consistent and 3 `MIXED`. The remaining 29 came out
+`UNKNOWN`, and that is a measurement failure rather than a fact about the books:
+this looked for `margin-top` and `margin-bottom` written in full, and most
+people write `margin: 1em 0`.
+
+It never showed on the six Project Gutenberg books this was built against,
+because their stylesheet happens to use the longhand. Six books cannot find a
+gap that six books do not have — which is the whole argument for the corpus,
+demonstrated on the first shelf it met.
+
+The shorthand is expanded now, in all four of its forms.
+
+**What the shelf did say**, and it is the number this release was cut for: after
+the four-bucket fix, only **3 books in 93 are `MIXED`**. That signal now means
+what the roadmap wanted it to mean. 83 have a consistent body-text shape, 74
+carry dead classes and 58 carry duplicate ones — which is point [4] justified in
+figures rather than in expectation.
+
 ## 0.2.11 — alpha — 2026-08-08
 
 **Roadmap point [3]: the book is measured, and nothing is touched.** The

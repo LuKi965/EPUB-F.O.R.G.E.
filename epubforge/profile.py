@@ -44,6 +44,21 @@ BODY_TEXT_SHARE = 0.60
 #: signal is `MIXED`, and a threshold that swallows it is worth nothing.
 PARADIGM_SHARE = 0.90
 
+#: How much of the body text must be decided before the paradigm is a claim
+#: about the book rather than about a handful of its paragraphs.
+#:
+#: Without this, ninety-three real books produced verdicts like `SPACED` from
+#: **one paragraph out of 3413** — a ratio of 1.0 over a sample of one, carrying
+#: exactly as much confidence as a book where 2036 out of 2036 agreed. One of
+#: the three `MIXED` findings, the signal this whole measurement exists for,
+#: rested on 3.5% of its book.
+#:
+#: The shelf itself says where the line goes. Coverage across those books is
+#: sharply bimodal — 38 under 10%, then nothing at all between 10% and 33%, then
+#: 41 in the 90–100% band. Half is a plain sentence, "most of the book", and it
+#: sits inside the empty stretch, so nothing hangs on the exact figure.
+PARADIGM_COVERAGE = 0.50
+
 #: How many times a construction must appear before it is read as intent rather
 #: than as an accident. Three is the smallest number that can show a pattern.
 INTENT_OCCURRENCES = 3
@@ -135,14 +150,27 @@ class Paragraphs:
         return self.indented + self.spaced + self.both
 
     @property
+    def counted(self) -> int:
+        """Every paragraph looked at, including the ones nothing decided."""
+        return self.decided + self.neither
+
+    @property
+    def coverage(self) -> float:
+        return self.decided / self.counted if self.counted else 0.0
+
+    @property
     def paradigm(self) -> str:
         """`INDENTED`, `SPACED`, `BOTH`, `MIXED` or `UNKNOWN`.
 
         `BOTH` is a book that consistently does both — a decision. `MIXED` is a
         book that cannot make up its mind, which is nearly always a book that
         was two books.
+
+        `UNKNOWN` when too little of the book was decided to say. A ratio taken
+        over one paragraph is 100% and means nothing, and a verdict is a claim
+        about the book.
         """
-        if not self.decided:
+        if not self.decided or self.coverage < PARADIGM_COVERAGE:
             return "UNKNOWN"
         for count, name in (
             (self.indented, "INDENTED"),
@@ -183,6 +211,9 @@ class Profile:
             "indented": self.paragraphs.indented,
             "spaced": self.paragraphs.spaced,
             "both": self.paragraphs.both,
+            # Kept beside the verdict: it is what says whether to believe it,
+            # and it is the number that will move this threshold next time.
+            "paradigm_coverage": round(self.paragraphs.coverage, 3),
             "dead_classes": len(self.dead_classes),
             "duplicate_groups": len(self.duplicate_classes),
             "separators": self.separators,
@@ -323,12 +354,41 @@ def _run_of_breaks(element) -> int:
     return run
 
 
+#: How the four sides come out of `margin`, by how many values it was given.
+#: CSS: one value is every side, two are vertical then horizontal, three are
+#: top, horizontal, bottom, and four run clockwise from the top.
+_MARGIN_SIDES = {
+    1: {"top": 0, "bottom": 0},
+    2: {"top": 0, "bottom": 0},
+    3: {"top": 0, "bottom": 2},
+    4: {"top": 0, "bottom": 2},
+}
+
+
+def _margin(element, cascade, side: str) -> float:
+    """The top or bottom margin, however the stylesheet chose to write it.
+
+    The longhand first, then the shorthand expanded. Without the second half
+    this measurement was blind to `margin: 1em 0`, which is how most people
+    write it — twenty-nine books out of ninety-three came back with no paragraph
+    paradigm at all for that reason alone. It never showed up on the six
+    Project Gutenberg books used to build this, because their stylesheet writes
+    `margin-top` and `margin-bottom` in full.
+    """
+    direct = _length_em(_property_for(element, cascade, f"margin-{side}"))
+    if direct:
+        return direct
+    shorthand = _property_for(element, cascade, "margin")
+    if not shorthand:
+        return 0.0
+    parts = shorthand.split()
+    index = _MARGIN_SIDES.get(len(parts), {}).get(side)
+    return _length_em(parts[index]) if index is not None else 0.0
+
+
 def _count_paragraph(profile: Profile, element, cascade) -> None:
     indent = _length_em(_property_for(element, cascade, "text-indent"))
-    spacing = max(
-        _length_em(_property_for(element, cascade, "margin-bottom")),
-        _length_em(_property_for(element, cascade, "margin-top")),
-    )
+    spacing = max(_margin(element, cascade, "bottom"), _margin(element, cascade, "top"))
     indented = indent > INDENT_FLOOR_EM
     spaced = spacing > SPACING_FLOOR_EM
     if indented and spaced:
