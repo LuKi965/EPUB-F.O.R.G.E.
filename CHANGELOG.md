@@ -119,10 +119,15 @@ demonstrated on the first shelf it met.
 The shorthand is expanded now, in all four of its forms.
 
 **What the shelf did say**, and it is the number this release was cut for: after
-the four-bucket fix, only **3 books in 93 are `MIXED`**. That signal now means
-what the roadmap wanted it to mean. 83 have a consistent body-text shape, 74
-carry dead classes and 58 carry duplicate ones — which is point [4] justified in
-figures rather than in expectation.
+the four-bucket fix, only **3 books in 93 came out `MIXED`** — and the inventory,
+which arrived after this paragraph was first written, showed one of those three
+resting on 3.5% of its book. Two survive the coverage floor above. The count was
+right and the confidence in it was not, which is the same mistake at a smaller
+scale as the one the floor exists to stop.
+
+83 have a consistent body-text shape, 74 carry dead classes and 58 carry
+duplicate ones — which is point [4] justified in figures rather than in
+expectation: median 30 dead classes per book, maximum 210.
 
 ## 0.2.11 — alpha — 2026-08-08
 
