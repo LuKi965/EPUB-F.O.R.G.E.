@@ -447,3 +447,54 @@ class TestTheMarginShorthand:
 
     def test_an_indent_beside_a_shorthand_margin_is_still_both(self):
         assert self.paradigm(".a { margin: 1em 0; text-indent: 1.5em }") == "BOTH"
+
+
+class TestAVerdictNeedsMostOfTheBook:
+    """Ninety-three real books said `SPACED` on one paragraph out of 3413.
+
+    A ratio over a sample of one is 1.0, and under the first rule it carried
+    exactly as much confidence as a book where 2036 paragraphs out of 2036
+    agreed. Nine books in that shelf held a verdict on under a tenth of their
+    text, and one of the three `MIXED` findings — the signal this measurement
+    exists for — rested on 3.5% of its book.
+
+    The shelf also said where the line goes: coverage is sharply bimodal, 38
+    books under 10%, nothing at all between 10% and 33%, 41 in the 90–100%
+    band. Half sits inside the empty stretch, so nothing hangs on the figure.
+    """
+
+    def test_one_paragraph_decides_nothing(self):
+        from epubforge.profile import Paragraphs
+
+        assert Paragraphs(spaced=1, neither=3412).paradigm == "UNKNOWN"
+
+    def test_a_thin_mixture_is_not_a_mixed_book(self):
+        """The costliest case: `MIXED` claims two files were glued together."""
+        from epubforge.profile import Paragraphs
+
+        thin = Paragraphs(indented=49, spaced=161, neither=5754)
+        assert thin.coverage < 0.05
+        assert thin.paradigm == "UNKNOWN"
+
+    def test_a_book_that_was_read_through_still_gets_its_verdict(self):
+        from epubforge.profile import Paragraphs
+
+        assert Paragraphs(indented=6048, spaced=143, both=31, neither=369).paradigm == "INDENTED"
+        assert Paragraphs(spaced=2036).paradigm == "SPACED"
+        assert Paragraphs(indented=5, spaced=5).paradigm == "MIXED"
+
+    def test_the_coverage_is_reported_beside_the_verdict(self):
+        """It is what says whether to believe it, and the number that will move
+        this threshold next time."""
+        summary = measure(
+            roots('<p style="margin-bottom: 1em">A.</p>' * 3 + "<p>B.</p>"), ""
+        ).to_dict()
+        assert summary["paradigm_coverage"] == 0.75
+        assert summary["paradigm"] == "SPACED"
+
+    def test_exactly_half_is_enough(self):
+        from epubforge.profile import PARADIGM_COVERAGE, Paragraphs
+
+        assert PARADIGM_COVERAGE == 0.50
+        assert Paragraphs(spaced=5, neither=5).paradigm == "SPACED"
+        assert Paragraphs(spaced=4, neither=5).paradigm == "UNKNOWN"

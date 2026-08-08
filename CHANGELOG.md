@@ -53,7 +53,35 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
-## Unreleased
+## 0.2.12 — alpha — 2026-08-08
+
+**One real defect, and three thresholds a real shelf settled.** The release the
+profile was cut to make possible: ninety-three books measured, and every number
+in it either moved or was confirmed by them rather than by six.
+
+### At a glance
+
+| | |
+|---|---|
+| 44 errors split into 24 carried, 20 introduced | and the 20 were a real defect |
+| Container-only mode, 19 valid books in, errors out | it rebuilt an EPUB 3 package without checking its claims |
+| 29 books of 93 had no paragraph paradigm | `margin: 1em 0` was invisible to the measurement |
+| `SPACED` declared on 1 paragraph out of 3413 | a ratio over a sample of one is 1.0 |
+| `BODY_TEXT_SHARE = 0.60` | confirmed: 0.57 below it, 0.62 above, the threshold in the gap |
+
+### Everything, by subject
+
+### A verdict has to rest on most of the book
+
+Nine books held a paradigm decided by under a tenth of their text, one of them
+by a single paragraph out of 3413 — and one of the three `MIXED` findings, the
+signal this whole measurement exists for, rested on 3.5% of its book.
+
+`PARADIGM_COVERAGE` is new and the shelf chose it. Coverage across the 93 is
+sharply bimodal: 38 books under 10%, **nothing at all between 10% and 33%**, 41
+in the 90–100% band. Half is a plain sentence — most of the book — and it sits
+inside the empty stretch, so nothing hangs on the exact figure. The coverage
+travels beside the verdict now, because it is what says whether to believe it.
 
 ### The mode that promises to break nothing was breaking something
 
