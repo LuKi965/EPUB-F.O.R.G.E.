@@ -53,6 +53,83 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
+## 0.2.11 — alpha — 2026-08-08
+
+**Roadmap point [3]: the book is measured, and nothing is touched.** The
+foundation points [4], [5] and [7] each need, built where the roadmap said it
+would be cheapest to build it — with zero risk of regression, and with every
+threshold calibrated against real books before anything depends on one.
+
+### At a glance
+
+| | |
+|---|---|
+| A profile computed once, between metadata and content | read by nothing yet, on purpose |
+| "Changes nothing" | held to bytes, not to intent |
+| Six real books moved a threshold on day one | which is what the constants were named for |
+| Three of six single-source books read `MIXED` | so the rule was wrong, not the books |
+| The profile goes into the inventory | because that is the file a private shelf can send |
+
+**New:** `epubforge/profile.py`, `ProfileStage`, nine `INFO` findings in both
+languages, a `profile` block in every inventory entry, and a `stages` argument
+to `rebuild()` that exists for one test.
+
+### Everything, by subject
+
+### Roadmap point [3]: the book measured, and nothing touched
+
+A statistical profile of a book, computed once, so that points [4], [5] and [7]
+share one answer to *is this construction this book's rule or its exception*
+instead of guessing separately three times over. What it measures: the shape of
+the body text and whether the book has one at all, how paragraphs are separated,
+which classes are dead and which are duplicates, where the scene breaks, the
+`<br/>` runs and the unmarked headings are.
+
+**It changes nothing in anybody's book**, and that is held to bytes rather than
+to intent: a rebuild with the stage and a rebuild without it, every resource
+compared. `rebuild()` takes an explicit stage list now, for that question and no
+other.
+
+### The first six real books moved a threshold, exactly as planned
+
+The roadmap said every number here would be a named constant because the first
+contact with a real shelf would change them. It took six books.
+
+The paradigm rule counted a paragraph that was indented *and* spaced on both
+sides, which made "this publisher indents and leaves a little air"
+indistinguishable from "half this book came from somewhere else". Three of the
+six Project Gutenberg books — single-source by construction — came out `MIXED`.
+That is what said the rule was wrong rather than the books.
+
+There are four buckets now: `INDENTED`, `SPACED`, `BOTH` for a book that
+consistently does both, and `MIXED` for one that cannot make up its mind — which
+is the only one that means two files were glued together. All six now land on a
+consistent verdict and none is `MIXED`.
+
+The spacing floor moved with it. Gutenberg writes
+`p { text-indent: 1em; margin: 0.25em }`, and a quarter of an em is four pixels:
+breathing room, not a paragraph break. `SPACING_FLOOR_EM` is `0.5` and sits
+*above* the indent floor, because the eye reads the two differently. Six books is
+thin calibration and the constant says so.
+
+### The numbers have to land where somebody can send them
+
+A survey says "twelve books came out `MIXED`". A threshold needs the
+distribution behind that count, and the inventory is the file that carries
+per-book numbers and nothing else — no titles, no text, safe to send from a
+private shelf. Every entry now holds a `profile` block, measured from the parse
+the inventory was doing anyway.
+
+That is the whole reason this release exists rather than waiting: six books is
+thin calibration, ninety-three is not, and none of them are on this machine.
+
+### The rule catalogue caught a cleverness
+
+Three findings were raised from a loop over a table of `(count, rule id)`, which
+is three lines shorter and makes the whole set invisible to a search for the id.
+`tests/test_rules.py` requires the id to be a literal at the call site and failed
+on the first run. Unrolled.
+
 ## 0.2.10 — alpha — 2026-08-08
 
 **The corpus marked itself down for keeping a promise.** One release, one

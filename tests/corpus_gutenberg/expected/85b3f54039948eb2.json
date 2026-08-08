@@ -1,10 +1,10 @@
 {
   "source": "sha256:85b3f54039948eb2e8e390ad74b1bed7de1fe5537662fd28e2f79866504a4418",
-  "version": "0.2.7",
+  "version": "0.2.10",
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 10,
       "fix": 2,
       "warn": 1
     },
@@ -16,6 +16,11 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:6f0ecf79580068a3a5b23cec9ca6a0128a6a8655bc43cc25238d6c599a41b250",
@@ -27,7 +32,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 6,
       "preserved": 2,
       "warn": 1
@@ -39,6 +44,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-fitted": 1,
       "xhtml.entities-rewritten": 1,
@@ -54,7 +64,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 6,
       "preserved": 2,
       "warn": 1
@@ -66,6 +76,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-fitted": 1,
       "xhtml.entities-rewritten": 1,

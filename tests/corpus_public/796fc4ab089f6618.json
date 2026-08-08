@@ -1,10 +1,10 @@
 {
   "source": "sha256:796fc4ab089f661817d3be9e3a5ba6787ec52b41a2b0f1347b5a39e77708f8f3",
-  "version": "0.2.7",
+  "version": "0.2.10",
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 6,
       "fix": 1,
       "warn": 1
     },
@@ -15,6 +15,7 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:1b420277e906e37cf1c07a93514790930df9d8c3cd73da1683ad591e81eb79b7",
@@ -26,7 +27,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 3,
       "preserved": 1,
       "warn": 1
@@ -37,6 +38,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "structure.relaid-out": 1,
       "xhtml.dead-reference-kept": 1,
       "xhtml.image-paragraph-centred": 1
@@ -50,7 +52,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 3
     },
     "rules": {
@@ -58,6 +60,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "structure.relaid-out": 1,
       "xhtml.dead-reference-neutralised": 1
     },

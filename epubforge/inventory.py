@@ -258,12 +258,19 @@ def measure(path: pathlib.Path) -> Book:
     spine_documents = 0
     text_parts: list[str] = []
     spine_text_parts: list[str] = []
+    # Kept so the profile can be measured from the same parse. It is the only
+    # place the shelf's own numbers can be seen — a survey says "twelve books
+    # are MIXED", and a threshold needs the distribution behind that, not the
+    # count. The inventory is counts-only and safe to send, which is what makes
+    # it the right place for a number somebody else has to calibrate.
+    parsed_roots: list = []
 
     for document in documents:
         try:
             root, _ = xhtml.parse(document.data)
         except Exception:  # noqa: BLE001 — one bad document must not stop the count
             continue
+        parsed_roots.append(root)
         rendered = _rendered_text(root)
         text_parts.append(rendered)
         in_spine = document.path in spine_paths
@@ -297,6 +304,9 @@ def measure(path: pathlib.Path) -> Book:
         if in_spine and pictures and len(rendered.strip()) < IMAGE_PAGE_TEXT:
             image_pages += 1
 
+    from . import profile as book_profile
+
+    book.fields["profile"] = book_profile.measure(parsed_roots, css).to_dict()
     book.fields.update(
         blocks=blocks,
         image_pages=image_pages,

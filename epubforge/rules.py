@@ -89,6 +89,16 @@ CATALOGUE: dict[str, str] = {
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
+    # -- profile -------------------------------------------------------------
+    "profile.body-text-found": "the body text is {shape}: {percent}% of {blocks} paragraph(s)",
+    "profile.body-text-inconsistent": "no shape covers the body text; the commonest reaches {percent}% of {blocks} paragraph(s)",
+    "profile.paragraphs-mixed": "paragraphs are separated both ways: {indented} by indent, {spaced} by space",
+    "profile.paragraphs-consistent": "every paragraph is separated the same way: {paradigm}",
+    "profile.dead-classes-found": "{count} class(es) are declared in CSS and used by nothing",
+    "profile.duplicate-classes-found": "{names} class(es) in {groups} group(s) declare exactly the same thing",
+    "profile.scene-separators-found": "{count} scene separator(s) were found",
+    "profile.break-runs-found": "{count} run(s) of <br/> stand in for a paragraph break",
+    "profile.heading-candidates-found": "{count} paragraph(s) look like headings without being marked as one",
     # -- stylesheets --------------------------------------------------------
     "css.url-unresolved": "{count} url() reference(s) could not be resolved and were left unchanged",
     "css.remote-import-removed": "{count} @import rule(s) fetching a stylesheet over the network were removed",
@@ -252,6 +262,16 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
+    # -- profile -------------------------------------------------------------
+    'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
+    'profile.body-text-inconsistent': 'żaden kształt nie obejmuje tekstu głównego; najczęstszy sięga {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
+    'profile.paragraphs-mixed': 'akapity oddzielane są na oba sposoby: {indented} wcięciem, {spaced} odstępem',
+    'profile.paragraphs-consistent': 'akapity oddzielane są konsekwentnie ({paradigm})',
+    'profile.dead-classes-found': '{count} {count:klasa jest zadeklarowana|klasy są zadeklarowane|klas jest zadeklarowanych} w CSS i {count:nie używa jej nic|nie używa ich nic|nie używa ich nic}',
+    'profile.duplicate-classes-found': '{names} {names:klasa w|klasy w|klas w} {groups} {groups:grupie deklaruje|grupach deklaruje|grupach deklaruje} dokładnie to samo',
+    'profile.scene-separators-found': 'znaleziono {count} {count:separator scen|separatory scen|separatorów scen}',
+    'profile.break-runs-found': '{count} {count:ciąg <br/> zastępuje|ciągi <br/> zastępują|ciągów <br/> zastępuje} przerwę akapitową',
+    'profile.heading-candidates-found': '{count} {count:akapit wygląda jak nagłówek|akapity wyglądają jak nagłówki|akapitów wygląda jak nagłówki}, nie będąc nim oznaczone',
     # -- stylesheets --------------------------------------------------------
     'css.url-unresolved': '{count} {count:odwołania url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać|odwołań url() nie dało się rozwiązać} i zostały bez zmian',
     'css.remote-import-removed': 'usunięto {count} {count:regułę @import pobierającą arkusz stylów z sieci|reguły @import pobierające arkusz stylów z sieci|reguł @import pobierających arkusz stylów z sieci}',
@@ -444,6 +464,10 @@ DETAILS: dict[str, str] = {
         "{renamed} file(s) needed a new name; every reference was rewritten to match",
     "xhtml.cover-fitted":
         "No stylesheet rule and no attribute sized this image, so a reader would show it at its own pixel dimensions.",
+    "profile.paragraphs-mixed":
+        "A book from one source does not mix the two. When it does, somebody glued two files together or ran one through two tools — which is worth knowing before any rule tries to normalise the paragraphs.",
+    "profile.body-text-inconsistent":
+        "Rules that ask whether a construction is this book's norm have no norm to compare against here. The percentage is kept rather than rounded away, because how far off a book was is what a rule declining to fire will want to say.",
     "xhtml.dead-reference-kept":
         "These are source defects and remain conformance errors. Use --strict to neutralise them.",
     "xhtml.dead-fragment-dropped":
@@ -575,6 +599,10 @@ DETAILS_PL: dict[str, str] = {
         "Zadeklarowanie tego mimo wszystko stwierdzałoby coś, czego książka nie robi.",
     "css.position-removed":
         "Objęte bloki płyną teraz razem ze stroną, zamiast być do niej przypięte.",
+    "profile.paragraphs-mixed":
+        "Książka z jednego źródła nie miesza obu sposobów. Kiedy miesza, ktoś skleił dwa pliki albo przepuścił jeden przez dwa narzędzia — a to warto wiedzieć, zanim jakakolwiek reguła spróbuje ujednolicić akapity.",
+    "profile.body-text-inconsistent":
+        "Reguły pytające, czy dana konstrukcja jest w tej książce normą, nie mają się tu do czego odnieść. Procent zostaje zamiast zostać zaokrąglonym do „brak”, bo to, jak bardzo książce brakowało, jest tym, co powie reguła, która odmówi zadziałania.",
     "xhtml.dead-reference-kept":
         "To są defekty źródła i pozostają błędami zgodności. Użyj --strict, żeby je unieszkodliwić.",
     "xhtml.dead-fragment-dropped":
@@ -653,6 +681,10 @@ VOCABULARY_PL: dict[str, str] = {
     "percent-encoding": "kodowanie procentowe",
     "empty or current-directory segments": "puste segmenty albo segmenty bieżącego katalogu",
     "parent-directory segments": "segmenty katalogu nadrzędnego",
+    # profile.py — the paragraph paradigm, which goes into a sentence
+    "indented": "wcięciem",
+    "spaced": "odstępem",
+    "both": "wcięciem i odstępem naraz",
     # ocf.py — how two entry names collide
     "identical": "identyczność",
     "case": "wielkość liter",
