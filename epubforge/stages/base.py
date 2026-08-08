@@ -30,6 +30,13 @@ class Context:
     #: that the fragments it points at actually exist.
     document_ids: dict[str, set[str]] = field(default_factory=dict)
 
+    #: What the book is like as a whole, measured once by `ProfileStage` and
+    #: read by nothing yet. Points [4], [5] and [7] of the roadmap each need the
+    #: same answer to "is this the rule in this book or the exception", and one
+    #: shared measurement is the difference between three consistent rules and
+    #: three that guess separately.
+    profile: object | None = None
+
     #: Per-document ``{old_id: new_id}`` for ids that were not valid XML names.
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)

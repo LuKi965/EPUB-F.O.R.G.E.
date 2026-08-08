@@ -1,10 +1,10 @@
 {
   "source": "sha256:b738cdd5c8c580fab2d2aa1c403c18bf6cae53f562501f267e8354fb8a6f9d25",
-  "version": "0.2.7",
+  "version": "0.2.10",
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 6,
       "fix": 1
     },
     "rules": {
@@ -13,6 +13,7 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:4c917ffff56ce20b931f74c2f10e697530974b2d983160962c02eb7a520492cd",
@@ -24,7 +25,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 2
     },
     "rules": {
@@ -32,6 +33,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "structure.relaid-out": 1
     },
     "output": "sha256:33d326defddd53e9a8a440a90f839d8dc4226aca0f0afbdae7611f2414cb482d",
@@ -43,7 +45,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 2
     },
     "rules": {
@@ -51,6 +53,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
       "structure.relaid-out": 1
     },
     "output": "sha256:33d326defddd53e9a8a440a90f839d8dc4226aca0f0afbdae7611f2414cb482d",

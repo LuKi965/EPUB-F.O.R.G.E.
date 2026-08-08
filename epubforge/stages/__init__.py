@@ -6,6 +6,9 @@ Order is load-bearing:
 * images before structure — transcoding renames files, and the structure stage
   is what freezes the final path map;
 * structure before content — href rewriting needs that map;
+* profile between metadata and content — earlier is impossible because paths
+  are only frozen once the structure stage has run, and later is pointless
+  because the content stage has by then rewritten the markup it describes;
 * navigation before accessibility — the latter counts what the former built;
 * accessibility before compatibility — it must measure the book proper, not the
   device concessions layered on top of it;
@@ -21,6 +24,7 @@ from .fonts import FontStage
 from .images import ImageStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
+from .profile import ProfileStage
 from .structure import StructureStage
 
 DEFAULT_STAGES = (
@@ -28,6 +32,7 @@ DEFAULT_STAGES = (
     ImageStage,
     StructureStage,
     MetadataStage,
+    ProfileStage,
     ContentStage,
     StyleStage,
     NavigationStage,
@@ -43,6 +48,7 @@ __all__ = [
     "ImageStage",
     "StructureStage",
     "MetadataStage",
+    "ProfileStage",
     "ContentStage",
     "StyleStage",
     "NavigationStage",

@@ -78,8 +78,20 @@ def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
     return replace(policy, content_dir=directory, package_name=name)
 
 
-def rebuild(source: str, destination: str, policy: Policy | None = None) -> Result:
-    """Rebuild *source* into a conforming EPUB 3.3 at *destination*."""
+def rebuild(
+    source: str,
+    destination: str,
+    policy: Policy | None = None,
+    stages: "tuple[type, ...] | list[type] | None" = None,
+) -> Result:
+    """Rebuild *source* into a conforming EPUB 3.3 at *destination*.
+
+    *stages* exists for one question that cannot be asked any other way: does a
+    stage that claims to only measure actually leave the output untouched? The
+    answer is a rebuild with it and a rebuild without it, compared byte for
+    byte, and there is no way to get the second without being able to say which
+    stages ran. Nothing in the application passes it.
+    """
     policy = policy or Policy()
     report = Report(source=source, output=destination)
 
@@ -112,7 +124,7 @@ def rebuild(source: str, destination: str, policy: Policy | None = None) -> Resu
     policy = _settle_layout(book, policy, report)
     ctx = Context(book=book, policy=policy, report=report)
 
-    for stage_class in DEFAULT_STAGES:
+    for stage_class in (DEFAULT_STAGES if stages is None else stages):
         stage = stage_class()
         try:
             stage.run(ctx)
