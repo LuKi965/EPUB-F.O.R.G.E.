@@ -1,10 +1,16 @@
 {
   "source": "sha256:75f69ab9b5549ff7541fc146618bbdc7a79c1fe66b34feb2b7bcaf8f157f25d0",
-  "version": "0.2.9",
+  "version": "0.2.11",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 0,
+    "warnings": 0,
+    "fatal": 0
+  },
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 11,
       "fix": 2,
       "warn": 2
     },
@@ -17,6 +23,12 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:1dfa205f2741b04419d02b8f10a95334995e7aec375f5e5d8a30fbde9717e45d",
@@ -34,7 +46,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 9,
       "fix": 6,
       "preserved": 1,
       "warn": 2
@@ -47,6 +59,12 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-kept": 1,
@@ -68,7 +86,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 9,
       "fix": 6,
       "preserved": 1,
       "warn": 2
@@ -81,6 +99,12 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-kept": 1,

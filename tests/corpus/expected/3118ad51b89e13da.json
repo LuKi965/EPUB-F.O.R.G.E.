@@ -1,10 +1,16 @@
 {
   "source": "sha256:3118ad51b89e13dab558f042e2319b58b7ea06849f09cc1485bc774755d823da",
-  "version": "0.2.9",
+  "version": "0.2.11",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 0,
+    "warnings": 0,
+    "fatal": 0
+  },
   "minimal": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 10,
       "fix": 1,
       "warn": 3
     },
@@ -17,6 +23,11 @@
       "nav.regenerated": 1,
       "package.layout-kept": 1,
       "package.regenerated": 1,
+      "profile.body-text-inconsistent": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-mixed": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:e90d79f20951201a769172fdfef2ae5f0bbd8c96fe87af2e481ccc915b1fa5a0",
@@ -34,7 +45,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 5,
       "preserved": 35,
       "warn": 3
@@ -47,6 +58,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-inconsistent": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-mixed": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.image-paragraph-kept": 35,
@@ -68,7 +84,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 8,
       "fix": 5,
       "preserved": 35,
       "warn": 3
@@ -81,6 +97,11 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "profile.body-text-inconsistent": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.paragraphs-mixed": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.image-paragraph-kept": 35,

@@ -401,3 +401,49 @@ class TestTheInventoryCarriesTheProfile:
         broken = tmp_path / "broken.epub"
         broken.write_bytes(b"not an epub at all")
         assert "profile" not in inventory_measure(broken).fields
+
+
+class TestTheMarginShorthand:
+    """`margin: 1em 0` is how most people write it, and it was invisible.
+
+    Twenty-nine books out of ninety-three came back with no paragraph paradigm
+    at all — a third of a real shelf — because this measurement looked only for
+    `margin-top` and `margin-bottom` in full. It never showed on the six Project
+    Gutenberg books it was built against, whose stylesheet happens to write the
+    longhand. Six books cannot find a gap that six books do not have.
+    """
+
+    def paradigm(self, css: str) -> str:
+        return measure(roots('<p class="a">Zdanie.</p>' * 8), css).paragraphs.paradigm
+
+    @pytest.mark.parametrize(
+        "css",
+        [
+            ".a { margin-top: 1em; margin-bottom: 1em }",
+            ".a { margin: 1em }",
+            ".a { margin: 1em 0 }",
+            ".a { margin: 0 0 1em }",
+            ".a { margin: 1em 0 1em 0 }",
+        ],
+    )
+    def test_every_spelling_of_a_spaced_paragraph_is_seen(self, css):
+        assert self.paradigm(css) == "SPACED"
+
+    @pytest.mark.parametrize(
+        "css",
+        [
+            ".a { margin: 0 1em }",  # horizontal only — not paragraph spacing
+            ".a { margin: 0 0 0.25em }",  # under the floor
+            ".a { margin: 0 }",
+        ],
+    )
+    def test_a_margin_that_is_not_vertical_space_is_not_spacing(self, css):
+        assert self.paradigm(css) == "UNKNOWN"
+
+    def test_the_longhand_wins_where_both_are_given(self):
+        """Not a renderer: the specific declaration is the one a publisher
+        reached for, and guessing about cascade order would be inventing."""
+        assert self.paradigm(".a { margin: 0; margin-bottom: 1em }") == "SPACED"
+
+    def test_an_indent_beside_a_shorthand_margin_is_still_both(self):
+        assert self.paradigm(".a { margin: 1em 0; text-indent: 1.5em }") == "BOTH"

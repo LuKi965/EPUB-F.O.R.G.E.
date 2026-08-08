@@ -70,5 +70,19 @@
     "unwritten": 0,
     "clean": false,
     "note": "recorded exactly as the run measured it, under a rule that was wrong. All 44 errors sit in `minimal`, across 31 books; `preserve` and `strict` came out at zero on the same 93 books, and their signatures are identical to the 0.2.7 run apart from one rule id I renamed. Container-only mode leaves content byte for byte, so those are the sources' own defects carried through — but nothing had measured the sources, so the summary counted them as ours and reset the streak. Fixed after this run: the source's own verdict is recorded and the mode is judged on what it introduced. Not back-dated, because I cannot validate books I do not have, and editing a measurement to match a hypothesis is the one thing this ledger exists to prevent."
+  },
+  {
+    "version": "0.2.11",
+    "date": "2026-08-08",
+    "books": 93,
+    "failed": 0,
+    "errors": 0,
+    "introduced": 20,
+    "carried": 24,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "clean": false,
+    "note": "the split worked and found a real defect: 24 errors carried through from the sources, 20 introduced by container-only mode across 19 books whose sources were clean. Not a summary bug this time — the mode rebuilds the package as EPUB 3 and was not declaring `properties=\"svg\"`, because the code that works properties out lived in the branch this mode skips. Under the old rule all 44 were indistinguishable and would have been written off as the sources'. Fixed after this run; 0 in modes that rewrite content."
   }
 ]

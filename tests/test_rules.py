@@ -428,7 +428,16 @@ class TestTheReportSpeaksPolish:
     def test_the_specifics_are_not_traded_for_the_language(self, tmp_path):
         """The specifics — how many entries, which file, which media type — must
         survive translation. Either the Polish line states them itself, or the
-        English one stays underneath; what may not happen is that they vanish."""
+        English one stays underneath; what may not happen is that they vanish.
+
+        A value this program translates *on purpose* counts as surviving in its
+        translated form. `VOCABULARY_PL` exists for values that are our own
+        fixed phrases rather than the book's data — a paragraph paradigm, a
+        reason a name was rejected — and reading `wcięciem` in a Polish sentence
+        is the point of it. Requiring the English word would have made the
+        vocabulary and this test contradict each other, and one of them would
+        have had to go.
+        """
         from epubforge.pipeline import rebuild
         from epubforge.policy import Policy
 
@@ -442,7 +451,11 @@ class TestTheReportSpeaksPolish:
                 continue
             if rules.renders_fully(finding.rule, "pl", finding.values):
                 for value in finding.values.values():
-                    assert str(value) in text, (finding.rule, value)
+                    translated = rules.VOCABULARY_PL.get(str(value))
+                    present = str(value) in text or (
+                        translated is not None and translated in text
+                    )
+                    assert present, (finding.rule, value)
             else:
                 assert finding.message in text, finding.rule
 

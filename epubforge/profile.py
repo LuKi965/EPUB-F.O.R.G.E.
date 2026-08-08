@@ -323,12 +323,41 @@ def _run_of_breaks(element) -> int:
     return run
 
 
+#: How the four sides come out of `margin`, by how many values it was given.
+#: CSS: one value is every side, two are vertical then horizontal, three are
+#: top, horizontal, bottom, and four run clockwise from the top.
+_MARGIN_SIDES = {
+    1: {"top": 0, "bottom": 0},
+    2: {"top": 0, "bottom": 0},
+    3: {"top": 0, "bottom": 2},
+    4: {"top": 0, "bottom": 2},
+}
+
+
+def _margin(element, cascade, side: str) -> float:
+    """The top or bottom margin, however the stylesheet chose to write it.
+
+    The longhand first, then the shorthand expanded. Without the second half
+    this measurement was blind to `margin: 1em 0`, which is how most people
+    write it — twenty-nine books out of ninety-three came back with no paragraph
+    paradigm at all for that reason alone. It never showed up on the six
+    Project Gutenberg books used to build this, because their stylesheet writes
+    `margin-top` and `margin-bottom` in full.
+    """
+    direct = _length_em(_property_for(element, cascade, f"margin-{side}"))
+    if direct:
+        return direct
+    shorthand = _property_for(element, cascade, "margin")
+    if not shorthand:
+        return 0.0
+    parts = shorthand.split()
+    index = _MARGIN_SIDES.get(len(parts), {}).get(side)
+    return _length_em(parts[index]) if index is not None else 0.0
+
+
 def _count_paragraph(profile: Profile, element, cascade) -> None:
     indent = _length_em(_property_for(element, cascade, "text-indent"))
-    spacing = max(
-        _length_em(_property_for(element, cascade, "margin-bottom")),
-        _length_em(_property_for(element, cascade, "margin-top")),
-    )
+    spacing = max(_margin(element, cascade, "bottom"), _margin(element, cascade, "top"))
     indented = indent > INDENT_FLOOR_EM
     spaced = spacing > SPACING_FLOOR_EM
     if indented and spaced:
