@@ -362,3 +362,42 @@ class TestEveryNumberIsFindable:
         for key, value in summary.items():
             assert isinstance(value, (int, float, bool, str, type(None))), key
         assert "Zdanie" not in repr(summary)
+
+
+class TestTheInventoryCarriesTheProfile:
+    """Where the numbers that will move these thresholds have to arrive.
+
+    A survey says "twelve books came out MIXED", and a threshold needs the
+    distribution behind that count, not the count. The inventory is per-book and
+    holds only numbers — no titles, no text — which is what makes it the one
+    file somebody can send from a private shelf and the right place for a figure
+    that only a real shelf can settle.
+    """
+
+    def test_a_measured_book_carries_one(self, tmp_path):
+        from epubforge.inventory import measure as inventory_measure
+
+        source = book(
+            tmp_path / "inv.epub",
+            body='<p style="text-indent: 1.5em">Zdanie.</p>' * 8,
+        )
+        fields = inventory_measure(__import__("pathlib").Path(source)).fields
+        assert fields["profile"]["paradigm"] == "INDENTED"
+        assert fields["profile"]["body_blocks"] == 8
+
+    def test_it_is_still_numbers_only(self, tmp_path):
+        """The inventory may be sent from a shelf nobody else may see."""
+        from epubforge.inventory import measure as inventory_measure
+
+        source = book(tmp_path / "priv.epub", body="<p>Tajny tytuł powieści.</p>" * 4)
+        fields = inventory_measure(__import__("pathlib").Path(source)).fields
+        assert "Tajny" not in repr(fields["profile"])
+        for value in fields["profile"].values():
+            assert isinstance(value, (int, float, bool, str, type(None)))
+
+    def test_an_unreadable_book_has_no_profile_rather_than_an_empty_one(self, tmp_path):
+        from epubforge.inventory import measure as inventory_measure
+
+        broken = tmp_path / "broken.epub"
+        broken.write_bytes(b"not an epub at all")
+        assert "profile" not in inventory_measure(broken).fields

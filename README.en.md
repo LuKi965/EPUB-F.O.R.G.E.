@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.10` · alpha · 970 tests · Windows / Linux / macOS
+`0.2.11` · alpha · 1041 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Development](CONTRIBUTING.md) · [Changes](CHANGELOG.md)
