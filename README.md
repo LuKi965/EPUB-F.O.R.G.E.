@@ -133,14 +133,16 @@ się w każdym rozdziale, i zostają.
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Z trzech warunków wejścia w alfę został jeden, i jest nim czas.
-  Pokrycie rodzin generatorów jest **domknięte**: 93 książki, wszystkie
-  dziesięć rodzin, przebieg czysty — zero błędów EPUBCheck, zero utraconego
-  tekstu. Zostaje wymóg trzech kolejnych wydań z zielonymi metrykami, a licznik
-  stoi na **jednym** (0.2.7): 0.2.6 przeliczone na pełnym korpusie dało
-  czternaście błędów, więc wystartował od nowa. Pozostałe dwa warunki — zero
-  defektów gubiących dane po cichu i przetłumaczony raport — są spełnione,
-  odpowiednio od 0.2.2 i od 0.2.5.
+- **Alpha.** Wersja to `0.2.x`, a `0.2.x` **jest** alfą — tak mówi tabela
+  dojrzałości w [`CONTRIBUTING.md`](CONTRIBUTING.md) i to samo mówi każdy build
+  od 0.2.0, bo tytuł okna bierze etap z kodu. Ten akapit przez kilka wydań
+  twierdził, że do alfy jeszcze wchodzimy — co było nieprawdą obok binarki
+  podpisanej „alpha". Zakres funkcji jest ustalony, poprawność sprawdzana na
+  93 prawdziwych książkach: to jest definicja alfy z tamtej tabeli.
+- **Do bety brakuje dwóch rzeczy, nie trzech.** Beta (`0.3.x`) wymaga wydanych
+  `profile.py`, sprzątania CSS i konsolidacji spanów, plus kogoś spoza autora,
+  kto przepuścił przez to własną bibliotekę. `profile.py` jest wydany w 0.2.11.
+  Zostają punkty [4] i [5] roadmapy.
 - **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
   samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
   Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla

@@ -136,14 +136,17 @@ repeat in every chapter, and they stay.
 
 Things worth knowing before rather than after:
 
-- **Alpha.** One of the three entry conditions is still unmet, and what it
-  needs is time. Coverage of the generator families is **closed**: 93 books,
-  all ten families, the run clean — zero EPUBCheck errors, no text lost. What
-  remains is three consecutive releases with green corpus metrics, and the
-  count stands at **one** (0.2.7): 0.2.6 re-run over the full corpus produced
-  fourteen errors, so it started again. The other two — no known defects that
-  lose data silently, and a translated report — have been met since 0.2.2 and
-  0.2.5 respectively.
+- **Alpha.** The version is `0.2.x`, and `0.2.x` **is** alpha — that is what
+  the maturity table in [`CONTRIBUTING.md`](CONTRIBUTING.md) says, and what
+  every build since 0.2.0 has said in its own title bar, which reads the stage
+  from the code. This paragraph spent several releases claiming we were still
+  on our way into alpha, next to a binary labelled `alpha`. The feature set is
+  settled and correctness is checked against 93 real books, which is that
+  table's definition of the stage.
+- **Beta is two things away, not three.** Beta (`0.3.x`) asks for `profile.py`,
+  CSS cleanup and span consolidation all released, plus somebody other than the
+  author running their own library through it. `profile.py` shipped in 0.2.11.
+  Roadmap points [4] and [5] remain.
 - **The report follows the language setting.** The window, the JSON file and
   the console all speak whatever the interface does; on the command line
   `--report-language` decides. The English `message` stays in the JSON either
