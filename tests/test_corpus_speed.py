@@ -152,9 +152,14 @@ class TestTheReuseSurvivesARealRun:
         # other, which would carry the same bytes, the same identifier and the
         # same signature, and would be reused exactly as it should be.
         (books / "a.epub").unlink()
-        declared_entities(books / "a.epub")
+        replacement = declared_entities(books / "a.epub")
         compare(books, expected)
-        assert len(calls) == len(MODES)
+        # Once per mode, plus once for the source itself: container-only mode is
+        # judged on what it added, and that needs to know what was already
+        # wrong. The source is the one file whose verdict never goes stale, so
+        # it is read once and reused for as long as EPUBCheck does not change.
+        assert len(calls) == len(MODES) + 1
+        assert sum(1 for c in calls if c == str(replacement)) == 1
 
 
 class TestHowManyBooksAtOnce:
@@ -268,3 +273,96 @@ class TestTheJvmIsToldItDoesNotOwnTheMachine:
             pytest.skip("no EPUBCheck here")
         assert not any(part.startswith("-XX:") for part in command if part.endswith(".jar"))
         assert checker_identity() == checker_identity()
+
+
+class TestAModeIsJudgedOnWhatItPromised:
+    """Container-only mode promises *not* to fix things, and was marked down.
+
+    The first run that measured `minimal` over a real library reported **44
+    EPUBCheck errors across 31 books** and called itself unclean. `preserve` and
+    `strict` came out at zero on the same shelf. All 44 were defects the sources
+    already had, carried through faithfully by the one mode that exists to
+    promise it will not touch content.
+
+    Left alone that made the alpha condition unreachable: "green across three
+    consecutive releases" could never happen again, because the corpus was
+    counting a promise kept as a failure.
+    """
+
+    def entry(self, tmp_path, *, source, minimal, preserve=0, strict=0):
+        """One book's signature, written where the ledger will look for it."""
+        import json
+
+        from epubforge.corpus import Comparison, _log_run
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True, exist_ok=True)
+        identifier = "a" * 16
+        (signatures / f"{identifier}.json").write_text(
+            json.dumps(
+                {
+                    "source": "sha256:x",
+                    "source_epubcheck": {"errors": source, "warnings": 0, "fatal": 0},
+                    **{
+                        mode: {
+                            "written": True,
+                            "text_invariant": True,
+                            "epubcheck": {"errors": count, "warnings": 0, "fatal": 0},
+                        }
+                        for mode, count in (
+                            ("minimal", minimal),
+                            ("preserve", preserve),
+                            ("strict", strict),
+                        )
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        _log_run(signatures, [Comparison("a.epub", identifier, "unchanged")])
+        return json.loads((tmp_path / "runs.json").read_text(encoding="utf-8"))[-1]
+
+    def test_errors_the_source_already_had_do_not_make_a_run_unclean(self, tmp_path):
+        entry = self.entry(tmp_path, source=3, minimal=3)
+        assert entry["carried"] == 3
+        assert entry["introduced"] == 0
+        assert entry["clean"] is True
+
+    def test_an_error_it_added_does(self, tmp_path):
+        """The check still has teeth: container-only mode may carry a defect,
+        never create one."""
+        entry = self.entry(tmp_path, source=3, minimal=5)
+        assert entry["carried"] == 3
+        assert entry["introduced"] == 2
+        assert entry["clean"] is False
+
+    def test_fixing_more_than_the_source_had_is_not_negative(self, tmp_path):
+        entry = self.entry(tmp_path, source=5, minimal=1)
+        assert entry["introduced"] == 0
+        assert entry["carried"] == 1
+        assert entry["clean"] is True
+
+    def test_a_mode_that_rewrites_content_gets_no_such_allowance(self, tmp_path):
+        """`preserve` and `strict` open every document. A source defect they
+        left behind is one they failed to fix, and the number says so."""
+        entry = self.entry(tmp_path, source=9, minimal=9, preserve=1)
+        assert entry["errors"] == 1
+        assert entry["clean"] is False
+
+    def test_only_the_container_only_mode_gets_the_allowance(self):
+        from epubforge.corpus import CARRIES_SOURCE_DEFECTS
+
+        assert CARRIES_SOURCE_DEFECTS == {"minimal"}
+        assert CARRIES_SOURCE_DEFECTS < set(MODES)
+
+    def test_the_summary_says_whose_errors_they_were(self, tmp_path):
+        """A bare "44 errors" reads as failure and was not one."""
+        from epubforge.corpus import Comparison, summarise
+
+        self.entry(tmp_path, source=3, minimal=3)
+        text = summarise(
+            [Comparison("a.epub", "a" * 16, "unchanged")], tmp_path / "expected"
+        )
+        assert "carried through by container-only mode" in text
+        assert "3 source error(s)" in text
+        assert "introduced" not in text

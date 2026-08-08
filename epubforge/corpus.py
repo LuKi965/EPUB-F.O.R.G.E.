@@ -47,6 +47,20 @@ FROZEN_MODIFIED = "2020-01-01T00:00:00Z"
 #: with the run being parallel.
 MODES = ("minimal", "preserve", "strict")
 
+#: The mode that promises *not* to fix things. A container-only rebuild leaves
+#: every content document byte for byte, so a source whose XHTML is invalid
+#: stays invalid — deliberately, because the alternative is touching content in
+#: the one mode that exists to promise it will not.
+#:
+#: This has to be written down somewhere the run summary can read, and until it
+#: was, the summary called those errors ours. The first run that measured
+#: `minimal` reported **44 errors across 31 books** and marked itself unclean,
+#: while `preserve` and `strict` came out at zero on the same shelf — 44 defects
+#: the source already had, counted against the release that carried them
+#: faithfully. Left alone, that made the alpha condition unreachable: the corpus
+#: could never be green again, for doing exactly what it said it would.
+CARRIES_SOURCE_DEFECTS = frozenset({"minimal"})
+
 
 @dataclass
 class Comparison:
@@ -322,7 +336,31 @@ def signature(
     room.mkdir(parents=True, exist_ok=True)
 
     source = _read_source(book)
-    record: dict = {"source": digest(book.read_bytes()), "version": __version__}
+    source_digest = digest(book.read_bytes())
+    record: dict = {"source": source_digest, "version": __version__}
+    if find_epubcheck() is not None:
+        record["checker"] = checker_identity()
+        # What the book was already wrong about, before anything touched it.
+        # Container-only mode leaves content documents byte for byte, so an
+        # error inside one of them is the source's and always will be; without
+        # this number there is no way to tell that apart from an error the
+        # rebuild introduced, and the run summary was calling both the same.
+        #
+        # A book's identifier *is* the hash of its bytes, so this can never go
+        # stale for a book that still exists: read once, then reused for as long
+        # as EPUBCheck itself does not change.
+        stale = (previous or {}).get("source") != source_digest or (
+            previous or {}
+        ).get("checker") != record["checker"]
+        recorded = None if stale else (previous or {}).get("source_epubcheck")
+        if recorded is None:
+            check = validate(str(book))
+            recorded = {
+                "errors": check.errors,
+                "warnings": check.warnings,
+                "fatal": check.fatal,
+            }
+        record["source_epubcheck"] = recorded
     for mode in MODES:
         record[mode] = _measure(
             book, room / f"{mode}.epub", mode, source, (previous or {}).get(mode)
@@ -382,7 +420,7 @@ def _rule_changes(recorded: dict, measured: dict) -> str:
 #: and the identity of the validator both move without anything about the book
 #: having changed, and reporting them as differences would drown the ones that
 #: matter — which is what happened the first time the version was recorded.
-_METADATA = frozenset({"version"})
+_METADATA = frozenset({"version", "checker"})
 _MODE_METADATA = frozenset({"checker"})
 
 
@@ -401,7 +439,7 @@ def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
         # lines each, ninety-three times, for a change in what is measured
         # rather than in how a book rebuilds. There is nothing to compare
         # against, so say that and say it once.
-        if not path and key in MODES and old is None and new is not None:
+        if not path and (key in MODES or key == "source_epubcheck") and old is None and new is not None:
             lines.append(f"{here}: not measured before")
             continue
         if key == "rules" and isinstance(old, dict) and isinstance(new, dict):
@@ -564,24 +602,40 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
         "books": len(results),
         "failed": sum(1 for r in results if r.status == "failed"),
     }
-    errors = fatal = lost = unwritten = 0
+    errors = introduced = carried = fatal = lost = unwritten = 0
     for result in results:
         record_path = signatures / f"{result.identifier}.json"
         if not record_path.is_file():
             continue
         measured = json.loads(record_path.read_text(encoding="utf-8"))
+        source = (measured.get("source_epubcheck") or {}).get("errors", 0)
         for mode in MODES:
             found = measured.get(mode) or {}
             if not found.get("written"):
                 unwritten += 1
                 continue
             check = found.get("epubcheck") or {}
-            errors += check.get("errors", 0)
+            count = check.get("errors", 0)
             fatal += check.get("fatal", 0)
+            if mode in CARRIES_SOURCE_DEFECTS:
+                # Judged on what it added, not on what it declined to fix.
+                introduced += max(0, count - source)
+                carried += min(count, source)
+            else:
+                errors += count
             if not found.get("text_invariant", True):
                 lost += 1
-    entry.update(errors=errors, fatal=fatal, text_lost=lost, unwritten=unwritten)
-    entry["clean"] = not (errors or fatal or lost or unwritten or entry["failed"])
+    entry.update(
+        errors=errors,
+        introduced=introduced,
+        carried=carried,
+        fatal=fatal,
+        text_lost=lost,
+        unwritten=unwritten,
+    )
+    entry["clean"] = not (
+        errors or introduced or fatal or lost or unwritten or entry["failed"]
+    )
 
     ledger = signatures.parent / RUNS
     history = json.loads(ledger.read_text(encoding="utf-8")) if ledger.is_file() else []
@@ -589,14 +643,46 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     ledger.write_text(json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def summarise(results: list[Comparison]) -> str:
+def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = None) -> str:
+    """The run in one or two lines.
+
+    The second line only appears when the signatures are at hand, and it exists
+    because a bare "44 errors" is a number that reads as failure and was not
+    one: those were the source's, carried through by the mode that promises not
+    to touch content. What a reader needs is the two figures apart.
+    """
     counts = {status: 0 for status in ("new", "unchanged", "changed", "failed")}
     for result in results:
         counts[result.status] += 1
-    return (
+    line = (
         f"{len(results)} book(s): {counts['unchanged']} unchanged, "
         f"{counts['changed']} changed, {counts['new']} new, {counts['failed']} failed"
     )
+    if signatures is None:
+        return line
+
+    errors = introduced = carried = 0
+    for result in results:
+        path = signatures / f"{result.identifier}.json"
+        if not path.is_file():
+            continue
+        measured = json.loads(path.read_text(encoding="utf-8"))
+        source = (measured.get("source_epubcheck") or {}).get("errors", 0)
+        for mode in MODES:
+            count = ((measured.get(mode) or {}).get("epubcheck") or {}).get("errors", 0)
+            if mode in CARRIES_SOURCE_DEFECTS:
+                introduced += max(0, count - source)
+                carried += min(count, source)
+            else:
+                errors += count
+    if not (errors or introduced or carried):
+        return line
+    parts = [f"{errors} EPUBCheck error(s) in modes that rewrite content"]
+    if carried:
+        parts.append(f"{carried} source error(s) carried through by container-only mode")
+    if introduced:
+        parts.append(f"{introduced} introduced by it")
+    return line + "\n" + "; ".join(parts) + "."
 
 
 __all__ = [
@@ -612,4 +698,5 @@ __all__ = [
     "signature",
     "summarise",
     "workers_for",
+    "CARRIES_SOURCE_DEFECTS",
 ]

@@ -53,6 +53,46 @@ them, which is the slowest feedback available and not available to anyone else.
 It is now an AST walk over the stage modules, in a tenth of a second, and it
 fails if the pair is broken back apart.
 
+## Unreleased
+
+> **No build available.** GitHub Actions minutes are exhausted for about 24
+> days, so this cannot be released yet. Everything below is in the repository
+> and will ship in the first build after that.
+
+### The corpus marked itself down for keeping a promise
+
+The first run to measure `minimal` over the owner's library reported **44
+EPUBCheck errors across 31 books** and called itself unclean. `preserve` and
+`strict` came out at **zero** on the same 93 books, with signatures identical to
+the 0.2.7 run apart from one rule id renamed on purpose.
+
+All 44 sit in the one mode that promises *not* to touch content. A container-only
+rebuild leaves every document byte for byte, so a source whose XHTML is invalid
+stays invalid — deliberately, because the alternative is editing content in the
+mode that exists to promise it will not. Nothing had ever measured the sources,
+so the summary had no way to tell a defect carried from a defect created, and
+counted both as ours.
+
+Left alone this made the alpha condition unreachable: "green across three
+consecutive releases" could never happen again, because the corpus was scoring a
+kept promise as a failure.
+
+* **A signature now records the source's own EPUBCheck verdict.** A book's
+  identifier *is* the hash of its bytes, so this can never go stale for a book
+  that still exists: read once, then reused for as long as EPUBCheck does not
+  change. One extra validation per book, once, ever.
+* **`minimal` is judged on what it introduced**, `preserve` and `strict` on what
+  they left behind. The check keeps its teeth — container-only mode may carry a
+  defect and may never create one.
+* The run summary says whose errors they were, because a bare "44 errors" reads
+  as failure and this was not one.
+
+The 0.2.9 run is in the ledger exactly as it was measured, `clean: false` and
+all. It is not back-dated: I cannot validate books I do not have, and editing a
+measurement to match a hypothesis is the one thing that ledger exists to
+prevent. The streak is empty and starts again from the first run under the
+corrected rule.
+
 ## 0.2.9 — alpha — 2026-08-07
 
 **0.2.8 made the corpus run slower and pushed the machine to 95%.** That is

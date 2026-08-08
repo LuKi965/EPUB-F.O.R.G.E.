@@ -345,6 +345,7 @@ class CorpusPanel(Panel):
 
     def __init__(self, palette: theme.Palette) -> None:
         super().__init__(palette)
+        self._signatures_used: pathlib.Path | None = None
         self.add_intro(tr("corpus.intro"))
         self.books = self.add_folder_row(tr("corpus.books"))
         self.signatures = self.add_folder_row(
@@ -395,6 +396,7 @@ class CorpusPanel(Panel):
 
             folder = pathlib.Path(books)
             target = pathlib.Path(signatures) if signatures else folder / "expected"
+            self._signatures_used = target
             total = len(books_in(folder))
 
             def tick(index: int, name: str) -> None:
@@ -440,9 +442,11 @@ class CorpusPanel(Panel):
 
         from ..corpus import summarise
 
-        summary = summarise(results)
+        summary = summarise(results, self._signatures_used)
         self.output.setPlainText(summary + ("\n\n" + "\n".join(lines) if lines else ""))
-        self.window().statusBar().showMessage(summary)
+        # The status bar is one line high, so it gets the first one; the pane
+        # below has room for the sentence that says which errors were whose.
+        self.window().statusBar().showMessage(summary.splitlines()[0])
 
     def _handle_edges(self, written) -> None:
         from ..edge_cases import EDGES
