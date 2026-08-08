@@ -42,7 +42,7 @@ def test_every_corpus_book_matches_its_signature():
             for r in changed
         )
         pytest.fail(
-            f"{summarise(results)}\n{report}\n"
+            f"{summarise(results, EXPECTED)}\n{report}\n"
             "  If the change was intended: python -m tests.test_corpus --record"
         )
 
@@ -63,7 +63,7 @@ def main() -> int:
                 print(f"    {line}")
         elif result.status in ("new", "failed"):
             print(f"  {result.status:8} {result.book}")
-    print("\n" + summarise(results))
+    print("\n" + summarise(results, EXPECTED))
     return 0
 
 

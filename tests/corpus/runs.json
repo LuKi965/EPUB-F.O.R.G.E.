@@ -58,5 +58,17 @@
     "unwritten": 0,
     "clean": true,
     "note": "every family represented — the closing condition for roadmap point [1]. Two books added for `word` and `pdf-or-ocr`; the other 91 measured identically to the run before. Two modes only: `minimal` joins the corpus after this run, so the next one re-measures every book once."
+  },
+  {
+    "version": "0.2.9",
+    "date": "2026-08-08",
+    "books": 93,
+    "failed": 0,
+    "errors": 44,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "clean": false,
+    "note": "recorded exactly as the run measured it, under a rule that was wrong. All 44 errors sit in `minimal`, across 31 books; `preserve` and `strict` came out at zero on the same 93 books, and their signatures are identical to the 0.2.7 run apart from one rule id I renamed. Container-only mode leaves content byte for byte, so those are the sources' own defects carried through — but nothing had measured the sources, so the summary counted them as ours and reset the streak. Fixed after this run: the source's own verdict is recorded and the mode is judged on what it introduced. Not back-dated, because I cannot validate books I do not have, and editing a measurement to match a hypothesis is the one thing this ledger exists to prevent."
   }
 ]

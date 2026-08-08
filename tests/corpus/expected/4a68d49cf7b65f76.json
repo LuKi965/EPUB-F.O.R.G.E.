@@ -1,6 +1,34 @@
 {
   "source": "sha256:4a68d49cf7b65f766f8f983219ea53013336aa04dcdd93287ddbf352721a7b55",
-  "version": "0.2.7",
+  "version": "0.2.9",
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 1,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.creator-missing": 1,
+      "nav.ncx-written": 1,
+      "nav.regenerated": 1,
+      "package.layout-kept": 1,
+      "package.regenerated": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:a537d292826551b2e1b16900a87a1811447b1dfc73affbdc55aa9819ff702ed4",
+    "text_characters": 2686,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 25,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0
+    }
+  },
   "preserve": {
     "written": true,
     "report": {
@@ -10,18 +38,19 @@
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "css.remote-import-removed": 1,
       "metadata.creator-missing": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.remote-import-removed": 1
     },
     "output": "sha256:a645c9bbefc1fbf8160defc2f7c90db8587035b9220b31aba422f753bae92f19",
     "text_characters": 2686,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 25,
+    "checker": "11221853fa244592",
     "epubcheck": {
       "errors": 0,
       "warnings": 0,
@@ -37,18 +66,19 @@
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "css.remote-import-removed": 1,
       "metadata.creator-missing": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.remote-import-removed": 1
     },
     "output": "sha256:a645c9bbefc1fbf8160defc2f7c90db8587035b9220b31aba422f753bae92f19",
     "text_characters": 2686,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 25,
+    "checker": "11221853fa244592",
     "epubcheck": {
       "errors": 0,
       "warnings": 0,

@@ -1,6 +1,38 @@
 {
   "source": "sha256:7359034bb861d0871930eee08452bc6a7533c85226e2de83d5daa4191c385df3",
-  "version": "0.2.7",
+  "version": "0.2.9",
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 7,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "a11y.placeholder-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "reader.manifest-type-corrected": 3,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:6613039111dcbd925b0c87dc49ba8a20cf6af954da23a555c34b964fc69e9cac",
+    "text_characters": 1105506,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 9030,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0
+    }
+  },
   "preserve": {
     "written": true,
     "report": {
@@ -30,6 +62,7 @@
     "text_added": 0,
     "text_invariant": true,
     "blocks": 9030,
+    "checker": "11221853fa244592",
     "epubcheck": {
       "errors": 0,
       "warnings": 0,
@@ -65,6 +98,7 @@
     "text_added": 0,
     "text_invariant": true,
     "blocks": 9030,
+    "checker": "11221853fa244592",
     "epubcheck": {
       "errors": 0,
       "warnings": 0,

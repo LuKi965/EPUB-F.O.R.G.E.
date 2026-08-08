@@ -454,7 +454,7 @@ def command_corpus(args: argparse.Namespace) -> int:
                 console.print(f"    [dim]{line}[/]")
         elif result.status == "new":
             console.print(f"  [cyan]new[/]      {result.book}")
-    console.print(f"\n  {summarise(results)}")
+    console.print(f"\n  {summarise(results, signatures)}")
     if args.record:
         console.print(f"  [green]signatures written to[/] {signatures}")
         return 0
