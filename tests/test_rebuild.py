@@ -346,11 +346,18 @@ class TestPublisherErrorRepair:
             "'regular'" in f.message for f in rebuilt.report.findings if f.level is Level.FIX
         )
 
-    def test_out_of_flow_positioning_is_kept_by_default(self, rebuilt):
-        """A publisher pinning content to the page foot is intent, not a defect."""
-        assert "position: absolute" in self.stylesheet(rebuilt)
+    def test_out_of_flow_positioning_goes_in_reflowable_books(self, rebuilt):
+        """This asserted the opposite until a reader settled it.
+
+        The reasoning was that a rule named `.dol` ("bottom") pinning a
+        dedication to the page foot is intent rather than a defect — inference
+        from a class name. On the device, the mode that kept the declaration
+        rendered that page **blank**: the block left the flow and pagination
+        went round it. Content that exists beats content that is placed nicely.
+        """
+        assert "position: absolute" not in self.stylesheet(rebuilt)
         assert any(
-            f.level is Level.PRESERVED and f.rule == "css.position-kept-reflowable"
+            f.level is Level.FIX and f.rule == "css.position-removed"
             for f in rebuilt.report.findings
         )
 
@@ -719,16 +726,23 @@ def test_rebuild_is_idempotent(rebuilt, tmp_path):
 
 # --------------------------------------------------------------- minimal mode
 def test_minimal_mode_leaves_content_files_byte_identical(legacy_epub, tmp_path):
-    """The mode's whole promise, with the one exception written down.
+    """The mode's whole promise, with both exceptions written down.
 
-    Parsing and reserialising would break it, so documents are not opened. The
-    DOCTYPE is replaced on the bytes, because a legacy one makes the output an
-    invalid EPUB 3 and a DOCTYPE says nothing about how a page renders — the
-    one edit that cannot change what the reader sees. Everything else is
-    identical, and this asserts that by comparing with the DOCTYPE normalised
-    on both sides rather than by relaxing the comparison.
+    Parsing and reserialising would break it, so documents are not opened. Two
+    edits are made on the bytes, and they are the same kind of edit: a legacy
+    DOCTYPE and an empty `<title>` each make the output an invalid EPUB 3, and
+    neither says anything about how a page renders. Nothing else is touched,
+    and this asserts it by applying both edits to the source side rather than
+    by relaxing the comparison — so a third edit appearing fails here.
+
+    The `<title>` half was found by measurement, not by reading the spec: once
+    a corpus run started recording EPUBCheck's message identifiers, all
+    fourteen errors container-only mode introduced across thirteen books came
+    back as one identifier, and on the book of that shape I could reach, one
+    sentence — *Element "title" must not be empty.*
     """
-    from epubforge.xhtml import modernise_doctype
+    from epubforge.stages.content import ContentStage
+    from epubforge.xhtml import fill_empty_title, modernise_doctype, parse
 
     result = rebuild(legacy_epub, str(tmp_path / "minimal.epub"), Policy.preset("minimal"))
     assert result.output_path, result.report.to_text()
@@ -746,6 +760,16 @@ def test_minimal_mode_leaves_content_files_byte_identical(legacy_epub, tmp_path)
         assert shared, "the fixture shares no files with its rebuild"
         for name in shared:
             expected, _ = modernise_doctype(source.read(name))
+            if name.endswith((".xhtml", ".html", ".htm")):
+                root, _ = parse(expected)
+
+                class Named:
+                    path = name
+                    original_path = None
+
+                expected, _ = fill_empty_title(
+                    expected, ContentStage()._derive_title(root, Named)
+                )
             assert expected == output.read(name), name
 
 
@@ -1274,3 +1298,105 @@ class TestNoManifestHrefClimbsOutOfItsOwnDirectory:
         assert not any(
             finding.rule == "package.layout-kept" for finding in result.report.findings
         )
+
+
+class TestTheEmptyTitleTheUpgradeMadeIllegal:
+    """Container-only mode was creating errors, not carrying them.
+
+    A corpus run reported fourteen EPUBCheck errors introduced across thirteen
+    books in the mode that promises to touch no content. Nobody could say which
+    errors: the signatures held counts. Once they held EPUBCheck's message
+    identifiers as well, all fourteen came back as `RSC-005`, and on the one
+    book of that shape reachable from here, one sentence — *Element "title" must
+    not be empty.*
+
+    EPUB 2 allowed it. EPUB 3 does not, and this mode rebuilds the package as
+    EPUB 3 around content it will not open, so the book was legal when it
+    arrived and illegal when it left without a byte of its content changing.
+    """
+
+    def book(self, tmp_path, title_markup: str) -> str:
+        from .factory import png_bytes, write_zip
+
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Stara ksiazka</dc:title>
+    <dc:identifier id="id">urn:uuid:0e4c2f16-6f5d-4a67-9a2c-91b0e2f5d833</dc:identifier>
+    <dc:language>pl</dc:language>
+  </metadata>
+  <manifest>
+    <item id="ch" href="Text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="img" href="Images/pic.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="ch"/></spine>
+</package>
+"""
+        chapter = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml">\n'
+            f"<head>{title_markup}</head>\n"
+            "<body><h1>Rozdzial pierwszy</h1><p>Tresc.</p></body>\n"
+            "</html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n'
+            '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / "old.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/content.opf": package.encode(),
+                "OEBPS/Text/chapter.xhtml": chapter.encode(),
+                "OEBPS/Images/pic.png": png_bytes(),
+            },
+        )
+
+    def forged(self, tmp_path, title_markup):
+        source = self.book(tmp_path, title_markup)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("minimal"))
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
+            return result, archive.read(name).decode("utf-8")
+
+    def test_an_empty_title_is_filled_from_the_documents_own_heading(self, tmp_path):
+        result, document = self.forged(tmp_path, "<title></title>")
+        assert "<title>Rozdzial pierwszy</title>" in document
+        assert "xhtml.title-filled" in {f.rule for f in result.report.findings}
+
+    def test_a_self_closing_one_counts_as_empty(self, tmp_path):
+        _, document = self.forged(tmp_path, "<title/>")
+        assert "<title>Rozdzial pierwszy</title>" in document
+
+    def test_whitespace_is_not_content(self, tmp_path):
+        _, document = self.forged(tmp_path, "<title>   </title>")
+        assert "<title>Rozdzial pierwszy</title>" in document
+
+    def test_a_title_that_says_something_is_left_alone(self, tmp_path):
+        """The promise still holds everywhere it can. Only the empty ones."""
+        result, document = self.forged(tmp_path, "<title>Wlasny tytul</title>")
+        assert "<title>Wlasny tytul</title>" in document
+        assert "xhtml.title-filled" not in {f.rule for f in result.report.findings}
+
+    def test_the_body_is_not_touched_by_it(self, tmp_path):
+        """The edit is in the head, and the head is not rendered. If this ever
+        reaches into the body the mode has stopped being what it claims."""
+        _, document = self.forged(tmp_path, "<title></title>")
+        body = document[document.index("<body") :]
+        assert body.startswith("<body><h1>Rozdzial pierwszy</h1><p>Tresc.</p></body>")
+
+    def test_an_svg_label_further_down_is_nobodys_business(self):
+        """`<title>` inside SVG is a label on a shape and may legitimately hold
+        nothing. Only the head window is considered."""
+        from epubforge.xhtml import fill_empty_title
+
+        data = (
+            b'<html><head><title>Set</title></head><body>'
+            + b"<p>x</p>" * 900
+            + b"<svg><title></title></svg></body></html>"
+        )
+        assert fill_empty_title(data, "Nope") == (data, False)

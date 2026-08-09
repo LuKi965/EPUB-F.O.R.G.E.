@@ -133,5 +133,27 @@
     "unwritten": 0,
     "clean": false,
     "note": "Same 93 books, same three modes as 0.2.11, so this one is comparable and it is counted: 24 carried and 20 introduced became 14 and 14. The `properties=\"svg\"` fix closed the six books I had locally; thirteen I have never seen still gain an error each in container-only mode, and this run could not say which error, because a signature recorded how many and not what. 0.2.13 records the EPUBCheck rule identifiers, so the next run over these books answers it without anybody sending a book. Not clean, and the streak stays at zero on its own merits — the measurement did not widen here, the defect is real."
+  },
+  {
+    "version": "0.2.13",
+    "date": "2026-08-09",
+    "books": 93,
+    "modes": [
+      "minimal",
+      "preserve",
+      "strict"
+    ],
+    "failed": 0,
+    "errors": 0,
+    "introduced": 14,
+    "carried": 14,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "codes": {
+      "RSC-005": 15
+    },
+    "clean": false,
+    "note": "The same 14 and 14 as 0.2.12, and this time the run says what they are: every error container-only mode introduced is `RSC-005`. On the one book of that shape I could reach — the owner's Book 7, sent separately — RSC-005 reads *Element \"title\" must not be empty*. EPUB 2 allowed an empty <title>; EPUB 3 does not, and this mode rebuilds the package as EPUB 3 around content it will not open. So they were ours after all, made by the upgrade rather than carried from the book. Fixed after this run by filling an empty title on the bytes, the second edit of the same kind as the DOCTYPE. Thirteen books diagnosed without anybody sending a book, which is what the identifiers were added for. The owner's own ledger holds this run twice — Record was pressed twice over the same shelf — and it is entered once here, because it is one measurement."
   }
 ]

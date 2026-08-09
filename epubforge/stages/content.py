@@ -166,18 +166,30 @@ class ContentStage(Stage):
         self._watermark_documents = 0
         self._watermark_tokens: set[str] = set()
         self._watermark_notices: list[str] = []
+        # Aggregated for the same reason as the watermarks: a book whose every
+        # document arrived with an empty <title> would otherwise report the
+        # same sentence forty times.
+        self._titles_filled = 0
 
     def run(self, ctx: Context) -> None:
         if not ctx.policy.rewrite_content:
             # Container-only rebuild. Parsing and reserialising a document
             # changes its bytes even when nothing about it is wrong, so the way
             # to keep that promise is not to open them at all.
-            # One exception, and it is exactly one. A legacy DOCTYPE makes the
-            # output an invalid EPUB 3 — EPUBCheck: "Irregular DOCTYPE" — and a
-            # DOCTYPE declares nothing about how a page looks, so replacing it
-            # is the only edit that cannot change what the reader sees. Half
-            # the older books in a real library carry the XHTML 1.1 one.
+            # Two exceptions, and they are the same exception twice: a legacy
+            # DOCTYPE and an empty <title> each make the output an invalid
+            # EPUB 3 — "Irregular DOCTYPE", "Element title must not be empty" —
+            # and neither says anything about how a page looks, so neither edit
+            # can change what the reader sees. Half the older books in a real
+            # library carry the XHTML 1.1 DOCTYPE, and thirteen books in the
+            # private corpus were failing on nothing but the title.
+            #
+            # Both were legal in EPUB 2. This mode does not touch content, but
+            # it does rebuild the package as EPUB 3, so markup that was only
+            # ever legal under the old rules stops being legal around it —
+            # which makes those errors ours, not the source's.
             modernised = 0
+            titled = 0
             refused: dict[str, set[str]] = {}
             for resource in ctx.book.content_docs():
                 data, changed = xhtml.modernise_doctype(resource.data)
@@ -216,6 +228,20 @@ class ContentStage(Stage):
                 # It costs nothing here: reading properties writes no bytes, and
                 # the document has already been parsed a line above.
                 self._properties(ctx, root, resource)
+
+                # And the second edit this mode is allowed, for the same reason
+                # as the DOCTYPE: `<title>` is not rendered in the body, so
+                # filling it cannot change what the reader sees. EPUB 2 let it
+                # be empty and EPUB 3 does not — so the mode was not carrying a
+                # defect the book had, it was making one by rebuilding the
+                # package as EPUB 3 around markup that was legal only under the
+                # old rules. Decided by the parse, applied to the bytes.
+                data, filled = xhtml.fill_empty_title(
+                    resource.data, self._derive_title(root, resource)
+                )
+                if filled:
+                    resource.data = data
+                    titled += 1
             if modernised:
                 self.note(
                     ctx,
@@ -232,7 +258,14 @@ class ContentStage(Stage):
                     values={"count": len(refused), "documents": ", ".join(names[:5])},
                     location=sorted(refused)[0],
                 )
-            if modernised:
+            if titled:
+                self.note(
+                    ctx,
+                    Level.FIX,
+                    "xhtml.title-filled",
+                    values={"count": titled},
+                )
+            if modernised or titled:
                 self.note(ctx, Level.INFO, "xhtml.untouched-except-doctype")
             else:
                 self.note(ctx, Level.INFO, "xhtml.untouched")
@@ -311,6 +344,13 @@ class ContentStage(Stage):
             resource.data = xhtml.serialize(root)
 
         self._report_entities(ctx, expanded_entities, refused_entities)
+        if self._titles_filled:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.title-filled",
+                values={"count": self._titles_filled},
+            )
         self._report_watermarks(ctx)
 
     def _report_entities(
@@ -432,6 +472,12 @@ class ContentStage(Stage):
             title = etree.SubElement(head, xhtml.qname("title"))
         if not (title.text or "").strip():
             title.text = self._derive_title(root, resource)
+            # Counted, not silent. This has always happened here and never had
+            # a name, so a book whose every document gained a title said so
+            # nowhere — and when the same repair turned out to be what stood
+            # between container-only mode and a conformant EPUB 3, there was no
+            # record that it was already being done three feet away.
+            self._titles_filled += 1
 
     def _derive_title(self, root, resource) -> str:
         for level in ("h1", "h2", "h3", "h4", "title"):
@@ -1317,13 +1363,28 @@ class StyleStage(Stage):
         return repaired
 
     def _repair_positioning(self, ctx: Context, css_text: str, resource) -> str:
-        """Absolute positioning is a compatibility risk, not a defect.
+        """Out-of-flow positioning loses the page it was meant to decorate.
 
-        Publishers use it deliberately — a rule named ``.dol`` ("bottom") pins a
-        dedication to the foot of the page, and that is intent, not a mistake.
-        Readium-based readers honour it; older ones ignore it. Since removing it
-        destroys a layout the publisher chose, it is reported and kept unless
-        conformance has been asked to win.
+        This used to read: *publishers use it deliberately — a rule named
+        ``.dol`` ("bottom") pins a dedication to the foot of the page, and that
+        is intent, not a mistake* — and it kept the declaration outside strict
+        mode on that reasoning. The reasoning was inference from a class name.
+
+        Then somebody put the three modes on a reader. The book was the very one
+        the old docstring described, and in the mode that kept the rule **the
+        dedication page was blank**: `div.dol { position: absolute; bottom: 0 }`
+        took the only content on that page out of the flow, and the reader
+        paginated around it. In strict, where the declaration is dropped, the
+        page is there. Same book, same device, one declaration apart.
+
+        So the trade is not "the publisher's layout against conformance". It is
+        a layout that renders somewhere against a page the reader never sees,
+        and content that exists beats content that is placed nicely. The
+        declaration goes in every mode that opens the stylesheet at all.
+
+        Fixed-layout is the exception and stays one: there the viewport is
+        declared, out-of-flow positioning is how the format works, and nothing
+        can be lost by pagination that does not happen.
         """
         matches = _OUT_OF_FLOW_RE.findall(css_text)
         if not matches:
@@ -1334,16 +1395,6 @@ class StyleStage(Stage):
                 ctx,
                 Level.PRESERVED,
                 "css.position-kept",
-                values={"count": len(matches)},
-                location=resource.path,
-            )
-            return css_text
-
-        if not ctx.policy.strict:
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                "css.position-kept-reflowable",
                 values={"count": len(matches)},
                 location=resource.path,
             )

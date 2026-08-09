@@ -7,11 +7,13 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.13` · alpha · 1083 testów · Windows / Linux / macOS
+`0.2.14` · alpha · 1089 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
 [Zmiany](CHANGELOG.md)
+
+*[English version](README.en.md)*
 
 </div>
 
@@ -56,11 +58,13 @@ kolejności czytania źródła musi znaleźć się w wyniku, w tej samej kolejno
 | **Wymuś standard** (`strict`) | to samo, ale zgodność wygrywa z wyglądem tam, gdzie się kłócą | gdy plik ma trafić do dystrybucji |
 | **Tylko kontener** (`minimal`) | przebudowuje opakowanie, dokumentów nie otwiera | gdy chcesz wyłącznie naprawić strukturę |
 
-Tryb „tylko kontener" robi w treści **jedną** zmianę: wymienia stary DOCTYPE na
-ten z EPUB 3, przenosząc razem z nim encje (`&nbsp;` → `&#160;`). Bez tego wynik
-nie jest poprawnym EPUB-em 3, a książka, w której encja została osierocona, w
-ogóle się nie otwiera. DOCTYPE nie mówi nic o wyglądzie, więc jest to jedyna
-zmiana, która nie może zmienić tego, co widzi czytelnik.
+Tryb „tylko kontener" robi w treści **dwie** zmiany, obie tego samego rodzaju.
+Wymienia stary DOCTYPE na ten z EPUB 3, przenosząc razem z nim encje
+(`&nbsp;` → `&#160;`), i wypełnia pusty `<title>` nagłówkiem samego dokumentu.
+EPUB 2 dopuszczał jedno i drugie, EPUB 3 nie dopuszcza żadnego — a ten tryb
+przebudowuje pakiet na EPUB-a 3, więc bez tych dwóch poprawek książka wchodzi
+poprawna i wychodzi niepoprawna. Ani DOCTYPE, ani `<title>` nie są wyświetlane
+w treści, więc żadna z tych zmian nie może zmienić tego, co widzi czytelnik.
 
 ## Instalacja
 
@@ -157,7 +161,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-879 testów, w tym trzy niezależne siatki bezpieczeństwa:
+1089 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

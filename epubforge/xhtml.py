@@ -8,6 +8,7 @@ module recovers a tree from all of that and always emits well-formed XHTML 5.
 from __future__ import annotations
 
 import re
+from html import escape
 from html.entities import html5
 
 from typing import NamedTuple
@@ -306,6 +307,53 @@ def modernise_doctype(data: bytes) -> tuple[bytes, bool]:
         return data, False
     body = _numeric_entities(data[: match.start()] + data[match.end() :])
     return body[: match.start()] + EPUB3_DOCTYPE + body[match.start() :], True
+
+
+#: `<title></title>`, `<title> </title>`, `<title/>` — with or without attributes.
+#: Anchored on the first occurrence only: `<title>` also exists inside SVG, where
+#: it is a label on a shape and may legitimately hold nothing.
+_EMPTY_TITLE_RE = re.compile(
+    rb"<title(\s[^>]*)?\s*(?:/>|>\s*</title\s*>)", re.IGNORECASE
+)
+
+#: How far into the document the `<head>` can reasonably be. A `<title>` after
+#: this is not the document's own; it belongs to something embedded.
+_HEAD_WINDOW = 4096
+
+
+def fill_empty_title(data: bytes, title: str) -> tuple[bytes, bool]:
+    """Give an empty `<title>` some text, touching nothing else.
+
+    The second edit the container-only mode is allowed to make, and it is
+    allowed for the same reason as the first: `<title>` is not rendered in the
+    body, so what the reader sees cannot change.
+
+    It is here because of a measurement. Fourteen EPUBCheck errors across
+    thirteen books in a private corpus were introduced by container-only mode,
+    and once the run started recording message identifiers they turned out to
+    be one identifier — `RSC-005` — and, on the one book of that shape I could
+    reach, one sentence: *Element "title" must not be empty.* EPUB 2 allowed it;
+    EPUB 3 does not, and this mode rebuilds the package as EPUB 3 whatever
+    happens to the content. So the mode was not carrying a defect the book
+    already had — it was creating one, by upgrading the package around markup
+    that was legal only under the old rules.
+
+    Only the first `<title>` in the head window, and only when it is empty. An
+    SVG `<title>` is a label on a shape and is nobody's business here.
+    """
+    match = _EMPTY_TITLE_RE.search(data, 0, _HEAD_WINDOW)
+    if match is None:
+        return data, False
+    text = re.sub(r"\s+", " ", title).strip()
+    if not text:
+        return data, False
+    attributes = (match.group(1) or b"").rstrip()
+    filled = (
+        b"<title" + attributes + b">"
+        + escape(text[:200]).encode("utf-8")
+        + b"</title>"
+    )
+    return data[: match.start()] + filled + data[match.end() :], True
 
 
 def unresolvable_entities(data: bytes) -> set[str]:

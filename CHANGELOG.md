@@ -25,6 +25,55 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.14 — alpha — 2026-08-09
+
+### The identifiers paid for themselves in one run, and a reader overruled a docstring
+
+**All fourteen errors container-only mode introduced were `RSC-005`.** The
+0.2.13 run recorded EPUBCheck's message identifiers for the first time, and the
+thirteen books nobody could diagnose turned out to break on one rule. On the one
+book of that shape I could reach — the owner's *Book 7*, sent separately —
+`RSC-005` reads *Element "title" must not be empty*.
+
+That makes them ours, not the source's. EPUB 2 allowed an empty `<title>`;
+EPUB 3 does not, and this mode rebuilds the package as EPUB 3 around content it
+refuses to open. The book was legal when it arrived and illegal when it left,
+without a byte of its content changing. So an empty title is now filled on the
+bytes, from the document's own heading — **the second edit this mode makes
+inside a document, and the same kind of edit as the first**: a `<title>` is not
+rendered in the body, so nothing on the page can move. Thirteen books diagnosed
+and fixed without anybody sending a book, which is the entire reason the
+identifiers were added.
+
+The same repair had been happening silently in the modes that rewrite content
+since long before this. It has a name now — `xhtml.title-filled` — reported once
+per book rather than once per document.
+
+**Out-of-flow positioning is removed in every mode that opens the stylesheet.**
+It used to survive outside `strict`, on this reasoning, quoted from the code:
+*publishers use it deliberately — a rule named `.dol` ("bottom") pins a
+dedication to the foot of the page, and that is intent, not a mistake.* That was
+an inference from a class name.
+
+Then the owner put all three modes on a reader. In the mode that kept the
+declaration, **the dedication page was blank**: `div.dol { position: absolute;
+bottom: 0 }` took the only content on that page out of the flow and pagination
+went round it. In `strict`, where the declaration is dropped, the page is there.
+Same book, same device, one declaration apart. The trade was never "the
+publisher's layout against conformance" — it was a layout that renders somewhere
+against a page the reader never sees. Fixed-layout keeps it, because there the
+viewport is declared and nothing can be lost to pagination that does not happen.
+
+Blast radius, measured rather than guessed: **one book in ninety-three** uses it
+at all, and it is the book the page vanished from.
+
+`css.position-kept-reflowable` is retired with the decision it reported. The
+tagging ratchet went down by one for the first time, and the note beside it now
+says why a rule may be withdrawn but a finding may never lose its name.
+
+**Also:** the Polish README links to the English one again. It had done since
+0.2.3 and stopped when the README was rewritten.
+
 ## 0.2.13 — alpha — 2026-08-09
 
 ### 0.2.12 measured: half the introduced errors gone, and a run that can now say which

@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.13` · alpha · 1083 tests · Windows / Linux / macOS
+`0.2.14` · alpha · 1089 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Development](CONTRIBUTING.md) · [Changes](CHANGELOG.md)
@@ -60,12 +60,14 @@ source's reading order has to appear in the output, in the same order.
 | **Force the standard** (`strict`) | the same, but conformance wins where the two conflict | when the file is going out to a shop |
 | **Container only** (`minimal`) | rebuilds the packaging, never opens the documents | when only the structure needs fixing |
 
-Container-only mode makes exactly **one** change inside a document: it replaces
-a legacy DOCTYPE with the EPUB 3 one, carrying the entities with it
-(`&nbsp;` → `&#160;`). Without that the output is not a valid EPUB 3, and a book
-whose entity has been stranded will not open at all. A DOCTYPE says nothing
-about how a page renders, which makes this the one edit that cannot change what
-the reader sees.
+Container-only mode makes **two** changes inside a document, and they are the
+same kind of change twice: it replaces a legacy DOCTYPE with the EPUB 3 one,
+carrying the entities with it (`&nbsp;` → `&#160;`), and it fills an empty
+`<title>` from the document's own heading. EPUB 2 allowed both; EPUB 3 allows
+neither, and this mode rebuilds the package as EPUB 3 — so without the two
+repairs a book goes in valid and comes out invalid. Neither a DOCTYPE nor a
+`<title>` is rendered in the body, so neither edit can change what the reader
+sees.
 
 ## Install
 
@@ -161,7 +163,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-879 tests, including three independent safety nets:
+1089 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

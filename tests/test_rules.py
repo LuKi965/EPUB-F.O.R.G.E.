@@ -26,7 +26,18 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: How many call sites carry a rule today. Raise it as more are converted;
 #: lowering it means a finding lost its identity, which is the thing this whole
 #: module exists to prevent.
-TAGGED_TODAY = 150
+#:
+#: It went 150 → 151 rather than 152 when `xhtml.title-filled` arrived at two
+#: call sites, because `css.position-kept-reflowable` left at one. That is a
+#: finding retired, not a finding that lost its name: a reader showed that
+#: keeping out-of-flow positioning in a reflowable book loses the page, so
+#: there is no longer a decision to report — the declaration goes in every
+#: mode that opens the stylesheet. A number that may only ever rise would
+#: forbid deleting a behaviour we were wrong about, so this one may fall when
+#: a rule is *withdrawn*; what it may never do is fall because a `note()` lost
+#: its identifier, and every remaining call site carrying one is what the two
+#: tests below actually check.
+TAGGED_TODAY = 151
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.

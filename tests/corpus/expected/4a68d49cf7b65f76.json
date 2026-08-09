@@ -1,11 +1,14 @@
 {
   "source": "sha256:4a68d49cf7b65f766f8f983219ea53013336aa04dcdd93287ddbf352721a7b55",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
     "warnings": 1,
-    "fatal": 0
+    "fatal": 0,
+    "codes": {
+      "RSC-006": 1
+    }
   },
   "minimal": {
     "written": true,
@@ -33,7 +36,10 @@
     "epubcheck": {
       "errors": 1,
       "warnings": 0,
-      "fatal": 0
+      "fatal": 0,
+      "codes": {
+        "RSC-006": 1
+      }
     }
   },
   "preserve": {
@@ -62,7 +68,8 @@
     "epubcheck": {
       "errors": 0,
       "warnings": 0,
-      "fatal": 0
+      "fatal": 0,
+      "codes": {}
     }
   },
   "strict": {
@@ -91,7 +98,8 @@
     "epubcheck": {
       "errors": 0,
       "warnings": 0,
-      "fatal": 0
+      "fatal": 0,
+      "codes": {}
     }
   }
 }

@@ -86,6 +86,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.untouched": "content documents were left as they were; only the container was rebuilt",
     "xhtml.untouched-except-doctype": "content documents were left as they were apart from the DOCTYPE; only the container was rebuilt",
     "xhtml.doctype-modernised": "a legacy DOCTYPE was replaced with the EPUB 3 one in {count} document(s)",
+    "xhtml.title-filled": "{count} empty <title> element(s) were given the document's own heading",
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
@@ -107,7 +108,6 @@ CATALOGUE: dict[str, str] = {
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
     "css.position-kept": "{count} absolute or fixed position rule(s) were kept",
-    "css.position-kept-reflowable": "{count} absolute or fixed position rule(s) were kept in a reflowable book",
     "css.position-removed": "{count} absolute or fixed position rule(s) were removed from a reflowable book",
     "css.reader-property-kept": "{count} reader-specific CSS propert(ies) inherited from the source were kept",
     "css.reader-property-removed": "{count} reader-specific CSS propert(ies) were removed",
@@ -259,6 +259,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.untouched': 'dokumenty treści zostały bez zmian; przebudowano wyłącznie kontener',
     'xhtml.untouched-except-doctype': 'dokumenty treści zostały bez zmian poza DOCTYPE; przebudowano wyłącznie kontener',
     'xhtml.doctype-modernised': 'stary DOCTYPE zastąpiono tym z EPUB 3 w {count} {count:dokumencie|dokumentach|dokumentach}',
+    'xhtml.title-filled': '{count} {count:pustemu elementowi|pustym elementom|pustym elementom} <title> nadano nagłówek samego dokumentu',
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
@@ -280,7 +281,6 @@ CATALOGUE_PL: dict[str, str] = {
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
     'css.position-kept': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego',
-    'css.position-kept-reflowable': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego w książce przepływalnej',
     'css.position-removed': 'usunięto {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego z książki przepływalnej',
     'css.reader-property-kept': 'zachowano {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników, odziedziczoną ze źródła',
     'css.reader-property-removed': 'usunięto {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników',
@@ -406,10 +406,8 @@ DETAILS: dict[str, str] = {
         "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant.",
     "css.position-kept":
         "This is a fixed-layout book, where out-of-flow positioning is how it works.",
-    "css.position-kept-reflowable":
-        "Out-of-flow content does not paginate on every reader, but it is a layout the publisher chose. Use --strict to drop it.",
     "css.position-removed":
-        "The affected blocks now flow with the page instead of being pinned to it.",
+        "The affected blocks now flow with the page instead of being pinned to it. Kept out of fixed-layout books, where out-of-flow positioning is how the format works. On a real reader a dedication pinned this way came out as a blank page — the block left the flow and pagination went round it.",
     "css.reader-property-kept":
         "{names} — validators flag these as unknown. Use --strict to remove them.",
     "css.vendor-at-rule-kept":
@@ -480,6 +478,8 @@ DETAILS: dict[str, str] = {
         "{unlinked} link(s) unlinked, {removed} element(s) removed",
     "xhtml.doctype-kept":
         "The output stays an invalid EPUB 3 in those documents, and that is the lesser harm: replacing the declaration would strand the reference and the book would no longer open at all. Rebuild this book in a mode that rewrites content.",
+    "xhtml.title-filled":
+        "EPUB 2 allowed an empty <title>; EPUB 3 does not, and this rebuild produces EPUB 3. The text is not rendered in the body, so nothing on the page moves. In container-only mode this is the second and last edit made inside a document.",
     "xhtml.doctype-modernised":
         "The only change this mode makes inside a document. A DOCTYPE says nothing about rendering, and a legacy one makes the book invalid. A DOCTYPE that declares its own entities is left alone, because the document uses them.",
     "xhtml.dtd-entities-refused":
@@ -631,8 +631,10 @@ DETAILS_PL: dict[str, str] = {
         "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal”.",
     "css.position-kept":
         "To książka o stałym układzie, w której pozycjonowanie poza przepływem jest sposobem działania.",
-    "css.position-kept-reflowable":
-        "Treść poza przepływem nie paginuje się na każdym czytniku, ale to układ wybrany przez wydawcę. Użyj --strict, żeby go usunąć.",
+    "css.position-removed":
+        "Te bloki płyną teraz razem ze stroną, zamiast być do niej przypięte. Nie dotyczy książek o stałym układzie, gdzie pozycjonowanie poza przepływem jest sposobem działania formatu. Na prawdziwym czytniku dedykacja przypięta w ten sposób wyszła jako pusta strona — blok wypadł z przepływu, a paginacja go ominęła.",
+    "xhtml.title-filled":
+        "EPUB 2 dopuszczał pusty <title>, EPUB 3 już nie, a ta przebudowa daje EPUB-a 3. Tekst nie jest wyświetlany w treści, więc nic na stronie się nie przesuwa. W trybie kontenerowym to druga i ostatnia zmiana wewnątrz dokumentu.",
     "xhtml.doctype-modernised":
         "Jedyna zmiana, jaką ten tryb wprowadza wewnątrz dokumentu. DOCTYPE nie mówi nic o sposobie wyświetlania, a stary czyni książkę niepoprawną. DOCTYPE deklarujący własne encje zostaje nietknięty, bo dokument z nich korzysta.",
     "xhtml.doctype-kept":
