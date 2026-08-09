@@ -98,7 +98,6 @@ CATALOGUE: dict[str, str] = {
     "typography.conjunctions-bound": "{count} single-letter conjunction(s) were bound to the word after them",
     "typography.reverted": "{count} document(s) were put back unchanged: the typography pass could not show it kept the text",
     # -- profile -------------------------------------------------------------
-    "profile.language-contradicted": "the book declares {declared} but the text is Polish ({rate} Polish-only letters per 1000)",
     "profile.made-by": "the book carries traces of {count} tool(s): {tools}",
     "profile.body-text-found": "the body text is {shape}: {percent}% of {blocks} paragraph(s)",
     "profile.body-text-inconsistent": "no shape covers the body text; the commonest reaches {percent}% of {blocks} paragraph(s)",
@@ -161,6 +160,7 @@ CATALOGUE: dict[str, str] = {
     "metadata.title-missing": "the source has no dc:title and a placeholder was inserted",
     "metadata.titles-collapsed": "{count} dc:title elements were collapsed to one main title",
     "metadata.language-invalid": "the language tag {was} is not valid BCP 47 and was replaced with {now}",
+    "metadata.language-corrected": "the declared language {was} is contradicted by the text; corrected to {now}",
     "metadata.language-missing": "the source has no dc:language, so {now} was used",
     "metadata.identifier-minted": "the source has no dc:identifier and a UUID was minted",
     "metadata.identifier-promoted": "no unique-identifier was declared and the first one was promoted",
@@ -290,7 +290,6 @@ CATALOGUE_PL: dict[str, str] = {
     'typography.ellipsis-normalised': '{count} {count:ciąg trzech kropek stał się|ciągi trzech kropek stały się|ciągów trzech kropek stało się} pojedynczym wielokropkiem',
     'typography.conjunctions-bound': '{count} {count:jednoliterowy spójnik związano|jednoliterowe spójniki związano|jednoliterowych spójników związano} z następującym po nim słowem',
     'typography.reverted': '{count} {count:dokument przywrócono|dokumenty przywrócono|dokumentów przywrócono} bez zmian: przebieg typograficzny nie potrafił wykazać, że zachował tekst',
-    'profile.language-contradicted': 'książka deklaruje {declared}, a tekst jest polski ({rate} liter wyłącznie polskich na 1000)',
     'profile.made-by': 'książka nosi ślady {count} {count:narzędzia|narzędzi|narzędzi}: {tools}',
     'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
     'profile.body-text-inconsistent': 'żaden kształt nie obejmuje tekstu głównego; najczęstszy sięga {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
@@ -352,6 +351,7 @@ CATALOGUE_PL: dict[str, str] = {
     'metadata.title-missing': 'źródło nie ma dc:title; wstawiono zastępczy',
     'metadata.titles-collapsed': '{count} {count:element dc:title sprowadzono|elementy dc:title sprowadzono|elementów dc:title sprowadzono} do jednego tytułu głównego',
     'metadata.language-invalid': 'znacznik języka {was} nie jest poprawnym BCP 47 i został zastąpiony przez {now}',
+    'metadata.language-corrected': 'zadeklarowany język {was} jest sprzeczny z tekstem; poprawiono na {now}',
     'metadata.language-missing': 'źródło nie ma dc:language, więc użyto {now}',
     'metadata.identifier-minted': 'źródło nie ma dc:identifier; wygenerowano UUID',
     'metadata.identifier-promoted': 'nie zadeklarowano unique-identifier; awansowano pierwszy',
@@ -514,8 +514,6 @@ DETAILS: dict[str, str] = {
         "{renamed} file(s) needed a new name; every reference was rewritten to match",
     "xhtml.cover-fitted":
         "No stylesheet rule and no attribute sized this image, so a reader would show it at its own pixel dimensions.",
-    "profile.language-contradicted":
-        "A reading system speaks dc:language to its text-to-speech engine and hyphenates by it, so this book is read aloud in the wrong voice and broken across lines by the wrong rules. Not corrected here: the declared language being contradicted is not the same as knowing the right one. Pass --language to set it.",
     "profile.paragraphs-mixed":
         "A book from one source does not mix the two. When it does, somebody glued two files together or ran one through two tools — which is worth knowing before any rule tries to normalise the paragraphs.",
     "profile.body-text-inconsistent":
@@ -570,6 +568,8 @@ DETAILS: dict[str, str] = {
         "{tokens} distinct token(s), text unchanged, now carried as <meta name=\"{name}\"> in the head of the document each one came from. Still in the file and still traceable, but no longer laid out, paginated or read aloud — which a token at font-size zero still was.",
     "xhtml.watermark-removed":
         "{tokens} distinct token(s), gone. The book no longer carries the mark that ties this copy to its buyer.",
+    "metadata.language-corrected":
+        "{rate} Polish-only letters per 1000 characters of the book's own text. A reading system speaks dc:language to its text-to-speech engine and hyphenates by it, so a wrong declaration is read aloud in the wrong voice and broken across lines by the wrong rules — neither of which any validator mentions. --language overrides this.",
     "xhtml.watermark-kept":
         "Meant to be read, so left exactly as the publisher wrote it.",
     "xhtml.watermark-kept-personal-data":
@@ -613,6 +613,8 @@ DETAILS_PL: dict[str, str] = {
         "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów}, tekst bez zmian, teraz jako <meta name=\"{name}\"> w nagłówku tego dokumentu, z którego pochodzi. Wciąż w pliku i wciąż do odczytania, ale już nie na stronie: nic go nie składa, nie łamie i nie czyta na głos — a token o zerowym stopniu pisma wciąż tam był.",
     "xhtml.watermark-removed":
         "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów} — nie ma. Książka nie niesie już znaku, który wiąże ten egzemplarz z kupującym.",
+    "metadata.language-corrected":
+        "{rate} liter wyłącznie polskich na 1000 znaków własnego tekstu książki. Czytnik podaje dc:language syntezatorowi mowy i po nim dzieli wyrazy, więc zła deklaracja to czytanie niewłaściwym głosem i łamanie niewłaściwymi regułami — o żadnym z tych dwóch nie powie ci walidator. --language to nadpisuje.",
     "xhtml.watermark-kept":
         "Ma być czytane, więc zostawione dokładnie tak, jak napisał to wydawca.",
     "xhtml.watermark-kept-personal-data":
@@ -669,8 +671,6 @@ DETAILS_PL: dict[str, str] = {
         "Zadeklarowanie tego mimo wszystko stwierdzałoby coś, czego książka nie robi.",
     "css.position-removed":
         "Objęte bloki płyną teraz razem ze stroną, zamiast być do niej przypięte.",
-    "profile.language-contradicted":
-        "Czytnik podaje dc:language syntezatorowi mowy i po nim dzieli wyrazy, więc ta książka jest czytana na głos niewłaściwym głosem i łamana niewłaściwymi regułami. Nie poprawiamy tego tutaj: „zadeklarowany język jest sprzeczny z tekstem” to nie to samo, co „znam właściwy”. Ustaw go przez --language.",
     "profile.paragraphs-mixed":
         "Książka z jednego źródła nie miesza obu sposobów. Kiedy miesza, ktoś skleił dwa pliki albo przepuścił jeden przez dwa narzędzia — a to warto wiedzieć, zanim jakakolwiek reguła spróbuje ujednolicić akapity.",
     "profile.body-text-inconsistent":

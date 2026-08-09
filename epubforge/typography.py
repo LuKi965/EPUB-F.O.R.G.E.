@@ -306,6 +306,19 @@ def convention(counts: dict[str, int]) -> str | None:
     return name
 
 
+def looks_polish(text: str) -> bool:
+    """Whether the text itself says Polish, whatever the package declares.
+
+    The owner settled this after a library of 2 200 books turned out to declare
+    English while being written in Polish: *if a book declares `en` and is
+    plainly written in Polish, then barring English insertions the declaration
+    is simply wrong.* Measured over the whole book, an English chapter inside a
+    Polish novel cannot swing it and a Polish quotation inside an English one
+    cannot either.
+    """
+    return polish_share(text) >= POLISH_FLOOR
+
+
 def polish_share(text: str) -> float:
     """Polish-only letters per thousand characters.
 

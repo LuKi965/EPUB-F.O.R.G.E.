@@ -67,16 +67,33 @@ MOJIBAKE = re.compile(r"Ã[\x80-\xbf]|Â[\xa0-\xbf]|â€|Å[\x81-\xbc]|Ä[\x84-
 _CONJUNCTION_LOOSE = re.compile(r"(?i)(?<![^\s(„«])[aiouwz] (?=\w)")
 _CONJUNCTION_BOUND = re.compile(r"(?i)(?<![^\s(„«])[aiouwz] ")
 
-#: A hyphen followed by a space, mid-word: what a PDF conversion leaves where it
-#: broke a word across lines. Measured on *rendered* text, which is what makes it
-#: meaningful — the reader really does see that space, whether it came from a
-#: converter or from a source line break, and either way the word is wrong. A
-#: pretty-printer cannot fake it, because pretty-printers wrap at spaces and
-#: never leave a hyphen hanging at the end of a line.
-_BROKEN_HYPHEN = re.compile(r"(?i)[a-ząćęłńóśźż]- (?=[a-ząćęłńóśźż])")
-
-#: The publisher's legal page, which is the half of "bookshop EPUB" that a file
-#: without a visible watermark still has. An ISBN is assigned to a commercial
+#: A hyphen frozen where a line used to break — what a PDF conversion leaves
+#: behind when its line breaks become text. Measured on *rendered* text, which
+#: is what makes it meaningful: the reader really does see that space, and the
+#: word is wrong either way.
+#:
+#: `(?!\w+ )` is the whole difficulty and it took a second collection to find.
+#: The first pattern was "letter, hyphen, space, letter", and on 67 Dutch and
+#: English books it fired in **50 of them** — against 2 that carried any PDF or
+#: OCR trace at all. It was matching the *suspended* hyphen, which is correct
+#: orthography and not damage: `in- en uitvoer`, `pre- and post-war`,
+#: `wielo- i jednorazowy`. One word is elided and the hyphen stands in for it.
+#:
+#: The two are told apart by what follows the space. A frozen hyphen is
+#: followed by the rest of the same word; a suspended one by a conjunction. So
+#: the conjunctions are named — and named across languages rather than gated on
+#: the declared one, because the declaration has already been shown to lie.
+_SUSPENDING = (
+    "en|of",              # Dutch
+    "und|oder|bzw",       # German
+    "and|or|nor",         # English
+    "i|oraz|lub|albo|czy",  # Polish
+    "et|ou",              # French
+    "e|o|y",              # Italian, Spanish
+)
+_BROKEN_HYPHEN = re.compile(
+    r"(?i)[a-ząćęłńóśźż]- (?!(?:" + "|".join(_SUSPENDING) + r")\b)(?=[a-ząćęłńóśźż])"
+)
 #: edition and to nothing else here; the rights boilerplate catches editions
 #: that carry no ISBN in the package.
 _ISBN = re.compile(r"(?i)\bisbn\b[^0-9]{0,12}(?:97[89][- ]?)?(?:[0-9][- ]?){9}[0-9Xx]")

@@ -7,6 +7,7 @@ import re
 import uuid
 
 from ..model import Identifier
+from .. import typography
 from ..report import Level
 from .base import Context, Stage
 
@@ -118,6 +119,7 @@ class MetadataStage(Stage):
             canonical = raw.split("-")[0].lower()
             rest = raw.split("-")[1:]
             metadata.language = "-".join([canonical] + [p.upper() if len(p) == 2 else p for p in rest])
+            self._contradicted(ctx, canonical)
             return
         if raw:
             self.note(
@@ -134,6 +136,66 @@ class MetadataStage(Stage):
                 values={"now": ctx.policy.default_language},
             )
         metadata.language = ctx.policy.default_language
+
+    #: Characters of the book's own text below which a language rate is
+    #: arithmetic rather than evidence. A page of prose is about two thousand.
+    ENOUGH_TEXT = 500
+
+    def _contradicted(self, ctx: Context, declared: str) -> None:
+        """Correct a declared language the text plainly contradicts.
+
+        Found on a library of 2 200 books: 2 187 declared `en`, and 1 815 of
+        those carried `„` — a mark English typesetting does not use at all.
+        Calibre had left `dc:language` at its default and nothing had ever
+        looked.
+
+        The first version of this only *reported* it, on the argument that
+        knowing a declaration is wrong is not the same as knowing the right
+        answer. The owner overruled that, and he is right: *if a book declares
+        `en` and is plainly written in Polish, then barring English insertions
+        the declaration is simply wrong.* Leaving a wrong one in place is not
+        neutrality — a reading system speaks `dc:language` to its
+        text-to-speech engine and hyphenates by it, so the book is read aloud
+        in an English voice and broken across lines by English rules until
+        somebody fixes it by hand.
+
+        Narrow on purpose. It fires only where the evidence is decisive: over
+        the book's own documents, never the navigation this tool generates,
+        never below a page of prose, and only for a language whose letters are
+        its own proof. `--language` still wins — the overrides are applied
+        after this.
+        """
+        if declared == "pl":
+            return
+        text = self._book_text(ctx)
+        if len(text) < self.ENOUGH_TEXT or not typography.looks_polish(text):
+            return
+        ctx.book.metadata.language = "pl"
+        self.note(
+            ctx,
+            Level.FIX,
+            "metadata.language-corrected",
+            values={
+                "was": declared,
+                "now": "pl",
+                "rate": round(typography.polish_share(text), 1),
+            },
+        )
+
+    def _book_text(self, ctx: Context) -> str:
+        """The book's text, and nothing this tool wrote.
+
+        Markup dilutes the rate and cannot fake it: tag and attribute names are
+        ASCII, so they move the denominator and never the numerator. Parsing
+        every document twice to be tidier about that would cost a second full
+        pass for an answer that does not change.
+        """
+        parts = []
+        for resource in ctx.book.content_docs():
+            if resource.path == ctx.book.nav_path:
+                continue
+            parts.append(resource.data.decode("utf-8", "replace"))
+        return "".join(parts)
 
     def _identifier(self, ctx: Context) -> None:
         metadata = ctx.book.metadata

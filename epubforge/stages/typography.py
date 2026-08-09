@@ -106,11 +106,13 @@ class TypographyStage(Stage):
             repaired, count = _THREE_DOTS.subn("…", text)
             ellipses += count
             if polish:
-                # Polish typographic convention, and gated on the *declared*
-                # language rather than guessed from the text. A book whose
-                # declaration is contradicted is reported by the profile stage
-                # and left alone here: acting on an inference about somebody's
-                # language is a larger claim than reporting one.
+                # Polish typographic convention, gated on the language the
+                # *metadata stage settled* — which is the declared one unless
+                # the text plainly contradicted it, in which case that stage
+                # has already corrected it and said so. That ordering is the
+                # whole reason this rule reaches the books it needs to: a
+                # library of 2 200 Polish books declaring `en` would otherwise
+                # be skipped by the rule written for them.
                 repaired, count = _CONJUNCTION.subn(rf"\1{NBSP}", repaired)
                 conjunctions += count
             if repaired != text:

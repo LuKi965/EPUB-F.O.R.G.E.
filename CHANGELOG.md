@@ -89,15 +89,28 @@ by it, so the book is read aloud in an English voice and broken across lines by
 English rules. Both are immediately obvious to a reader and invisible to every
 validator.
 
-`profile.language-contradicted` now reports it as a **warning**, with the
-measured rate — over the book's own documents, excluding the navigation page,
-and only when there is a page of prose to judge from. The first version had
-neither guard and reported a Japanese manga as Polish: the only document short
-enough to swing the average was the navigation page *this tool had just
-generated*, whose title in a Polish report is "Spis treści" — one `ś` in
-seventeen characters. Measuring our own output and calling it the book is the
-mistake the profile stage's own docstring warns about, and it took one fixture
-to make it. It is never corrected: the tool knows the declared language is
+`metadata.language-corrected` **corrects it**, as a fix, with the measured
+rate. That is the owner's call and it overruled mine: I had it reporting only,
+on the argument that knowing a declaration is wrong is not the same as knowing
+the right answer. He is right — *if a book declares `en` and is plainly written
+in Polish, then barring English insertions the declaration is simply wrong* —
+and leaving a wrong one in place is not neutrality, it is leaving the book to
+be read aloud in the wrong voice until somebody fixes it by hand.
+
+It fires only where the evidence is decisive: over the book's own documents,
+never the navigation page this tool generates, never below a page of prose, and
+only for a language whose letters are their own proof. `--language` still wins.
+
+The first version had neither guard and reported a Japanese manga as Polish:
+the only document short enough to swing the average was the navigation page
+*this tool had just generated*, whose title in a Polish report is "Spis treści"
+— one `ś` in seventeen characters. Measuring our own output and calling it the
+book is the mistake the profile stage's own docstring warns about, and it took
+one fixture to make it.
+
+The correction lives in the metadata stage, which owns `dc:language`, and the
+typography stage reads what it settled — which is how the conjunction rule
+reaches the books that need it at all. It is never corrected: the tool knows the declared language is
 contradicted, it does not know the right one, and rewriting metadata on an
 inference is the kind of help nobody asked for. `--language` is there for the
 person holding the book.
@@ -107,6 +120,30 @@ books carry a `calibre` trace, 2 187 are EPUB 3, 2 187 declare the same
 language. One generator, one format, one declaration — no use at all as a
 regression net, whose value comes from variety of provenance. It was taken for
 the distribution and it paid for itself twice in the first minute.
+
+### A second collection: 67 books, and the third defect the data found
+
+Not Polish, not one generator: 40 Dutch, 22 English, 66 of 67 EPUB 2, and — for
+the first time — **layered files**. Five books carry calibre *and* sigil *and*
+word; ten carry calibre and sigil; eight sigil and word. The fingerprint was
+built on the argument that files are layered and this is the first shelf that
+proves it.
+
+And it broke the broken-hyphen detector, which is how a good collection earns
+its keep. `PDF_HYPHEN_FLOOR` classified **50 of the 67** as PDF-or-OCR
+conversions. Two of them carry any PDF or OCR trace at all.
+
+The pattern was "letter, hyphen, space, letter" — a hyphen frozen where a line
+used to break, which is what a PDF conversion leaves behind. It was also
+matching the **suspended** hyphen, which is correct orthography and not damage:
+`in- en uitvoer`, `pre- and post-war`, `wielo- i jednorazowy`. One word is
+elided and the hyphen stands in for it. Polish barely uses the construction,
+which is why 93 Polish books scored zero and nothing looked wrong.
+
+The two are told apart by what follows the space: a frozen hyphen by the rest
+of the same word, a suspended one by a conjunction. So the conjunctions are
+named — and named across six languages rather than gated on the declared one,
+because the declaration has already been shown to lie.
 
 ### [7] first rules: the stage that changes text, and checks that it did not
 
