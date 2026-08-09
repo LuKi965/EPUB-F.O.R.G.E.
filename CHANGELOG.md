@@ -38,6 +38,8 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.16 — alpha — 2026-08-09 — kamień milowy [6]
+
 ### [6] `fingerprint.py` — what made this book, and how sure we are
 
 Roadmap point [6], and the last thing standing before [7]. The detection
@@ -80,7 +82,35 @@ One consequence worth stating: books recognised only by a bare word in their
 text no longer count as that generator, so corpus family coverage may fall.
 That is the false positive going away, not the detector getting worse.
 
-## 0.2.16 — alpha — 2026-08-09
+### "Released" now has a definition a machine can check
+
+This version was bumped, written up, committed and pushed — and then described
+as released. It was not: no build had run, no tag existed, nothing was
+downloadable. The same turn closed roadmap point [6] and never froze it, and
+that turned out not to be new: `frozen/*` stopped covering the roadmap after
+0.2.8, though [3] closed in 0.2.11 and [4] and [5] in 0.2.14.
+
+The fault was not forgetfulness. It was that "released" had no definition
+anything could check, so it defaulted to whatever the last commit message
+claimed. `packaging/release_check.py` gives it the strictest available one —
+**the tag exists on the remote** — and splits the question in two: what this
+repository can say about itself (version, changelog, both READMEs), which
+`tests/test_release_state.py` now fails the build over, and what only the
+remote can confirm (tag, frozen branch), read with `git ls-remote`. The build
+workflow is dispatched by the owner in a browser and this environment cannot
+push a tag at all, so the script prints that as a hand-off rather than
+pretending otherwise.
+
+A release that closes a roadmap point says so in its changelog heading —
+`## 0.2.16 — alpha — 2026-08-09 — kamień milowy [6]` — because that is the one
+line nobody forgets to write, and the marker is what tells the script the
+freeze is owed. `packaging/branches.py` restores step 4 of the cycle, which had
+been pointing at a script that no longer existed; `frozen/*` is never in its
+output, which is the entire purpose of the prefix.
+
+`frozen/v0.2.11-profil-ksiazki` and `frozen/v0.2.14-martwy-css-i-spany` exist
+now, at the exact commits the local tags still recorded after the remote ones
+were deleted.
 
 ### `--strict` was deleting captions that were never going anywhere
 
@@ -250,7 +280,7 @@ A verdict that found something and cannot explain it is no longer reused — the
 same rule the identifiers got, for the same reason. A clean verdict carries no
 explanation and needs none.
 
-## 0.2.14 — alpha — 2026-08-09
+## 0.2.14 — alpha — 2026-08-09 — kamień milowy [4] [5]
 
 ### Roadmap point [5], and a switch on everything that deletes
 
@@ -626,7 +656,7 @@ scale as the one the floor exists to stop.
 duplicate ones — which is point [4] justified in figures rather than in
 expectation: median 30 dead classes per book, maximum 210.
 
-## 0.2.11 — alpha — 2026-08-08
+## 0.2.11 — alpha — 2026-08-08 — kamień milowy [3]
 
 **Roadmap point [3]: the book is measured, and nothing is touched.** The
 foundation points [4], [5] and [7] each need, built where the roadmap said it
