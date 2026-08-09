@@ -11,6 +11,8 @@ So the tests below are mostly about what the scanner refuses to touch.
 
 from __future__ import annotations
 
+import re
+
 from epubforge.stylesheet import (
     names_nothing_here,
     top_level_rules,
@@ -268,3 +270,168 @@ hr.dotted_line { border-top: 2px dotted gray; }
         finally:
             del self.SHEET
         assert ".drawn" in sheet
+
+
+class TestASpanThatSaysNothing:
+    """Roadmap point [5], and the measurement that reshaped it.
+
+    12 475 spans in thirty-two commercial books: 97% do something, 21 carry an
+    attribute, **90** have a rule that reaches them and says nothing, and 256
+    have no rule at all. That last group is not this rule's business — its
+    largest class is `dropcap`, **219 drop caps** whose stylesheet point [4] had
+    just reconnected. A rule keyed on "nothing styles it" would have deleted
+    them the moment after they were repaired.
+
+    So: unwrap, never delete; and only where a rule exists and every declaration
+    in it is the default for an inline box.
+    """
+
+    SHEET = """p { margin: 1em 0; }
+.reset { margin: 0; padding: 0; }
+.black { color: #010000; }
+.loud { font-weight: bold; }
+"""
+
+    def book(self, tmp_path, body: str) -> str:
+        from .factory import write_zip
+
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Konwersja z PDF</dc:title>
+    <dc:identifier id="id">urn:uuid:8a3e5f20-77c1-4d6b-9e02-4b1f7c3d9a56</dc:identifier>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="css" href="style.css" media-type="text/css"/>
+  </manifest>
+  <spine><itemref idref="ch"/></spine>
+</package>
+"""
+        nav = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops" lang="pl"><head><title>Spis</title>'
+            '</head><body><nav epub:type="toc"><ol><li>'
+            '<a href="chapter.xhtml">Rozdzial</a></li></ol></nav></body></html>\n'
+        )
+        chapter = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl">'
+            '<head><title>Rozdzial</title><link rel="stylesheet" href="style.css"/></head>\n'
+            f"<body>{body}</body></html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/nav.xhtml": nav.encode(),
+                "OEBPS/chapter.xhtml": chapter.encode(),
+                "OEBPS/style.css": self.SHEET.encode(),
+            },
+        )
+
+    def forge(self, tmp_path, body, mode="strict", **overrides):
+        import zipfile
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        source = self.book(tmp_path, body)
+        result = rebuild(
+            source, str(tmp_path / "out.epub"), Policy.preset(mode, **overrides)
+        )
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
+            return result, archive.read(name).decode()
+
+    def rules(self, result) -> set:
+        return {f.rule for f in result.report.findings if f.rule}
+
+    SOUP = '<p><span class="black reset">Trescia rozdzialu.</span></p>'
+
+    def test_a_span_whose_rules_say_nothing_is_unwrapped(self, tmp_path):
+        """`.reset { margin: 0; padding: 0 }` on an inline box, where those are
+        the defaults, and `.black { color: #010000 }` — black moved by one part
+        in 255 because a PDF converter copied the exact ink."""
+        result, chapter = self.forge(tmp_path, self.SOUP)
+        assert "<span" not in chapter
+        assert "xhtml.empty-span-unwrapped" in self.rules(result)
+
+    def test_the_text_inside_is_not_touched(self, tmp_path):
+        """Unwrap, not delete. Nothing this rule does can lose a character."""
+        _, chapter = self.forge(tmp_path, self.SOUP)
+        assert "Trescia rozdzialu." in chapter
+
+    def test_text_around_a_span_keeps_its_order(self, tmp_path):
+        """The tail goes after what came out of the span, not before it.
+
+        This was a real defect in the unwrap helper, found while wiring this up:
+        `<p>x<span>b<i>i</i>t</span>c</p>` put the `c` in front of the `<i>` —
+        every character still present and two of them in the wrong order. K1
+        compares a stream in order, so it would have read as text lost.
+        """
+        body = '<p>przed <span class="black reset">w <em>srodku</em> koniec</span> po</p>'
+        _, chapter = self.forge(tmp_path, body)
+        text = re.sub(r"<[^>]+>", "", chapter[chapter.index("<body") :])
+        assert " ".join(text.split()) == "przed w srodku koniec po"
+
+    def test_a_span_that_does_something_stays(self, tmp_path):
+        result, chapter = self.forge(tmp_path, '<p><span class="loud">Uwaga</span></p>')
+        assert '<span class="loud">' in chapter
+        assert "xhtml.empty-span-unwrapped" not in self.rules(result)
+
+    def test_a_span_nothing_styles_at_all_stays(self, tmp_path):
+        """The 219 drop caps. A class nobody defines is a record of what the
+        publisher meant, not rubbish — and its rule may simply have come
+        unlinked, which is point [4]'s question and not this one's."""
+        result, chapter = self.forge(tmp_path, '<p><span class="dropcap">N</span>ie.</p>')
+        assert '<span class="dropcap">' in chapter
+        assert "xhtml.empty-span-unwrapped" not in self.rules(result)
+
+    def test_an_attribute_that_means_something_keeps_the_span(self, tmp_path):
+        """`lang` decides hyphenation and speech; `epub:type` is semantics a
+        reading system acts on; `id` is a link target."""
+        for markup in (
+            '<span class="black reset" id="k1">x</span>',
+            '<span class="black reset" lang="en">x</span>',
+            '<span class="black reset" xmlns:epub="http://www.idpf.org/2007/ops"'
+            ' epub:type="pagebreak">x</span>',
+        ):
+            _, chapter = self.forge(tmp_path, f"<p>{markup}</p>")
+            assert "<span" in chapter, markup
+
+    def test_preserve_counts_them_and_keeps_them(self, tmp_path):
+        result, chapter = self.forge(tmp_path, self.SOUP, mode="preserve")
+        assert "<span" in chapter
+        assert "xhtml.empty-span-found" in self.rules(result)
+
+    def test_the_owner_can_untick_it_even_under_strict(self, tmp_path):
+        """His standing rule, given as a general one rather than about this
+        feature: whatever the application ever deletes must be optional to
+        untick, or asked about first."""
+        result, chapter = self.forge(tmp_path, self.SOUP, remove_dead=False)
+        assert "<span" in chapter
+        assert "xhtml.empty-span-found" in self.rules(result)
+        assert "xhtml.empty-span-unwrapped" not in self.rules(result)
+
+    def test_the_same_switch_governs_the_stylesheet_removal(self, tmp_path):
+        """One switch, both removals — a person who unticks it means it."""
+        self.SHEET += "td.nowhere { width: 3%; }\n"
+        try:
+            result, _ = self.forge(tmp_path, self.SOUP, remove_dead=False)
+        finally:
+            del self.SHEET
+        assert "css.unreachable-rules-found" in self.rules(result)
+        assert "css.unreachable-rules-removed" not in self.rules(result)

@@ -109,6 +109,15 @@ PL: dict[str, str] = {
         "wyłożyć na polskich znakach w nazwach plików."
     ),
     "policy.scripts": "Usuń skrypty JavaScript",
+    "policy.dead": "Usuwaj to, co nic nie robi",
+    "policy.dead.tip": (
+        "Reguły CSS dla znaczników, których książka nie zawiera, i znaczniki "
+        "<span>, których reguły nie zmieniają niczego.\n\n"
+        "Nic z tego nie zmienia ani jednego piksela — ale usuwanie to usuwanie, "
+        "więc masz to pod ręką. Włączone samo w trybie „Wymuś standard”; "
+        "odznaczenie działa również tam.\n\n"
+        "Wyłączone: raport i tak wypisze, ile tego jest i gdzie."
+    ),
     "policy.scripts.tip": (
         "Wycina elementy <script> i atrybuty zdarzeń.\n\n"
         "Domyślnie wyłączone: część książek o stałym układzie używa skryptów do "
@@ -438,6 +447,14 @@ EN: dict[str, str] = {
         "ASCII. Every reference is rewritten. Some readers choke on non-ASCII filenames."
     ),
     "policy.scripts": "Remove JavaScript",
+    "policy.dead": "Remove what does nothing",
+    "policy.dead.tip": (
+        "CSS rules for markup the book does not contain, and <span> elements "
+        "whose rules change nothing.\n\n"
+        "None of it moves a pixel — but removal is removal, so it is under your "
+        "hand. Ticked by \"Force the standard\"; unticking works there too.\n\n"
+        "Off: the report still says how much there is and where."
+    ),
     "policy.scripts.tip": (
         "Strips <script> elements and event attributes. Off by default: some fixed-layout "
         "books need scripting to render correctly."

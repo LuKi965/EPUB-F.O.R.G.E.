@@ -67,6 +67,10 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.write_ncx = False
     if args.strip_scripts:
         policy.strip_scripts = True
+    if args.keep_dead:
+        policy.remove_dead = False
+    if args.remove_dead:
+        policy.remove_dead = True
     if args.drop_orphans:
         policy.drop_orphans = True
     if args.keep_layout:
@@ -619,6 +623,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     build.add_argument("--no-ncx", action="store_true", help="omit the legacy NCX")
     build.add_argument("--strip-scripts", action="store_true", help="remove all scripting")
+    build.add_argument(
+        "--remove-dead",
+        action="store_true",
+        help="delete CSS rules and <span>s that have no effect (default in --strict)",
+    )
+    build.add_argument(
+        "--keep-dead",
+        action="store_true",
+        help="keep them even under --strict; the report still counts them",
+    )
     build.add_argument(
         "--drop-orphans",
         action="store_true",

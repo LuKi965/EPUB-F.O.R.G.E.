@@ -7,12 +7,12 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.14` · alpha · 1147 tests · Windows / Linux / macOS
+`0.2.14` · alpha · 1160 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Development](CONTRIBUTING.md) · [Changes](CHANGELOG.md)
 
-*[Polska wersja](README.md)*
+[![Polski](https://img.shields.io/badge/Polski-informational?style=for-the-badge&logo=googletranslate&logoColor=white)](README.md)
 
 </div>
 
@@ -163,7 +163,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-1147 tests, including three independent safety nets:
+1160 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;
@@ -189,7 +189,24 @@ pytest -q
 
 ## Authors and licence
 
-Łukasz "LuKi" Kniotek, with considerable help from language models — see the
-paragraph about vibe coding above.
+**Łukasz "LuKi" Kniotek** — concept, design, decisions and direction. The code
+was written by language models under his direction, on his account and to his
+choices. The corpus, the thresholds, and what the tool does and deliberately
+does not do all came from his books and his rulings — see the paragraph about
+vibe coding above.
 
-MIT. Do what you like with it; if you break something, that is yours.
+Copyright © 2026 Łukasz Kniotek.
+
+**GNU GPL v3 or later.** You may use, study, change and redistribute it —
+provided whatever you make of it is GPL too, with its source open. A closed
+product built on this code is not permitted.
+
+Changed from MIT in 0.2.14. Anything anybody took before that stays under MIT;
+the change is prospective.
+
+This program is distributed in the hope that it will be useful, but **WITHOUT ANY
+WARRANTY**; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See [`LICENSE`](LICENSE) for details.
+
+The application links LGPL libraries (Qt/PySide6, cssutils); their terms apply
+independently and allow those libraries to be replaced in the built binary.

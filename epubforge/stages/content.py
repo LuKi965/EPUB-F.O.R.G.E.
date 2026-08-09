@@ -241,6 +241,28 @@ def _rule_model(css_text: str) -> "Counter":
     return model
 
 
+#: `#rgb`, `#rrggbb`, `rgb(r, g, b)` and the two names that matter. Anything
+#: else returns None, which every caller reads as "cannot say" and leaves alone.
+_HEX6 = re.compile(r"#([0-9a-f]{6})")
+_HEX3 = re.compile(r"#([0-9a-f]{3})")
+_RGB = re.compile(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)")
+
+
+def _colour(value: str) -> "tuple[int, int, int] | None":
+    said = (value or "").strip().lower()
+    match = _HEX6.fullmatch(said)
+    if match:
+        digits = match.group(1)
+        return tuple(int(digits[i : i + 2], 16) for i in (0, 2, 4))
+    match = _HEX3.fullmatch(said)
+    if match:
+        return tuple(int(c * 2, 16) for c in match.group(1))
+    match = _RGB.fullmatch(said)
+    if match:
+        return tuple(int(part) for part in match.groups())
+    return {"black": (0, 0, 0), "white": (255, 255, 255)}.get(said)
+
+
 def _append_style(element, declarations: str) -> None:
     if not declarations:
         return
@@ -441,6 +463,7 @@ class ContentStage(Stage):
             self._cover_fits_the_page(ctx, root, resource)
             self._page_bottom_kept(ctx, root, resource)
             self._block_in_inline(ctx, root, resource)
+            self._empty_spans(ctx, root, resource)
             self._watermarks(ctx, root, resource)
             self._accessibility(ctx, root, resource)
             self._scripting(ctx, root, resource)
@@ -1246,6 +1269,149 @@ class ContentStage(Stage):
         ctx.positioning_translated.add(resource.path)
         self.note(ctx, Level.FIX, "xhtml.position-pinned-in-flow", location=resource.path)
 
+    #: Attributes that make a `<span>` mean something regardless of styling.
+    #: `id` is a link target, `lang` decides hyphenation and speech, `epub:type`
+    #: is semantics a reading system acts on, `role` and `aria-*` are what a
+    #: blind reader gets, `dir` is direction, `title` is a tooltip, `style` is a
+    #: rule of its own.
+    SPAN_MEANS_SOMETHING = (
+        "id", "lang", "{http://www.w3.org/XML/1998/namespace}lang",
+        "{http://www.idpf.org/2007/ops}type", "role", "dir", "title", "style",
+    )
+
+    #: Declarations that are the default for an inline box, so a rule saying
+    #: only these is a rule saying nothing. Values are matched literally after
+    #: lowercasing; a shorthand of all-zero lengths counts for the box ones.
+    INERT_VALUES = {
+        "background": ("transparent", "none"),
+        "background-color": ("transparent", "none"),
+        "font-size": ("100%", "1em", "inherit", "medium"),
+        "font-weight": ("normal", "400", "inherit"),
+        "font-style": ("normal", "inherit"),
+        "font-variant": ("normal", "inherit"),
+        "text-transform": ("none", "inherit"),
+        "text-decoration": ("none", "inherit"),
+        "line-height": ("inherit", "normal"),
+        "vertical-align": ("baseline", "inherit"),
+    }
+
+    #: How far a colour may sit from the one it would inherit and still count as
+    #: no change, per channel out of 255.
+    #:
+    #: Two, and it is not a taste. PDF converters copy the exact colour out of
+    #: the source, and black in a PDF is rarely `#000000`: the corpus has
+    #: `.black { color: #010000 }` and `.dark-gray { color: #000100 }` — black
+    #: nudged by one part in 255 on a single channel, on 1 135 spans in one
+    #: book. No screen shows that and no eye sees it. Wider than this and the
+    #: threshold would start deciding that somebody's dark grey is black.
+    COLOUR_TOLERANCE = 2
+
+    def _empty_spans(self, ctx: Context, root, resource) -> None:
+        """Unwrap a `<span>` whose every rule says nothing — roadmap point [5].
+
+        **Unwrap, not delete.** The text inside stays exactly where it was; only
+        the wrapper goes. Nothing this rule does can lose a character, which is
+        the difference between tidying a conversion artefact and editing a book.
+
+        Measured over 12 475 spans in thirty-two commercial books before any of
+        it was written, and the measurement moved the point:
+
+        ========================================  ======  ==========================
+        do something                              12 108  `span.Italic` × 1906 alone
+        carry an attribute that means something       21
+        **a rule reaches them and says nothing**    **90**  the only real targets
+        nothing reaches them at all                  256  **not this rule's business**
+        ========================================  ======  ==========================
+
+        That last row is why the measurement had to come first. Its largest
+        class is `dropcap` — **219 of them**, the drop caps whose stylesheet
+        point [4] had just reconnected. A rule keyed on "nothing styles it"
+        would have deleted 219 drop caps the moment after they were repaired.
+        `antique`, `hagrid`, `sans` are the same shape: a class nobody defines
+        is a record of what the publisher meant, not rubbish. `hagrid` on a span
+        says how a character should sound.
+
+        So the condition is **a rule exists and everything it says is inert** —
+        which is a statement about the stylesheet, not about our ignorance of
+        it. The 90 that qualify are all one thing: conversion from PDF.
+        `.reset { margin: 0; padding: 0 }` on an inline box, where those are the
+        defaults, and `.black { color: #010000 }`, which is black moved by one
+        part in 255 because the converter copied the exact ink out of the PDF.
+        """
+        if not ctx.policy.rewrite_content:
+            return
+        spans = [
+            span
+            for span in root.iter(xhtml.qname("span"))
+            if not any(span.get(name) for name in self.SPAN_MEANS_SOMETHING)
+        ]
+        if not spans:
+            return
+
+        cascade = self._document_cascade(ctx, root, resource)
+        inherited = self._text_colour(cascade)
+        candidates = []
+        for span in spans:
+            classes = frozenset((span.get("class") or "").split())
+            declarations: dict[str, str] = {}
+            for rule in cascade.rules:
+                if rule.matches("span", classes, None):
+                    declarations.update(rule.declarations)
+            if not declarations:
+                # Nothing reaches it. That is point [4]'s question, not this
+                # one's, and the answer there was never "delete the markup".
+                continue
+            if any(
+                not self._inert(prop, value, inherited)
+                for prop, value in declarations.items()
+            ):
+                continue
+            candidates.append(span)
+
+        if not candidates:
+            return
+        if not ctx.policy.remove_dead:
+            self.note(
+                ctx,
+                Level.INFO,
+                "xhtml.empty-span-found",
+                values={"count": len(candidates)},
+                location=resource.path,
+            )
+            return
+        for span in candidates:
+            self._unwrap(span, keep_children=True)
+        self.note(
+            ctx,
+            Level.FIX,
+            "xhtml.empty-span-unwrapped",
+            values={"count": len(candidates)},
+            location=resource.path,
+        )
+
+    @staticmethod
+    def _text_colour(cascade) -> "tuple[int, int, int]":
+        """The colour a span would inherit if nothing gave it one."""
+        for rule in cascade.rules:
+            if rule.tag == "body" and "color" in rule.declarations:
+                parsed = _colour(rule.declarations["color"])
+                if parsed is not None:
+                    return parsed
+        return (0, 0, 0)
+
+    def _inert(self, prop: str, value: str, inherited: "tuple[int, int, int]") -> bool:
+        name, said = prop.lower(), (value or "").strip().lower()
+        if name.startswith(("margin", "padding")):
+            # Horizontal margins do apply to an inline box; zero is the default,
+            # so zero is what makes them inert, not the fact of being inline.
+            return all(css_cascade.is_zero_length(part) for part in said.split())
+        if name == "color":
+            here = _colour(said)
+            return here is not None and all(
+                abs(a - b) <= self.COLOUR_TOLERANCE for a, b in zip(here, inherited)
+            )
+        return said in self.INERT_VALUES.get(name, ())
+
     def _block_in_inline(self, ctx: Context, root, resource) -> None:
         """Repair a block-level box nested directly inside an inline one.
 
@@ -1465,6 +1631,7 @@ class ContentStage(Stage):
             return
         index = list(parent).index(element)
         tail = element.tail or ""
+        moved = []
         if keep_children:
             previous_text = element.text or ""
             if previous_text:
@@ -1473,11 +1640,22 @@ class ContentStage(Stage):
                 else:
                     sibling = parent[index - 1]
                     sibling.tail = (sibling.tail or "") + previous_text
-            for offset, child in enumerate(list(element)):
+            moved = list(element)
+            for offset, child in enumerate(moved):
                 parent.insert(index + offset, child)
         if tail:
-            if len(parent) and index > 0:
-                parent[index - 1].tail = (parent[index - 1].tail or "") + tail
+            # After the last thing that came out of the element, not before it.
+            # This used to attach the tail to the element *preceding* the one
+            # being unwrapped, which for `<p>x<span>b<i>i</i>t</span>c</p>` put
+            # the "c" in front of the `<i>` — every character still present and
+            # two of them in the wrong order. K1 compares a stream in order, so
+            # it would have read as text lost rather than text moved.
+            if moved:
+                last = moved[-1]
+                last.tail = (last.tail or "") + tail
+            elif index > 0:
+                sibling = parent[index - 1]
+                sibling.tail = (sibling.tail or "") + tail
             else:
                 parent.text = (parent.text or "") + tail
         parent.remove(element)
@@ -1796,7 +1974,7 @@ class StyleStage(Stage):
                 location=resource.path,
             )
             return css_text
-        if not ctx.policy.strict:
+        if not ctx.policy.remove_dead:
             self.note(
                 ctx,
                 Level.INFO,

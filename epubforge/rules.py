@@ -87,6 +87,8 @@ CATALOGUE: dict[str, str] = {
     "xhtml.untouched-except-doctype": "content documents were left as they were apart from the DOCTYPE; only the container was rebuilt",
     "xhtml.doctype-modernised": "a legacy DOCTYPE was replaced with the EPUB 3 one in {count} document(s)",
     "xhtml.orphaned-styling-restored": "{count} class(es) the document uses but no stylesheet it links defines were given the publisher's own rule: {classes}",
+    "xhtml.empty-span-found": "{count} <span>(s) whose every rule says nothing — a conversion artefact; they are kept",
+    "xhtml.empty-span-unwrapped": "{count} <span>(s) unwrapped whose every rule said nothing; the text inside is untouched",
     "xhtml.title-filled": "{count} empty <title> element(s) were given the document's own heading",
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
@@ -268,6 +270,8 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.untouched-except-doctype': 'dokumenty treści zostały bez zmian poza DOCTYPE; przebudowano wyłącznie kontener',
     'xhtml.doctype-modernised': 'stary DOCTYPE zastąpiono tym z EPUB 3 w {count} {count:dokumencie|dokumentach|dokumentach}',
     'xhtml.orphaned-styling-restored': '{count} {count:klasie|klasom|klasom}, których dokument używa, a nie definiuje ich żaden podpięty do niego arkusz, przywrócono własną regułę wydawcy: {classes}',
+    'xhtml.empty-span-found': '{count} {count:element <span>, którego reguły nic nie mówią|elementy <span>, których reguły nic nie mówią|elementów <span>, których reguły nic nie mówią} — ślad konwersji; zostają',
+    'xhtml.empty-span-unwrapped': 'rozwinięto {count} {count:element <span>|elementy <span>|elementów <span>}, których reguły nic nie mówiły; tekst w środku nietknięty',
     'xhtml.title-filled': '{count} {count:pustemu elementowi|pustym elementom|pustym elementom} <title> nadano nagłówek samego dokumentu',
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
@@ -508,6 +512,10 @@ DETAILS: dict[str, str] = {
         "The output stays an invalid EPUB 3 in those documents, and that is the lesser harm: replacing the declaration would strand the reference and the book would no longer open at all. Rebuild this book in a mode that rewrites content.",
     "xhtml.orphaned-styling-restored":
         "The rule exists in this book, in a stylesheet this document does not link, and exactly one stylesheet has it — so there is nothing to choose between. Copied into the document verbatim rather than linking the whole sheet, which would import every other decision in it into a page it was not written for. Not applied when two sheets disagree, nor to rules that fetch something with url().",
+    "xhtml.empty-span-found":
+        "Measured over 12 475 spans in thirty-two books: 97% do something, and the ones that do not are all PDF conversion — `.reset { margin: 0; padding: 0 }` on an inline box where those are the defaults, and `.black { color: #010000 }`, black moved by one part in 255. A span nothing styles at all is left alone: the largest such class in the corpus was 219 drop caps whose stylesheet had come unlinked.",
+    "xhtml.empty-span-unwrapped":
+        "Unwrapped, not deleted — the text inside stays exactly where it was. Only spans with no id, lang, epub:type, role, dir, title or style, and only where a rule reaches them and every declaration in it is the default for an inline box.",
     "xhtml.title-filled":
         "EPUB 2 allowed an empty <title>; EPUB 3 does not, and this rebuild produces EPUB 3. The text is not rendered in the body, so nothing on the page moves. In container-only mode this is the second and last edit made inside a document.",
     "xhtml.doctype-modernised":
@@ -679,6 +687,10 @@ DETAILS_PL: dict[str, str] = {
         "Te bloki płyną teraz razem ze stroną, zamiast być do niej przypięte. Nie dotyczy książek o stałym układzie, gdzie pozycjonowanie poza przepływem jest sposobem działania formatu. Na prawdziwym czytniku dedykacja przypięta w ten sposób wyszła jako pusta strona — blok wypadł z przepływu, a paginacja go ominęła.",
     "xhtml.orphaned-styling-restored":
         "Reguła jest w tej książce, w arkuszu, którego ten dokument nie podpina, i ma ją dokładnie jeden arkusz — więc nie ma między czym wybierać. Skopiowana do dokumentu dosłownie, zamiast podpinania całego arkusza, co wniosłoby na tę stronę wszystkie pozostałe decyzje z niego. Nie stosowane, gdy dwa arkusze się różnią, ani do reguł pobierających coś przez url().",
+    "xhtml.empty-span-found":
+        "Zmierzone na 12 475 spanach w 32 książkach: 97% coś robi, a te, które nie robią nic, to w całości konwersja z PDF-u — `.reset { margin: 0; padding: 0 }` na elemencie liniowym, gdzie to są wartości domyślne, i `.black { color: #010000 }`, czyli czerń przesunięta o jedną część na 255. Span, którego nie styluje nic, zostaje nietknięty: największą taką klasą w korpusie było 219 inicjałów z odpiętym arkuszem.",
+    "xhtml.empty-span-unwrapped":
+        "Rozwinięte, nie skasowane — tekst w środku zostaje dokładnie tam, gdzie był. Tylko spany bez id, lang, epub:type, role, dir, title i style, i tylko tam, gdzie reguła ich dosięga, a każda jej deklaracja jest wartością domyślną dla elementu liniowego.",
     "xhtml.title-filled":
         "EPUB 2 dopuszczał pusty <title>, EPUB 3 już nie, a ta przebudowa daje EPUB-a 3. Tekst nie jest wyświetlany w treści, więc nic na stronie się nie przesuwa. W trybie kontenerowym to druga i ostatnia zmiana wewnątrz dokumentu.",
     "xhtml.doctype-modernised":

@@ -25,6 +25,67 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Roadmap point [5], and a switch on everything that deletes
+
+**Anything the tool removes is now optional to untick.** The owner asked for it
+as a standing rule rather than about any one feature: *whatever the application
+ever deletes should be either optional to untick, or something it asks about
+first.* He is right, and the reason is in this file's own history — every
+removal here looked obviously safe until a real book showed it was not. One
+checkbox, **Usuwaj to, co nic nie robi**, ticked by "force the standard" and
+untickable there as well; `--remove-dead` and `--keep-dead` on the command line.
+Unticked, the report still counts what it found and where.
+
+**[5] itself: unwrap, never delete, and only 90 spans deserve it.** Measured
+over 12 475 spans in thirty-two commercial books before a line was written:
+97.1% do something, 21 carry an attribute that means something, 90 have a rule
+that reaches them and says nothing, and 256 have no rule at all.
+
+That last group is why the measurement came first. Its largest class is
+`dropcap` — **219 of them**, the drop caps whose stylesheet point [4] had just
+reconnected. A rule keyed on "nothing styles it" would have deleted 219 drop
+caps the moment after they were repaired. `antique`, `hagrid`, `sans` are the
+same shape: a class nobody defines is a record of what the publisher meant, not
+rubbish. `hagrid` on a span says how a character should sound.
+
+So the condition is **a rule exists and everything it says is inert** — a
+statement about the stylesheet rather than about our ignorance of it. The 90
+that qualify are all one thing, conversion from PDF: `.reset { margin: 0;
+padding: 0 }` on an inline box where those are the defaults, and `.black
+{ color: #010000 }`, which is black moved by one part in 255 because the
+converter copied the exact ink out of the page. The span is unwrapped; the text
+inside stays exactly where it was.
+
+On the real books: *Book 1* loses **one** span, not
+219. `Book 2`, whose 1 906 spans are all deliberate italics, loses none.
+
+**A text-ordering bug fell out of it.** The unwrap helper attached the removed
+element's tail to the element *before* it, so `<p>x<span>b<i>i</i>t</span>c</p>`
+put the `c` in front of the `<i>` — every character still present and two of
+them in the wrong order. K1 compares a stream in order, so it would have read as
+text lost. Fixed, with a test that reads the order back out.
+
+### The licence is now GNU GPL v3 or later
+
+Changed from MIT at the owner's decision. You may use, study, change and
+redistribute; whatever you make of it has to be GPL too, with its source open.
+A closed product built on this code is not permitted. The change is
+prospective — anything anybody took under MIT stays under MIT, and with no
+forks in existence, nobody did.
+
+The `LICENSE` file is the verbatim FSF text; `pyproject.toml` carries the SPDX
+expression. Attribution now says what actually happened: concept, design,
+decisions and direction by the owner; the code written by language models under
+his direction, on his account, to his choices.
+
+Worth recording because it constrains any future change: the application already
+links **two LGPL libraries** — Qt/PySide6 and cssutils. Their terms apply
+whatever licence this project carries, and require that a distributed binary let
+those libraries be replaced.
+
+**Also:** both READMEs now carry a language button at the top instead of a line
+of italics buried under the navigation.
+
 ### …and the other half: rules for markup the book has not got
 
 Polish shops ship one house stylesheet into every title they sell, and most of

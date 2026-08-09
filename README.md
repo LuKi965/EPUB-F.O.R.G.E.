@@ -7,13 +7,13 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.14` · alpha · 1147 testów · Windows / Linux / macOS
+`0.2.14` · alpha · 1160 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
 [Zmiany](CHANGELOG.md)
 
-*[English version](README.en.md)*
+[![English](https://img.shields.io/badge/English-informational?style=for-the-badge&logo=googletranslate&logoColor=white)](README.en.md)
 
 </div>
 
@@ -161,7 +161,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-1147 testów, w tym trzy niezależne siatki bezpieczeństwa:
+1160 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;
@@ -187,7 +187,23 @@ pytest -q
 
 ## Autorzy i licencja
 
-Łukasz „LuKi" Kniotek, przy wydatnym udziale modeli językowych — patrz akapit
-o Vibe Codingu na górze.
+**Łukasz „LuKi" Kniotek** — pomysł, projekt, decyzje i prowadzenie. Kod pisany
+przez modele językowe pod jego kierunkiem, na jego koncie i według jego wyborów.
+Korpus, progi i to, co narzędzie robi, a czego świadomie nie robi, wzięły się
+z jego książek i jego rozstrzygnięć — patrz akapit o Vibe Codingu na górze.
 
-MIT. Rób z tym, co chcesz; jak coś zepsujesz, to Twoje.
+Copyright © 2026 Łukasz Kniotek.
+
+**GNU GPL v3 lub późniejsza.** Wolno używać, badać, zmieniać i rozpowszechniać —
+pod warunkiem, że to, co z tego zrobisz, też będzie na GPL i też z otwartym
+źródłem. Zamknięty produkt na tym kodzie jest zabroniony.
+
+Zmienione z MIT w 0.2.14. To, co ktokolwiek wziął wcześniej, zostaje na MIT —
+zmiana działa na przyszłość.
+
+Program jest rozpowszechniany w nadziei, że będzie użyteczny, ale **BEZ
+JAKIEJKOLWIEK GWARANCJI**; nawet bez domyślnej gwarancji PRZYDATNOŚCI HANDLOWEJ
+albo PRZYDATNOŚCI DO OKREŚLONYCH ZASTOSOWAŃ. Szczegóły w [`LICENSE`](LICENSE).
+
+Aplikacja korzysta z bibliotek na LGPL (Qt/PySide6, cssutils) — ich warunki
+obowiązują niezależnie i pozwalają je w zbudowanym pliku podmienić.

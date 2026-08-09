@@ -347,6 +347,11 @@ class MainWindow(QMainWindow):
         self.orphans_check = self._checkbox(layout, "policy.orphans", checked=False)
         self.layout_check = self._checkbox(layout, "policy.layout", checked=True)
         self.scripts_check = self._checkbox(layout, "policy.scripts", checked=False)
+        # Ticked by "force the standard" and untickable there all the same.
+        # The owner asked for this as a standing rule rather than about this
+        # feature: whatever the application ever deletes must be optional to
+        # untick, or asked about first.
+        self.dead_check = self._checkbox(layout, "policy.dead", checked=False)
         self.validate_check = self._checkbox(
             layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
         )
@@ -415,8 +420,14 @@ class MainWindow(QMainWindow):
     def _mode_changed(self) -> None:
         """Minimal mode regenerates only the container, so content knobs do nothing."""
         content_mode = self.mode_combo.currentData() != "minimal"
-        for widget in (self.orphans_check, self.layout_check, self.scripts_check):
+        for widget in (self.orphans_check, self.layout_check, self.scripts_check,
+                       self.dead_check):
             widget.setEnabled(content_mode)
+        # Follows the mode rather than overriding it: "force the standard"
+        # means tidiness wins, so it arrives ticked — and stays untickable.
+        self.dead_check.setChecked(
+            content_mode and self.mode_combo.currentData() == "strict"
+        )
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu(tr("menu.file"))
@@ -527,6 +538,7 @@ class MainWindow(QMainWindow):
             policy.drop_orphans = self.orphans_check.isChecked()
             policy.reorganize_files = self.layout_check.isChecked()
             policy.strip_scripts = self.scripts_check.isChecked()
+            policy.remove_dead = self.dead_check.isChecked()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),

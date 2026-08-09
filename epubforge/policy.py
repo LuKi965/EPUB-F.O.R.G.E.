@@ -58,6 +58,20 @@ class Policy:
     #: Drop scripting. Off by default: some fixed-layout books need it.
     strip_scripts: bool = False
 
+    #: Delete what the analysis found to have no effect — stylesheet rules for
+    #: markup the book does not contain, and `<span>`s whose every rule says
+    #: nothing. On in `strict`, where conformance and tidiness are the point;
+    #: off everywhere else.
+    #:
+    #: It is a switch rather than a consequence of `strict` because the owner
+    #: asked for one, as a standing rule and not about this feature: *whatever
+    #: the application ever deletes should be either optional to untick, or
+    #: something it asks about first.* He is right, and the reason is in this
+    #: file's own history — every removal here looked obviously safe until a
+    #: real book showed it was not. A switch costs one line and gives the person
+    #: holding the book the last word.
+    remove_dead: bool = False
+
     #: Remove files present in the archive but referenced by nothing.
     #:
     #: Off by default since 0.1.7, and it stays off until the dependency graph
@@ -103,7 +117,7 @@ class Policy:
     @classmethod
     def preset(cls, name: str, **overrides) -> "Policy":
         if name == "strict":
-            base = cls(strict=True, strip_scripts=False)
+            base = cls(strict=True, strip_scripts=False, remove_dead=True)
         elif name == "preserve":
             base = cls(strict=False)
         elif name == "minimal":
