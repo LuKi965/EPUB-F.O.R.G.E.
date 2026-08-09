@@ -38,6 +38,8 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.17 — alpha — 2026-08-10 — kamień milowy [7]
+
 ### The corpus came back clean, and said so itself
 
 93 books on 0.2.16: **0 errors introduced** by any mode that opens a document,
@@ -97,9 +99,19 @@ in Polish, then barring English insertions the declaration is simply wrong* —
 and leaving a wrong one in place is not neutrality, it is leaving the book to
 be read aloud in the wrong voice until somebody fixes it by hand.
 
-It fires only where the evidence is decisive: over the book's own documents,
-never the navigation page this tool generates, never below a page of prose, and
-only for a language whose letters are their own proof. `--language` still wins.
+It fires only where the evidence is decisive, and the threshold is measured
+rather than guessed. Real Polish prose — not a diacritic-dense pangram — runs
+about **69** Polish-only letters per thousand characters. The first floor was
+5, a book roughly 7% Polish; an English novel carrying a single Polish
+quotation scores **4.4**, so two of them would have had the book relabelled.
+That is not a threshold, it is a coin toss next to a cliff. It is 35 now —
+"more than half the book" — so a 60/40 Polish-English book is corrected and a
+40/60 one is left alone, which is right: that book is bilingual, and calling it
+Polish would be as wrong as calling it English.
+
+Beyond the floor: over the book's own documents, never the navigation page this
+tool generates, never below a page of prose, and only for a language whose
+letters are their own proof. `--language` still wins.
 
 The first version had neither guard and reported a Japanese manga as Polish:
 the only document short enough to swing the average was the navigation page

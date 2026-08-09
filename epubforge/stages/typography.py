@@ -22,8 +22,13 @@ class 1 (control characters, zero-width, double spaces) and class 3
 have is `...` typed where `…` belongs, and single-letter conjunctions left to
 fall off the end of a line.
 
-Quotes are the third rule and are not here yet, because normalising them means
-deciding which of a pair each mark is, and a straight `"` does not say.
+The third rule is the quotes, and it took the longest to be safe. Only the
+straight `"` is retyped, because a curly mark already says which end of a pair
+it is and a straight one says nothing — and it is also the one a book gets
+wrong, since it is what a keyboard produces. It is retyped into **the book's
+own convention**, never into the typographically correct one: a book set in
+`«…»` has made a decision and the job is to repair inconsistency, not taste
+(K5). A book with no settled convention is left alone and told so.
 """
 
 from __future__ import annotations
@@ -66,18 +71,27 @@ class TypographyStage(Stage):
             return
 
         language = (ctx.book.metadata.language or "").strip().lower()
-        ellipses = conjunctions = 0
-        reverted: list[str] = []
 
+        # Parsed once and kept. The convention has to be decided over the whole
+        # book before the first document is touched, and parsing everything
+        # twice to do that would double the cost of the pass.
+        documents = []
         for resource in ctx.book.content_docs():
+            if resource.path == ctx.book.nav_path:
+                continue
             try:
-                parsed = xhtml.parse_document(resource.data)
+                documents.append((resource, xhtml.parse_document(resource.data).root))
             except Exception:  # noqa: BLE001 — the content stage reports this
                 continue
-            root = parsed.root
+
+        convention, marks = self._convention(documents)
+        ellipses = conjunctions = quotes = 0
+        reverted: list[str] = []
+
+        for resource, root in documents:
             before = "".join(root.itertext())
 
-            found = self._repair(root, language)
+            found = self._repair(root, language, marks)
             if not any(found):
                 continue
 
@@ -92,13 +106,43 @@ class TypographyStage(Stage):
             resource.data = xhtml.serialize(root)
             ellipses += found[0]
             conjunctions += found[1]
+            quotes += found[2]
 
-        self._report(ctx, ellipses, conjunctions, reverted)
+        self._report(ctx, ellipses, conjunctions, quotes, convention, reverted)
 
-    def _repair(self, root, language: str) -> tuple[int, int]:
+    def _convention(self, documents):
+        """The book's own quoting convention, over the whole book.
+
+        Whole-book on purpose. A chapter of dialogue and a chapter of none are
+        the same book, and deciding per document would retype one chapter into
+        a convention the next one contradicts.
+
+        Counted over the **text**, never the markup — and that distinction cost
+        a debugging session. Reading the serialised document counts every
+        attribute delimiter as a straight quote, so a Polish book set entirely
+        in `„…”` came back with fourteen straight quotes it did not have, no
+        convention reached two thirds, and the rule declined to fire on the book
+        it was written for.
+        """
+        counts: dict[str, int] = {}
+        for _, root in documents:
+            for shape, count in typography.count_quotes("".join(root.itertext())).items():
+                counts[shape] = counts.get(shape, 0) + count
+        name = typography.convention(counts)
+        if name is None or name == "straight":
+            # "straight" is a settled convention and retyping it into itself is
+            # not a repair; it is also what a book that simply never used curly
+            # marks looks like, and that book has not made a mistake.
+            return name, None
+        return name, typography.marks_for(name)
+
+    def _repair(self, root, language: str, marks) -> tuple[int, int, int]:
         """Apply the rules to every editable text node. Returns what changed."""
-        ellipses = conjunctions = 0
+        ellipses = conjunctions = quotes = 0
         polish = language.startswith("pl")
+        # Per document, not per book: an unbalanced quote in one chapter must
+        # not invert every quotation in the next one.
+        inside = False
         for element, attribute in typography.text_nodes(root, language=language or None):
             text = getattr(element, attribute)
             if not text:
@@ -115,11 +159,24 @@ class TypographyStage(Stage):
                 # be skipped by the rule written for them.
                 repaired, count = _CONJUNCTION.subn(rf"\1{NBSP}", repaired)
                 conjunctions += count
+            if marks is not None:
+                repaired, count, inside = typography.retype_quotes(
+                    repaired, marks[0], marks[1], inside=inside
+                )
+                quotes += count
             if repaired != text:
                 setattr(element, attribute, repaired)
-        return ellipses, conjunctions
+        return ellipses, conjunctions, quotes
 
-    def _report(self, ctx: Context, ellipses: int, conjunctions: int, reverted: list[str]) -> None:
+    def _report(
+        self,
+        ctx: Context,
+        ellipses: int,
+        conjunctions: int,
+        quotes: int,
+        convention: str | None,
+        reverted: list[str],
+    ) -> None:
         if ellipses:
             self.note(
                 ctx, Level.FIX, "typography.ellipsis-normalised", values={"count": ellipses}
@@ -131,6 +188,18 @@ class TypographyStage(Stage):
                 "typography.conjunctions-bound",
                 values={"count": conjunctions},
             )
+        if quotes:
+            self.note(
+                ctx,
+                Level.FIX,
+                "typography.quotes-retyped",
+                values={"count": quotes, "convention": convention},
+            )
+        elif convention is None:
+            # Said out loud rather than skipped in silence: "this book has not
+            # settled on a convention" is a fact about the book, and a rule that
+            # declines to fire should say why it declined.
+            self.note(ctx, Level.INFO, "typography.quotes-unsettled")
         if reverted:
             # A warning rather than an error: the book is intact, which is what
             # the check is for. But a rule that cannot prove it kept the text is

@@ -157,13 +157,13 @@ class TestTheCheckIsTheWholePoint:
         report has to say so."""
         from epubforge.stages import typography as stage
 
-        def eats(root, language):
+        def eats(root, language, marks):
             for element, attribute in stage.typography.text_nodes(root):
                 text = getattr(element, attribute)
                 if text and "zniknie" in text:
                     setattr(element, attribute, text.replace("zniknie", ""))
-                    return (1, 0)
-            return (0, 0)
+                    return (1, 0, 0)
+            return (0, 0, 0)
 
         monkeypatch.setattr(stage.TypographyStage, "_repair", staticmethod(eats))
         result, html = forge(tmp_path, "<p>To slowo zniknie stad.</p>", name="k")
@@ -173,13 +173,13 @@ class TestTheCheckIsTheWholePoint:
     def test_the_revert_is_a_warning_not_a_silent_no_op(self, tmp_path, monkeypatch):
         from epubforge.stages import typography as stage
 
-        def eats(root, language):
+        def eats(root, language, marks):
             for element, attribute in stage.typography.text_nodes(root):
                 text = getattr(element, attribute)
                 if text and text.strip():
                     setattr(element, attribute, text[:-3])
-                    return (1, 0)
-            return (0, 0)
+                    return (1, 0, 0)
+            return (0, 0, 0)
 
         monkeypatch.setattr(stage.TypographyStage, "_repair", staticmethod(eats))
         result, _ = forge(tmp_path, "<p>Zdanie ktore straci ogon.</p>", name="l")
@@ -190,3 +190,55 @@ class TestTheCheckIsTheWholePoint:
         result, html = forge(tmp_path, "<p>Czekaj... w lesie.</p>", name="m")
         assert "typography.reverted" not in {f.rule for f in result.report.findings}
         assert "Czekaj…" in html
+
+
+class TestTheQuotes:
+    """Only the straight `"` is retyped: a curly mark already says which end of
+    a pair it is, a straight one says nothing, and it is also the one a book
+    gets wrong because it is what a keyboard produces."""
+
+    #: Enough curly Polish quotes to settle a convention, plus straight ones
+    #: that contradict it.
+    MIXED = (
+        "<p>„Tak” powiedział.</p>" * 12
+        + '<p>Potem dodał "moze" i wyszedl.</p>'
+    )
+
+    def test_a_straight_pair_becomes_the_books_own_convention(self, tmp_path):
+        result, html = forge(tmp_path, self.MIXED, name="q1")
+        assert "„moze”" in html
+        found = [f for f in result.report.findings if f.rule == "typography.quotes-retyped"]
+        assert found and found[0].values["convention"] == "polish"
+
+    def test_the_curly_ones_it_already_had_are_untouched(self, tmp_path):
+        _, html = forge(tmp_path, self.MIXED, name="q2")
+        assert html.count("„Tak”") == 12
+
+    def test_a_quotation_crossing_an_element_still_closes(self, tmp_path):
+        """`<p>"He said <em>no</em>,"</p>` — a rule looking only at the
+        characters either side inside one text node gets the second mark wrong
+        every time."""
+        body = "<p>„Tak” powiedział.</p>" * 12 + '<p>"Nie <em>chce</em> tego"</p>'
+        _, html = forge(tmp_path, body, name="q3")
+        assert "„Nie " in html and 'tego”' in html
+
+    def test_a_book_with_no_settled_convention_is_left_alone(self, tmp_path):
+        """Two conventions in equal measure is a fact about the book, and
+        picking one would impose an opinion on half of it."""
+        body = "<p>„Tak” rzekl.</p>" * 10 + "<p>«Tak» rzekl.</p>" * 10 + '<p>"Tak"</p>'
+        result, html = forge(tmp_path, body, name="q4")
+        assert '"Tak"' in html
+        assert "typography.quotes-unsettled" in {f.rule for f in result.report.findings}
+
+    def test_a_book_that_only_ever_used_straight_quotes_is_left_alone(self, tmp_path):
+        """That book has not made a mistake, and retyping a convention into
+        itself is not a repair."""
+        body = '<p>"Tak" rzekl.</p>' * 12
+        _, html = forge(tmp_path, body, name="q5")
+        assert html.count('"Tak"') == 12
+
+    def test_the_book_decides_and_not_the_typographic_ideal(self, tmp_path):
+        """A book set in guillemets has made a decision (K5)."""
+        body = "<p>«Tak» rzekl.</p>" * 12 + '<p>Potem "nie".</p>'
+        _, html = forge(tmp_path, body, name="q6")
+        assert "«nie»" in html

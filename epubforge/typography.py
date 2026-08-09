@@ -127,11 +127,23 @@ CONVENTIONS = {
 #: against the text, which is K11 — *the source's declaration is not a fact*.
 POLISH_LETTERS = frozenset("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
 
-#: Polish letters per thousand characters, above which a book declaring English
-#: is not English. Polish prose runs 30–60; an English book quoting a Polish
-#: name or two runs under 1. The gap is two orders of magnitude, so the
-#: threshold sits well inside it and does not need to be delicate.
-POLISH_FLOOR = 5.0
+#: Polish-only letters per thousand characters, above which a book is Polish
+#: whatever it declares.
+#:
+#: The number is measured rather than guessed, and the first attempt at it was
+#: wrong. Real Polish prose — not a diacritic-dense pangram — runs about **69**
+#: per thousand. The floor was 5, which is a book roughly 7% Polish; an English
+#: novel carrying a single Polish quotation scores **4.4**, so two of them would
+#: have had the book relabelled. That is not a threshold, it is a coin toss
+#: sitting next to a cliff.
+#:
+#: 35 is "more than half the book", and it is the line the owner drew: *if a
+#: book declares `en` and is plainly written in Polish, then barring English
+#: insertions the declaration is simply wrong.* A 60/40 Polish-English book
+#: scores 46 and is corrected; a 40/60 one scores 33 and is left alone, which is
+#: right — that book is bilingual and calling it Polish would be as wrong as
+#: calling it English.
+POLISH_FLOOR = 35.0
 
 _ELLIPSIS = re.compile(r"\.\.\.")
 _WHITESPACE = re.compile(r"\s+")
@@ -335,3 +347,49 @@ def polish_share(text: str) -> float:
     if not text:
         return 0.0
     return 1000 * sum(1 for character in text if character in POLISH_LETTERS) / len(text)
+
+
+#: Which shape opens and which closes, per convention. `retype_quotes` needs the
+#: pair as an ordered thing, not as a set.
+def marks_for(name: str) -> tuple[str, str]:
+    """The literal opening and closing characters of a named convention."""
+    shapes = CONVENTIONS[name]
+    inverse = {shape: mark for mark, shape in QUOTE_MARKS.items()}
+    return inverse[shapes[0]], inverse[shapes[1]]
+
+
+def retype_quotes(text: str, opening: str, closing: str, *, inside: bool) -> tuple[str, int, bool]:
+    """Replace straight quotes with a convention's marks. Returns the new text,
+    how many were replaced, and whether a quotation is still open afterwards.
+
+    Only the straight `"` is touched, and that is the whole design. A curly mark
+    already says which end of a pair it is; a straight one says nothing, so it
+    is the one that has to be worked out — and it is also the one a book gets
+    wrong, because it is what a keyboard produces.
+
+    Which end it is comes from a flag carried across the document rather than
+    from the characters either side. Quotations cross element boundaries all the
+    time — `<p>"He said <em>no</em>,"</p>` — and a rule looking only at
+    neighbours inside one text node gets the second mark wrong every time.
+    """
+    if '"' not in text:
+        return text, 0, inside
+    out = []
+    replaced = 0
+    for character in text:
+        if character == '"':
+            out.append(closing if inside else opening)
+            inside = not inside
+            replaced += 1
+        else:
+            out.append(character)
+    return "".join(out), replaced, inside
+
+
+def count_quotes(text: str) -> dict[str, int]:
+    """How many of each quote shape *text* carries."""
+    return {
+        shape: text.count(mark)
+        for mark, shape in QUOTE_MARKS.items()
+        if text.count(mark)
+    }

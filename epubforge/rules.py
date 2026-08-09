@@ -96,6 +96,8 @@ CATALOGUE: dict[str, str] = {
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
     "typography.ellipsis-normalised": "{count} run(s) of three dots became a single ellipsis character",
     "typography.conjunctions-bound": "{count} single-letter conjunction(s) were bound to the word after them",
+    "typography.quotes-retyped": "{count} straight quote(s) were retyped into the book's own convention ({convention})",
+    "typography.quotes-unsettled": "the book has not settled on a quoting convention, so its quotes were left alone",
     "typography.reverted": "{count} document(s) were put back unchanged: the typography pass could not show it kept the text",
     # -- profile -------------------------------------------------------------
     "profile.made-by": "the book carries traces of {count} tool(s): {tools}",
@@ -289,6 +291,8 @@ CATALOGUE_PL: dict[str, str] = {
     # -- profile -------------------------------------------------------------
     'typography.ellipsis-normalised': '{count} {count:ciąg trzech kropek stał się|ciągi trzech kropek stały się|ciągów trzech kropek stało się} pojedynczym wielokropkiem',
     'typography.conjunctions-bound': '{count} {count:jednoliterowy spójnik związano|jednoliterowe spójniki związano|jednoliterowych spójników związano} z następującym po nim słowem',
+    'typography.quotes-retyped': '{count} {count:prosty cudzysłów przepisano|proste cudzysłowy przepisano|prostych cudzysłowów przepisano} na własną konwencję książki ({convention})',
+    'typography.quotes-unsettled': 'książka nie ustaliła jednej konwencji cudzysłowu, więc zostawiono je bez zmian',
     'typography.reverted': '{count} {count:dokument przywrócono|dokumenty przywrócono|dokumentów przywrócono} bez zmian: przebieg typograficzny nie potrafił wykazać, że zachował tekst',
     'profile.made-by': 'książka nosi ślady {count} {count:narzędzia|narzędzi|narzędzi}: {tools}',
     'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',

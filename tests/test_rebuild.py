@@ -1909,10 +1909,20 @@ class TestADeclaredLanguageTheTextContradicts:
             },
         )
 
-    # Long enough to clear the floor the stage puts on how much text a
-    # language rate may be computed from — a page of prose, not a caption.
-    POLISH = "<p>Poszedł w las i zniknął, zażółć gęślą jaźń, wężę ćwiczą.</p>" * 40
-    ENGLISH = "<p>The quick brown fox jumps over the lazy dog.</p>" * 40
+    # Ordinary prose, not a pangram. A diacritic-dense fixture scores three
+    # hundred Polish-only letters per thousand where a real Polish novel scores
+    # about seventy, so a test written on one proves nothing about the floor —
+    # every ratio passes.
+    POLISH = (
+        "<p>Wieczorem wrócił do domu i usiadł przy oknie. Na dworze padało, "
+        "a on patrzył w ciemność, jakby czegoś tam szukał. Nie umiał "
+        "powiedzieć, co go trzyma w tym mieście od tylu lat.</p>"
+    ) * 12
+    ENGLISH = (
+        "<p>In the evening he came home and sat down by the window. It was "
+        "raining outside, and he looked into the darkness as if searching for "
+        "something there. He could not say what kept him here.</p>"
+    ) * 12
 
     def rules_of(self, tmp_path, language, body, name):
         source = self.book(tmp_path, language, body)
@@ -1946,6 +1956,18 @@ class TestADeclaredLanguageTheTextContradicts:
         navigation page this tool had just generated — whose title is "Spis
         treści" in a Polish report, one `ś` in seventeen characters."""
         _, rules = self.rules_of(tmp_path, "ja", "<p>Zażółć</p>", "f")
+        assert "metadata.language-corrected" not in rules
+
+    def test_a_bilingual_book_is_not_relabelled(self, tmp_path):
+        """The floor is "more than half the book", not "some Polish in it".
+
+        Real Polish prose runs about 69 Polish-only letters per thousand
+        characters. The first floor was 5 — a book roughly 7% Polish — and an
+        English novel carrying one Polish quotation scores 4.4, so two of them
+        would have had the book relabelled.
+        """
+        body = self.POLISH * 2 + self.ENGLISH * 3
+        _, rules = self.rules_of(tmp_path, "en", body, "g")
         assert "metadata.language-corrected" not in rules
 
     def test_an_explicit_language_still_wins(self, tmp_path):
