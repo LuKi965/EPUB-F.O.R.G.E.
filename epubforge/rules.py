@@ -108,6 +108,9 @@ CATALOGUE: dict[str, str] = {
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
     "css.position-kept": "{count} absolute or fixed position rule(s) were kept",
+    "css.position-kept-reflowable": "{count} absolute or fixed position rule(s) were kept in a reflowable book",
+    "xhtml.position-pinned-in-flow": "content pinned to the foot of the page was translated into an in-flow equivalent",
+    "css.position-superseded": "out-of-flow positioning is superseded in {count} document(s) by the equivalent written into them",
     "css.position-removed": "{count} absolute or fixed position rule(s) were removed from a reflowable book",
     "css.reader-property-kept": "{count} reader-specific CSS propert(ies) inherited from the source were kept",
     "css.reader-property-removed": "{count} reader-specific CSS propert(ies) were removed",
@@ -281,6 +284,9 @@ CATALOGUE_PL: dict[str, str] = {
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
     'css.position-kept': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego',
+    'css.position-kept-reflowable': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego w książce przepływalnej',
+    'xhtml.position-pinned-in-flow': 'treść przypiętą do stopki strony przetłumaczono na odpowiednik działający w przepływie',
+    'css.position-superseded': 'pozycjonowanie poza przepływem jest zastąpione w {count} {count:dokumencie|dokumentach|dokumentach} odpowiednikiem wpisanym do nich',
     'css.position-removed': 'usunięto {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego z książki przepływalnej',
     'css.reader-property-kept': 'zachowano {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników, odziedziczoną ze źródła',
     'css.reader-property-removed': 'usunięto {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników',
@@ -406,6 +412,10 @@ DETAILS: dict[str, str] = {
         "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant.",
     "css.position-kept":
         "This is a fixed-layout book, where out-of-flow positioning is how it works.",
+    "xhtml.position-pinned-in-flow":
+        "`margin-top: auto` inside a flex column puts a block at the foot of the page exactly as `bottom: 0` was meant to, and keeps it in the flow, so pagination cannot lose it. Written into the one document that needs it, never into the shared stylesheet — flexing every body in a book would stop adjacent margins collapsing on every page of it. Only where the page is that one block: with siblings there is no faithful translation, so the rule is left alone and reported instead.",
+    "css.position-superseded":
+        "The declaration is still in the stylesheet and no longer decides anything: the document carries an equivalent that outranks it. Left in place because deleting from a shared sheet would reach documents nobody examined.",
     "css.position-removed":
         "The affected blocks now flow with the page instead of being pinned to it. Kept out of fixed-layout books, where out-of-flow positioning is how the format works. On a real reader a dedication pinned this way came out as a blank page — the block left the flow and pagination went round it.",
     "css.reader-property-kept":
@@ -631,6 +641,12 @@ DETAILS_PL: dict[str, str] = {
         "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal”.",
     "css.position-kept":
         "To książka o stałym układzie, w której pozycjonowanie poza przepływem jest sposobem działania.",
+    "xhtml.position-pinned-in-flow":
+        "`margin-top: auto` w kolumnie flex ustawia blok przy stopce strony dokładnie tak, jak miało to robić `bottom: 0`, i zostawia go w przepływie, więc paginacja nie ma jak go zgubić. Wpisane do tego jednego dokumentu, który tego potrzebuje, nigdy do wspólnego arkusza — zrobienie z każdego `body` w książce kolumny flex zatrzymałoby scalanie sąsiadujących marginesów na każdej jej stronie. Tylko wtedy, gdy strona jest tym jednym blokiem: przy rodzeństwie nie ma wiernego tłumaczenia, więc reguła zostaje i jest raportowana.",
+    "css.position-superseded":
+        "Deklaracja nadal jest w arkuszu i już o niczym nie decyduje: dokument niesie odpowiednik, który ją przebija. Zostawiona, bo usuwanie ze wspólnego arkusza sięgnęłoby dokumentów, których nikt nie oglądał.",
+    "css.position-kept-reflowable":
+        "Nie każdy czytnik paginuje treść wyjętą z przepływu, ale to układ wybrany przez wydawcę i nie ma dla niego wiernego odpowiednika. Użyj --strict, żeby go usunąć.",
     "css.position-removed":
         "Te bloki płyną teraz razem ze stroną, zamiast być do niej przypięte. Nie dotyczy książek o stałym układzie, gdzie pozycjonowanie poza przepływem jest sposobem działania formatu. Na prawdziwym czytniku dedykacja przypięta w ten sposób wyszła jako pusta strona — blok wypadł z przepływu, a paginacja go ominęła.",
     "xhtml.title-filled":

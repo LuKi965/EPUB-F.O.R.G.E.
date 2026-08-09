@@ -346,18 +346,19 @@ class TestPublisherErrorRepair:
             "'regular'" in f.message for f in rebuilt.report.findings if f.level is Level.FIX
         )
 
-    def test_out_of_flow_positioning_goes_in_reflowable_books(self, rebuilt):
-        """This asserted the opposite until a reader settled it.
+    def test_positioning_with_no_faithful_translation_is_kept(self, rebuilt):
+        """Nothing in this fixture is a page pinned to its foot — the rule is in
+        the stylesheet, no document is that one block — so there is no
+        equivalent to write, and the declaration stays.
 
-        The reasoning was that a rule named `.dol` ("bottom") pinning a
-        dedication to the page foot is intent rather than a defect — inference
-        from a class name. On the device, the mode that kept the declaration
-        rendered that page **blank**: the block left the flow and pagination
-        went round it. Content that exists beats content that is placed nicely.
+        This is the conservative half of the pair. Deleting it would make a page
+        appear and put its content somewhere the publisher did not ask for, and
+        guessing at somebody's layout is how a tool that means well ruins a
+        book. `TestAPagePinnedToItsFootStaysThere` is the other half.
         """
-        assert "position: absolute" not in self.stylesheet(rebuilt)
+        assert "position: absolute" in self.stylesheet(rebuilt)
         assert any(
-            f.level is Level.FIX and f.rule == "css.position-removed"
+            f.level is Level.PRESERVED and f.rule == "css.position-kept-reflowable"
             for f in rebuilt.report.findings
         )
 
@@ -1400,3 +1401,161 @@ class TestTheEmptyTitleTheUpgradeMadeIllegal:
             + b"<svg><title></title></svg></body></html>"
         )
         assert fill_empty_title(data, "Nope") == (data, False)
+
+
+class TestAPagePinnedToItsFootStaysThere:
+    """`div.dol { position: absolute; bottom: 0; width: 100% }` — a real rule
+    from a real book, `.dol` being Polish for "bottom", on a page whose whole
+    content is a dedication.
+
+    On the owner's reader that page came out **blank**: the block left the flow
+    and pagination went round it. The first repair deleted the declaration,
+    which made the page appear and moved the dedication to the top. His answer
+    settled the design:
+
+        Dla mnie reguła nie jest istotna tylko zachowanie wyglądu WIZUALNEGO
+        tej strony w niezmienionej formie tak jak chciał wydawca.
+
+    And this file's own first paragraph had said so all along: a construct that
+    carries visual meaning is translated into the equivalent that renders the
+    same way, never simply deleted. Deleting it was the tool breaking its own
+    rule. `margin-top: auto` in a flex column puts a block at the foot of the
+    page exactly as `bottom: 0` was meant to, and keeps it in the flow.
+    """
+
+    STYLE = "div.dol { position: absolute; bottom: 0; width: 100%; }\np { margin: 1em 0; }\n"
+
+    def book(self, tmp_path, body: str, *, layout: str = "") -> str:
+        from .factory import write_zip
+
+        rendition = (
+            f'<meta property="rendition:layout">{layout}</meta>' if layout else ""
+        )
+        package = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"
+         prefix="rendition: http://www.idpf.org/vocab/rendition/#">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Dedykacja</dc:title>
+    <dc:identifier id="id">urn:uuid:6d1f0b52-3a77-4c19-9f0e-1c8b7a3d2e45</dc:identifier>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+    {rendition}
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ded" href="dedication.xhtml" media-type="application/xhtml+xml"/>
+    <item id="css" href="style.css" media-type="text/css"/>
+  </manifest>
+  <spine><itemref idref="ded"/></spine>
+</package>
+"""
+        nav = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops" lang="pl"><head><title>Spis</title>'
+            "</head><body><nav epub:type=\"toc\"><ol><li>"
+            '<a href="dedication.xhtml">Dedykacja</a></li></ol></nav></body></html>\n'
+        )
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            "<title>Dedykacja</title>"
+            '<link rel="stylesheet" href="style.css"/></head>\n'
+            f"<body>{body}</body></html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/nav.xhtml": nav.encode(),
+                "OEBPS/dedication.xhtml": document.encode(),
+                "OEBPS/style.css": self.STYLE.encode(),
+            },
+        )
+
+    def forge(self, tmp_path, body, *, mode="preserve", layout=""):
+        source = self.book(tmp_path, body, layout=layout)
+        result = rebuild(source, str(tmp_path / f"out-{mode}.epub"), Policy.preset(mode))
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith("dedication.xhtml"))
+            sheet = next(n for n in archive.namelist() if n.endswith(".css"))
+            return result, archive.read(name).decode(), archive.read(sheet).decode()
+
+    ONE_BLOCK = '<div class="dol"><p>Nie wspominaj grzechow mej mlodosci.</p></div>'
+
+    def test_the_block_is_put_at_the_foot_of_the_page_in_the_flow(self, tmp_path):
+        result, document, _ = self.forge(tmp_path, self.ONE_BLOCK)
+        assert "margin-top: auto" in document
+        assert "position: static" in document
+        assert "display: flex" in document and "flex-direction: column" in document
+        assert "xhtml.position-pinned-in-flow" in {f.rule for f in result.report.findings}
+
+    def test_the_flex_column_never_reaches_the_rest_of_the_book(self, tmp_path):
+        """Scoped into the one document, never into the shared stylesheet.
+        Flexing every body in a book would stop adjacent margins collapsing on
+        every page of it — a change to the whole book for one page."""
+        _, _, sheet = self.forge(tmp_path, self.ONE_BLOCK)
+        assert "display: flex" not in sheet
+        assert "flex-direction" not in sheet
+
+    def test_the_publishers_declaration_is_left_where_it_was(self, tmp_path):
+        """Superseded, not deleted. The inline equivalent outranks it, and
+        deleting from a shared sheet would reach documents nobody examined."""
+        result, _, sheet = self.forge(tmp_path, self.ONE_BLOCK)
+        assert "position: absolute" in sheet
+        assert "css.position-superseded" in {f.rule for f in result.report.findings}
+
+    def test_strict_translates_it_too_rather_than_deleting_it(self, tmp_path):
+        """The translated form is conforming, so there is nothing for strict to
+        win. Conformance and appearance stopped disagreeing here."""
+        result, document, _ = self.forge(tmp_path, self.ONE_BLOCK, mode="strict")
+        assert "margin-top: auto" in document
+        assert "xhtml.position-pinned-in-flow" in {f.rule for f in result.report.findings}
+
+    def test_an_offset_from_the_foot_is_carried_over_as_a_margin(self, tmp_path):
+        """A block two ems clear of the foot was two ems clear on purpose."""
+        self.STYLE = "div.dol { position: absolute; bottom: 2em; width: 100%; }\n"
+        try:
+            _, document, _ = self.forge(tmp_path, self.ONE_BLOCK)
+        finally:
+            del self.STYLE
+        assert "margin-bottom: 2em" in document
+
+    def test_a_page_with_siblings_is_not_touched(self, tmp_path):
+        """With siblings, making the body a flex column would stop their
+        margins collapsing — a repair changing the spacing of a page it was not
+        called for. No faithful translation, so none is invented."""
+        body = self.ONE_BLOCK + "<p>Cos jeszcze na tej stronie.</p>"
+        result, document, _ = self.forge(tmp_path, body)
+        assert "margin-top: auto" not in document
+        assert "xhtml.position-pinned-in-flow" not in {f.rule for f in result.report.findings}
+        assert "css.position-kept-reflowable" in {f.rule for f in result.report.findings}
+
+    def test_a_block_pinned_between_top_and_bottom_is_not_translated(self, tmp_path):
+        """Stretched between both edges is a different layout, and `margin-top:
+        auto` is not what it means."""
+        self.STYLE = "div.dol { position: absolute; top: 0; bottom: 0; }\n"
+        try:
+            result, document, _ = self.forge(tmp_path, self.ONE_BLOCK)
+        finally:
+            del self.STYLE
+        assert "margin-top: auto" not in document
+        assert "css.position-kept-reflowable" in {f.rule for f in result.report.findings}
+
+    def test_a_fixed_layout_book_keeps_its_positioning_untouched(self, tmp_path):
+        """There the viewport is declared, nothing paginates, and out-of-flow
+        positioning is how the format works."""
+        result, document, sheet = self.forge(
+            tmp_path, self.ONE_BLOCK, layout="pre-paginated"
+        )
+        assert "margin-top: auto" not in document
+        assert "position: absolute" in sheet
+        assert "css.position-kept" in {f.rule for f in result.report.findings}

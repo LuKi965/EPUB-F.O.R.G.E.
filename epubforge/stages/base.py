@@ -37,6 +37,14 @@ class Context:
     #: three that guess separately.
     profile: object | None = None
 
+    #: Documents where out-of-flow positioning was translated into an in-flow
+    #: equivalent that renders the same way. The content stage does the work —
+    #: it is the only stage that can see whether a rule's target is the whole
+    #: page — and the style stage needs to know, because a declaration that has
+    #: been given a working equivalent is neither kept nor removed: it is
+    #: superseded, and the report should say so.
+    positioning_translated: set[str] = field(default_factory=set)
+
     #: Per-document ``{old_id: new_id}`` for ids that were not valid XML names.
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)

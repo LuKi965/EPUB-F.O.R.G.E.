@@ -49,27 +49,46 @@ The same repair had been happening silently in the modes that rewrite content
 since long before this. It has a name now — `xhtml.title-filled` — reported once
 per book rather than once per document.
 
-**Out-of-flow positioning is removed in every mode that opens the stylesheet.**
-It used to survive outside `strict`, on this reasoning, quoted from the code:
-*publishers use it deliberately — a rule named `.dol` ("bottom") pins a
+**A page pinned to the foot of the page is put there in the flow, not deleted.**
+The declaration used to survive outside `strict` on this reasoning, quoted from
+the code: *publishers use it deliberately — a rule named `.dol` ("bottom") pins a
 dedication to the foot of the page, and that is intent, not a mistake.* That was
 an inference from a class name.
 
 Then the owner put all three modes on a reader. In the mode that kept the
 declaration, **the dedication page was blank**: `div.dol { position: absolute;
 bottom: 0 }` took the only content on that page out of the flow and pagination
-went round it. In `strict`, where the declaration is dropped, the page is there.
-Same book, same device, one declaration apart. The trade was never "the
-publisher's layout against conformance" — it was a layout that renders somewhere
-against a page the reader never sees. Fixed-layout keeps it, because there the
-viewport is declared and nothing can be lost to pagination that does not happen.
+went round it. In `strict`, where the declaration was dropped, the page was
+there — with the dedication at the top, which is not what anybody asked for.
 
-Blast radius, measured rather than guessed: **one book in ninety-three** uses it
-at all, and it is the book the page vanished from.
+The first fix here deleted the declaration everywhere, and that was wrong for a
+reason this file's own module docstring has stated since the beginning: *a
+construct that carries visual meaning is translated into the conforming
+equivalent that renders the same way, never simply deleted.* The owner put it
+plainly — what matters is not the rule, it is that the page keeps looking the
+way the publisher wanted. Deleting it was the tool breaking its own rule.
 
-`css.position-kept-reflowable` is retired with the decision it reported. The
-tagging ratchet went down by one for the first time, and the note beside it now
-says why a rule may be withdrawn but a finding may never lose its name.
+So it is translated. `margin-top: auto` inside a flex column puts a block at the
+foot of the page exactly as `bottom: 0` was meant to, and keeps it in the flow,
+so pagination cannot lose it. Written into the one document that needs it and
+never into the shared stylesheet: flexing every `<body>` in a book would stop
+adjacent margins collapsing on every page of it, which is a change to the whole
+book in service of one page. The publisher's declaration stays where it is,
+superseded rather than removed.
+
+Narrow, and only where the translation is provably faithful: reflowable books;
+the positioned element the sole element child of `<body>`, which is what "this
+page is that block" means; `bottom` set and `top` unset. Everything else — a
+block stretched between both edges, centred, or sitting among siblings — is
+kept and reported, because guessing at somebody's layout is how a tool that
+means well ruins a book. Fixed-layout is untouched: the viewport is declared,
+nothing paginates, and out-of-flow positioning is how the format works.
+
+`strict` translates it too rather than deleting it. The in-flow form is
+conforming, so the two stopped disagreeing here.
+
+Blast radius, measured rather than guessed: **one book in ninety-three** uses
+out-of-flow positioning at all, and it is the book the page vanished from.
 
 **Also:** the Polish README links to the English one again. It had done since
 0.2.3 and stopped when the README was rewritten.

@@ -331,6 +331,7 @@ class ContentStage(Stage):
             self._modernise(ctx, root, resource)
             self._image_paragraphs(ctx, root, resource)
             self._cover_fits_the_page(ctx, root, resource)
+            self._page_bottom_kept(ctx, root, resource)
             self._block_in_inline(ctx, root, resource)
             self._watermarks(ctx, root, resource)
             self._accessibility(ctx, root, resource)
@@ -877,6 +878,102 @@ class ContentStage(Stage):
         if adjusted:
             self.note(ctx, Level.FIX, "xhtml.cover-fitted", location=resource.path)
 
+    #: What replaces `position: absolute; bottom: 0` on a one-block page.
+    #:
+    #: Scoped into the document that needs it rather than added to the shared
+    #: stylesheet, and that is the whole reason this is safe. Making every
+    #: `<body>` in a book a flex column would stop adjacent margins collapsing
+    #: on every page of it — two 1em margins becoming 2em instead of 1em — which
+    #: is a change to the look of the entire book in service of one page.
+    #:
+    #: `min-height` rather than `height`: a page taller than the screen must
+    #: still be allowed to grow. The same idiom as the generated cover page,
+    #: which is the one piece of evidence available that it works on the
+    #: owner's reader.
+    PAGE_BOTTOM_STYLE = (
+        "\n      /* EPUB-Forge: the publisher pinned this page's content to the "
+        "foot of the page with out-of-flow positioning, which loses it on a "
+        "paginating reader. Same result, in the flow. */\n"
+        "      html { height: 100%; }\n"
+        "      body { display: flex; flex-direction: column; min-height: 100%; }\n    "
+    )
+
+    def _page_bottom_kept(self, ctx: Context, root, resource) -> None:
+        """Keep a page pinned to the foot of the screen without taking it out of flow.
+
+        `div.dol { position: absolute; bottom: 0; width: 100% }` — a real rule
+        from a real book, `.dol` being Polish for "bottom". The publisher meant
+        the dedication to sit at the foot of the page, and on the owner's reader
+        that page came out **blank**: the block left the flow and pagination
+        went round it.
+
+        The first repair here deleted the declaration. That made the page
+        appear and put the dedication at the top, which is not what anybody
+        asked for — the owner's words: *what matters to me is not the rule, it
+        is that the page keeps looking the way the publisher wanted it.* He is
+        right, and this file says so in its first paragraph: a construct that is
+        invalid or unsupported but carries visual meaning is **translated into
+        the conforming equivalent that renders the same way, never simply
+        deleted**. Deleting it was the tool breaking its own rule.
+
+        So it is translated. `margin-top: auto` inside a flex column puts a
+        block at the bottom of its container exactly as `bottom: 0` was meant
+        to, and it stays in the flow, so pagination cannot lose it.
+
+        Narrow on purpose, and only where the translation is provably faithful:
+
+        * reflowable only — in fixed layout the viewport is declared, nothing
+          paginates, and out-of-flow positioning is how the format works;
+        * the positioned element must be the **only** element child of `<body>`,
+          which is what "this page is that block" means. With siblings, making
+          the body a flex column would stop their margins collapsing, and a
+          repair that changes the spacing of a page it was not called for is
+          worse than the defect;
+        * `bottom` set and `top` unset — a block pinned to the foot. Anything
+          else (stretched between both, centred, offset from the top) is left
+          alone and reported, because guessing at an equivalent is how a tool
+          that means well ruins a layout.
+        """
+        if ctx.book.rendition.get("layout") == "pre-paginated":
+            return
+        body = root.find(xhtml.qname("body"))
+        if body is None:
+            return
+        children = [child for child in body if isinstance(child.tag, str)]
+        if len(children) != 1:
+            return
+
+        element = children[0]
+        tag = xhtml.local_name(element).lower()
+        classes = frozenset((element.get("class") or "").split())
+        identifier = element.get("id")
+        cascade = self._document_cascade(ctx, root, resource)
+
+        position, _ = cascade.lookup("position", tag, classes, identifier)
+        if (position or "").strip().lower() not in ("absolute", "fixed"):
+            return
+        bottom, _ = cascade.lookup("bottom", tag, classes, identifier)
+        top, _ = cascade.lookup("top", tag, classes, identifier)
+        if bottom is None or top is not None:
+            return
+
+        head = root.find(xhtml.qname("head"))
+        if head is None:
+            return
+        style = etree.SubElement(head, xhtml.qname("style"))
+        style.text = self.PAGE_BOTTOM_STYLE
+
+        # Inline, so it beats the publisher's own rule wherever that sits in the
+        # cascade. The offset carries over as a margin when it is not zero: a
+        # block two ems clear of the foot was two ems clear on purpose.
+        declarations = "position: static; margin-top: auto;"
+        if not css_cascade.is_zero_length(bottom):
+            declarations += f" margin-bottom: {bottom.strip()};"
+        _append_style(element, declarations)
+
+        ctx.positioning_translated.add(resource.path)
+        self.note(ctx, Level.FIX, "xhtml.position-pinned-in-flow", location=resource.path)
+
     def _block_in_inline(self, ctx: Context, root, resource) -> None:
         """Repair a block-level box nested directly inside an inline one.
 
@@ -1363,28 +1460,21 @@ class StyleStage(Stage):
         return repaired
 
     def _repair_positioning(self, ctx: Context, css_text: str, resource) -> str:
-        """Out-of-flow positioning loses the page it was meant to decorate.
+        """Report what became of out-of-flow positioning; delete it only under strict.
 
-        This used to read: *publishers use it deliberately — a rule named
-        ``.dol`` ("bottom") pins a dedication to the foot of the page, and that
-        is intent, not a mistake* — and it kept the declaration outside strict
-        mode on that reasoning. The reasoning was inference from a class name.
+        The declaration itself is not the problem and never was — the problem is
+        a page the reader cannot see. Where the content stage found a page whose
+        whole content was pinned to the foot, it has already written an in-flow
+        equivalent into that document, and this declaration is superseded: it
+        loses the cascade, changes nothing, and deleting it from a shared
+        stylesheet would only risk the documents nobody looked at.
 
-        Then somebody put the three modes on a reader. The book was the very one
-        the old docstring described, and in the mode that kept the rule **the
-        dedication page was blank**: `div.dol { position: absolute; bottom: 0 }`
-        took the only content on that page out of the flow, and the reader
-        paginated around it. In strict, where the declaration is dropped, the
-        page is there. Same book, same device, one declaration apart.
-
-        So the trade is not "the publisher's layout against conformance". It is
-        a layout that renders somewhere against a page the reader never sees,
-        and content that exists beats content that is placed nicely. The
-        declaration goes in every mode that opens the stylesheet at all.
-
-        Fixed-layout is the exception and stays one: there the viewport is
-        declared, out-of-flow positioning is how the format works, and nothing
-        can be lost by pagination that does not happen.
+        What is left is the cases no faithful translation exists for — pinned
+        between top and bottom, centred, offset into a page of siblings. Those
+        stay outside strict, because the alternative is deleting a layout on the
+        chance that it is broken, and guessing at somebody's page is how a tool
+        that means well ruins a book. They are reported so the choice is visible
+        rather than silent.
         """
         matches = _OUT_OF_FLOW_RE.findall(css_text)
         if not matches:
@@ -1395,6 +1485,26 @@ class StyleStage(Stage):
                 ctx,
                 Level.PRESERVED,
                 "css.position-kept",
+                values={"count": len(matches)},
+                location=resource.path,
+            )
+            return css_text
+
+        if ctx.positioning_translated:
+            self.note(
+                ctx,
+                Level.INFO,
+                "css.position-superseded",
+                values={"count": len(ctx.positioning_translated)},
+                location=resource.path,
+            )
+            return css_text
+
+        if not ctx.policy.strict:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.position-kept-reflowable",
                 values={"count": len(matches)},
                 location=resource.path,
             )
