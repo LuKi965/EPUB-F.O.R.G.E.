@@ -10,7 +10,7 @@ book looking the way it looked.**
 `0.2.14` · alpha · 1160 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
-[Limits](#limits) · [Development](CONTRIBUTING.md) · [Changes](CHANGELOG.md)
+[Limits](#limits) · [Changes](CHANGELOG.md)
 
 [![Polski](https://img.shields.io/badge/Polski-informational?style=for-the-badge&logo=googletranslate&logoColor=white)](README.md)
 
@@ -139,7 +139,7 @@ repeat in every chapter, and they stay.
 Things worth knowing before rather than after:
 
 - **Alpha.** The version is `0.2.x`, and `0.2.x` **is** alpha — that is what
-  the maturity table in [`CONTRIBUTING.md`](CONTRIBUTING.md) says, and what
+  the maturity table in the project's documentation says, and what
   every build since 0.2.0 has said in its own title bar, which reads the stage
   from the code. This paragraph spent several releases claiming we were still
   on our way into alpha, next to a binary labelled `alpha`. The feature set is
@@ -155,8 +155,8 @@ Things worth knowing before rather than after:
   way, because that is the field scripts match on. This covers the detail
   paragraph under a finding too. What stays English is data rather than
   sentences: tag names, metadata values and EPUBCheck's own output.
-- **No conversion from PDF, MOBI or Word.** Different problem — see
-  [`docs/ROADMAP.md`](docs/ROADMAP.md), item 10.
+- **It does not convert from PDF, MOBI or Word.** That is a different job
+  and deliberately out of scope.
 - **No DRM removal**, and there will not be.
 - **The whole book is held in memory.** With a large library and several
   processes at once, that is noticeable.
@@ -179,13 +179,14 @@ pytest -q
 
 ## Documentation
 
-| File | About |
-|---|---|
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | rules K1–K12, versioning, how a release is made |
-| [`CHANGELOG.md`](CHANGELOG.md) | what changed and why |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | what is next and what is deliberately out of scope |
-| [`docs/URZADZENIA.md`](docs/URZADZENIA.md) | results on real hardware |
-| [`docs/archive/`](docs/archive/) | the previous version of this file, with the full design rationale |
+[`CHANGELOG.md`](CHANGELOG.md) says what changed and why — each release with its
+reasoning rather than a list of commits.
+
+The rest of the project's documents — the roadmap, the corpus write-up, results
+on real hardware, the release archive, the K1–K12 rules — are kept privately.
+Not because there is anything embarrassing in them, but because they describe
+other people's books: somebody's paid-for copies, their defects and their
+contents. This repository is public; those files are not for passers-by.
 
 ## Authors and licence
 

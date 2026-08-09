@@ -10,8 +10,7 @@ jak książka wygląda.**
 `0.2.14` · alpha · 1160 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
-[Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
-[Zmiany](CHANGELOG.md)
+[Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
 
 [![English](https://img.shields.io/badge/English-informational?style=for-the-badge&logo=googletranslate&logoColor=white)](README.en.md)
 
@@ -138,7 +137,7 @@ się w każdym rozdziale, i zostają.
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 - **Alpha.** Wersja to `0.2.x`, a `0.2.x` **jest** alfą — tak mówi tabela
-  dojrzałości w [`CONTRIBUTING.md`](CONTRIBUTING.md) i to samo mówi każdy build
+  dojrzałości w dokumentacji projektu i to samo mówi każdy build
   od 0.2.0, bo tytuł okna bierze etap z kodu. Ten akapit przez kilka wydań
   twierdził, że do alfy jeszcze wchodzimy — co było nieprawdą obok binarki
   podpisanej „alpha". Zakres funkcji jest ustalony, poprawność sprawdzana na
@@ -153,8 +152,8 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   skryptów. Dotyczy to również akapitu szczegółów pod znaleziskiem. To, co
   zostaje po angielsku, to dane, a nie zdania: nazwy znaczników, wartości
   metadanych i komunikaty samego EPUBCheck-a.
-- **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie — patrz
-  [`docs/ROADMAP.md`](docs/ROADMAP.md), punkt 10.
+- **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
+  zakresem.
 - **Nie zdejmuje DRM** i nie będzie.
 - **Cała książka trafia do pamięci.** Przy dużej bibliotece i wielu procesach
   naraz to jest odczuwalne.
@@ -177,13 +176,14 @@ pytest -q
 
 ## Dokumentacja
 
-| Plik | O czym |
-|---|---|
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | reguły K1–K12, wersjonowanie, jak się wydaje |
-| [`CHANGELOG.md`](CHANGELOG.md) | co się zmieniło i dlaczego |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | co dalej i czego świadomie nie robimy |
-| [`docs/URZADZENIA.md`](docs/URZADZENIA.md) | wyniki na prawdziwym sprzęcie |
-| [`docs/archive/`](docs/archive/) | poprzednia wersja tego pliku, z pełnym opisem decyzji projektowych |
+[`CHANGELOG.md`](CHANGELOG.md) mówi, co się zmieniło i dlaczego — każde wydanie
+z uzasadnieniem, nie z listą commitów.
+
+Reszta dokumentów projektu — roadmapa, opis korpusu, wyniki na prawdziwym
+sprzęcie, archiwum wydań, zasady K1–K12 — jest prowadzona prywatnie. Nie dlatego,
+że jest w nich coś wstydliwego, tylko dlatego, że opisują cudze książki: czyjeś
+kupione egzemplarze, ich usterki i ich zawartość. To repozytorium jest publiczne,
+a tamte pliki nie są dla przechodniów.
 
 ## Autorzy i licencja
 
