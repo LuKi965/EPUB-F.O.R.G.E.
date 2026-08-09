@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.14` · alpha · 1160 tests · Windows / Linux / macOS
+`0.2.15` · alpha · 1169 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -145,10 +145,11 @@ Things worth knowing before rather than after:
   on our way into alpha, next to a binary labelled `alpha`. The feature set is
   settled and correctness is checked against 93 real books, which is that
   table's definition of the stage.
-- **Beta is two things away, not three.** Beta (`0.3.x`) asks for `profile.py`,
-  CSS cleanup and span consolidation all released, plus somebody other than the
-  author running their own library through it. `profile.py` shipped in 0.2.11.
-  Roadmap points [4] and [5] remain.
+- **One thing left before beta, and it cannot be written.** Beta (`0.3.x`)
+  asked for the book profile, the CSS clean-up and span consolidation: those
+  three shipped in 0.2.11, 0.2.14 and 0.2.14. What remains is the fourth
+  condition — **somebody other than the author putting their own library
+  through it.**
 - **The report follows the language setting.** The window, the JSON file and
   the console all speak whatever the interface does; on the command line
   `--report-language` decides. The English `message` stays in the JSON either
@@ -163,7 +164,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-1160 tests, including three independent safety nets:
+1169 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

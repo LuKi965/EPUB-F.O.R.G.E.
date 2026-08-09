@@ -314,6 +314,7 @@ class ContentStage(Stage):
             # which makes those errors ours, not the source's.
             modernised = 0
             titled = 0
+            stranded: set[str] = set()
             refused: dict[str, set[str]] = {}
             for resource in ctx.book.content_docs():
                 data, changed = xhtml.modernise_doctype(resource.data)
@@ -366,6 +367,8 @@ class ContentStage(Stage):
                 if filled:
                     resource.data = data
                     titled += 1
+
+                stranded.update(self._only_legal_in_epub2(root))
             if modernised:
                 self.note(
                     ctx,
@@ -388,6 +391,17 @@ class ContentStage(Stage):
                     Level.FIX,
                     "xhtml.title-filled",
                     values={"count": titled},
+                )
+            if stranded:
+                # Not an apology and not a defect to chase: a statement of what
+                # this mode cannot reach. The alternative is a reader running
+                # EPUBCheck, getting `RSC-005`, and having no way to learn that
+                # the answer is "use another mode".
+                self.note(
+                    ctx,
+                    Level.WARN,
+                    "xhtml.epub2-only-markup",
+                    values={"what": ", ".join(sorted(stranded)[:4])},
                 )
             if modernised or titled:
                 self.note(ctx, Level.INFO, "xhtml.untouched-except-doctype")
@@ -976,6 +990,35 @@ class ContentStage(Stage):
             values={"count": len(names), "classes": ", ".join(names[:5])},
             location=resource.path,
         )
+
+    def _only_legal_in_epub2(self, root) -> "set[str]":
+        """Markup that XHTML 1.1 allowed and EPUB 3 does not, named as found.
+
+        Container-only mode makes two edits and both live in the `<head>`,
+        because the head is not rendered. Everything else in a document is left
+        alone — which is the promise, and which means a construct that was legal
+        under the old rules and is not under the new ones **stays**, and the
+        output is an invalid EPUB 3 through no fault of the content.
+
+        The corpus found eleven books in that state, all reporting `RSC-005`,
+        and on the shelf reachable from here the sentence behind it was always
+        the same: *value of attribute "width" is invalid; must be an integer* —
+        `<img width="50%">`, which XHTML 1.1 allowed and HTML5 does not. The
+        modes that open documents move it into CSS and come out clean.
+
+        So this says so, out loud, instead of leaving somebody to run EPUBCheck
+        and find a message that does not mention which mode would fix it. It
+        names what it found rather than claiming to know the whole class:
+        anything not listed here will still show up in a validator, and that is
+        the honest limit of a check written from six examples.
+        """
+        found: set[str] = set()
+        for element in root.iter(xhtml.qname("img"), xhtml.qname("table")):
+            for name in ("width", "height"):
+                value = (element.get(name) or "").strip()
+                if value and not value.isdigit():
+                    found.add(f"{xhtml.local_name(element)}[{name}]")
+        return found
 
     def _census(self, ctx: Context, root) -> None:
         """Note every class and id this document carries, for the CSS stage.

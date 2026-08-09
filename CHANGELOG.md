@@ -38,6 +38,28 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.15 — alpha — 2026-08-09
+
+### Container-only mode now says what it cannot reach
+
+The corpus found eleven books gaining exactly one `RSC-005` each in the mode
+that opens no documents, and the sentence behind it — see below — was always the
+same: `<img width="50%">`, which XHTML 1.1 allowed and HTML5 does not. This mode
+edits the head and nothing else, so it stays, and the output is an invalid
+EPUB 3 through no fault of the content.
+
+That is not a defect to chase, it is a limit to state. A reader who runs a
+validator gets a schema complaint with no hint that the answer is "rebuild in
+another mode", and now the report says it: **markup legal in EPUB 2 and not in
+EPUB 3 stays untouched in this mode: img[width]** — with the pointer to
+`preserve`, which moves it into CSS and renders the same.
+
+Checked against six real books of that shape: six warnings, six EPUBCheck
+errors, and the construct named in the warning matched the validator's message
+in every one. It names what it found rather than claiming to know the whole
+class — anything not listed still shows up in a validator, and that is the
+honest limit of a check written from six examples.
+
 ### The identifier stopped being enough, so the sentence is kept too
 
 0.2.14 over the same ninety-three books: filling the empty `<title>` closed four

@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.14` · alpha · 1160 testów · Windows / Linux / macOS
+`0.2.15` · alpha · 1169 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -142,10 +142,10 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   twierdził, że do alfy jeszcze wchodzimy — co było nieprawdą obok binarki
   podpisanej „alpha". Zakres funkcji jest ustalony, poprawność sprawdzana na
   93 prawdziwych książkach: to jest definicja alfy z tamtej tabeli.
-- **Do bety brakuje dwóch rzeczy, nie trzech.** Beta (`0.3.x`) wymaga wydanych
-  `profile.py`, sprzątania CSS i konsolidacji spanów, plus kogoś spoza autora,
-  kto przepuścił przez to własną bibliotekę. `profile.py` jest wydany w 0.2.11.
-  Zostają punkty [4] i [5] roadmapy.
+- **Do bety brakuje już tylko jednej rzeczy — i nie da się jej napisać.** Beta
+  (`0.3.x`) wymagała profilu książki, sprzątania CSS i konsolidacji spanów: te
+  trzy są wydane w 0.2.11, 0.2.14 i 0.2.14. Zostaje warunek czwarty: **ktoś
+  spoza autora, kto przepuści przez to własną bibliotekę.**
 - **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
   samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
   Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
@@ -160,7 +160,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-1160 testów, w tym trzy niezależne siatki bezpieczeństwa:
+1169 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

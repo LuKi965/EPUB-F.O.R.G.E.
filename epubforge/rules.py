@@ -89,6 +89,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.orphaned-styling-restored": "{count} class(es) the document uses but no stylesheet it links defines were given the publisher's own rule: {classes}",
     "xhtml.empty-span-found": "{count} <span>(s) whose every rule says nothing — a conversion artefact; they are kept",
     "xhtml.empty-span-unwrapped": "{count} <span>(s) unwrapped whose every rule said nothing; the text inside is untouched",
+    "xhtml.epub2-only-markup": "markup legal in EPUB 2 and not in EPUB 3 stays untouched in this mode: {what}",
     "xhtml.title-filled": "{count} empty <title> element(s) were given the document's own heading",
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
@@ -272,6 +273,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.orphaned-styling-restored': '{count} {count:klasie|klasom|klasom}, których dokument używa, a nie definiuje ich żaden podpięty do niego arkusz, przywrócono własną regułę wydawcy: {classes}',
     'xhtml.empty-span-found': '{count} {count:element <span>, którego reguły nic nie mówią|elementy <span>, których reguły nic nie mówią|elementów <span>, których reguły nic nie mówią} — ślad konwersji; zostają',
     'xhtml.empty-span-unwrapped': 'rozwinięto {count} {count:element <span>|elementy <span>|elementów <span>}, których reguły nic nie mówiły; tekst w środku nietknięty',
+    'xhtml.epub2-only-markup': 'znaczniki dozwolone w EPUB 2, a niedozwolone w EPUB 3, zostają w tym trybie nietknięte: {what}',
     'xhtml.title-filled': '{count} {count:pustemu elementowi|pustym elementom|pustym elementom} <title> nadano nagłówek samego dokumentu',
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
@@ -516,6 +518,8 @@ DETAILS: dict[str, str] = {
         "Measured over 12 475 spans in thirty-two books: 97% do something, and the ones that do not are all PDF conversion — `.reset { margin: 0; padding: 0 }` on an inline box where those are the defaults, and `.black { color: #010000 }`, black moved by one part in 255. A span nothing styles at all is left alone: the largest such class in the corpus was 219 drop caps whose stylesheet had come unlinked.",
     "xhtml.empty-span-unwrapped":
         "Unwrapped, not deleted — the text inside stays exactly where it was. Only spans with no id, lang, epub:type, role, dir, title or style, and only where a rule reaches them and every declaration in it is the default for an inline box.",
+    "xhtml.epub2-only-markup":
+        "Container-only mode edits the head and nothing else, so this stays and the output is an invalid EPUB 3 through no fault of the content. Rebuild in \"preserve\" for a conformant file — that mode moves these into CSS and renders the same. Named as found rather than claimed complete: anything not listed still shows up in a validator.",
     "xhtml.title-filled":
         "EPUB 2 allowed an empty <title>; EPUB 3 does not, and this rebuild produces EPUB 3. The text is not rendered in the body, so nothing on the page moves. In container-only mode this is the second and last edit made inside a document.",
     "xhtml.doctype-modernised":
@@ -691,6 +695,8 @@ DETAILS_PL: dict[str, str] = {
         "Zmierzone na 12 475 spanach w 32 książkach: 97% coś robi, a te, które nie robią nic, to w całości konwersja z PDF-u — `.reset { margin: 0; padding: 0 }` na elemencie liniowym, gdzie to są wartości domyślne, i `.black { color: #010000 }`, czyli czerń przesunięta o jedną część na 255. Span, którego nie styluje nic, zostaje nietknięty: największą taką klasą w korpusie było 219 inicjałów z odpiętym arkuszem.",
     "xhtml.empty-span-unwrapped":
         "Rozwinięte, nie skasowane — tekst w środku zostaje dokładnie tam, gdzie był. Tylko spany bez id, lang, epub:type, role, dir, title i style, i tylko tam, gdzie reguła ich dosięga, a każda jej deklaracja jest wartością domyślną dla elementu liniowego.",
+    "xhtml.epub2-only-markup":
+        "Tryb kontenerowy zmienia tylko głowę dokumentu, więc to zostaje, a wynik jest niepoprawnym EPUB-em 3 nie z winy treści. Przebuduj w trybie „Zachowaj wygląd” — tam trafia to do CSS-u i renderuje się tak samo. Wypisane jest to, co znaleziono, a nie cała klasa: czego tu nie ma, i tak pokaże walidator.",
     "xhtml.title-filled":
         "EPUB 2 dopuszczał pusty <title>, EPUB 3 już nie, a ta przebudowa daje EPUB-a 3. Tekst nie jest wyświetlany w treści, więc nic na stronie się nie przesuwa. W trybie kontenerowym to druga i ostatnia zmiana wewnątrz dokumentu.",
     "xhtml.doctype-modernised":

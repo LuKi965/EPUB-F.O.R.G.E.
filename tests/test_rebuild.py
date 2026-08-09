@@ -1573,3 +1573,102 @@ class TestAPagePinnedToItsFootStaysThere:
         _, _, sheet = self.forge(tmp_path, body, mode="strict")
         assert "position: absolute" not in sheet
         assert "width: 100%" in sheet
+
+
+class TestWhatContainerOnlyModeCannotReach:
+    """The mode edits the head and nothing else, so markup that XHTML 1.1
+    allowed and EPUB 3 forbids stays — and the output is invalid through no
+    fault of the content.
+
+    Found by the corpus: eleven books gaining exactly one `RSC-005` each, and on
+    the shelf reachable from here the sentence behind it was always
+    *value of attribute "width" is invalid; must be an integer* — `<img
+    width="50%">`. Checked against six real books: six warnings, six EPUBCheck
+    errors, and the construct named in the warning matched the validator's
+    message every time.
+
+    Saying so is the whole feature. Without it a reader runs a validator, gets a
+    schema complaint, and has no way to learn that the answer is "use another
+    mode".
+    """
+
+    def forge(self, tmp_path, markup: str, mode: str = "minimal"):
+        from .factory import png_bytes, write_zip
+
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Stara ksiazka</dc:title>
+    <dc:identifier id="id">urn:uuid:5f2b8c14-6d3a-4e91-8c07-2b6d9f1a3e47</dc:identifier>
+    <dc:language>pl</dc:language>
+  </metadata>
+  <manifest>
+    <item id="ch" href="Text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="img" href="Images/pic.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="ch"/></spine>
+</package>
+"""
+        chapter = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Rozdzial</title></head>\n'
+            f"<body><p>Tresc.</p>{markup}</body></html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        source = write_zip(
+            str(tmp_path / "old.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/content.opf": package.encode(),
+                "OEBPS/Text/chapter.xhtml": chapter.encode(),
+                "OEBPS/Images/pic.png": png_bytes(),
+            },
+        )
+        result = rebuild(source, str(tmp_path / f"out-{mode}.epub"), Policy.preset(mode))
+        assert result.output_path, result.report.to_text()
+        return result
+
+    def finding(self, result):
+        return next(
+            (f for f in result.report.findings if f.rule == "xhtml.epub2-only-markup"),
+            None,
+        )
+
+    def test_a_percentage_width_is_named(self, tmp_path):
+        result = self.forge(tmp_path, '<img src="../Images/pic.png" alt="" width="50%"/>')
+        found = self.finding(result)
+        assert found is not None
+        assert "img[width]" in found.values["what"]
+
+    def test_a_percentage_height_too(self, tmp_path):
+        result = self.forge(tmp_path, '<img src="../Images/pic.png" alt="" height="30%"/>')
+        assert "img[height]" in self.finding(result).values["what"]
+
+    def test_a_plain_pixel_count_is_fine(self, tmp_path):
+        """HTML5 wants an integer, and an integer is what this is."""
+        result = self.forge(tmp_path, '<img src="../Images/pic.png" alt="" width="600"/>')
+        assert self.finding(result) is None
+
+    def test_it_says_nothing_when_there_is_nothing_to_say(self, tmp_path):
+        result = self.forge(tmp_path, '<img src="../Images/pic.png" alt=""/>')
+        assert self.finding(result) is None
+
+    def test_the_modes_that_open_documents_do_not_warn(self, tmp_path):
+        """They fix it — the attribute becomes CSS and renders the same — so a
+        warning there would be telling somebody about a problem they no longer
+        have."""
+        result = self.forge(
+            tmp_path, '<img src="../Images/pic.png" alt="" width="50%"/>', mode="preserve"
+        )
+        assert self.finding(result) is None
+
+    def test_it_is_a_warning_and_not_an_error(self, tmp_path):
+        """Nothing went wrong here. The book is what it is and the mode did what
+        it promised; this is the sentence that connects the two."""
+        result = self.forge(tmp_path, '<img src="../Images/pic.png" alt="" width="50%"/>')
+        assert self.finding(result).level is Level.WARN
