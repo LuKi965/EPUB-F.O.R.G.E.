@@ -57,6 +57,13 @@ class Context:
     #: superseded, and the report should say so.
     positioning_translated: set[str] = field(default_factory=set)
 
+    #: Documents holding an absolutely positioned element whose containing block
+    #: is an ancestor the publisher positioned on purpose — a caption over a
+    #: picture, a badge on a cover. That construct never escapes pagination,
+    #: because it cannot leave the box that contains it, so the reasoning behind
+    #: removing out-of-flow positioning does not apply to it at all.
+    positioning_contained: set[str] = field(default_factory=set)
+
     #: Per-document ``{old_id: new_id}`` for ids that were not valid XML names.
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)

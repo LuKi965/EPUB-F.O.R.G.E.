@@ -38,6 +38,42 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.16 — alpha — 2026-08-09
+
+### `--strict` was deleting captions that were never going anywhere
+
+The argument for touching `position: absolute` has always been a rendering
+argument, not a conformance one — EPUBCheck has never called it an error. A
+block taken out of the flow is not paginated with the text, a reader can lose
+the page it was on, and a real dedication came out **blank**. That is why
+`_page_bottom_kept` exists and why it translates rather than deletes.
+
+The argument has a precondition that was never written down: it holds when the
+element's containing block is the page. Put the same declaration inside an
+ancestor the publisher positioned —
+
+```css
+.cover   { position: relative; }
+.caption { position: absolute; bottom: 8px; }
+```
+
+— and the caption cannot go anywhere. It resolves against a box that is itself
+in the flow and travels with it. That is not a defect; it is how CSS puts words
+over a picture, and it works on every reader at every screen size. `--strict`
+deleted it anyway, which drops the caption below the image everywhere,
+including on all the readers where it was fine. Nothing was broken and the
+repair broke it.
+
+The case is now recognised during the document pass and reported as
+`css.position-contained`; the declaration is kept in every mode. `position:
+fixed` is deliberately excluded — it resolves against the viewport, so a
+positioned ancestor is not its containing block and promises it nothing.
+
+The guard is whole-stylesheet rather than per-rule, and errs toward keeping:
+the sheet is shared between documents and the excision is textual, so matching
+selectors to elements precisely enough to remove *some* of them would mean a
+second cascade engine written to justify a deletion nobody needs.
+
 ### Where the shop's watermark goes is now a question with four answers
 
 The tool consolidated a shop's tracking token — one CSS rule instead of an

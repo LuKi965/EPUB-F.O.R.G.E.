@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.15` · alpha · 1169 tests · Windows / Linux / macOS
+`0.2.16` · alpha · 1194 tests · Windows / Linux / macOS
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -164,7 +164,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-1169 tests, including three independent safety nets:
+1194 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

@@ -117,6 +117,7 @@ CATALOGUE: dict[str, str] = {
     "css.unreachable-rules-unverified": "{count} rule(s) look unreachable but the sheet did not survive the check, so it was left as it was",
     "css.position-kept": "{count} absolute or fixed position rule(s) were kept",
     "css.position-kept-reflowable": "{count} absolute or fixed position rule(s) were kept in a reflowable book",
+    "css.position-contained": "{count} out-of-flow position rule(s) are held inside a positioned ancestor in {documents} document(s) and were kept",
     "xhtml.position-pinned-in-flow": "content pinned to the foot of the page was translated into an in-flow equivalent",
     "css.position-superseded": "out-of-flow positioning is superseded in {count} document(s) by the equivalent written into them",
     "css.position-removed": "{count} absolute or fixed position rule(s) were removed from a reflowable book",
@@ -303,6 +304,7 @@ CATALOGUE_PL: dict[str, str] = {
     'css.unreachable-rules-unverified': '{count} {count:reguła wygląda|reguły wyglądają|reguł wygląda} na nieosiągalne, ale arkusz nie przeszedł kontroli, więc został bez zmian',
     'css.position-kept': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego',
     'css.position-kept-reflowable': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego w książce przepływalnej',
+    'css.position-contained': '{count} {count:reguła pozycjonowania poza przepływem jest trzymana|reguły pozycjonowania poza przepływem są trzymane|reguł pozycjonowania poza przepływem jest trzymanych} wewnątrz pozycjonowanego przodka w {documents} {documents:dokumencie|dokumentach|dokumentach} i zostały zachowane',
     'xhtml.position-pinned-in-flow': 'treść przypiętą do stopki strony przetłumaczono na odpowiednik działający w przepływie',
     'css.position-superseded': 'pozycjonowanie poza przepływem jest zastąpione w {count} {count:dokumencie|dokumentach|dokumentach} odpowiednikiem wpisanym do nich',
     'css.position-removed': 'usunięto {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego z książki przepływalnej',
@@ -442,6 +444,8 @@ DETAILS: dict[str, str] = {
         "This is a fixed-layout book, where out-of-flow positioning is how it works.",
     "xhtml.position-pinned-in-flow":
         "`margin-top: auto` inside a flex column puts a block at the foot of the page exactly as `bottom: 0` was meant to, and keeps it in the flow, so pagination cannot lose it. Written into the one document that needs it, never into the shared stylesheet — flexing every body in a book would stop adjacent margins collapsing on every page of it. Only where the page is that one block: with siblings there is no faithful translation, so the rule is left alone and reported instead.",
+    "css.position-contained":
+        "An absolutely positioned element resolves against its nearest positioned ancestor, not against the page — a caption over a picture, a badge on a cover. It travels with the box that holds it, so pagination cannot lose it and the argument for removing out-of-flow positioning does not reach it. Kept even under --strict, which used to delete it and drop the caption below the image on every reader.",
     "css.position-superseded":
         "The declaration is still in the stylesheet and no longer decides anything: the document carries an equivalent that outranks it. Left in place because deleting from a shared sheet would reach documents nobody examined.",
     "css.position-removed":
@@ -695,6 +699,8 @@ DETAILS_PL: dict[str, str] = {
         "To książka o stałym układzie, w której pozycjonowanie poza przepływem jest sposobem działania.",
     "xhtml.position-pinned-in-flow":
         "`margin-top: auto` w kolumnie flex ustawia blok przy stopce strony dokładnie tak, jak miało to robić `bottom: 0`, i zostawia go w przepływie, więc paginacja nie ma jak go zgubić. Wpisane do tego jednego dokumentu, który tego potrzebuje, nigdy do wspólnego arkusza — zrobienie z każdego `body` w książce kolumny flex zatrzymałoby scalanie sąsiadujących marginesów na każdej jej stronie. Tylko wtedy, gdy strona jest tym jednym blokiem: przy rodzeństwie nie ma wiernego tłumaczenia, więc reguła zostaje i jest raportowana.",
+    "css.position-contained":
+        "Element pozycjonowany absolutnie liczy się względem najbliższego pozycjonowanego przodka, a nie względem strony — podpis na obrazku, plakietka na okładce. Jedzie razem z pudełkiem, które go trzyma, więc paginacja nie ma jak go zgubić, a argument za usuwaniem pozycjonowania poza przepływem w ogóle go nie dotyczy. Zachowane również pod --strict, który wcześniej to kasował i zrzucał podpis pod obrazek na każdym czytniku.",
     "css.position-superseded":
         "Deklaracja nadal jest w arkuszu i już o niczym nie decyduje: dokument niesie odpowiednik, który ją przebija. Zostawiona, bo usuwanie ze wspólnego arkusza sięgnęłoby dokumentów, których nikt nie oglądał.",
     "css.position-kept-reflowable":

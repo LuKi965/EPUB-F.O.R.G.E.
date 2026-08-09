@@ -1629,6 +1629,134 @@ class TestAPagePinnedToItsFootStaysThere:
         assert "width: 100%" in sheet
 
 
+class TestPositioningHeldInsideItsOwnBox:
+    """The precondition nobody had written down.
+
+    The argument for touching `position: absolute` is a rendering argument: the
+    block leaves the flow, pagination goes round it, and a real dedication page
+    came out blank. That argument holds when the element's containing block is
+    the page. Put the same declaration inside an ancestor the publisher
+    positioned — a caption over a picture — and it cannot go anywhere: it is
+    laid out against a box that is itself in the flow and travels with it.
+
+    `--strict` deleted it anyway, which drops the caption below the image on
+    every reader, including all the ones where it was fine. Nothing was broken
+    and the repair broke it.
+    """
+
+    STYLE = (
+        ".okladka { position: relative; }\n"
+        ".podpis { position: absolute; bottom: 8px; left: 0; width: 100%; }\n"
+    )
+    BODY = (
+        '<div class="okladka"><img src="obraz.png" alt="obraz"/>'
+        '<p class="podpis">Podpis na obrazku</p></div>'
+        "<p>Zwykly akapit, zeby div nie byl jedynym dzieckiem body.</p>"
+    )
+
+    def book(self, tmp_path, style, body):
+        from tests.factory import png_bytes, write_zip
+
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Podpis</dc:title><dc:language>pl</dc:language>
+    <dc:identifier id="pub-id">urn:uuid:6b1d0f6e-0000-4000-8000-0000000000aa</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="doc" href="doc.xhtml" media-type="application/xhtml+xml"/>
+    <item id="css" href="style.css" media-type="text/css"/>
+    <item id="img" href="obraz.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="doc"/></spine>
+</package>
+"""
+        nav = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops" lang="pl"><head><title>Spis</title>'
+            '</head><body><nav epub:type="toc"><ol><li>'
+            '<a href="doc.xhtml">Strona</a></li></ol></nav></body></html>\n'
+        )
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            "<title>Strona</title>"
+            '<link rel="stylesheet" href="style.css"/></head>\n'
+            f"<body>{body}</body></html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/nav.xhtml": nav.encode(),
+                "OEBPS/doc.xhtml": document.encode(),
+                "OEBPS/style.css": style.encode(),
+                "OEBPS/obraz.png": png_bytes(),
+            },
+        )
+
+    def forge(self, tmp_path, *, mode="strict", style=None, body=None):
+        source = self.book(tmp_path, style or self.STYLE, body or self.BODY)
+        result = rebuild(source, str(tmp_path / f"out-{mode}.epub"), Policy.preset(mode))
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            sheet = next(n for n in archive.namelist() if n.endswith(".css"))
+            return result, archive.read(sheet).decode()
+
+    def test_strict_no_longer_deletes_a_caption_that_cannot_escape(self, tmp_path):
+        result, sheet = self.forge(tmp_path)
+        assert "position: absolute" in sheet
+        assert "css.position-removed" not in {f.rule for f in result.report.findings}
+
+    def test_it_says_why_it_kept_it(self, tmp_path):
+        result, _ = self.forge(tmp_path)
+        found = [f for f in result.report.findings if f.rule == "css.position-contained"]
+        assert found and found[0].level is Level.PRESERVED
+
+    def test_an_uncontained_block_is_still_removed_under_strict(self, tmp_path):
+        """The guard is about containment, not about the word `absolute`. A
+        block whose containing block really is the page still goes."""
+        style = ".podpis { position: absolute; bottom: 8px; width: 100%; }\n"
+        result, sheet = self.forge(tmp_path, style=style)
+        assert "position: absolute" not in sheet
+        assert "css.position-removed" in {f.rule for f in result.report.findings}
+
+    def test_fixed_is_not_held_by_a_positioned_ancestor(self, tmp_path):
+        """`position: fixed` resolves against the viewport, so `position:
+        relative` on an ancestor is not its containing block and promises it
+        nothing. Reading the two as the same thing would keep a declaration
+        that genuinely does leave the page."""
+        style = (
+            ".okladka { position: relative; }\n"
+            ".podpis { position: fixed; bottom: 8px; width: 100%; }\n"
+        )
+        result, sheet = self.forge(tmp_path, style=style)
+        assert "position: fixed" not in sheet
+        assert "css.position-removed" in {f.rule for f in result.report.findings}
+
+    def test_an_inline_style_counts_as_a_positioned_ancestor(self, tmp_path):
+        """Publishers write it both ways, and a wrapper positioned inline holds
+        its children exactly as one positioned in the sheet does."""
+        body = (
+            '<div style="position: relative"><img src="obraz.png" alt="obraz"/>'
+            '<p class="podpis">Podpis na obrazku</p></div>'
+            "<p>Zwykly akapit.</p>"
+        )
+        style = ".podpis { position: absolute; bottom: 8px; }\n"
+        result, sheet = self.forge(tmp_path, style=style, body=body)
+        assert "position: absolute" in sheet
+        assert "css.position-contained" in {f.rule for f in result.report.findings}
+
+
 class TestWhatContainerOnlyModeCannotReach:
     """The mode edits the head and nothing else, so markup that XHTML 1.1
     allowed and EPUB 3 forbids stays — and the output is invalid through no

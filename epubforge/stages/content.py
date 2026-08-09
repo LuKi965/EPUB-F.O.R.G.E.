@@ -478,6 +478,7 @@ class ContentStage(Stage):
             self._image_paragraphs(ctx, root, resource)
             self._cover_fits_the_page(ctx, root, resource)
             self._page_bottom_kept(ctx, root, resource)
+            self._positioning_contained(ctx, root, resource)
             self._block_in_inline(ctx, root, resource)
             self._empty_spans(ctx, root, resource)
             self._watermarks(ctx, root, resource)
@@ -1355,6 +1356,66 @@ class ContentStage(Stage):
         ctx.positioning_translated.add(resource.path)
         self.note(ctx, Level.FIX, "xhtml.position-pinned-in-flow", location=resource.path)
 
+    #: Values of `position` that make an element a containing block for the
+    #: absolutely positioned descendants beneath it. `fixed` is deliberately in
+    #: the list as a *positioned ancestor* and deliberately not treated as
+    #: *contained* itself: a fixed element is laid out against the viewport and
+    #: an ordinary positioned ancestor does not hold it.
+    POSITIONED = ("relative", "absolute", "fixed", "sticky")
+
+    _INLINE_POSITION_RE = re.compile(r"(?:^|;)\s*position\s*:\s*([a-z-]+)", re.IGNORECASE)
+
+    def _position_of(self, cascade, element) -> str:
+        """The `position` in force on one element: inline first, then the sheet."""
+        inline = self._INLINE_POSITION_RE.search(element.get("style") or "")
+        if inline:
+            return inline.group(1).lower()
+        value, _ = cascade.lookup(
+            "position",
+            xhtml.local_name(element).lower(),
+            frozenset((element.get("class") or "").split()),
+            element.get("id"),
+        )
+        return (value or "static").strip().lower()
+
+    def _positioning_contained(self, ctx: Context, root, resource) -> None:
+        """Note absolute positioning that is held inside a positioned ancestor.
+
+        `position: absolute` is not an error and EPUBCheck has never said it
+        was. The argument for touching it is a rendering argument: a block taken
+        out of the flow is not paginated with the text, so a reader can clip it,
+        overlap it or lose the page it was on — which is exactly what happened
+        to a real dedication page, and why `_page_bottom_kept` exists.
+
+        That argument has a precondition nobody wrote down: it only holds when
+        the element's containing block is the page. Put the same declaration
+        inside an ancestor the publisher positioned — `.cover { position:
+        relative }` around `.caption { position: absolute; bottom: 8px }` — and
+        the caption cannot go anywhere. It is laid out against a box that is
+        itself in the flow, it travels with it, and it is the ordinary way to
+        put words over a picture in CSS. Removing it does not repair anything:
+        it drops the caption below the image on every reader, including the ones
+        where it was fine.
+
+        Under `--strict` that is what the tool did, on a book where nothing was
+        broken. So the case is recognised here and the style stage is told.
+        """
+        if ctx.book.rendition.get("layout") == "pre-paginated":
+            return
+        cascade = self._document_cascade(ctx, root, resource)
+        for element in xhtml.iter_elements(root):
+            # Only `absolute`: a `fixed` element resolves against the viewport,
+            # so a positioned ancestor is not its containing block and cannot
+            # promise to keep it.
+            if self._position_of(cascade, element) != "absolute":
+                continue
+            ancestor = element.getparent()
+            while ancestor is not None and isinstance(ancestor.tag, str):
+                if self._position_of(cascade, ancestor) in self.POSITIONED:
+                    ctx.positioning_contained.add(resource.path)
+                    return
+                ancestor = ancestor.getparent()
+
     #: Attributes that make a `<span>` mean something regardless of styling.
     #: `id` is a link target, `lang` decides hyphenation and speech, `epub:type`
     #: is semantics a reading system acts on, `role` and `aria-*` are what a
@@ -2193,6 +2254,25 @@ class StyleStage(Stage):
                 Level.INFO,
                 "css.position-superseded",
                 values={"count": len(ctx.positioning_translated)},
+                location=resource.path,
+            )
+            return css_text
+
+        if ctx.positioning_contained:
+            # Whole-stylesheet rather than per-rule, and on purpose: the sheet is
+            # shared between documents, the excision is textual, and a rule that
+            # holds a caption over a picture in one chapter is the same rule
+            # everywhere else. Matching selectors to elements precisely enough to
+            # remove *some* of them would be a second cascade engine written to
+            # justify a deletion nobody needs.
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.position-contained",
+                values={
+                    "count": len(matches),
+                    "documents": len(ctx.positioning_contained),
+                },
                 location=resource.path,
             )
             return css_text
