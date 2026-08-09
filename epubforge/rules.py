@@ -86,6 +86,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.untouched": "content documents were left as they were; only the container was rebuilt",
     "xhtml.untouched-except-doctype": "content documents were left as they were apart from the DOCTYPE; only the container was rebuilt",
     "xhtml.doctype-modernised": "a legacy DOCTYPE was replaced with the EPUB 3 one in {count} document(s)",
+    "xhtml.orphaned-styling-restored": "{count} class(es) the document uses but no stylesheet it links defines were given the publisher's own rule: {classes}",
     "xhtml.title-filled": "{count} empty <title> element(s) were given the document's own heading",
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
@@ -262,6 +263,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.untouched': 'dokumenty treści zostały bez zmian; przebudowano wyłącznie kontener',
     'xhtml.untouched-except-doctype': 'dokumenty treści zostały bez zmian poza DOCTYPE; przebudowano wyłącznie kontener',
     'xhtml.doctype-modernised': 'stary DOCTYPE zastąpiono tym z EPUB 3 w {count} {count:dokumencie|dokumentach|dokumentach}',
+    'xhtml.orphaned-styling-restored': '{count} {count:klasie|klasom|klasom}, których dokument używa, a nie definiuje ich żaden podpięty do niego arkusz, przywrócono własną regułę wydawcy: {classes}',
     'xhtml.title-filled': '{count} {count:pustemu elementowi|pustym elementom|pustym elementom} <title> nadano nagłówek samego dokumentu',
     'xhtml.doctype-kept': '{count} {count:dokument zachowuje|dokumenty zachowują|dokumentów zachowuje} stary DOCTYPE, bo encji nie da się rozwiązać: {documents}',
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
@@ -488,6 +490,8 @@ DETAILS: dict[str, str] = {
         "{unlinked} link(s) unlinked, {removed} element(s) removed",
     "xhtml.doctype-kept":
         "The output stays an invalid EPUB 3 in those documents, and that is the lesser harm: replacing the declaration would strand the reference and the book would no longer open at all. Rebuild this book in a mode that rewrites content.",
+    "xhtml.orphaned-styling-restored":
+        "The rule exists in this book, in a stylesheet this document does not link, and exactly one stylesheet has it — so there is nothing to choose between. Copied into the document verbatim rather than linking the whole sheet, which would import every other decision in it into a page it was not written for. Not applied when two sheets disagree, nor to rules that fetch something with url().",
     "xhtml.title-filled":
         "EPUB 2 allowed an empty <title>; EPUB 3 does not, and this rebuild produces EPUB 3. The text is not rendered in the body, so nothing on the page moves. In container-only mode this is the second and last edit made inside a document.",
     "xhtml.doctype-modernised":
@@ -649,6 +653,8 @@ DETAILS_PL: dict[str, str] = {
         "Nie każdy czytnik paginuje treść wyjętą z przepływu, ale to układ wybrany przez wydawcę i nie ma dla niego wiernego odpowiednika. Użyj --strict, żeby go usunąć.",
     "css.position-removed":
         "Te bloki płyną teraz razem ze stroną, zamiast być do niej przypięte. Nie dotyczy książek o stałym układzie, gdzie pozycjonowanie poza przepływem jest sposobem działania formatu. Na prawdziwym czytniku dedykacja przypięta w ten sposób wyszła jako pusta strona — blok wypadł z przepływu, a paginacja go ominęła.",
+    "xhtml.orphaned-styling-restored":
+        "Reguła jest w tej książce, w arkuszu, którego ten dokument nie podpina, i ma ją dokładnie jeden arkusz — więc nie ma między czym wybierać. Skopiowana do dokumentu dosłownie, zamiast podpinania całego arkusza, co wniosłoby na tę stronę wszystkie pozostałe decyzje z niego. Nie stosowane, gdy dwa arkusze się różnią, ani do reguł pobierających coś przez url().",
     "xhtml.title-filled":
         "EPUB 2 dopuszczał pusty <title>, EPUB 3 już nie, a ta przebudowa daje EPUB-a 3. Tekst nie jest wyświetlany w treści, więc nic na stronie się nie przesuwa. W trybie kontenerowym to druga i ostatnia zmiana wewnątrz dokumentu.",
     "xhtml.doctype-modernised":

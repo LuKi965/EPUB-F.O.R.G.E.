@@ -232,3 +232,175 @@ class TestACoverNothingSizesIsRepaired:
         assert "max-width: 100%" in COVER_PAGE_TEMPLATE
         assert "max-height: 100%" in COVER_PAGE_TEMPLATE
         assert "object-fit: contain" in COVER_PAGE_TEMPLATE
+
+
+class TestARuleThatReachesNoDocument:
+    """Roadmap point [4], from the end the owner named.
+
+    Not unused classes — those cost nothing. A stylesheet that is **correct**
+    and reaches no document: the archive still holds the rule, the page no
+    longer sees it, and a typeset book renders as raw HTML in the middle.
+
+    Measured on thirty-two commercial books before a line of it was written,
+    which is the only reason the test is this narrow. "Uses a class no rule
+    reaches" fires on almost every book ever made — converters leave class names
+    behind that nothing ever styled — so the criterion is that **exactly one**
+    stylesheet in the book has the rule and this document does not link it. That
+    turns up 52 documents in 7 of the 32, every one of them a single rule, and
+    four of the seven are covers: `.cover { height: 97% }`, `.coverimage2
+    { height: 100vh }`. The owner's correction, arriving as a measurement.
+    """
+
+    SHEET = ".dropcap { float: left; font-size: 2.5em; }\n"
+
+    def book(self, tmp_path, *, links: str, sheets: dict[str, str]) -> str:
+        from .factory import write_zip
+
+        items = "\n".join(
+            f'    <item id="s{i}" href="{name}" media-type="text/css"/>'
+            for i, name in enumerate(sheets)
+        )
+        package = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Rozdzial</dc:title>
+    <dc:identifier id="id">urn:uuid:9c2e4a71-08d5-4f3b-8b16-5d90c7a1f204</dc:identifier>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+{items}
+  </manifest>
+  <spine><itemref idref="ch"/></spine>
+</package>
+"""
+        nav = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops" lang="pl"><head><title>Spis</title>'
+            '</head><body><nav epub:type="toc"><ol><li>'
+            '<a href="chapter.xhtml">Rozdzial</a></li></ol></nav></body></html>\n'
+        )
+        chapter = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            f"<title>Rozdzial</title>{links}</head>\n"
+            '<body><p><span class="dropcap">N</span>ie wspominaj grzechow.</p></body>'
+            "</html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        entries = {
+            "META-INF/container.xml": container.encode(),
+            "OEBPS/package.opf": package.encode(),
+            "OEBPS/nav.xhtml": nav.encode(),
+            "OEBPS/chapter.xhtml": chapter.encode(),
+        }
+        for name, text in sheets.items():
+            entries[f"OEBPS/{name}"] = text.encode()
+        return write_zip(str(tmp_path / "in.epub"), entries)
+
+    def forge(self, tmp_path, **kwargs):
+        result = forge(self.book(tmp_path, **kwargs), tmp_path / "out.epub")
+        files = contents(result.output_path)
+        chapter = next(t for name, t in files.items() if "chapter" in name)
+        return result, chapter
+
+    def rule(self, result) -> bool:
+        return "xhtml.orphaned-styling-restored" in {f.rule for f in result.report.findings}
+
+    def test_the_publishers_own_rule_is_copied_into_the_document(self, tmp_path):
+        """`Book 1`, reduced: 37 chapters open with
+        `<span class="dropcap">`, the linked sheet defines only
+        `.dropcap_small`, and `.dropcap` sits in a sheet nothing links."""
+        result, chapter = self.forge(
+            tmp_path,
+            links='<link rel="stylesheet" href="linked.css"/>',
+            sheets={"linked.css": ".dropcap_small { font-size: 1.2em; }\n",
+                    "next/epub.css": self.SHEET},
+        )
+        assert "float: left" in chapter and "2.5em" in chapter
+        assert self.rule(result)
+
+    def test_a_document_that_links_nothing_at_all_is_the_same_case(self, tmp_path):
+        """Three jednego wydawcy covers in the corpus: no `<link>` anywhere and
+        `.cover { height: 97% }` in the book's one stylesheet."""
+        result, chapter = self.forge(
+            tmp_path, links="", sheets={"template.css": self.SHEET}
+        )
+        assert "float: left" in chapter
+        assert self.rule(result)
+
+    def test_the_whole_stylesheet_is_not_linked_in(self, tmp_path):
+        """A sheet is 20 kB of somebody else's decisions. The rule for the class
+        the page uses is the part that was lost; the rest was not."""
+        result, chapter = self.forge(
+            tmp_path,
+            links="",
+            sheets={"other.css": self.SHEET + "p { color: red; font-size: 3em; }\n"},
+        )
+        assert "float: left" in chapter
+        assert "color: red" not in chapter
+        assert "<link" not in chapter
+
+    def test_a_class_the_linked_sheet_already_defines_is_left_alone(self, tmp_path):
+        """Nothing is broken here, so nothing is done."""
+        result, chapter = self.forge(
+            tmp_path,
+            links='<link rel="stylesheet" href="linked.css"/>',
+            sheets={"linked.css": self.SHEET},
+        )
+        assert not self.rule(result)
+        assert "<style" not in chapter
+
+    def test_a_class_nothing_in_the_book_defines_is_not_a_finding(self, tmp_path):
+        """This is the false positive that makes the naive rule useless: it
+        fires on almost every book ever made, because converters leave class
+        names behind that nothing ever styled. Dead markup, not dead CSS, and it
+        costs the reader nothing."""
+        result, chapter = self.forge(
+            tmp_path, links="", sheets={"other.css": "p { margin: 0; }\n"}
+        )
+        assert not self.rule(result)
+        assert "<style" not in chapter
+
+    def test_two_sheets_disagreeing_is_a_choice_and_not_ours(self, tmp_path):
+        """One owner is evidence. Two is a decision between two publishers'
+        intentions on a page neither was written for."""
+        result, chapter = self.forge(
+            tmp_path,
+            links="",
+            sheets={"a.css": self.SHEET, "b.css": ".dropcap { float: right; }\n"},
+        )
+        assert not self.rule(result)
+        assert "float" not in chapter
+
+    def test_a_rule_that_fetches_something_is_left_where_it_is(self, tmp_path):
+        """Its reference is relative to the sheet it lived in, and the text is
+        about to live somewhere else. Rebasing it is a way to turn a missing
+        drop cap into a missing picture."""
+        result, chapter = self.forge(
+            tmp_path,
+            links="",
+            sheets={"a.css": '.dropcap { background: url("../img/cap.png"); }\n'},
+        )
+        assert not self.rule(result)
+        assert "url(" not in chapter
+
+    def test_the_cover_is_not_exempt_from_any_of_this(self, tmp_path):
+        """Four of the seven books this found are covers, and the rules are
+        exactly the ones that make a cover fill the screen. The exemption I
+        proposed would have skipped the majority of the real cases."""
+        result, chapter = self.forge(
+            tmp_path,
+            links="",
+            sheets={"nomargin.css": ".dropcap { height: 100vh; margin: 0; }\n"},
+        )
+        assert "100vh" in chapter
+        assert self.rule(result)

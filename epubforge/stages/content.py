@@ -144,6 +144,75 @@ def _ancestry(element) -> list[tuple[str, frozenset[str], str | None]]:
     return chain
 
 
+#: Every class name a selector mentions. Crude by design: `.a .b > .c` yields
+#: all three, and a rule that names a class anywhere is a rule about that class,
+#: which is the only question asked here.
+_SELECTOR_CLASS_RE = re.compile(r"\.([A-Za-z_][\w-]*)")
+
+
+def _walk_style_rules(container):
+    """Every style rule in a sheet, including the ones inside `@media`.
+
+    `cascade.Cascade` skips media rules, correctly for its purpose — it resolves
+    what applies now, and a media query may not. This one is asked a different
+    question: *does the publisher have a rule for this class anywhere*, and a
+    rule inside `@media print` is still one.
+    """
+    for rule in container:
+        if rule.type == rule.STYLE_RULE:
+            yield rule
+        elif rule.type == rule.MEDIA_RULE:
+            yield from _walk_style_rules(rule)
+
+
+def _selector_classes(css_text: str) -> frozenset[str]:
+    """Which classes this stylesheet has any rule for."""
+    if not css_text or not css_text.strip():
+        return frozenset()
+    try:
+        sheet = cssutils.parseString(css_text, validate=False)
+    except Exception:  # noqa: BLE001 — an unreadable sheet defines nothing
+        return frozenset()
+    found: set[str] = set()
+    for rule in _walk_style_rules(sheet):
+        found.update(_SELECTOR_CLASS_RE.findall(rule.selectorText))
+    return frozenset(found)
+
+
+def _rules_naming(css_text: str, classes: set[str]) -> list[str]:
+    """The rules that mention any of *classes*, as the publisher wrote them.
+
+    Verbatim, selector list and all. A rule reading `.dropcap, .initial { … }`
+    comes over whole rather than split: the text is the publisher's, and this
+    repair copies it, it does not rewrite it.
+
+    Rules inside `@media` are left where they are. Lifting one out of its query
+    would apply it unconditionally, which is the opposite of what it says, and
+    no book measured needed it.
+    """
+    if not css_text or not css_text.strip():
+        return []
+    try:
+        sheet = cssutils.parseString(css_text, validate=False)
+    except Exception:  # noqa: BLE001
+        return []
+    found: list[str] = []
+    for rule in sheet:
+        if rule.type != rule.STYLE_RULE:
+            continue
+        if not set(_SELECTOR_CLASS_RE.findall(rule.selectorText)) & classes:
+            continue
+        text = " ".join(rule.cssText.split())
+        # A reference inside the rule is relative to the sheet it lived in, and
+        # this text is about to live somewhere else. Rebasing it is possible and
+        # is a way to turn a missing drop cap into a missing picture; on the
+        # shelf this was measured against, not one case needed it.
+        if "url(" in text.lower():
+            continue
+        found.append(text)
+    return found
+
+
 def _append_style(element, declarations: str) -> None:
     if not declarations:
         return
@@ -160,6 +229,11 @@ class ContentStage(Stage):
 
     def __init__(self) -> None:
         self._sheet_cache: dict[str, str] = {}
+        # Which classes each sheet has a rule for. Asked once per sheet per
+        # book rather than once per document: parsing a 27 kB stylesheet
+        # forty-nine times to answer the same question is how a repair that
+        # touches seven books in thirty-two ends up costing every book.
+        self._class_cache: dict[str, frozenset[str]] = {}
         # A watermark repeats across every document, so its findings are summed
         # and reported once rather than thirty-four times.
         self._watermarks_consolidated = 0
@@ -329,6 +403,12 @@ class ContentStage(Stage):
             self._skeleton(ctx, root, resource)
             self._rewrite_references(ctx, root, resource, global_ids, present_ids)
             self._modernise(ctx, root, resource)
+            # Before anything that reads the cascade: a rule restored here
+            # is a rule those must see. The cover repair below is the one
+            # that matters — four of the seven books this found are covers,
+            # and adding page-fitting limits on top of the publisher's own
+            # restored sizing would be a second opinion nobody asked for.
+            self._orphaned_styling(ctx, root, resource)
             self._image_paragraphs(ctx, root, resource)
             self._cover_fits_the_page(ctx, root, resource)
             self._page_bottom_kept(ctx, root, resource)
@@ -719,6 +799,148 @@ class ContentStage(Stage):
             if style.text:
                 sources.append(style.text)
         return css_cascade.Cascade.parse(sources)
+
+    #: How many rules may be lifted into one document to restore its styling.
+    #:
+    #: Measured, not chosen: across thirty-two commercial books, every single
+    #: case needed **one** rule. The cap exists so that a book built some way
+    #: nobody here has seen cannot turn this into "paste a stylesheet into every
+    #: chapter" — at which point the repair would be doing more than restoring
+    #: what the publisher wrote, and would need a different justification.
+    RESTORED_RULE_LIMIT = 8
+
+    def _orphaned_styling(self, ctx: Context, root, resource) -> None:
+        """A rule the publisher wrote, in a sheet this document never links.
+
+        Roadmap point [4], from the end the owner of the corpus named: not
+        unused classes — which cost nothing and are the small half of it — but a
+        stylesheet that is **correct** and reaches no document. Calibre does
+        this by the shelf-load, and so do the repackaging pipelines the shops
+        run: the archive still holds the rule, the page no longer sees it, and
+        the book renders as raw HTML in the middle of a typeset one.
+
+        "This document uses a class no rule reaches" is not the test. It fires
+        on almost every book ever made — thirty-four documents in one, a hundred
+        and thirty-four in another — because converters leave class names behind
+        like `EPubfirstparagraph` that nothing ever styled. Those are dead
+        markup, not dead CSS, and they cost the reader nothing.
+
+        The test is narrower, and it names the fix as it finds it:
+
+        * the document uses a class,
+        * nothing it links — no sheet, no `<style>` — defines that class,
+        * **exactly one** stylesheet in the book does, and this document does
+          not link it.
+
+        Then there is no guessing left: the rule exists, it was written for this
+        class, and only one candidate can have meant it. What that turns up on a
+        real shelf is small and it is not noise — 52 documents across 7 of 32
+        books, and every one of them a single rule:
+
+        ===================================  ==================================
+        `Book 1`     `.dropcap` — 37 chapters open with
+                                              `<span class="dropcap">` and the
+                                              linked sheet defines only
+                                              `.dropcap_small`
+        `Book 4`               `.coverimage2 { height: 100vh }`
+        `Book 5`              `.cover { margin: 0 }`
+        three jednego wydawcy titles                   `.cover { height: 97% }`, on a
+                                              cover page linking no sheet at all
+        `Book 6`                         `.photo`
+        ===================================  ==================================
+
+        Four of the seven are covers, which is the owner's correction arriving
+        as a measurement: *a cover needs CSS — how else would it scale to the
+        reader?* These are exactly the rules that make one fill the screen, and
+        they were reaching nothing.
+
+        The rule is copied into the document rather than the sheet linked. A
+        sheet is 20 kB of somebody else's decisions and linking it would import
+        all of them into a page it was not written for; the rule for the class
+        the page actually uses is the part that was lost. Rules that fetch
+        something with `url()` are left alone — their references are relative to
+        the sheet, and rebasing a background image into a document three
+        directories away is a way to turn a missing drop cap into a missing
+        picture. On the shelf this was measured against, no case needed one.
+        """
+        used: set[str] = set()
+        for element in xhtml.iter_elements(root):
+            used.update((element.get("class") or "").split())
+        if not used:
+            return
+
+        linked = set(self._linked_stylesheets(ctx, root, resource))
+        reachable: set[str] = set()
+        for path in linked:
+            reachable |= self._classes_defined(ctx, path)
+        for style in root.iter(xhtml.qname("style")):
+            reachable |= _selector_classes(style.text or "")
+        orphaned = used - reachable
+        if not orphaned:
+            return
+
+        # Which sheet in the book owns each orphaned class. One owner is
+        # evidence; two is a choice, and choosing between two publishers'
+        # intentions on a page neither was written for is guessing.
+        donors: dict[str, str] = {}
+        for name in sorted(orphaned):
+            holders = [
+                sheet.path
+                for sheet in ctx.book.by_type("style")
+                if name in self._classes_defined(ctx, sheet.path)
+            ]
+            if len(holders) == 1 and holders[0] not in linked:
+                donors[name] = holders[0]
+        if not donors:
+            return
+
+        restored: list[str] = []
+        names: list[str] = []
+        for path in sorted(set(donors.values())):
+            wanted = {name for name, sheet in donors.items() if sheet == path}
+            found = _rules_naming(self._sheet_text(ctx, path), wanted)
+            if found:
+                restored.extend(found)
+                names.extend(sorted(wanted))
+        if not restored or len(restored) > self.RESTORED_RULE_LIMIT:
+            return
+
+        head = root.find(xhtml.qname("head"))
+        if head is None:
+            return
+        style = etree.SubElement(head, xhtml.qname("style"))
+        style.text = (
+            "\n      /* EPUB-Forge: the publisher's own rule(s) for "
+            + ", ".join(f".{name}" for name in names)
+            + ", which this document uses and no stylesheet it links defines. "
+            "Copied verbatim from the sheet that holds them. */\n      "
+            + "\n      ".join(restored)
+            + "\n    "
+        )
+        self.note(
+            ctx,
+            Level.FIX,
+            "xhtml.orphaned-styling-restored",
+            values={"count": len(names), "classes": ", ".join(names[:5])},
+            location=resource.path,
+        )
+
+    def _sheet_text(self, ctx: Context, path: str) -> str:
+        sheet = ctx.book.get(path)
+        if sheet is None:
+            return ""
+        cached = self._sheet_cache.get(path)
+        if cached is None:
+            cached = sheet.text()
+            self._sheet_cache[path] = cached
+        return cached
+
+    def _classes_defined(self, ctx: Context, path: str) -> frozenset[str]:
+        cached = self._class_cache.get(path)
+        if cached is None:
+            cached = _selector_classes(self._sheet_text(ctx, path))
+            self._class_cache[path] = cached
+        return cached
 
     def _image_paragraphs(self, ctx: Context, root, resource) -> None:
         """Stop body-text rules from indenting a paragraph that is just an image.

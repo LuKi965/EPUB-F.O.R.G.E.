@@ -25,6 +25,53 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Roadmap point [4]: the publisher's own rule, put back where the page can see it
+
+Not unused classes — those cost nothing and are the small half of it. The half
+the owner named: **a stylesheet that is correct and reaches no document.** The
+archive still holds the rule, the page no longer sees it, and a typeset book
+renders as raw HTML in the middle.
+
+Measured on thirty-two commercial books before a line of it was written, and
+that is the only reason it is this narrow — the first probe produced a false
+positive that would have pasted a duplicate stylesheet into thirty-seven
+chapters of *Book 1*. What survived the measurement:
+
+* the document uses a class,
+* nothing it links — no sheet, no `<style>` — defines that class,
+* **exactly one** stylesheet in the book does, and this document does not link
+  it.
+
+Then there is nothing left to guess: the rule exists, it was written for that
+class, and only one candidate can have meant it. On a real shelf that is **52
+documents across 7 of the 32 books**, every one of them a single rule:
+
+| book | class | rule |
+|---|---|---|
+| *Book 1* | `dropcap` | **37 chapters** open with `<span class="dropcap">`; the linked sheet defines only `.dropcap_small` |
+| *Book 4* | `coverimage2` | `height: 100vh` |
+| *Book 5* | `cover` | `margin: 0` |
+| three jednego wydawcy titles | `cover` | `height: 97%`, on a cover page linking no stylesheet at all |
+| *Book 6* | `photo` | `text-align: center` |
+
+**Four of the seven are covers**, and the rules are exactly the ones that make a
+cover fill the screen. That is the owner's correction arriving as a
+measurement: the exemption I proposed for cover pages would have skipped the
+majority of the real cases.
+
+The rule is copied into the document, not the sheet linked: a sheet is 20 kB of
+somebody else's decisions, and what was lost is the one rule for the class the
+page actually uses. Two sheets disagreeing is a choice between two publishers'
+intentions on a page neither was written for, so nothing is done. A rule that
+fetches something with `url()` stays where it is — its reference is relative to
+the sheet, and rebasing a background three directories away turns a missing drop
+cap into a missing picture. No case on the measured shelf needed one.
+
+What is deliberately **not** reported: "this document uses a class nothing
+defines". It fires on almost every book ever made — 34 documents in one, 134 in
+another — because converters leave class names behind that nothing ever styled.
+That is dead markup, not dead CSS, and it costs the reader nothing.
+
 ## 0.2.14 — alpha — 2026-08-09
 
 ### The identifiers paid for themselves in one run, and a reader overruled a docstring
