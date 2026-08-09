@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.14` · alpha · 1112 testów · Windows / Linux / macOS
+`0.2.14` · alpha · 1147 testów · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Rozwój](CONTRIBUTING.md) ·
@@ -161,7 +161,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-1112 testów, w tym trzy niezależne siatki bezpieczeństwa:
+1147 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

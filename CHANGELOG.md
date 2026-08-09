@@ -25,6 +25,46 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### …and the other half: rules for markup the book has not got
+
+Polish shops ship one house stylesheet into every title they sell, and most of
+it is for things the particular book does not contain. Measured over the same
+thirty-two books: **3 995 rules, 64% of all CSS bytes**, naming a class or id
+that appears in no document of the book they were shipped in — `td.proc4`,
+`td.proc5`, `td.proc10` in a novel with no tables; `hr.dotted_line`, `hr.blue`,
+`hr.pointa` in one with no horizontal rules. Book 3: 178 of 207 rules.
+`Book 2`, which somebody made with care: 2 of 37.
+
+`preserve` reports and keeps every byte; `strict` removes. That split was in the
+roadmap before any of this existed, against a source document that wanted the
+removal in `preserve` too, and the reasoning has not aged: a selector matching
+nothing *in the documents we parsed* is not the same claim as a selector
+matching nothing.
+
+Four narrowings, each a case that would otherwise be got wrong:
+
+* a selector list dies only when **every** branch does — `.dead, .alive` is a
+  rule about `.alive`;
+* a branch naming no class and no id is never dead, because deciding a bare `p`
+  from a parse puts a book's whole running-text styling one bug away;
+* an attribute selector, a pseudo-class or a `*` is never dead, because what it
+  reaches cannot be settled by name;
+* a book carrying a script is left alone entirely — a script can add a class,
+  and then "matches nothing" is a statement about the file, not the reading.
+
+**Nothing is reformatted, and that is not a nicety.** Rebuilding these sheets
+through a CSS serialiser was measured too, and it dropped `@media` blocks
+outright in **21 of 72** stylesheets. A removal whose method deletes a media
+query while claiming to delete an unused rule is not a removal. So a scanner
+finds where each top-level rule begins and ends, the dead spans are cut, and
+every byte outside them survives as written — comments, indentation, vendor
+hacks and the publisher's section headings. At-rules are never entered.
+
+The cut is then checked rather than trusted: the sheet is re-parsed and the
+survivors compared against the originals minus the ones marked dead, by a CSS
+parser rather than by the scanner that did the cutting. A sheet that does not
+match is put back untouched. On the measured shelf, 72 of 72 matched.
+
 ### Roadmap point [4]: the publisher's own rule, put back where the page can see it
 
 Not unused classes — those cost nothing and are the small half of it. The half

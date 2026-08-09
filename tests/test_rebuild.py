@@ -362,12 +362,11 @@ class TestPublisherErrorRepair:
             for f in rebuilt.report.findings
         )
 
-    def test_strict_removes_out_of_flow_positioning(self, rebuilt_strict):
-        css = self.stylesheet(rebuilt_strict)
-        assert "position: absolute" not in css
-        # Only the positioning goes; the rest of the rule is left alone.
-        assert "width: 100%" in css
-        assert "text-align: center" in css
+    # The strict half of this moved to `TestAPagePinnedToItsFootStaysThere`,
+    # which builds a book that actually carries `class="dol"`. In this fixture
+    # nothing does, so the rule is now removed by the unreachable-rule pass
+    # before the positioning pass is asked anything — the test would have been
+    # passing for the wrong reason.
 
     def test_fixed_layout_books_keep_their_positioning(self, legacy_epub, tmp_path):
         """Absolute positioning is how fixed-layout books work; never strip it."""
@@ -1559,3 +1558,18 @@ class TestAPagePinnedToItsFootStaysThere:
         assert "margin-top: auto" not in document
         assert "position: absolute" in sheet
         assert "css.position-kept" in {f.rule for f in result.report.findings}
+
+
+    def test_strict_takes_the_positioning_and_leaves_the_rest_of_the_rule(self, tmp_path):
+        """Where no faithful translation exists, strict drops the declaration
+        and only that: the width and the offset are the publisher's and stay.
+
+        Its home used to be the shared legacy fixture, where nothing carries
+        `class="dol"` — so the whole rule is unreachable and now goes for that
+        reason instead, and the test would have kept passing while measuring
+        something else entirely.
+        """
+        body = self.ONE_BLOCK + "<p>Cos jeszcze na tej stronie.</p>"
+        _, _, sheet = self.forge(tmp_path, body, mode="strict")
+        assert "position: absolute" not in sheet
+        assert "width: 100%" in sheet

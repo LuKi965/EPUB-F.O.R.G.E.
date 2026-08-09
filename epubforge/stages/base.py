@@ -37,6 +37,18 @@ class Context:
     #: three that guess separately.
     profile: object | None = None
 
+    #: Every class and id that appears anywhere in the book's markup, collected
+    #: while the content stage has the documents open. The stylesheet stage
+    #: needs it to answer "can this rule ever match anything here", and parsing
+    #: every document a second time to ask would double the cost of a rebuild.
+    used_classes: set[str] = field(default_factory=set)
+    used_ids: set[str] = field(default_factory=set)
+
+    #: True when any document carries a script. A script can add a class at
+    #: runtime, which makes "this selector matches nothing" a statement about
+    #: the book as it sits on disk and not about the book as it is read.
+    scripted: bool = False
+
     #: Documents where out-of-flow positioning was translated into an in-flow
     #: equivalent that renders the same way. The content stage does the work —
     #: it is the only stage that can see whether a rule's target is the whole

@@ -108,6 +108,10 @@ CATALOGUE: dict[str, str] = {
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
+    "css.unreachable-rules-found": "{count} of {total} rule(s) — {share}% of this stylesheet — name a class or id that appears nowhere in the book",
+    "css.unreachable-rules-removed": "{count} of {total} rule(s) removed — {share}% of this stylesheet — naming a class or id that appears nowhere in the book",
+    "css.unreachable-rules-scripted": "{count} rule(s) match nothing today, and are kept because the book carries a script",
+    "css.unreachable-rules-unverified": "{count} rule(s) look unreachable but the sheet did not survive the check, so it was left as it was",
     "css.position-kept": "{count} absolute or fixed position rule(s) were kept",
     "css.position-kept-reflowable": "{count} absolute or fixed position rule(s) were kept in a reflowable book",
     "xhtml.position-pinned-in-flow": "content pinned to the foot of the page was translated into an in-flow equivalent",
@@ -285,6 +289,10 @@ CATALOGUE_PL: dict[str, str] = {
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
+    'css.unreachable-rules-found': '{count} z {total} {count:reguła nazywa|reguły nazywają|reguł nazywa} klasę lub id, których nie ma nigdzie w książce — {share}% tego arkusza',
+    'css.unreachable-rules-removed': 'usunięto {count} z {total} {count:regułę|reguły|reguł} nazywającą klasę lub id, których nie ma nigdzie w książce — {share}% tego arkusza',
+    'css.unreachable-rules-scripted': '{count} {count:reguła nie pasuje|reguły nie pasują|reguł nie pasuje} dziś do niczego i zostaje, bo książka niesie skrypt',
+    'css.unreachable-rules-unverified': '{count} {count:reguła wygląda|reguły wyglądają|reguł wygląda} na nieosiągalne, ale arkusz nie przeszedł kontroli, więc został bez zmian',
     'css.position-kept': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego',
     'css.position-kept-reflowable': 'zachowano {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego w książce przepływalnej',
     'xhtml.position-pinned-in-flow': 'treść przypiętą do stopki strony przetłumaczono na odpowiednik działający w przepływie',
@@ -412,6 +420,14 @@ DETAILS: dict[str, str] = {
         "e.g. {examples} — inherited from the source and left as-is, since guessing serif vs sans-serif could change how the book looks.",
     "css.invalid-value-corrected":
         "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant.",
+    "css.unreachable-rules-found":
+        "Shops ship one house stylesheet into every title they sell, and most of it is for markup the particular book has not got — `td.proc4` in a novel with no tables. It changes no pixel either way. Use --strict to remove it; this mode reports and keeps, because a selector matching nothing in the documents we parsed is not the same claim as a selector matching nothing.",
+    "css.unreachable-rules-removed":
+        "Only rules whose every branch names a class or id absent from the whole book. A bare tag selector, an attribute selector, a pseudo-class and anything inside @media are never touched. The cut is then checked by re-parsing the sheet and comparing the survivors; a sheet that does not match is put back untouched.",
+    "css.unreachable-rules-scripted":
+        "A script can add a class while the book is being read, so 'this matches nothing' would be a statement about the file rather than about the reading.",
+    "css.unreachable-rules-unverified":
+        "The rules stay. A removal that cannot be shown to have taken exactly what it meant to is not one this tool makes.",
     "css.position-kept":
         "This is a fixed-layout book, where out-of-flow positioning is how it works.",
     "xhtml.position-pinned-in-flow":
@@ -643,6 +659,14 @@ DETAILS_PL: dict[str, str] = {
         "Użyj --strict, żeby je usunąć.",
     "css.invalid-value-corrected":
         "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal”.",
+    "css.unreachable-rules-found":
+        "Księgarnie wgrywają jeden firmowy arkusz do każdego sprzedawanego tytułu i większość z niego dotyczy znaczników, których dana książka nie ma — `td.proc4` w powieści bez tabel. Tak czy inaczej nie zmienia to ani piksela. Użyj --strict, żeby to usunąć; ten tryb raportuje i zostawia, bo selektor niepasujący do niczego w sparsowanych przez nas dokumentach to nie to samo, co selektor niepasujący do niczego.",
+    "css.unreachable-rules-removed":
+        "Tylko reguły, których każda gałąź nazywa klasę lub id nieobecne w całej książce. Goły selektor znacznika, selektor atrybutu, pseudoklasa i wszystko wewnątrz @media pozostają nietknięte. Cięcie jest następnie sprawdzane przez ponowne sparsowanie arkusza i porównanie tego, co zostało; arkusz, który się nie zgadza, wraca bez zmian.",
+    "css.unreachable-rules-scripted":
+        "Skrypt może dodać klasę w trakcie czytania, więc „nie pasuje do niczego” byłoby zdaniem o pliku, a nie o lekturze.",
+    "css.unreachable-rules-unverified":
+        "Reguły zostają. Usunięcia, o którym nie da się wykazać, że zabrało dokładnie to, co miało, to narzędzie nie robi.",
     "css.position-kept":
         "To książka o stałym układzie, w której pozycjonowanie poza przepływem jest sposobem działania.",
     "xhtml.position-pinned-in-flow":
