@@ -1,6 +1,6 @@
 {
   "source": "sha256:d28776b446000a23906696a730c36180fe983a4d7d80fdfcabce7c0c85418e0f",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -50,9 +50,9 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 7,
+      "info": 9,
       "fix": 25,
-      "preserved": 3,
+      "preserved": 4,
       "warn": 1
     },
     "rules": {
@@ -60,6 +60,7 @@
       "a11y.table-without-headers": 1,
       "css.font-stack-generic-missing": 1,
       "css.reader-property-kept": 1,
+      "css.unreachable-rules-found": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -70,11 +71,14 @@
       "profile.duplicate-classes-found": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
+      "xhtml.empty-span-found": 1,
       "xhtml.entities-rewritten": 17,
-      "xhtml.image-paragraph-centred": 2,
-      "xhtml.inline-promoted": 3
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.inline-promoted": 3,
+      "xhtml.orphaned-styling-restored": 1
     },
-    "output": "sha256:d758058ef664ab833b686613f289438a136ae710b1d5ee499bf7afbc1f1ffbe3",
+    "output": "sha256:68154436921b7458824425066edf313cf333a240482cd5dfbf04e157aab5acaf",
     "text_characters": 1016167,
     "text_added": 0,
     "text_invariant": true,
@@ -91,8 +95,8 @@
     "written": true,
     "report": {
       "info": 7,
-      "fix": 26,
-      "preserved": 2,
+      "fix": 28,
+      "preserved": 3,
       "warn": 1
     },
     "rules": {
@@ -100,6 +104,7 @@
       "a11y.table-without-headers": 1,
       "css.font-stack-generic-missing": 1,
       "css.reader-property-removed": 1,
+      "css.unreachable-rules-removed": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -110,11 +115,14 @@
       "profile.duplicate-classes-found": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
+      "xhtml.empty-span-unwrapped": 1,
       "xhtml.entities-rewritten": 17,
-      "xhtml.image-paragraph-centred": 2,
-      "xhtml.inline-promoted": 3
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.inline-promoted": 3,
+      "xhtml.orphaned-styling-restored": 1
     },
-    "output": "sha256:2c85dcbe7cc408c5c75380d449c9977305ebba5b661edb977ed629721ddb957f",
+    "output": "sha256:09fb4a70d5458d316ddc08e02db6414e089e69958f7ba7b04c4b4cfef141e63e",
     "text_characters": 1016167,
     "text_added": 0,
     "text_invariant": true,

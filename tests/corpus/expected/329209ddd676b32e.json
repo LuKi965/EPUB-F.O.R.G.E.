@@ -1,6 +1,6 @@
 {
   "source": "sha256:329209ddd676b32e793abf1a131393d96a08a4b3eb0ac26ccb25beab921c6c20",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -49,7 +49,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 6,
+      "info": 7,
       "fix": 27,
       "preserved": 29,
       "warn": 2
@@ -59,6 +59,7 @@
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
       "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-found": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -91,7 +92,7 @@
     "written": true,
     "report": {
       "info": 6,
-      "fix": 27,
+      "fix": 28,
       "preserved": 29,
       "warn": 2
     },
@@ -100,6 +101,7 @@
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
       "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-removed": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -115,7 +117,7 @@
       "xhtml.inline-promoted": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:237ddca569b8473bc35453bef230c9ecaa60b9a2f38f56aabbefe438906a77ea",
+    "output": "sha256:427479b42bfb6f44ebb54c3b32d31fa7a01ab87bd78bfe766f2f16b61c893cf2",
     "text_characters": 514007,
     "text_added": 0,
     "text_invariant": true,

@@ -1,6 +1,6 @@
 {
   "source": "sha256:1425eb5574d468e8774602428d3cd089773ad1ed6b2bf0d05779853ea15b85eb",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -49,13 +49,14 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 6,
-      "fix": 49,
-      "preserved": 2
+      "info": 8,
+      "fix": 50,
+      "preserved": 3
     },
     "rules": {
       "a11y.metadata-added": 1,
       "css.font-stack-generic-missing": 2,
+      "css.unreachable-rules-found": 2,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -68,10 +69,12 @@
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.entities-rewritten": 34,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.orphaned-styling-restored": 1,
       "xhtml.presentational-markup-converted": 1,
       "xhtml.watermark-consolidated": 1
     },
-    "output": "sha256:39a7acb2010d8ad97e6eb2c08c201f66823756324a78f92b50cfa1a28476fc38",
+    "output": "sha256:33ca00d08892251362345690af04ba317dab2160880aa1c14055194051dec630",
     "text_characters": 905619,
     "text_added": 0,
     "text_invariant": true,
@@ -88,12 +91,13 @@
     "written": true,
     "report": {
       "info": 6,
-      "fix": 49,
+      "fix": 52,
       "preserved": 2
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "css.font-stack-generic-missing": 2,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-removed": 2,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -106,10 +110,12 @@
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.entities-rewritten": 34,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.orphaned-styling-restored": 1,
       "xhtml.presentational-markup-converted": 1,
       "xhtml.watermark-consolidated": 1
     },
-    "output": "sha256:39a7acb2010d8ad97e6eb2c08c201f66823756324a78f92b50cfa1a28476fc38",
+    "output": "sha256:91cf9d84f249ed08c463f9883a088c3ee5160e51797b6a20168028160f17e1c6",
     "text_characters": 905619,
     "text_added": 0,
     "text_invariant": true,

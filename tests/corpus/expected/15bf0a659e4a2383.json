@@ -1,6 +1,6 @@
 {
   "source": "sha256:15bf0a659e4a238383ee210d1c1dc91ecad1fc586baa86edfbbbf51e983984b9",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -42,7 +42,7 @@
     "written": true,
     "report": {
       "info": 4,
-      "fix": 2,
+      "fix": 3,
       "warn": 1
     },
     "rules": {
@@ -52,7 +52,8 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "profile.body-text-inconsistent": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.title-filled": 1
     },
     "output": "sha256:bf2dfc69200a5fc9d87d8f95c63a7543ded10dce150d6fe47952821eb964a5a5",
     "text_characters": 6188,
@@ -71,7 +72,7 @@
     "written": true,
     "report": {
       "info": 4,
-      "fix": 2,
+      "fix": 3,
       "warn": 1
     },
     "rules": {
@@ -81,7 +82,8 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "profile.body-text-inconsistent": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "xhtml.title-filled": 1
     },
     "output": "sha256:bf2dfc69200a5fc9d87d8f95c63a7543ded10dce150d6fe47952821eb964a5a5",
     "text_characters": 6188,

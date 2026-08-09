@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import functools
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -47,6 +48,21 @@ class ValidationResult:
     #: else's disk; without the identifiers the next step is to request the
     #: books, which the corpus exists so as never to have to do.
     codes: "dict[str, int]" = field(default_factory=dict)
+    #: The *shape* of each error message, with anything book-specific masked:
+    #: ``{'Error while parsing file: element "X" not allowed here': 3}``.
+    #:
+    #: The identifiers alone stopped being enough after one run. `RSC-005` is
+    #: EPUBCheck's catch-all for "this file does not match the schema", and when
+    #: eleven books each gained exactly one of them, the code said only that
+    #: something in a document was wrong — not which something. A code that
+    #: covers a hundred different defects is a smoke alarm that only says
+    #: "building".
+    #:
+    #: So the sentence is kept too, with every quoted literal that is not a
+    #: plain markup name replaced by `…`. Element and attribute names are HTML
+    #: vocabulary and say nothing about whose book this is; a value, a path or a
+    #: fragment of text might, and goes.
+    shapes: "dict[str, int]" = field(default_factory=dict)
 
     @property
     def clean(self) -> bool:
@@ -168,6 +184,39 @@ def _no_console() -> dict:
     return options
 
 
+#: How many distinct message shapes one verdict may record.
+MAX_SHAPES = 12
+
+#: A plain markup name: what an element or an attribute is called. Short, no
+#: spaces, no slashes. Everything else quoted in a message is treated as
+#: possibly the book's own and masked.
+_MARKUP_NAME = re.compile(r"^[A-Za-z_][\w:.-]{0,39}$")
+
+_QUOTED = re.compile(r"""(["\u201c\u201d'])(.*?)\1""", re.DOTALL)
+
+
+def message_shape(text: str) -> str:
+    """An EPUBCheck sentence with anything book-specific taken out.
+
+    `element "img" not allowed here` keeps its `img`, because that is HTML's
+    word and not the publisher's. `value of attribute "id" is invalid: "rozdz-Å›wit"`
+    loses the value, because that one came out of somebody's book.
+
+    Truncated, because the tail of a schema error is a list of every element
+    that would have been allowed instead, and it is very long and says nothing
+    the head has not already said.
+    """
+    if not text:
+        return ""
+
+    def mask(match: "re.Match") -> str:
+        inner = match.group(2)
+        return f'"{inner}"' if _MARKUP_NAME.match(inner) else '"…"'
+
+    cleaned = " ".join(_QUOTED.sub(mask, text).split())
+    return cleaned[:140]
+
+
 def _detail(result: "ValidationResult", content_untouched: bool) -> str:
     """What EPUBCheck said, and — where it matters — whose fault it is."""
     said = "; ".join(result.messages[:10])
@@ -235,6 +284,7 @@ def validate(
 
     result = ValidationResult(available=True)
     codes: Counter = Counter()
+    shapes: Counter = Counter()
     for message in payload.get("messages", []):
         severity = (message.get("severity") or "").upper()
         text = message.get("message", "").strip()
@@ -257,7 +307,13 @@ def validate(
             identifier = (message.get("ID") or message.get("id") or "").strip()
             if identifier:
                 codes[identifier] += 1
+            shape = message_shape(text)
+            if shape:
+                shapes[f"{identifier or '?'}: {shape}"] += 1
     result.codes = dict(sorted(codes.items()))
+    # Capped: a book with two hundred distinct complaints has one problem, and
+    # a signature is not the place to enumerate it.
+    result.shapes = dict(sorted(shapes.items())[:MAX_SHAPES])
 
     if report:
         if result.clean:

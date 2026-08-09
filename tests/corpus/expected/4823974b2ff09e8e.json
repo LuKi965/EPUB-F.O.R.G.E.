@@ -1,6 +1,6 @@
 {
   "source": "sha256:4823974b2ff09e8e856ded204294c91c2543c9ed72e615d4583200c5d0822750",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -47,14 +47,15 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 7,
+      "info": 9,
       "fix": 110,
-      "preserved": 3
+      "preserved": 4
     },
     "rules": {
       "a11y.metadata-added": 1,
       "css.font-stack-generic-missing": 1,
       "css.reader-property-kept": 1,
+      "css.unreachable-rules-found": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -64,11 +65,14 @@
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
       "structure.relaid-out": 1,
+      "xhtml.empty-span-found": 1,
       "xhtml.entities-rewritten": 101,
-      "xhtml.image-paragraph-centred": 2,
-      "xhtml.inline-promoted": 5
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.inline-promoted": 5,
+      "xhtml.orphaned-styling-restored": 1
     },
-    "output": "sha256:5e012b3691972e1f0ba55ca19edd58282426f24d6b0d39a56f823b1e50e2c594",
+    "output": "sha256:9f4190660b607fa4b698722cf0a615854d5b388ce70bb4c3ac902d60744966f1",
     "text_characters": 692706,
     "text_added": 0,
     "text_invariant": true,
@@ -85,13 +89,14 @@
     "written": true,
     "report": {
       "info": 7,
-      "fix": 111,
-      "preserved": 2
+      "fix": 113,
+      "preserved": 3
     },
     "rules": {
       "a11y.metadata-added": 1,
       "css.font-stack-generic-missing": 1,
       "css.reader-property-removed": 1,
+      "css.unreachable-rules-removed": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -101,11 +106,14 @@
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
       "structure.relaid-out": 1,
+      "xhtml.empty-span-unwrapped": 1,
       "xhtml.entities-rewritten": 101,
-      "xhtml.image-paragraph-centred": 2,
-      "xhtml.inline-promoted": 5
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.inline-promoted": 5,
+      "xhtml.orphaned-styling-restored": 1
     },
-    "output": "sha256:4d734014094e8c0f0f1c033deb59462b2a082c61bf6140e1cc239b4aeb67351a",
+    "output": "sha256:fa8303d8cded31ee2dad848ac451a21041876e9d68a247f3589a37c780cba209",
     "text_characters": 692706,
     "text_added": 0,
     "text_invariant": true,

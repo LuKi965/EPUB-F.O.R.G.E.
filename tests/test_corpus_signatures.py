@@ -28,11 +28,11 @@ def without_epubcheck(monkeypatch):
 def shelf(root: pathlib.Path) -> pathlib.Path:
     """A library filed the way people file libraries: in folders."""
     root.mkdir(parents=True, exist_ok=True)
-    (root / "jednego wydawcy").mkdir()
-    (root / "jednego wydawcy" / "Fundacja").mkdir()
+    (root / "Autor").mkdir()
+    (root / "Autor" / "Cykl").mkdir()
     make_modern_epub(str(root / "na wierzchu.epub"), title="Pierwsza")
-    make_modern_epub(str(root / "jednego wydawcy" / "druga.epub"), title="Druga")
-    make_legacy_epub(str(root / "jednego wydawcy" / "Fundacja" / "trzecia.epub"))
+    make_modern_epub(str(root / "Autor" / "druga.epub"), title="Druga")
+    make_legacy_epub(str(root / "Autor" / "Cykl" / "trzecia.epub"))
     return root
 
 
@@ -53,7 +53,7 @@ class TestFindingTheBooks:
         """Two shelves may hold the same filename; the bare name would lie."""
         results = compare(shelf(tmp_path / "lib"), tmp_path / "sig", record=True)
         labels = {result.book for result in results}
-        assert str(pathlib.Path("jednego wydawcy/druga.epub")) in labels
+        assert str(pathlib.Path("Autor/druga.epub")) in labels
 
 
 class TestTheTextInvariantMeansWhatItSays:

@@ -155,5 +155,27 @@
     },
     "clean": false,
     "note": "The same 14 and 14 as 0.2.12, and this time the run says what they are: every error container-only mode introduced is `RSC-005`. On the one book of that shape I could reach — the owner's Book 7, sent separately — RSC-005 reads *Element \"title\" must not be empty*. EPUB 2 allowed an empty <title>; EPUB 3 does not, and this mode rebuilds the package as EPUB 3 around content it will not open. So they were ours after all, made by the upgrade rather than carried from the book. Fixed after this run by filling an empty title on the bytes, the second edit of the same kind as the DOCTYPE. Thirteen books diagnosed without anybody sending a book, which is what the identifiers were added for. The owner's own ledger holds this run twice — Record was pressed twice over the same shelf — and it is entered once here, because it is one measurement."
+  },
+  {
+    "version": "0.2.14",
+    "date": "2026-08-09",
+    "books": 93,
+    "modes": [
+      "minimal",
+      "preserve",
+      "strict"
+    ],
+    "failed": 0,
+    "errors": 0,
+    "introduced": 10,
+    "carried": 14,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "codes": {
+      "RSC-005": 11
+    },
+    "clean": false,
+    "note": "Filling the empty <title> closed four of the fourteen; eleven books now gain exactly one error each, still RSC-005. That is where the message identifiers stop being enough: RSC-005 is EPUBCheck's catch-all for \"this file does not match the schema\", so eleven books breaking on it says only that something in a document is wrong. From 0.2.15 the signature keeps the sentence too, with every quoted literal that is not a plain markup name masked — `element \"img\" not allowed here` keeps its `img`, an id or a path becomes `…`. Everything else on this run is the new work landing on a real shelf: 142 documents had the publisher's own rule put back, 133 stylesheets lost rules for markup their book does not contain, 119 spans were unwrapped, and two pages pinned out of the flow were translated into an in-flow equivalent — one of them the dedication that used to come out blank on the owner's reader, confirmed fixed on the device."
   }
 ]

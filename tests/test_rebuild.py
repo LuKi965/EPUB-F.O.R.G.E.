@@ -698,7 +698,7 @@ class TestPlaceholderAltDetection:
     @pytest.mark.parametrize(
         "alt",
         [
-            "Geralt walczy z wiedźminem",
+            "Rycerz walczy ze smokiem",
             "Portret autora w młodości",
             "Mapa Królestw Północy",
         ],

@@ -1,6 +1,6 @@
 {
   "source": "sha256:f23cce66a1fb4c01adb30309fcc38e5d0b03a44c9f8180a841abd3c150ce0064",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -12,7 +12,7 @@
     "written": true,
     "report": {
       "info": 6,
-      "fix": 7,
+      "fix": 8,
       "warn": 1
     },
     "rules": {
@@ -27,29 +27,28 @@
       "reader.manifest-type-corrected": 3,
       "reader.toc-from-ncx": 1,
       "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
       "xhtml.untouched-except-doctype": 1
     },
-    "output": "sha256:1b4e21062b9940957ddb86515d4622a1b41ecf3dd34e4c5086bc693efca2f29a",
+    "output": "sha256:9298a8147c339526e2cc4b9f68b13fd021b89c09dc785440417d6120f510f188",
     "text_characters": 372966,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 2523,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0,
-      "codes": {
-        "RSC-005": 1
-      }
+      "codes": {}
     }
   },
   "preserve": {
     "written": true,
     "report": {
-      "info": 4,
-      "fix": 45,
-      "preserved": 4,
+      "info": 6,
+      "fix": 47,
+      "preserved": 3,
       "warn": 1
     },
     "rules": {
@@ -57,8 +56,9 @@
       "a11y.placeholder-alt": 1,
       "css.font-stack-generic-missing": 1,
       "css.invalid-value-corrected": 1,
-      "css.position-kept-reflowable": 1,
+      "css.position-superseded": 1,
       "css.reader-property-kept": 1,
+      "css.unreachable-rules-found": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -71,10 +71,12 @@
       "xhtml.cover-fitted": 3,
       "xhtml.entities-rewritten": 29,
       "xhtml.image-paragraph-centred": 3,
+      "xhtml.position-pinned-in-flow": 1,
+      "xhtml.title-filled": 1,
       "xhtml.watermark-consolidated": 1,
       "xhtml.watermark-kept-personal-data": 1
     },
-    "output": "sha256:5252e0a6b26cdfbc61703a3102c4edb82c9a25fd04a63de6728a483c4c3d1a2e",
+    "output": "sha256:cc93f4cd83d4af1ec850ad20f67a6966de423739f58473ed89ed9e7cc349018d",
     "text_characters": 372966,
     "text_added": 0,
     "text_invariant": true,
@@ -90,8 +92,8 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
-      "fix": 47,
+      "info": 5,
+      "fix": 49,
       "preserved": 2,
       "warn": 1
     },
@@ -100,8 +102,9 @@
       "a11y.placeholder-alt": 1,
       "css.font-stack-generic-missing": 1,
       "css.invalid-value-corrected": 1,
-      "css.position-removed": 1,
+      "css.position-superseded": 1,
       "css.reader-property-removed": 1,
+      "css.unreachable-rules-removed": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -114,10 +117,12 @@
       "xhtml.cover-fitted": 3,
       "xhtml.entities-rewritten": 29,
       "xhtml.image-paragraph-centred": 3,
+      "xhtml.position-pinned-in-flow": 1,
+      "xhtml.title-filled": 1,
       "xhtml.watermark-consolidated": 1,
       "xhtml.watermark-kept-personal-data": 1
     },
-    "output": "sha256:941e35d00022bc151558f4669e2b4858ca5a82acd029bb197580b0d5a12879e8",
+    "output": "sha256:59519b6dbc7022994e817ff0df944aa7100b7011772390f69c0b008920e4e95c",
     "text_characters": 372966,
     "text_added": 0,
     "text_invariant": true,

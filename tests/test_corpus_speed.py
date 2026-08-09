@@ -470,7 +470,27 @@ class TestARunSaysWhichRuleBroke:
         }
         assert _reusable_verdict(stored, "sha256:abc") is None
 
+        # `codes` alone is no longer enough for a verdict that found something.
+        # `RSC-005` turned out to be EPUBCheck's catch-all — eleven books each
+        # gained exactly one and it said only "a file does not match the
+        # schema" — so a verdict with errors has to carry the sentence too.
         stored["epubcheck"]["codes"] = {"RSC-005": 1}
+        assert _reusable_verdict(stored, "sha256:abc") is None
+
+        stored["epubcheck"]["shapes"] = {"RSC-005: attribute \"width\" is invalid": 1}
+        assert _reusable_verdict(stored, "sha256:abc") == stored["epubcheck"]
+
+    def test_a_clean_verdict_needs_no_explanation(self):
+        """Nothing to explain, nothing to record: a book that validates clean is
+        reused on its counts, and does not carry an empty dictionary of
+        sentences in ninety-three signatures to say nothing ninety-three times."""
+        from epubforge.corpus import _reusable_verdict, checker_identity
+
+        stored = {
+            "output": "sha256:abc",
+            "checker": checker_identity(),
+            "epubcheck": {"errors": 0, "warnings": 0, "fatal": 0, "codes": {}},
+        }
         assert _reusable_verdict(stored, "sha256:abc") == stored["epubcheck"]
 
     def test_only_the_rules_the_rebuild_broke_are_blamed(self):

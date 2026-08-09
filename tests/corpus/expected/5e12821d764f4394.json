@@ -1,6 +1,6 @@
 {
   "source": "sha256:5e12821d764f43946455e2a6c1cba523822dd291e63ead8c78d158698be48f4c",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -12,7 +12,7 @@
     "written": true,
     "report": {
       "info": 8,
-      "fix": 12,
+      "fix": 13,
       "warn": 2
     },
     "rules": {
@@ -30,28 +30,27 @@
       "reader.manifest-type-corrected": 8,
       "reader.toc-from-ncx": 1,
       "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
       "xhtml.untouched-except-doctype": 1
     },
-    "output": "sha256:77cea3497246448fe5541673092075127721faf3a9e3452eeb63cda83abd8a50",
+    "output": "sha256:b9487ee5a8721c023d9877c3af5d0c7083b4f1b930f82511779ff38f8ff623a2",
     "text_characters": 888225,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 6068,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0,
-      "codes": {
-        "RSC-005": 1
-      }
+      "codes": {}
     }
   },
   "preserve": {
     "written": true,
     "report": {
-      "info": 6,
-      "fix": 130,
+      "info": 13,
+      "fix": 131,
       "preserved": 8,
       "warn": 2
     },
@@ -59,6 +58,7 @@
       "a11y.metadata-added": 1,
       "a11y.missing-alt": 1,
       "a11y.placeholder-alt": 1,
+      "css.unreachable-rules-found": 1,
       "css.vendor-at-rule-kept": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
@@ -71,8 +71,10 @@
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
+      "xhtml.empty-span-found": 6,
       "xhtml.entities-rewritten": 116,
       "xhtml.image-paragraph-kept": 6,
+      "xhtml.title-filled": 1,
       "xhtml.watermark-consolidated": 1,
       "xhtml.watermark-kept": 1
     },
@@ -93,7 +95,7 @@
     "written": true,
     "report": {
       "info": 6,
-      "fix": 131,
+      "fix": 139,
       "preserved": 7,
       "warn": 2
     },
@@ -102,6 +104,7 @@
       "a11y.missing-alt": 1,
       "a11y.placeholder-alt": 1,
       "css.kindle-media-removed": 1,
+      "css.unreachable-rules-removed": 1,
       "nav.generated": 1,
       "nav.ncx-written": 1,
       "package.upgraded": 1,
@@ -113,12 +116,14 @@
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
+      "xhtml.empty-span-unwrapped": 6,
       "xhtml.entities-rewritten": 116,
       "xhtml.image-paragraph-kept": 6,
+      "xhtml.title-filled": 1,
       "xhtml.watermark-consolidated": 1,
       "xhtml.watermark-kept": 1
     },
-    "output": "sha256:799b859189fd11b3bfb6cf30bd87301e98015e1ced12dbae844f65bd3b36b1f1",
+    "output": "sha256:b4736fc8c652e2db91c4936a3ebaf2e8a4c6b61524a3360712fb5b08160509b7",
     "text_characters": 888225,
     "text_added": 0,
     "text_invariant": true,

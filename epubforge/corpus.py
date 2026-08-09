@@ -214,6 +214,13 @@ def _reusable_verdict(previous: "dict | None", output_digest: str) -> "dict | No
     # recorded: it is what a clean book has.
     if verdict.get("codes") is None:
         return None
+    # `shapes` arrived one release after `codes`, for the same reason and with
+    # the same consequence: a verdict taken before it existed explains nothing,
+    # and on a corpus whose books never change it would be reused for ever.
+    # Absent is only allowed when there was nothing to explain.
+    if verdict.get("errors") or verdict.get("fatal"):
+        if verdict.get("shapes") is None:
+            return None
     return verdict
 
 
@@ -324,12 +331,18 @@ def _verdict(check) -> dict:
     `RSC-005` names a rule in EPUBCheck's own vocabulary and nothing about the
     book, so it stays inside the promise this file opens with.
     """
-    return {
+    verdict = {
         "errors": check.errors,
         "warnings": check.warnings,
         "fatal": check.fatal,
         "codes": check.codes,
     }
+    # Only when there is something to explain. A clean book recording an empty
+    # dictionary of shapes would put the field in ninety-three signatures to say
+    # nothing ninety-three times.
+    if check.shapes:
+        verdict["shapes"] = check.shapes
+    return verdict
 
 
 def signature(
@@ -371,8 +384,12 @@ def signature(
             previous or {}
         ).get("checker") != record["checker"]
         recorded = None if stale else (previous or {}).get("source_epubcheck")
-        if recorded is not None and recorded.get("codes") is None:
-            recorded = None  # counted before the identifiers existed; ask again
+        if recorded is not None and (
+            recorded.get("codes") is None
+            or ((recorded.get("errors") or recorded.get("fatal"))
+                and recorded.get("shapes") is None)
+        ):
+            recorded = None  # counted before we could explain it; ask again
         if recorded is None:
             recorded = _verdict(validate(str(book)))
         record["source_epubcheck"] = recorded
@@ -674,6 +691,11 @@ def compare(
 RUNS = "runs.json"
 
 
+def _new_shapes(source: dict, produced: dict) -> "Counter":
+    """The sentences EPUBCheck says about the output and not about the source."""
+    return Counter(produced.get("shapes") or {}) - Counter(source.get("shapes") or {})
+
+
 def _new_codes(source: dict, produced: dict) -> "Counter":
     """The EPUBCheck rules broken by the rebuild and not by the book.
 
@@ -781,6 +803,7 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
 
     errors = introduced = carried = 0
     blamed: Counter = Counter()
+    said: Counter = Counter()
     for result in results:
         path = signatures / f"{result.identifier}.json"
         if not path.is_file():
@@ -795,9 +818,11 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
                 introduced += max(0, count - source)
                 carried += min(count, source)
                 blamed.update(_new_codes(origin, check))
+                said.update(_new_shapes(origin, check))
             else:
                 errors += count
                 blamed.update(check.get("codes") or {})
+                said.update(check.get("shapes") or {})
     if not (errors or introduced or carried):
         return line
     parts = [f"{errors} EPUBCheck error(s) in modes that rewrite content"]
@@ -812,6 +837,11 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
             for code, count in sorted(blamed.items())
         )
         line += f"\nOurs, by EPUBCheck rule: {named}."
+    if said:
+        line += "\n" + "\n".join(
+            f"  {shape}" + (f" ×{count}" if count > 1 else "")
+            for shape, count in sorted(said.items())[:6]
+        )
     return line
 
 

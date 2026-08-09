@@ -38,6 +38,44 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The identifier stopped being enough, so the sentence is kept too
+
+0.2.14 over the same ninety-three books: filling the empty `<title>` closed four
+of the fourteen errors container-only mode introduced. **Eleven books now gain
+exactly one each, and all eleven are `RSC-005`** — which turns out to be
+EPUBCheck's catch-all for *this file does not match the schema*. Eleven books
+breaking on one identifier said only that something in a document was wrong. A
+code that covers a hundred defects is a smoke alarm that says "building".
+
+So a verdict now records the message as well, with every quoted literal that is
+not a plain markup name replaced by `…`. `element "img" not allowed here` keeps
+its `img`, because that is HTML's word; `value of attribute "id" is invalid:
+"…"` loses the value, because that one came out of somebody's book. Element and
+attribute names are vocabulary; values, paths and fragments are not.
+
+It answered on the first shelf it met — mine, six errors across thirty-two
+books:
+
+```
+4  RSC-005: value of attribute "height" is invalid; must be an integer
+2  RSC-005: value of attribute "width" is invalid; must be an integer
+```
+
+`<img width="50%">`. XHTML 1.1 allowed a percentage there; HTML5 wants an
+integer. The modes that rewrite content move it into CSS and come out clean;
+container-only mode does not open the document, so it stays.
+
+Which makes it a decision rather than a defect, and the same shape as `carried`
+against `introduced` one floor up: the book arrives valid as EPUB 2 and leaves
+invalid as EPUB 3, because the package was upgraded around content the mode
+promises not to touch. The options are written down in the roadmap; the choice
+waits for the full list of shapes from the next run, because a criterion built
+on `width` and `height` alone would be built on two thirds of the evidence.
+
+A verdict that found something and cannot explain it is no longer reused — the
+same rule the identifiers got, for the same reason. A clean verdict carries no
+explanation and needs none.
+
 ## 0.2.14 — alpha — 2026-08-09
 
 ### Roadmap point [5], and a switch on everything that deletes

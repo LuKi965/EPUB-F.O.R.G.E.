@@ -1,6 +1,6 @@
 {
   "source": "sha256:3118ad51b89e13dab558f042e2319b58b7ea06849f09cc1485bc774755d823da",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -46,8 +46,8 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 7,
-      "fix": 5,
+      "info": 9,
+      "fix": 8,
       "preserved": 35,
       "warn": 3
     },
@@ -56,6 +56,7 @@
       "a11y.missing-alt": 1,
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
+      "css.unreachable-rules-found": 2,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
@@ -67,9 +68,10 @@
       "xhtml.cover-described": 1,
       "xhtml.image-paragraph-kept": 35,
       "xhtml.inline-promoted": 1,
+      "xhtml.orphaned-styling-restored": 3,
       "xhtml.watermark-consolidated": 1
     },
-    "output": "sha256:0c8e30e9dd5aa34c263fe3fc2b34c2482086415a29b498a18705f2c052ea0bd5",
+    "output": "sha256:c2791a21445207c45a3437ee291c83222b33b99badb69a622463c9e2c344b5ba",
     "text_characters": 101799,
     "text_added": 0,
     "text_invariant": true,
@@ -86,7 +88,7 @@
     "written": true,
     "report": {
       "info": 7,
-      "fix": 5,
+      "fix": 10,
       "preserved": 35,
       "warn": 3
     },
@@ -95,6 +97,7 @@
       "a11y.missing-alt": 1,
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
+      "css.unreachable-rules-removed": 2,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
@@ -106,9 +109,10 @@
       "xhtml.cover-described": 1,
       "xhtml.image-paragraph-kept": 35,
       "xhtml.inline-promoted": 1,
+      "xhtml.orphaned-styling-restored": 3,
       "xhtml.watermark-consolidated": 1
     },
-    "output": "sha256:0c8e30e9dd5aa34c263fe3fc2b34c2482086415a29b498a18705f2c052ea0bd5",
+    "output": "sha256:60616a92dd72df39af6f0fe63a096523c329dfdf62d5d63db28430d4dd6f87af",
     "text_characters": 101799,
     "text_added": 0,
     "text_invariant": true,
