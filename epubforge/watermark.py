@@ -13,14 +13,54 @@ every single document — 34 copies in one book measured here — which means:
 * an ``!important`` inline style is duplicated once per document;
 * the one-pixel text still generates a line box at the foot of each chapter.
 
-None of that is required for the mark to work. Consolidating the styling and
-hiding the token from assistive technology leaves it fully intact and
-extractable, while the book stops paying for it.
+None of that is required for the mark to work, so there is a choice to make
+about where the token lives, and :data:`MODES` is that choice.
+
+The first answer this tool gave was ``consolidate``: one CSS rule instead of
+thirty-four inline styles, plus ``aria-hidden`` so assistive software skips the
+token. That claim was too confident. ``aria-hidden`` binds a conforming
+accessibility tree; it does not bind the text-to-speech engine built into a
+reader, which happily reads whatever it finds laid out on the page — and a
+token at ``font-size: 0`` is still laid out. The owner said so plainly, and he
+is right: a marker that gets spoken aloud at the end of every chapter breaks
+the book, whichever pixel size it is set at.
+
+Hence ``gather``: the token moves out of the body altogether and into the
+document's own ``<head>`` as a ``<meta>``. Nothing renders it, nothing speaks
+it, nothing paginates around it, and it is still there — in the same file, in
+the same document, one grep away — which is everything the mark was for. And
+hence ``remove``, which does not keep it, for people who have decided that for
+themselves.
+
+Neither is the default, and the reason is K1: *no character of the book's text
+is lost*. Taking the token out of the reading order loses a character of the
+reading order — it is a small and deliberate loss with a good argument behind
+it, and it is still a loss, so it is a choice somebody makes rather than one
+that is made for them. The default does the most that can be done without
+touching the text.
 """
 
 from __future__ import annotations
 
 import re
+
+#: What may be done with an opaque marker, least invasive first.
+#:
+#: * ``keep`` — the markup comes out as it went in.
+#: * ``consolidate`` — the token stays where it is; the repeated inline styling
+#:   becomes one rule and the element is hidden from the accessibility tree.
+#: * ``gather`` — the token moves to ``<head>`` as document metadata.
+#: * ``remove`` — the token is deleted.
+#:
+#: Only the last one loses anything, and it is never a default anywhere: the
+#: owner's standing rule is that whatever the application deletes must be
+#: something a person chose, not something that happened to them.
+MODES = ("keep", "consolidate", "gather", "remove")
+
+#: Where a gathered token goes. A metadata name of our own rather than one of
+#: the registered ones, so nothing else can mistake it for a claim about the
+#: document; EPUBCheck 5.2.1 accepts it, which was checked before it shipped.
+META_NAME = "epubforge-watermark"
 
 #: Class added to every normalised marker so the styling lives in one rule.
 MARKER_CLASS = "epubforge-watermark"

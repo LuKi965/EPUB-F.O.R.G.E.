@@ -287,6 +287,8 @@ class ContentStage(Stage):
         # A watermark repeats across every document, so its findings are summed
         # and reported once rather than thirty-four times.
         self._watermarks_consolidated = 0
+        self._watermarks_relocated = 0
+        self._watermarks_removed = 0
         self._watermark_documents = 0
         self._watermark_tokens: set[str] = set()
         self._watermark_notices: list[str] = []
@@ -534,6 +536,33 @@ class ContentStage(Stage):
                 "xhtml.watermark-consolidated",
                 values={
                     "count": self._watermarks_consolidated,
+                    "documents": self._watermark_documents,
+                    "tokens": len(self._watermark_tokens),
+                },
+            )
+        if self._watermarks_relocated:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.watermark-relocated",
+                values={
+                    "count": self._watermarks_relocated,
+                    "documents": self._watermark_documents,
+                    "tokens": len(self._watermark_tokens),
+                    "name": watermark.META_NAME,
+                },
+            )
+        if self._watermarks_removed:
+            # A warning rather than a fix, and deliberately so: this is the one
+            # place the tool destroys something a publisher put in the file. It
+            # only happens because somebody asked, and the report should say it
+            # loudly enough that they remember asking.
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.watermark-removed",
+                values={
+                    "count": self._watermarks_removed,
                     "documents": self._watermark_documents,
                     "tokens": len(self._watermark_tokens),
                 },
@@ -1528,19 +1557,25 @@ class ContentStage(Stage):
             )
 
     def _watermarks(self, ctx: Context, root, resource) -> None:
-        """Consolidate a publisher's per-purchase marker without touching it.
+        """Deal with a publisher's per-purchase marker, as the caller asked.
 
-        The token text is left exactly as found — it is the publisher's
-        traceability mark and removing it would defeat its purpose. What goes is
-        the collateral damage: the ``!important`` inline style repeated in every
-        document, and the token's presence in the reading order, where a screen
-        reader announces it character by character at the end of each chapter.
+        A visible notice is never touched under any mode: it is a sentence the
+        buyer is meant to read. What this handles is the opaque token, and what
+        happens to it is :attr:`Policy.watermarks` — see
+        :mod:`epubforge.watermark` for why the default moves it rather than
+        merely hiding it.
         """
-        if not ctx.policy.normalize_watermarks:
+        mode = ctx.policy.watermarks
+        if mode == "keep":
             return
 
         consolidated = 0
         notices: list[str] = []
+        # Collected rather than acted on in the loop: `iter_elements` walks the
+        # tree it is being asked about, and removing from underneath it is how
+        # the second marker in a document gets skipped.
+        displaced: list = []
+        tokens: list[str] = []
 
         for element in xhtml.iter_elements(root):
             if len(element) or xhtml.local_name(element).lower() in {"html", "head", "body"}:
@@ -1559,21 +1594,63 @@ class ContentStage(Stage):
                 continue
             self._watermark_tokens.add(text)
 
-            element.attrib.pop("style", None)
-            classes = (element.get("class") or "").split()
-            if watermark.MARKER_CLASS not in classes:
-                classes.append(watermark.MARKER_CLASS)
-            element.set("class", " ".join(classes))
-            # Keeps the token in the file and out of the spoken reading order.
-            element.set("aria-hidden", "true")
-            consolidated += 1
+            if mode == "consolidate":
+                element.attrib.pop("style", None)
+                classes = (element.get("class") or "").split()
+                if watermark.MARKER_CLASS not in classes:
+                    classes.append(watermark.MARKER_CLASS)
+                element.set("class", " ".join(classes))
+                # Hides it from the accessibility tree. Not from a reader's own
+                # text-to-speech, which is why this is no longer the default.
+                element.set("aria-hidden", "true")
+                consolidated += 1
+            else:
+                displaced.append(element)
+                if text not in tokens:
+                    tokens.append(text)
 
         if consolidated:
             for sheet in self._linked_stylesheets(ctx, root, resource):
                 ctx.watermark_stylesheets.add(sheet)
             self._watermarks_consolidated += consolidated
             self._watermark_documents += 1
+
+        if displaced:
+            if mode == "gather":
+                self._gather_tokens(root, tokens)
+                self._watermarks_relocated += len(displaced)
+            else:
+                self._watermarks_removed += len(displaced)
+            for element in displaced:
+                # Not `parent.remove`: the marker sits at the end of a chapter
+                # and whatever whitespace or text trailed it belongs to the
+                # chapter, not to the marker.
+                self._unwrap(element, keep_children=False)
+            self._watermark_documents += 1
+
         self._watermark_notices.extend(notices)
+
+    def _gather_tokens(self, root, tokens: list[str]) -> None:
+        """Park the tokens in the document's own ``<head>``.
+
+        One ``<meta>`` per distinct token, in the document the token came from,
+        so a shop tracing a leak finds it exactly where it put it. The skeleton
+        pass guarantees a ``<head>`` exists by the time this runs.
+        """
+        head = root.find(xhtml.qname("head"))
+        if head is None:
+            return
+        already = {
+            meta.get("content")
+            for meta in head.iter(xhtml.qname("meta"))
+            if meta.get("name") == watermark.META_NAME
+        }
+        for token in tokens:
+            if token in already:
+                continue
+            meta = etree.SubElement(head, xhtml.qname("meta"))
+            meta.set("name", watermark.META_NAME)
+            meta.set("content", token)
 
     def _linked_stylesheets(self, ctx: Context, root, resource) -> list[str]:
         found = []

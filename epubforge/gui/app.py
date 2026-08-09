@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import resources, version_string
+from .. import resources, version_string, watermark
 from ..pipeline import Status, rebuild
 from ..policy import Policy
 from ..quips import quip_for
@@ -352,6 +352,25 @@ class MainWindow(QMainWindow):
         # feature: whatever the application ever deletes must be optional to
         # untick, or asked about first.
         self.dead_check = self._checkbox(layout, "policy.dead", checked=False)
+
+        watermark_label = QLabel(tr("policy.watermark.label"))
+        watermark_label.setObjectName("sectionLabel")
+        watermark_label.setWordWrap(True)
+        watermark_label.setToolTip(tr("policy.watermark.tip"))
+        layout.addWidget(watermark_label)
+        self.watermark_label = watermark_label
+
+        self.watermark_combo = QComboBox()
+        self.watermark_combo.setToolTip(tr("policy.watermark.tip"))
+        for index, value in enumerate(watermark.MODES):
+            key = f"policy.watermark.{value}"
+            self.watermark_combo.addItem(tr(key), value)
+            # Each option removes a different amount, and one of them removes
+            # the token altogether — nobody should have to guess which.
+            self.watermark_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.watermark_combo.setCurrentIndex(watermark.MODES.index(Policy().watermarks))
+        layout.addWidget(self.watermark_combo)
+
         self.validate_check = self._checkbox(
             layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
         )
@@ -421,7 +440,7 @@ class MainWindow(QMainWindow):
         """Minimal mode regenerates only the container, so content knobs do nothing."""
         content_mode = self.mode_combo.currentData() != "minimal"
         for widget in (self.orphans_check, self.layout_check, self.scripts_check,
-                       self.dead_check):
+                       self.dead_check, self.watermark_combo, self.watermark_label):
             widget.setEnabled(content_mode)
         # Follows the mode rather than overriding it: "force the standard"
         # means tidiness wins, so it arrives ticked — and stays untickable.
@@ -539,6 +558,7 @@ class MainWindow(QMainWindow):
             policy.reorganize_files = self.layout_check.isChecked()
             policy.strip_scripts = self.scripts_check.isChecked()
             policy.remove_dead = self.dead_check.isChecked()
+            policy.watermarks = self.watermark_combo.currentData()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),

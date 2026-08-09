@@ -38,6 +38,48 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Where the shop's watermark goes is now a question with four answers
+
+The tool consolidated a shop's tracking token — one CSS rule instead of an
+inline `!important` in every document, plus `aria-hidden` so assistive software
+skipped it — and the claim attached to that was that the token then costs the
+book nothing. That claim was wrong, and the owner said so: `aria-hidden` binds
+a conforming accessibility tree, and it does not bind the text-to-speech engine
+built into an e-reader. That engine reads what is laid out on the page, and a
+token at `font-size: 0` is still laid out. A book that recites twenty
+characters of base64 at the end of every chapter is a broken book, whatever
+size the characters are set at.
+
+So `--watermarks` (and a matching dropdown in the window) now takes four
+values:
+
+* **keep** — the markup comes out as it went in.
+* **consolidate** — the default, and what the tool did before: the token stays
+  in the text, the repeated styling becomes one rule.
+* **gather** — the token leaves the body and lands in the `<head>` of the same
+  document as `<meta name="epubforge-watermark" content="…">`. Nothing renders
+  it, nothing speaks it, nothing paginates around it, and the shop still finds
+  it in the file it stamped, in the document it stamped.
+* **remove** — the token is deleted.
+
+Neither of the last two is a default and no preset reaches either, for one
+reason: **K1**. *No character of the book's text is lost* is this project's
+spine, and taking the token out of the reading order loses a character of the
+reading order. That is a small, deliberate, well-argued loss and it is still a
+loss, so it is something a person chooses rather than something that happens to
+them — the owner's standing rule about deletion, applied to a case that is not
+quite deletion. `remove` reports itself as a **warning** rather than a fix,
+because it is the one place the tool destroys something a publisher put in the
+file.
+
+`--keep-watermark-markup` still works and now means `--watermarks keep`.
+
+### A hammer instead of a star
+
+The icon was an open book with a four-pointed spark, which was a perfectly good
+mark for a tidying utility and said nothing about a forge. Same tile, same
+book, same ember colour, same corner — a hammer in it.
+
 ### A third bucket, for what container-only mode is not allowed to reach
 
 0.2.15 recorded the message shapes for the first time and named all four

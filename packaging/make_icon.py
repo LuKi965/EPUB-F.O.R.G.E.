@@ -1,215 +1,141 @@
 #!/usr/bin/env python3
-"""Draw the application icon, at every size Windows and Qt ask for.
+"""Generates the application icon.
 
-Kept as a script rather than as a pair of binaries because an icon that only
-exists as a PNG can only ever be edited by whoever still has the source file.
-This one is the source file.
+Kept as a script rather than a committed binary blob nobody can diff, though the
+resulting .ico is committed too so a build never depends on running this.
 
-The mark has to survive 16×16 in a taskbar, which is the whole design brief.
-Everything is drawn at 1024 and downsampled with Lanczos, so the curves stay
-smooth; anything with more than three shapes turns to porridge at that size, so
-there are three shapes.
+The mark is an open book with a hammer beside it. It was an open book with a
+four-pointed spark, which was a perfectly good mark for a tidying utility and
+said nothing about a forge; the owner's note was that the star did not fit, and
+that a hammer in the star's own colour would. Nothing else about the icon
+changed — same tile, same book, same ember, same corner.
 """
 
 from __future__ import annotations
 
-import argparse
-import pathlib
+import sys
+from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-#: Kept from the icon this replaces. The application is dark-themed and the
-#: installer shows it against both light and dark shells, so the tile is its own
-#: background rather than transparent.
-NAVY = (35, 45, 69, 255)
-PAPER = (240, 242, 247, 255)
-PAPER_SHADE = (206, 214, 228, 255)
-EMBER = (232, 163, 61, 255)
-EMBER_HOT = (245, 208, 130, 255)
+SIZE = 512
+BACKGROUND = (33, 46, 68)
+BACKGROUND_EDGE = (22, 31, 47)
+PAGE = (247, 249, 252)
+PAGE_SHADE = (203, 213, 226)
+#: The spark's colour, kept for the hammer that replaced it.
+SPARK = (240, 168, 62)
 
-SIZE = 1024
-#: Windows wants all of these inside one .ico, and picks per context: 16 in the
-#: title bar, 32 in the taskbar, 256 on the desktop at large-icon settings.
-ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
+ICO_SIZES = [(n, n) for n in (16, 24, 32, 48, 64, 128, 256)]
+
+#: The hammer is drawn upright on its own layer and rotated into place, and it
+#: is drawn this many times oversize first so the rotation has something to
+#: resample. A diagonal edge rendered at final size and then turned is a
+#: staircase; rendered at 6× and reduced, it is a line.
+SUPERSAMPLE = 6
+
+#: Degrees anticlockwise, so a negative number swings the head up and to the
+#: right — into the corner the spark used to occupy, with the handle crossing
+#: back under the book. Enough tilt to read as a tool mid-swing rather than as a
+#: T lying on its side, not so much that the head leaves the tile.
+HAMMER_TILT = -38
 
 
-def tile(draw: ImageDraw.ImageDraw) -> None:
-    """The rounded square everything sits on."""
-    draw.rounded_rectangle((0, 0, SIZE, SIZE), radius=int(SIZE * 0.22), fill=NAVY)
+def hammer(image: Image.Image, centre: tuple[int, int], span: int) -> None:
+    """A club hammer, head up and to the right, handle down and to the left.
 
-
-def anvil(draw: ImageDraw.ImageDraw, *, colour=PAPER, shade=PAPER_SHADE) -> None:
-    """A blacksmith's anvil, side on.
-
-    Drawn as a silhouette rather than an outline: at 16 pixels an outline is a
-    grey smudge, and a silhouette is still an anvil.
-
-    The proportions are the whole job, and the first attempt got them wrong —
-    a short horn on a symmetric waist reads as a pedestal or a table. What makes
-    the shape unmistakable is the asymmetry: a **long** horn tapering off one
-    end, a squared heel at the other, and a body that sits back towards the
-    heel rather than under the middle.
+    Two rectangles and nothing else. Everything with more shape than that — a
+    cross peen, a wedged eye, a wrapped grip — is legible at 256 pixels and mud
+    at 16, and 16 is where a taskbar icon actually lives.
     """
-    face_top, face_bottom = 0.34 * SIZE, 0.455 * SIZE
-    heel = 0.80 * SIZE
-    body_left, body_right = 0.30 * SIZE, heel
+    scale = SUPERSAMPLE
+    # Local, upright coordinates: a box tall enough for head and handle both.
+    width, height = 130 * scale, 168 * scale
+    layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
 
-    # The face: a slab with a squared heel, sitting proud of the body.
-    draw.polygon(
-        [(body_left, face_top), (heel, face_top),
-         (heel, face_bottom), (body_left, face_bottom)],
-        fill=colour,
+    head_width, head_height = 122 * scale, 52 * scale
+    left = (width - head_width) // 2
+    draw.rounded_rectangle(
+        (left, 4 * scale, left + head_width, 4 * scale + head_height),
+        radius=7 * scale,
+        fill=SPARK,
     )
-    # The horn: long, tapering, and slightly nose-down, which is what an anvil
-    # looks like and what a table does not.
-    draw.polygon(
-        [(body_left + 0.005 * SIZE, face_top),
-         (body_left + 0.005 * SIZE, face_bottom),
-         (0.10 * SIZE, face_bottom - 0.005 * SIZE),
-         (0.115 * SIZE, face_top + 0.045 * SIZE)],
-        fill=colour,
-    )
-    # The undercut and waist, set back towards the heel.
-    draw.polygon(
-        [(0.42 * SIZE, face_bottom), (0.70 * SIZE, face_bottom),
-         (0.655 * SIZE, 0.60 * SIZE), (0.465 * SIZE, 0.60 * SIZE)],
-        fill=shade,
-    )
-    # The foot: chunky, and wider than the waist by a clear margin.
-    draw.polygon(
-        [(0.445 * SIZE, 0.60 * SIZE), (0.675 * SIZE, 0.60 * SIZE),
-         (0.745 * SIZE, 0.735 * SIZE), (0.375 * SIZE, 0.735 * SIZE)],
-        fill=colour,
+    # The handle starts inside the head rather than under it, so the two read as
+    # one object when the antialiasing at 16 pixels blurs the joint.
+    handle_width = 26 * scale
+    handle_left = (width - handle_width) // 2
+    draw.rounded_rectangle(
+        (handle_left, 4 * scale + head_height - 6 * scale,
+         handle_left + handle_width, height - 4 * scale),
+        radius=6 * scale,
+        fill=SPARK,
     )
 
-
-def pages(draw: ImageDraw.ImageDraw) -> None:
-    """An open book, laid on the anvil's face.
-
-    Two leaves meeting at a spine, in the same paper as the anvil so the two
-    read as one object at a distance and as two up close.
-    """
-    top, bottom = 0.16 * SIZE, 0.345 * SIZE
-    spine = 0.52 * SIZE
-    draw.polygon(
-        [(spine - 0.01 * SIZE, top + 0.02 * SIZE), (0.28 * SIZE, top + 0.06 * SIZE),
-         (0.28 * SIZE, bottom), (spine - 0.01 * SIZE, bottom - 0.02 * SIZE)],
-        fill=PAPER,
+    turned = layer.rotate(HAMMER_TILT, resample=Image.BICUBIC, expand=True)
+    turned = turned.resize(
+        (round(span * turned.width / width), round(span * turned.height / width)),
+        Image.LANCZOS,
     )
-    draw.polygon(
-        [(spine + 0.01 * SIZE, top + 0.02 * SIZE), (0.76 * SIZE, top + 0.06 * SIZE),
-         (0.76 * SIZE, bottom), (spine + 0.01 * SIZE, bottom - 0.02 * SIZE)],
-        fill=PAPER_SHADE,
+    image.alpha_composite(
+        turned, (centre[0] - turned.width // 2, centre[1] - turned.height // 2)
     )
 
 
-def spark(draw: ImageDraw.ImageDraw, x: float, y: float, radius: float, colour) -> None:
-    """A four-pointed spark. Concave sides, so it reads as a glint and not a plus."""
-    points = []
-    for index in range(8):
-        # Long point, short point, long point … around the circle.
-        length = radius if index % 2 == 0 else radius * 0.30
-        angle = index * 3.14159265 / 4
-        import math
-
-        points.append((x + length * math.sin(angle), y - length * math.cos(angle)))
-    draw.polygon(points, fill=colour)
-
-
-def sparks(draw: ImageDraw.ImageDraw) -> None:
-    """Struck metal throws sparks upward and outward, so these do too."""
-    spark(draw, 0.815 * SIZE, 0.235 * SIZE, 0.080 * SIZE, EMBER)
-    spark(draw, 0.700 * SIZE, 0.150 * SIZE, 0.042 * SIZE, EMBER_HOT)
-    spark(draw, 0.885 * SIZE, 0.120 * SIZE, 0.028 * SIZE, EMBER)
-
-
-def glow(image: Image.Image) -> None:
-    """Heat under the anvil: a soft ember wash, no hard edge."""
-    from PIL import ImageDraw as _Draw, ImageFilter
-
-    layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    _Draw.Draw(layer).ellipse(
-        (0.24 * SIZE, 0.68 * SIZE, 0.76 * SIZE, 0.86 * SIZE), fill=(232, 120, 40, 150)
-    )
-    image.alpha_composite(layer.filter(ImageFilter.GaussianBlur(SIZE * 0.05)))
-
-
-def variant_anvil() -> Image.Image:
-    """A. The anvil alone. The strongest signal at 16 pixels."""
+def draw_icon() -> Image.Image:
     image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    tile(draw)
-    glow(image)
-    anvil(ImageDraw.Draw(image))
-    sparks(ImageDraw.Draw(image))
+
+    draw.rounded_rectangle([0, 0, SIZE - 1, SIZE - 1], radius=96, fill=BACKGROUND_EDGE)
+    draw.rounded_rectangle([6, 6, SIZE - 7, SIZE - 13], radius=92, fill=BACKGROUND)
+
+    # An open book: two page blocks meeting at a central spine.
+    top, bottom = 150, 372
+    spine, left, right = SIZE // 2, 78, SIZE - 78
+    lift = 26
+
+    draw.polygon(
+        [(spine, top), (left + 12, top + lift), (left, bottom - lift), (spine, bottom)],
+        fill=PAGE,
+    )
+    draw.polygon(
+        [(spine, top), (right - 12, top + lift), (right, bottom - lift), (spine, bottom)],
+        fill=PAGE_SHADE,
+    )
+    draw.line([(spine, top), (spine, bottom)], fill=BACKGROUND, width=10)
+
+    # Text lines, so the mark still reads as a book at small sizes.
+    for index in range(4):
+        offset = top + 58 + index * 42
+        inset = 30 + index * 4
+        draw.line([(left + inset + 22, offset), (spine - 30, offset - 8)], fill=PAGE_SHADE, width=9)
+        draw.line([(spine + 30, offset - 8), (right - inset - 22, offset)], fill=PAGE, width=9)
+
+    # Where the spark was, at the size the spark was.
+    hammer(image, centre=(SIZE - 128, SIZE - 126), span=132)
     return image
 
 
-def variant_book_on_anvil() -> Image.Image:
-    """B. The book on the anvil. Says both things and costs some clarity."""
-    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    tile(draw)
-    glow(image)
-    draw = ImageDraw.Draw(image)
-    anvil(draw)
-    pages(draw)
-    sparks(draw)
-    return image
-
-
-def variant_hot_book() -> Image.Image:
-    """C. The book as it was, with the decorative star traded for real sparks
-    and heat from below. The smallest change that stops it being a tidying app."""
-    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    tile(draw)
-    glow(image)
-    draw = ImageDraw.Draw(image)
-    top, bottom, spine = 0.30 * SIZE, 0.64 * SIZE, 0.50 * SIZE
-    draw.polygon(
-        [(spine - 0.015 * SIZE, top + 0.04 * SIZE), (0.20 * SIZE, top),
-         (0.20 * SIZE, bottom - 0.04 * SIZE), (spine - 0.015 * SIZE, bottom)],
-        fill=PAPER,
-    )
-    draw.polygon(
-        [(spine + 0.015 * SIZE, top + 0.04 * SIZE), (0.80 * SIZE, top),
-         (0.80 * SIZE, bottom - 0.04 * SIZE), (spine + 0.015 * SIZE, bottom)],
-        fill=PAPER_SHADE,
-    )
-    sparks(draw)
-    return image
-
-
-VARIANTS = {
-    "anvil": variant_anvil,
-    "book-on-anvil": variant_book_on_anvil,
-    "hot-book": variant_hot_book,
-}
-
-
-def write(image: Image.Image, stem: pathlib.Path) -> None:
-    image.resize((256, 256), Image.LANCZOS).save(stem.with_suffix(".png"))
-    image.save(stem.with_name(stem.name + "-1024").with_suffix(".png"))
-    image.resize((256, 256), Image.LANCZOS).save(
-        stem.with_suffix(".ico"), sizes=[(s, s) for s in ICO_SIZES]
-    )
-    # A contact sheet of the small sizes, because "does it survive 16 pixels" is
-    # the only question that matters and it cannot be answered at 256.
-    sheet = Image.new("RGBA", (16 + 24 + 32 + 48 + 64 + 60, 72), (128, 128, 128, 255))
+def contact_sheet(icon: Image.Image, target: Path) -> Path:
+    """The small sizes side by side, because "does it survive 16 pixels" is the
+    only question that matters and it cannot be answered at 256."""
+    sizes = (16, 24, 32, 48, 64)
+    sheet = Image.new("RGBA", (sum(sizes) + 10 * len(sizes) + 6, 80), (128, 128, 128, 255))
     x = 8
-    for size in (16, 24, 32, 48, 64):
-        sheet.alpha_composite(image.resize((size, size), Image.LANCZOS), (x, 8))
+    for size in sizes:
+        sheet.alpha_composite(icon.resize((size, size), Image.LANCZOS), (x, 8))
         x += size + 10
-    sheet.save(stem.with_name(stem.name + "-male").with_suffix(".png"))
+    sheet.save(target)
+    return target
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--variant", choices=sorted(VARIANTS), default="anvil")
-    parser.add_argument("--out", default="packaging/epubforge")
-    arguments = parser.parse_args()
-    write(VARIANTS[arguments.variant](), pathlib.Path(arguments.out))
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "epubforge.ico"
+    icon = draw_icon()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    icon.save(target, format="ICO", sizes=ICO_SIZES)
+    icon.resize((256, 256), Image.LANCZOS).save(target.with_suffix(".png"), format="PNG")
+    print(f"wrote {target} and {target.with_suffix('.png')}")
     return 0
 
 

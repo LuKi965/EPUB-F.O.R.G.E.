@@ -130,6 +130,8 @@ CATALOGUE: dict[str, str] = {
     "xhtml.dtd-entities-resolved": "{count} entity/entities declared in the document's own DTD were resolved",
     "xhtml.dtd-entities-refused": "{count} entity/entities were left as references rather than resolved",
     "xhtml.watermark-consolidated": "{count} watermark marker(s) across {documents} document(s) became one rule",
+    "xhtml.watermark-relocated": "{count} watermark marker(s) across {documents} document(s) moved out of the text into document metadata",
+    "xhtml.watermark-removed": "{count} watermark marker(s) across {documents} document(s) were deleted at your request",
     "xhtml.watermark-kept": "{count} visible watermark notice(s) were left exactly as the publisher wrote them",
     "xhtml.watermark-kept-personal-data": "{count} visible watermark notice(s) carrying personal data were left exactly as the publisher wrote them",
     "xhtml.ids-renamed": "{count} id attribute(s) were not valid XML names and were renamed",
@@ -314,6 +316,8 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.dtd-entities-resolved': 'rozwiązano {count} {count:encję|encje|encji} zadeklarowaną w DTD samego dokumentu',
     'xhtml.dtd-entities-refused': '{count} {count:encję pozostawiono|encje pozostawiono|encji pozostawiono} jako odwołania zamiast je rozwiązać',
     'xhtml.watermark-consolidated': '{count} {count:znacznik znaku wodnego|znaczniki znaku wodnego|znaczników znaku wodnego} w {documents} {documents:dokumencie|dokumentach|dokumentach} sprowadzono do jednej reguły',
+    'xhtml.watermark-relocated': '{count} {count:znacznik znaku wodnego|znaczniki znaku wodnego|znaczników znaku wodnego} w {documents} {documents:dokumencie|dokumentach|dokumentach} przeniesiono z treści do metadanych dokumentu',
+    'xhtml.watermark-removed': '{count} {count:znacznik znaku wodnego|znaczniki znaku wodnego|znaczników znaku wodnego} w {documents} {documents:dokumencie|dokumentach|dokumentach} usunięto na Twoje życzenie',
     'xhtml.watermark-kept': '{count} {count:widoczną adnotację|widoczne adnotacje|widocznych adnotacji} znaku wodnego zostawiono dokładnie tak, jak napisał je wydawca',
     'xhtml.watermark-kept-personal-data': '{count} {count:widoczną adnotację|widoczne adnotacje|widocznych adnotacji} znaku wodnego z danymi osobowymi zostawiono dokładnie tak, jak napisał je wydawca',
     'xhtml.ids-renamed': '{count} {count:atrybut id nie był poprawną nazwą XML|atrybuty id nie były poprawnymi nazwami XML|atrybutów id nie było poprawnymi nazwami XML} i zostały przemianowane',
@@ -546,6 +550,10 @@ DETAILS: dict[str, str] = {
         "Every XHTML file comes out byte for byte as it went in, apart from the DOCTYPE where it had to be modernised.",
     "xhtml.watermark-consolidated":
         "{tokens} distinct token(s), text unchanged. The repeated inline !important style became one rule, and the markers are hidden from screen readers instead of being spelled out each chapter.",
+    "xhtml.watermark-relocated":
+        "{tokens} distinct token(s), text unchanged, now carried as <meta name=\"{name}\"> in the head of the document each one came from. Still in the file and still traceable, but no longer laid out, paginated or read aloud — which a token at font-size zero still was.",
+    "xhtml.watermark-removed":
+        "{tokens} distinct token(s), gone. The book no longer carries the mark that ties this copy to its buyer.",
     "xhtml.watermark-kept":
         "Meant to be read, so left exactly as the publisher wrote it.",
     "xhtml.watermark-kept-personal-data":
@@ -585,6 +593,10 @@ DETAILS_PL: dict[str, str] = {
         "{names}. Albo wskazują poza plik, czego to narzędzie nie pobiera, albo ich rozwinięcie rozdęłoby dokument ponad bezpieczną granicę.",
     "xhtml.watermark-consolidated":
         "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów}, tekst bez zmian. Powtarzany styl liniowy z !important stał się jedną regułą, a znaczniki są ukryte przed czytnikami ekranu, zamiast być wypowiadane w każdym rozdziale.",
+    "xhtml.watermark-relocated":
+        "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów}, tekst bez zmian, teraz jako <meta name=\"{name}\"> w nagłówku tego dokumentu, z którego pochodzi. Wciąż w pliku i wciąż do odczytania, ale już nie na stronie: nic go nie składa, nie łamie i nie czyta na głos — a token o zerowym stopniu pisma wciąż tam był.",
+    "xhtml.watermark-removed":
+        "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów} — nie ma. Książka nie niesie już znaku, który wiąże ten egzemplarz z kupującym.",
     "xhtml.watermark-kept":
         "Ma być czytane, więc zostawione dokładnie tak, jak napisał to wydawca.",
     "xhtml.watermark-kept-personal-data":

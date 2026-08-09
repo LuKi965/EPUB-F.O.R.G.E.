@@ -561,17 +561,71 @@ class TestWatermarks:
         assert "epubforge-watermark" not in paragraph.group()
         assert "aria-hidden" not in paragraph.group()
 
-    def test_consolidation_can_be_switched_off(self, legacy_epub, tmp_path):
+    def run_with(self, legacy_epub, tmp_path, mode: str):
         from epubforge.pipeline import rebuild as run
         from epubforge.policy import Policy
 
-        policy = Policy.preset("preserve")
-        policy.normalize_watermarks = False
-        result = run(legacy_epub, str(tmp_path / "kept.epub"), policy)
-        with zipfile.ZipFile(result.output_path) as archive:
-            html = archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+        policy = Policy.preset("preserve", watermarks=mode)
+        return run(legacy_epub, str(tmp_path / f"{mode}.epub"), policy)
+
+    def test_consolidation_can_be_switched_off(self, legacy_epub, tmp_path):
+        result = self.run_with(legacy_epub, tmp_path, "keep")
+        html = self.chapter(result)
         assert "font-size:1px !important" in html
         assert "epubforge-watermark" not in html
+
+    def test_gathering_moves_the_token_to_the_head_of_its_own_document(
+        self, legacy_epub, tmp_path
+    ):
+        """The point of `gather`: out of the text, still in the file.
+
+        Not "somewhere in the book" — in the head of the document it came from,
+        so a shop tracing a leak finds it where it put it.
+        """
+        result = self.run_with(legacy_epub, tmp_path, "gather")
+        html = self.chapter(result)
+        head = html.split("</head>")[0]
+        assert 'name="epubforge-watermark"' in head
+        assert "NzgxMjI0NjMzOTUzNjQ" in head
+        # And nowhere else: the body is what a reader and its speech engine read.
+        assert "NzgxMjI0NjMzOTUzNjQ" not in html.split("</head>", 1)[1]
+
+    def test_gathering_leaves_the_surrounding_text_where_it_was(
+        self, legacy_epub, tmp_path
+    ):
+        """The marker sits at the end of a chapter; the chapter is not the marker."""
+        result = self.run_with(legacy_epub, tmp_path, "gather")
+        html = self.chapter(result)
+        assert "Order ##46932" in html  # the visible notice is untouched
+        assert "Drobny druk" in html
+
+    def test_removal_takes_the_token_out_of_the_book_entirely(
+        self, legacy_epub, tmp_path
+    ):
+        result = self.run_with(legacy_epub, tmp_path, "remove")
+        html = self.chapter(result)
+        assert "NzgxMjI0NjMzOTUzNjQ" not in html
+        assert "epubforge-watermark" not in html
+
+    def test_removal_is_reported_as_a_warning_because_it_loses_something(
+        self, legacy_epub, tmp_path
+    ):
+        result = self.run_with(legacy_epub, tmp_path, "remove")
+        findings = [f for f in result.report.findings if f.rule == "xhtml.watermark-removed"]
+        assert findings and findings[0].level is Level.WARN
+
+    def test_no_preset_ever_reaches_removal(self):
+        """The standing rule: nothing is deleted because a preset felt like it."""
+        from epubforge.policy import Policy
+
+        for name in ("preserve", "strict", "minimal"):
+            assert Policy.preset(name).watermarks != "remove"
+
+    def test_a_misspelt_mode_is_refused_rather_than_ignored(self):
+        from epubforge.policy import Policy
+
+        with pytest.raises(ValueError):
+            Policy.preset("preserve", watermarks="gathr")
 
 
 class TestStylesheetLinting:

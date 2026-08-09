@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import watermark
+
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 CORE_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/svg+xml"}
 CORE_FONT_TYPES = {
@@ -84,9 +86,15 @@ class Policy:
     #: a picture somebody is still looking at.
     drop_orphans: bool = False
 
-    #: Consolidate publisher watermark markup. The tokens are never removed;
-    #: only the repeated inline styling and their presence in the reading order.
-    normalize_watermarks: bool = True
+    #: What to do with a publisher's opaque watermark marker — one of
+    #: :data:`epubforge.watermark.MODES`.
+    #:
+    #: The default is the strongest thing that takes nothing out of the reading
+    #: order, because K1 — no character of the book's text is lost — is this
+    #: tool's spine and no default gets to bend it. ``gather`` and ``remove``
+    #: both do take the token out, on purpose, and both are therefore something
+    #: a person chooses. No preset reaches either.
+    watermarks: str = "consolidate"
 
     #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
     accessibility_metadata: bool = True
@@ -114,6 +122,15 @@ class Policy:
     #: Extra dc:* values supplied by the caller, applied verbatim.
     metadata_overrides: dict[str, str] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        # A misspelt mode must not silently mean "leave the watermark alone":
+        # that is the one outcome the caller would not notice in the report.
+        if self.watermarks not in watermark.MODES:
+            raise ValueError(
+                f"unknown watermark mode: {self.watermarks!r} "
+                f"(expected one of {', '.join(watermark.MODES)})"
+            )
+
     @classmethod
     def preset(cls, name: str, **overrides) -> "Policy":
         if name == "strict":
@@ -135,4 +152,7 @@ class Policy:
             raise ValueError(f"unknown policy preset: {name!r}")
         for key, value in overrides.items():
             setattr(base, key, value)
+        # The overrides go on after construction, so they have not been checked
+        # yet; checking again costs nothing and closes the gap.
+        base.__post_init__()
         return base

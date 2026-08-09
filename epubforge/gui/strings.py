@@ -108,6 +108,43 @@ PL: dict[str, str] = {
         "Wszystkie odnośniki są przepisywane. Niektóre czytniki potrafią się "
         "wyłożyć na polskich znakach w nazwach plików."
     ),
+    "policy.watermark.label": "Znak wodny księgarni:",
+    "policy.watermark.tip": (
+        "Polskie księgarnie znaczą każdy zakupiony plik tokenem — to ich prawo "
+        "i nie o token tu chodzi, tylko o to, gdzie on siedzi.\n\n"
+        "Zwykle siedzi na końcu każdego rozdziału, ustawiony na 1px albo 0px. "
+        "Jest wtedy nadal składany, nadal łamie stronę i nadal bywa czytany "
+        "na głos przez syntezator mowy czytnika."
+    ),
+    "policy.watermark.keep": "Zostaw dokładnie tak, jak jest",
+    "policy.watermark.keep.tip": (
+        "Znaczniki wychodzą bajt w bajt takie, jakie weszły. Raport i tak "
+        "policzy, ile ich jest."
+    ),
+    "policy.watermark.consolidate": "Zostaw w treści, uporządkuj styl",
+    "policy.watermark.consolidate.tip": (
+        "Token zostaje tam, gdzie był. Powtarzany w każdym dokumencie styl "
+        "liniowy z !important staje się jedną regułą, a element dostaje "
+        "aria-hidden.\n\n"
+        "Uwaga: aria-hidden wiąże czytniki ekranu, ale nie wiąże syntezatora "
+        "mowy wbudowanego w czytnik. Ten czyta to, co jest na stronie."
+    ),
+    "policy.watermark.gather": "Przenieś do metadanych dokumentu",
+    "policy.watermark.gather.tip": (
+        "Token wychodzi z treści i ląduje w nagłówku <head> tego samego "
+        "dokumentu jako <meta>.\n\n"
+        "Nic go nie wyświetla, nic go nie czyta, nic nie łamie wokół niego "
+        "strony — a księgarnia znajdzie go tam, gdzie go zostawiła. Z pliku nic "
+        "nie ginie, ale z toku czytania token znika, więc to Twój wybór, nie "
+        "domyślne zachowanie."
+    ),
+    "policy.watermark.remove": "Usuń token z książki",
+    "policy.watermark.remove.tip": (
+        "Znika. Książka przestaje nieść znak wiążący ten egzemplarz z "
+        "kupującym.\n\n"
+        "Jedyna opcja, która coś traci — i dlatego trzeba ją wybrać ręcznie. "
+        "Nie włącza jej żaden tryb."
+    ),
     "policy.scripts": "Usuń skrypty JavaScript",
     "policy.dead": "Usuwaj to, co nic nie robi",
     "policy.dead.tip": (
@@ -450,6 +487,43 @@ EN: dict[str, str] = {
     "policy.layout.tip": (
         "Moves content to EPUB/text, styles to EPUB/styles and so on, folding names to safe "
         "ASCII. Every reference is rewritten. Some readers choke on non-ASCII filenames."
+    ),
+    "policy.watermark.label": "Bookshop watermark:",
+    "policy.watermark.tip": (
+        "Shops stamp each purchased file with a token. That is their right and "
+        "the token is not the problem — where it sits is.\n\n"
+        "It usually sits at the end of every chapter at 1px or 0px, where it is "
+        "still laid out, still paginates, and is still read aloud by a reader's "
+        "own text-to-speech."
+    ),
+    "policy.watermark.keep": "Leave it exactly as found",
+    "policy.watermark.keep.tip": (
+        "The markup comes out byte for byte as it went in. The report still "
+        "counts what is there."
+    ),
+    "policy.watermark.consolidate": "Keep it in the text, tidy the styling",
+    "policy.watermark.consolidate.tip": (
+        "The token stays where it is. The !important inline style repeated in "
+        "every document becomes one rule and the element gets aria-hidden.\n\n"
+        "Note: aria-hidden binds screen readers. It does not bind the "
+        "text-to-speech engine inside an e-reader, which reads what is on the "
+        "page."
+    ),
+    "policy.watermark.gather": "Move it into document metadata",
+    "policy.watermark.gather.tip": (
+        "The token leaves the text and lands in the <head> of the same document "
+        "as a <meta>.\n\n"
+        "Nothing renders it, nothing speaks it, nothing paginates around it — "
+        "and the shop finds it where it left it. Nothing leaves the file, but "
+        "it does leave the reading order, so it is your choice rather than the "
+        "default."
+    ),
+    "policy.watermark.remove": "Delete the token",
+    "policy.watermark.remove.tip": (
+        "Gone. The book stops carrying the mark that ties this copy to its "
+        "buyer.\n\n"
+        "The only option that loses anything, which is why you have to pick it "
+        "yourself. No mode turns it on."
     ),
     "policy.scripts": "Remove JavaScript",
     "policy.dead": "Remove what does nothing",

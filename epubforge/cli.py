@@ -10,7 +10,7 @@ import sys
 from rich.console import Console
 from rich.table import Table
 
-from . import compat, version_string
+from . import compat, version_string, watermark
 from .pipeline import Status, rebuild
 from .plan import describe, plan_batch
 from .policy import Policy
@@ -76,7 +76,9 @@ def build_policy(args: argparse.Namespace) -> Policy:
     if args.keep_layout:
         policy.reorganize_files = False
     if args.keep_watermark_markup:
-        policy.normalize_watermarks = False
+        policy.watermarks = "keep"
+    if args.watermarks:
+        policy.watermarks = args.watermarks
     if args.no_a11y_metadata:
         policy.accessibility_metadata = False
     if args.claim_conformance:
@@ -659,9 +661,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="replace a file that already exists at the destination",
     )
     build.add_argument(
+        "--watermarks",
+        choices=list(watermark.MODES),
+        help=(
+            "what to do with a shop's opaque watermark token: keep it as found; "
+            "consolidate its styling in place (default); gather it into the "
+            "document's <head>, out of the text and its speech; or remove it. The "
+            "last two take it out of the reading order, so neither is a default"
+        ),
+    )
+    build.add_argument(
         "--keep-watermark-markup",
         action="store_true",
-        help="leave publisher watermark markup exactly as found (tokens are never removed either way)",
+        help=argparse.SUPPRESS,  # superseded by --watermarks keep; still honoured
     )
     build.add_argument(
         "--no-a11y-metadata",

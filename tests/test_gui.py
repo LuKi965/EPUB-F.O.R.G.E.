@@ -86,6 +86,46 @@ class TestScaling:
         assert window.run_button.isVisible() or window.run_button.height() > 0
 
 
+class TestTheWatermarkChoice:
+    """Four answers, and the two that take the token out of the text have to be
+    picked by a person — which means they have to be visible and explained."""
+
+    def test_every_mode_is_offered(self, window):
+        from epubforge import watermark
+
+        offered = [
+            window.watermark_combo.itemData(index)
+            for index in range(window.watermark_combo.count())
+        ]
+        assert offered == list(watermark.MODES)
+
+    def test_it_opens_on_the_mode_that_takes_nothing_out_of_the_text(self, window):
+        from epubforge.policy import Policy
+
+        assert window.watermark_combo.currentData() == Policy().watermarks
+        assert window.watermark_combo.currentData() not in ("gather", "remove")
+
+    def test_each_mode_says_what_it_costs(self, window):
+        from PySide6.QtCore import Qt
+
+        for index in range(window.watermark_combo.count()):
+            tip = window.watermark_combo.itemData(index, Qt.ToolTipRole)
+            assert tip, window.watermark_combo.itemText(index)
+
+    def test_the_choice_reaches_the_policy(self, window):
+        from epubforge import watermark
+
+        window.watermark_combo.setCurrentIndex(watermark.MODES.index("gather"))
+        assert window._policy().watermarks == "gather"
+
+    def test_container_only_mode_disables_it(self, window):
+        """Minimal does not open a content document, so it cannot move a token."""
+        window.mode_combo.setCurrentIndex(
+            [window.mode_combo.itemData(i) for i in range(window.mode_combo.count())].index("minimal")
+        )
+        assert not window.watermark_combo.isEnabled()
+
+
 class TestPanels:
     def _panel(self, window, index):
         return window.tabs.widget(index)
