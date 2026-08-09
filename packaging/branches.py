@@ -21,6 +21,12 @@ Three kinds of branch and only one is ever listed:
   commit on it is already on the trunk and the branch holds nothing that would
   be lost. A branch still ahead of `main` is printed too, in its own section,
   as work that has not landed — which is worth seeing and is not a deletion.
+
+One exception, and it is the first thing this got wrong: a branch sitting on
+`main`'s own tip is not a finished branch, it is one that has not started. That
+is exactly what step 3 of the milestone cycle creates, so the first run after a
+release offered the next milestone's branch for deletion. "Merged" and "empty"
+look identical to `merge-base` and are opposite facts.
 """
 
 from __future__ import annotations
@@ -73,11 +79,16 @@ def main() -> int:
     heads = remote_heads()
     stale, ahead, unknown = [], [], []
 
+    tip = heads.get("refs/heads/main")
+    fresh = []
     for ref, commit in sorted(heads.items()):
         if ref in KEEP or ref.startswith(NEVER_STALE):
             continue
-        state = merged(commit, "origin/main")
         entry = (ref.removeprefix("refs/heads/"), commit[:8])
+        if commit == tip:
+            fresh.append(entry)
+            continue
+        state = merged(commit, "origin/main")
         (stale if state else ahead if state is False else unknown).append(entry)
 
     def show(title: str, rows: list[tuple[str, str]], note: str = "") -> None:
@@ -91,6 +102,11 @@ def main() -> int:
 
     print(f"{len(heads)} branch(es) on origin")
     show("Fully merged into main — safe to delete in the browser:", stale)
+    show(
+        "Sitting on main's tip — not started, not finished. Leave alone:",
+        fresh,
+        "step 3 of the milestone cycle makes one of these every release",
+    )
     show("Ahead of main — holds work that has not landed:", ahead)
     show("Cannot tell from this clone:", unknown, "fetch them if it matters")
     kept = [r.removeprefix("refs/heads/") for r in sorted(heads) if r.startswith(NEVER_STALE)]

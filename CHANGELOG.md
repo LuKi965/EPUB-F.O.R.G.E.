@@ -96,10 +96,18 @@ claimed. `packaging/release_check.py` gives it the strictest available one —
 **the tag exists on the remote** — and splits the question in two: what this
 repository can say about itself (version, changelog, both READMEs), which
 `tests/test_release_state.py` now fails the build over, and what only the
-remote can confirm (tag, frozen branch), read with `git ls-remote`. The build
-workflow is dispatched by the owner in a browser and this environment cannot
-push a tag at all, so the script prints that as a hand-off rather than
-pretending otherwise.
+remote can confirm (tag, frozen branch), read with `git ls-remote`.
+
+> **Correction, made the same day and after this version's notes were
+> published.** The paragraph here first said the build is dispatched by the
+> owner in a browser and that this environment cannot release. Both halves were
+> wrong. `git push --tags` is refused by the proxy with a 403 — a fact about one
+> command, and the tag is created by the workflow rather than pushed — and the
+> `actor` on a workflow run reads `LuKi965` because that is the account the
+> token belongs to, not because a person clicked anything. This release was
+> dispatched from here through the GitHub API. The published notes for 0.2.16
+> still carry the sentence as it was at build time; this is the record that
+> corrects it.
 
 A release that closes a roadmap point says so in its changelog heading —
 `## 0.2.16 — alpha — 2026-08-09 — kamień milowy [6]` — because that is the one
