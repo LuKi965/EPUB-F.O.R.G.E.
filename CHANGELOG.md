@@ -25,6 +25,59 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.13 — alpha — 2026-08-09
+
+### 0.2.12 measured: half the introduced errors gone, and a run that can now say which
+
+**Ninety-three books, three modes: 24 carried and 20 introduced became 14 and
+14.** The `properties="svg"` fix closed every book I had locally. Thirteen books
+I have never seen still gain one EPUBCheck error each in container-only mode,
+and the run could not say *what* they gain, because a signature recorded how
+many errors and not which.
+
+**So it records which.** EPUBCheck stamps every message with an identifier from
+its own fixed vocabulary — `RSC-005`, `OPF-014`, `HTM-004` — and that identifier
+is the one part of a message that is neither the book's text nor a path inside
+it. Recording it keeps the promise the corpus was built on and still answers the
+question. A run now ends with a line naming the rules: *Ours, by EPUBCheck rule:
+OPF-014 ×13.* A verdict recorded before the identifiers existed is no longer
+reused, because a private corpus never changes its books and would otherwise
+keep serving countless old counts for ever.
+
+**The green streak counts only across releases where the measurement did not
+change.** Agreed with the owner, after he pointed out that three green metrics
+had happened long ago and the counter kept going back to zero. He was right, and
+the cause was systematic: every run but one asked a larger question than the run
+before it — 38 books, then 70, 87, 91, 93, then the same 93 in a third mode — and
+each of those reset the count. The only way to reach "green across three
+consecutive releases" was to stop adding books. A release that widened the
+measurement is now passed over rather than counted against, `widenings()` names
+them so the gap is on the record, and the ledger records which modes a run
+measured — because `minimal` widened the corpus without moving the book count by
+one and nothing noticed. What stops a real defect hiding in the gap is that it
+does not go away: the next run at unchanged scope finds it, and that one counts.
+The streak today is nonetheless zero, honestly — 0.2.11 and 0.2.12 measured the
+same books in the same modes and both introduced errors.
+
+**The cover needs its stylesheet, and I had said otherwise.** Asked how to catch
+Calibre's characteristic damage — a stylesheet that is correct but reaches no
+document — I proposed exempting the cover page, reasoning that a page holding one
+image does not need one. The owner corrected it: a cover is a fixed number of
+pixels and screens are not, so without a rule sizing it the reader falls back to
+the image's own dimensions and the same file is a stamp on one device and cropped
+on the next. The cover is the *worst* candidate for an exemption — it is where a
+missing stylesheet shows first, on the first screen of the book.
+
+The mechanism was already there in two places and under no test at all, which is
+how something important gets broken by accident. `tests/test_cover_scaling.py`
+now pins all three halves of it: an author's sizing survives every mode
+untouched, wherever it lives; a cover nothing sizes gets `max-width`/`max-height`
+added and reported; a cover page we generate is born with them. No rule is ever
+dropped for being used by one document — a cover rule is used by exactly one
+document by definition, so a pruner that counts uses is a pruner that deletes
+precisely this. That is the difference between this and a tool that clears
+everything without looking.
+
 ### 0.2.7 measured, and the one rule id that named the wrong stage
 
 The owner's run on 0.2.7 — **91 books, zero EPUBCheck errors, zero fatal, no
@@ -32,7 +85,9 @@ text lost, nothing unwritten.** The seven books 0.2.6 could not make conformant
 come out clean, and the four generated edges were built from the window. It is
 also the first run the application logged into the ledger by itself; every entry
 above it was typed in by hand. The green streak starts at `0.2.7` and needs two
-more.
+more. *(Superseded: under the rule agreed after 0.2.12, a release that widened
+the corpus is passed over rather than counted, and 0.2.7 widened it twice —
+91 books, then 93. The streak reads zero today, from 0.2.11 and 0.2.12.)*
 
 Coverage stands at eight families of ten. `word` and `pdf-or-ocr` are one book
 short each, and those two have to be real: a provenance family exists because a
@@ -119,10 +174,15 @@ demonstrated on the first shelf it met.
 The shorthand is expanded now, in all four of its forms.
 
 **What the shelf did say**, and it is the number this release was cut for: after
-the four-bucket fix, only **3 books in 93 are `MIXED`**. That signal now means
-what the roadmap wanted it to mean. 83 have a consistent body-text shape, 74
-carry dead classes and 58 carry duplicate ones — which is point [4] justified in
-figures rather than in expectation.
+the four-bucket fix, only **3 books in 93 came out `MIXED`** — and the inventory,
+which arrived after this paragraph was first written, showed one of those three
+resting on 3.5% of its book. Two survive the coverage floor above. The count was
+right and the confidence in it was not, which is the same mistake at a smaller
+scale as the one the floor exists to stop.
+
+83 have a consistent body-text shape, 74 carry dead classes and 58 carry
+duplicate ones — which is point [4] justified in figures rather than in
+expectation: median 30 dead classes per book, maximum 210.
 
 ## 0.2.11 — alpha — 2026-08-08
 

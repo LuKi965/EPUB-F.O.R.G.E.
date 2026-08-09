@@ -455,10 +455,42 @@ def command_corpus(args: argparse.Namespace) -> int:
         elif result.status == "new":
             console.print(f"  [cyan]new[/]      {result.book}")
     console.print(f"\n  {summarise(results, signatures)}")
+    _report_streak(console, signatures)
     if args.record:
         console.print(f"  [green]signatures written to[/] {signatures}")
         return 0
     return 0 if all(r.ok for r in results) else 2
+
+
+def _report_streak(console: "Console", signatures) -> None:
+    """Say how many releases in a row came out clean, and what was passed over.
+
+    Read from the ledger, never from memory. Counted only across releases that
+    measured the same thing: every corpus run but one so far asked a larger
+    question than the run before it, and a rule that reset the count on each of
+    those made "green across three consecutive releases" a bar this project was
+    forbidden to approach rather than one it could clear.
+    """
+    import json
+
+    from .corpus import RUNS, green_streak, widenings
+
+    ledger = signatures.parent / RUNS
+    if not ledger.is_file():
+        return
+    try:
+        history = json.loads(ledger.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+
+    streak = green_streak(history, minimum=30)
+    grown = widenings(history, minimum=30)
+    if streak:
+        console.print(f"  green releases in a row: {len(streak)} ({', '.join(streak)})")
+    else:
+        console.print("  green releases in a row: none")
+    if grown:
+        console.print(f"  [dim]passed over as widenings: {', '.join(grown)}[/]")
 
 
 def command_inventory(args: argparse.Namespace) -> int:

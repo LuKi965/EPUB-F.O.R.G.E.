@@ -197,7 +197,65 @@ class TestTheEdgeCasesAreReachableFromTheWindow:
         assert not panel.busy
 
 
+class TestTheStreakIsVisibleFromTheWindow:
+    """The owner has been asking this from outside the program.
+
+    He remembered three green metrics and watched the count go back to zero,
+    with no way to check which of us was right — the streak was computed by a
+    function nothing called, in a package he has no checkout of. A number only
+    the developer can read is a number the owner has to take on trust.
+    """
+
+    def panel(self, window):
+        from epubforge.gui.tabs import CorpusPanel
+
+        for index in range(window.tabs.count()):
+            if isinstance(window.tabs.widget(index), CorpusPanel):
+                return window.tabs.widget(index)
+        raise AssertionError("no corpus panel")
+
+    def ledger(self, tmp_path, entries):
+        import json
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "runs.json").write_text(json.dumps(entries), encoding="utf-8")
+        return signatures
+
+    def test_it_names_the_releases_and_what_was_passed_over(self, window, tmp_path):
+        panel = self.panel(window)
+        panel._signatures_used = self.ledger(
+            tmp_path,
+            [
+                {"version": "0.2.4", "books": 90, "modes": ["preserve"], "clean": True},
+                {"version": "0.2.5", "books": 99, "modes": ["preserve"], "clean": False},
+                {"version": "0.2.6", "books": 99, "modes": ["preserve"], "clean": True},
+            ],
+        )
+        said = panel._streak()
+        assert "0.2.4" in said and "0.2.6" in said
+        assert "0.2.5" in said  # passed over, and said so rather than hidden
+
+    def test_a_missing_ledger_says_nothing_rather_than_guessing(self, window, tmp_path):
+        panel = self.panel(window)
+        panel._signatures_used = tmp_path / "expected"
+        assert panel._streak() == ""
+
+
 class TestTheWindowSpeaksOneLanguageAtATime:
+    def test_neither_dictionary_is_missing_what_the_other_has(self):
+        """A missing key falls back to English and then to the key itself, so
+        the failure is silent in tests and loud in the window: the user reads
+        `corpus.streak` where a sentence should be. Two dictionaries edited by
+        hand drift the moment one string is added in a hurry."""
+        from epubforge.gui.strings import EN, LANGUAGES
+
+        for name, catalogue in LANGUAGES.items():
+            assert set(catalogue) == set(EN), (
+                f"{name} and en disagree on: "
+                f"{sorted(set(catalogue) ^ set(EN))}"
+            )
+
     def test_the_survey_headings_follow_the_setting(self, window):
         from epubforge.gui import strings
         from epubforge.gui.tabs import LibraryPanel

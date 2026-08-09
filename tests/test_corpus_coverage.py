@@ -448,6 +448,88 @@ class TestTheStreakIsReadFromHistory:
         history = [self.run("0.2.6"), self.run("0.2.6")]
         assert green_streak(history) == ["0.2.6"]
 
+    def test_a_release_that_widened_the_corpus_is_not_counted_against_it(self):
+        """The rule the owner and I settled on, in his words: count the streak
+        only through releases where the measurement did not change, and record
+        the widening separately instead of punishing it.
+
+        Every run in the real ledger but one asked a larger question than the
+        run before — 38 books, 70, 87, 91, 93, then the same 93 in a third mode.
+        Under the old rule each of those zeroed the count, so the only way to
+        reach "green across three consecutive releases" was to stop adding
+        books. That is a rule against looking.
+        """
+        from epubforge.corpus import green_streak, widenings
+
+        history = [
+            self.run("0.2.4"),
+            self.run("0.2.5", books=80, clean=False),  # twice the corpus, and
+            self.run("0.2.6"),  # it found something the smaller one could not
+        ]
+        assert green_streak(history) == ["0.2.4", "0.2.6"]
+        assert widenings(history) == ["0.2.5"]
+
+    def test_a_mode_added_widens_it_as_surely_as_a_book_does(self):
+        """`minimal` joined the corpus without moving the book count by one,
+        and the run that first measured it reported 44 errors. Nothing in the
+        ledger recorded that a third mode had arrived, so the run read as the
+        same question asked again and its answer as a regression."""
+        from epubforge.corpus import green_streak, widenings
+
+        history = [
+            {"version": "0.2.7", "books": 93, "modes": ["preserve", "strict"], "clean": True},
+            {
+                "version": "0.2.9",
+                "books": 93,
+                "modes": ["minimal", "preserve", "strict"],
+                "clean": False,
+            },
+        ]
+        assert green_streak(history) == ["0.2.7"]
+        assert widenings(history) == ["0.2.9"]
+
+    def test_the_next_run_at_the_same_size_is_where_a_real_defect_lands(self):
+        """What keeps the exemption from being a hiding place. A defect a
+        widening run found does not evaporate; the following run asks the same
+        question, and that one counts."""
+        from epubforge.corpus import green_streak
+
+        history = [
+            self.run("0.2.4"),
+            self.run("0.2.5", books=80, clean=False),
+            self.run("0.2.6", books=80, clean=False),
+        ]
+        assert green_streak(history) == []
+
+    def test_measuring_fewer_books_is_never_a_widening(self):
+        """A corpus that shrinks and reports clean is the exact shape of
+        evidence this ledger exists to refuse."""
+        from epubforge.corpus import green_streak, widenings
+
+        history = [
+            self.run("0.2.4", books=90),
+            self.run("0.2.5", books=10, clean=False),
+        ]
+        assert widenings(history) == []
+        assert green_streak(history) == []
+
+    def test_the_real_ledger_is_read_by_the_same_rule(self):
+        """Not a hypothetical. Read the file, and say what it says — which
+        today is zero, because 0.2.11 and 0.2.12 measured the same 93 books in
+        the same three modes and both introduced errors. The rule was changed
+        because it punished growth, not to award a streak nobody earned."""
+        import json
+        import pathlib
+
+        from epubforge.corpus import green_streak, widenings
+
+        history = json.loads(
+            pathlib.Path("tests/corpus/runs.json").read_text(encoding="utf-8")
+        )
+        assert all("modes" in entry for entry in history)
+        assert green_streak(history, minimum=30) == []
+        assert "0.2.9" in widenings(history, minimum=30)
+
     def test_the_ledger_lives_beside_the_signatures_not_among_them(self):
         """That folder means "one file per book". The owner's inventory landed
         in it once by accident and broke the analysis on the spot.

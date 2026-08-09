@@ -1,6 +1,6 @@
 {
   "source": "sha256:b433572b2f1a5a8b1747df20353bacd6f40cdc354d903ca4924e159a507b0446",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -26,7 +26,7 @@
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
-      "profile.paragraphs-consistent": 1,
+      "profile.paragraphs-mixed": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:f160da6724ff72124fabd7c1dfa30bc8728cc06db7cf92567debf1f27e6d70b8",
@@ -60,7 +60,7 @@
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
-      "profile.paragraphs-consistent": 1,
+      "profile.paragraphs-mixed": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.image-paragraph-centred": 8,
@@ -98,7 +98,7 @@
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
-      "profile.paragraphs-consistent": 1,
+      "profile.paragraphs-mixed": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-described": 1,
       "xhtml.image-paragraph-centred": 8,

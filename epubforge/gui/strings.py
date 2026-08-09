@@ -226,6 +226,9 @@ PL: dict[str, str] = {
     ),
     "corpus.edges.done": "Dopisano {count} {count:plik brzegowy|pliki brzegowe|plików brzegowych}:",
     "corpus.edges.working": "buduję brzegi…",
+    "corpus.streak": "Passa zielonych wydań: {count} ({releases}).",
+    "corpus.streak.none": "Passa zielonych wydań: brak — ostatni przebieg nie był czysty.",
+    "corpus.streak.widened": "Pominięte jako poszerzenie pomiaru: {releases}.",
 
     # --- reader compatibility -------------------------------------------
     "compat.group": "Zgodność z czytnikami (opcjonalne)",
@@ -538,6 +541,9 @@ EN: dict[str, str] = {
     ),
     "corpus.edges.done": "Wrote {count} edge case(s):",
     "corpus.edges.working": "building the edge cases…",
+    "corpus.streak": "Green releases in a row: {count} ({releases}).",
+    "corpus.streak.none": "Green releases in a row: none — the last run was not clean.",
+    "corpus.streak.widened": "Passed over as a widening of the measurement: {releases}.",
 
     "compat.group": "Reader compatibility (optional)",
     "compat.hint": "Concessions to particular devices:",
