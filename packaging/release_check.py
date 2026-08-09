@@ -22,10 +22,16 @@ So the checks split in two, and the split matters:
 * **Ours** — version, changelog, READMEs. Wrong here is a bug we can fix, and
   `tests/test_release_state.py` fails the build over it.
 * **Theirs** — the tag, the release, the frozen branch. These are facts on the
-  remote, read with `git ls-remote`. The build workflow is dispatched by the
-  owner in a browser; this environment cannot push a tag (the proxy refuses
-  with 403) and so cannot release anything. That is a hand-off, and the output
-  below prints it as one rather than pretending otherwise.
+  remote, read with `git ls-remote`, and the only ones that settle the
+  question.
+
+The build is dispatched from here, through the GitHub API, and the tag is
+created by the workflow at the commit it builds. `git push --tags` is refused
+by the proxy with a 403, which is a fact about one command and not about the
+release — reading it as "this side cannot release anything" is a mistake this
+file made in its first version, on the strength of a workflow run whose `actor`
+said `LuKi965`. That field names the account the token belongs to, not a person
+at a keyboard.
 
 Exit code is 0 when nothing is owed, 1 when something is.
 """
@@ -132,7 +138,8 @@ def check(number: str, *, offline: bool = False) -> list[tuple[bool | None, str,
     results.append((
         released,
         f"tag v{number} exists on origin",
-        f"OWNER: Actions → Build Windows → Run workflow, release_tag = v{number}",
+        "dispatch build-windows.yml on main with "
+        f"release_tag = v{number}, then wait for it to finish",
     ))
 
     if points:

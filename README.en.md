@@ -200,9 +200,6 @@ Copyright © 2026 Łukasz Kniotek.
 provided whatever you make of it is GPL too, with its source open. A closed
 product built on this code is not permitted.
 
-Changed from MIT in 0.2.14. Anything anybody took before that stays under MIT;
-the change is prospective.
-
 This program is distributed in the hope that it will be useful, but **WITHOUT ANY
 WARRANTY**; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See [`LICENSE`](LICENSE) for details.

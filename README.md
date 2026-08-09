@@ -196,9 +196,6 @@ Copyright © 2026 Łukasz Kniotek.
 pod warunkiem, że to, co z tego zrobisz, też będzie na GPL i też z otwartym
 źródłem. Zamknięty produkt na tym kodzie jest zabroniony.
 
-Zmienione z MIT w 0.2.14. To, co ktokolwiek wziął wcześniej, zostaje na MIT —
-zmiana działa na przyszłość.
-
 Program jest rozpowszechniany w nadziei, że będzie użyteczny, ale **BEZ
 JAKIEJKOLWIEK GWARANCJI**; nawet bez domyślnej gwarancji PRZYDATNOŚCI HANDLOWEJ
 albo PRZYDATNOŚCI DO OKREŚLONYCH ZASTOSOWAŃ. Szczegóły w [`LICENSE`](LICENSE).
