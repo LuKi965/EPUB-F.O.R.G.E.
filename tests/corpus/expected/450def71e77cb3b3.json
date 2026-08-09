@@ -1,6 +1,6 @@
 {
   "source": "sha256:450def71e77cb3b33be8799d2fbc5d6f10c012620d6b7b12093a297f5543e716",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -16,7 +16,7 @@
   "minimal": {
     "written": true,
     "report": {
-      "info": 8,
+      "info": 9,
       "fix": 8,
       "warn": 2
     },
@@ -31,6 +31,7 @@
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
       "profile.paragraphs-consistent": 1,
       "profile.scene-separators-found": 1,
       "reader.manifest-type-corrected": 3,
@@ -54,7 +55,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 7,
+      "info": 8,
       "fix": 79,
       "preserved": 3,
       "warn": 2
@@ -70,6 +71,7 @@
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
       "profile.paragraphs-consistent": 1,
       "profile.scene-separators-found": 1,
       "reader.manifest-type-corrected": 3,
@@ -96,7 +98,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 6,
+      "info": 7,
       "fix": 80,
       "preserved": 3,
       "warn": 2
@@ -112,6 +114,7 @@
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
       "profile.paragraphs-consistent": 1,
       "profile.scene-separators-found": 1,
       "reader.manifest-type-corrected": 3,

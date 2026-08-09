@@ -38,6 +38,63 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The corpus came back clean, and said so itself
+
+93 books on 0.2.16: **0 errors introduced** by any mode that opens a document,
+14 carried from the source as always, and 10 that container-only mode cannot
+reach without opening one. 0.2.15's ledger note ended *"0.2.16 will say it for
+itself, and if it does not, this note is the prediction that was wrong."* It
+said it — every one of the ten was named by `xhtml.epub2-only-markup` before
+EPUBCheck was asked, which is the gate the `inherent` bucket depends on.
+
+Green streak: **1**. The alpha condition wants three consecutive releases at
+the same scope, so this is the first of three, not the finish.
+
+The fingerprint's first real measurement: 46 of 93 books carry a trace it
+recognises — gutenberg 17, sigil 17, calibre 16, from-mobi 5, indesign 4,
+pdf-or-ocr 3, word 3, several books carrying more than one. The other 47 carry
+none, which is what a shop EPUB looks like after the shop has finished with it,
+and it means half this shelf will tell roadmap [7] nothing about where it came
+from.
+
+### [7] groundwork: the safety apparatus, before any rule touches a character
+
+`epubforge/typography.py`. Typography is the only stage that changes text on
+purpose, so it is the only one K1 — *no character of the book's text is lost* —
+cannot police as written. Switching K1 off for it would trade the one invariant
+that has ever caught a silent data defect for the convenience of the stage most
+likely to cause one. So both sides are folded to a canonical form and compared
+there: a curly quote folded to a straight one still has to be present, and a
+lost word still reads as a lost word. `biało-czerwony` glued into
+`białoczerwony` — the failure of every hyphenation repair ever written — is
+caught by the fold rather than by a rule that remembers to look.
+
+Where a rule may reach is one iterator, not a condition inside every rule:
+`<pre>`, `<code>`, `<kbd>`, `<samp>`, `<script>`, `<style>`, `<ruby>`, MathML,
+SVG, anything in another language than the publication, and anything whose
+computed `white-space` preserves it. The tail text after `</code>` **is**
+editable, because a tail belongs to the parent's flow — and the first version
+got the mirror of that wrong, letting one character out of a protected block.
+
+And `dominant()`, which answers what the book already does rather than what is
+correct. A book consistently using `«…»` has made a decision (K5); the job is
+to repair inconsistency, not taste. Two thirds, not a majority — at 51% a book
+is not consistent, it is arguing with itself, and picking the winner would
+impose an opinion on nearly half the text.
+
+**The shelf reordered the plan.** The roadmap's three risk classes were written
+before there were numbers. There are now: zero-width characters **0 books**,
+mojibake **0**, hyphens frozen at a line end **0 above the floor**. Class 1
+(safe) and class 3 (reconstruction) have almost no customers here. What does:
+`...` typed for `…` and dominant in **34** books, two quote forms mixed in
+**35**, more than twenty unbound conjunctions in **39**. So the first rules are
+class 2 — quotes, ellipsis, conjunctions — and not the easy class first.
+
+One surprise worth recording: 213 591 soft hyphens, in four books. That is a
+publisher pre-computing hyphenation points on purpose. Not damage, and nothing
+will remove them.
+
+
 ## 0.2.16 — alpha — 2026-08-09 — kamień milowy [6]
 
 ### [6] `fingerprint.py` — what made this book, and how sure we are

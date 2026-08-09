@@ -512,10 +512,18 @@ class TestTheStreakIsReadFromHistory:
         assert green_streak(history) == []
 
     def test_the_real_ledger_is_read_by_the_same_rule(self):
-        """Not a hypothetical. Read the file, and say what it says — which
-        today is zero, because 0.2.11 and 0.2.12 measured the same 93 books in
-        the same three modes and both introduced errors. The rule was changed
-        because it punished growth, not to award a streak nobody earned."""
+        """Not a hypothetical. Read the file and say what it says.
+
+        For a long time the answer was zero, and this test asserted the zero:
+        0.2.11 through 0.2.15 measured the same 93 books in the same three
+        modes and every one of them introduced errors. 0.2.16 is the first that
+        did not, so the streak is 1 and the alpha condition wants three.
+
+        The number is pinned rather than recomputed, because a test that asks
+        the rule what the rule thinks would pass whatever the rule started
+        thinking. It is meant to need editing when a release earns a streak —
+        that edit is the moment somebody looks at the ledger on purpose.
+        """
         import json
         import pathlib
 
@@ -525,7 +533,7 @@ class TestTheStreakIsReadFromHistory:
             pathlib.Path("tests/corpus/runs.json").read_text(encoding="utf-8")
         )
         assert all("modes" in entry for entry in history)
-        assert green_streak(history, minimum=30) == []
+        assert green_streak(history, minimum=30) == ["0.2.16"]
         assert "0.2.9" in widenings(history, minimum=30)
 
     def test_the_ledger_lives_beside_the_signatures_not_among_them(self):

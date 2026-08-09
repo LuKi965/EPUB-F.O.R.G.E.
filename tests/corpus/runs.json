@@ -1,203 +1,223 @@
 [
-  {
-    "version": "0.2.5",
-    "date": "2026-08-06",
-    "books": 38,
-    "modes": [
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": true,
-    "note": "partial — measured away from home; entered by hand, the ledger did not exist yet Modes filled in afterwards: the ledger did not record which modes a run measured until 0.2.13, and the streak rule needs it — `minimal` joined after the second 0.2.7 run, which is stated in that run's own note."
+ {
+  "version": "0.2.5",
+  "date": "2026-08-06",
+  "books": 38,
+  "modes": [
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "partial — measured away from home; entered by hand, the ledger did not exist yet Modes filled in afterwards: the ledger did not record which modes a run measured until 0.2.13, and the streak rule needs it — `minimal` joined after the second 0.2.7 run, which is stated in that run's own note."
+ },
+ {
+  "version": "0.2.6",
+  "date": "2026-08-06",
+  "books": 70,
+  "modes": [
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "entered by hand, the ledger did not exist yet"
+ },
+ {
+  "version": "0.2.6",
+  "date": "2026-08-06",
+  "books": 87,
+  "modes": [
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": false,
+  "note": "the same release over 17 more books — the first conversions the corpus ever held. Seven of them carried an EPUBCheck error the previous seventy never produced: `value` on a bullet, a link to an anchor nobody defines, a stylesheet fetched from Google. All three are source defects the rebuild had no rule for; all three are fixed in 0.2.7. Entered by hand, computed from the signatures — the build that took them did not write a ledger."
+ },
+ {
+  "version": "0.2.7",
+  "date": "2026-08-07",
+  "books": 91,
+  "modes": [
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "the first run the application logged by itself — 0.2.6 had no ledger, so everything above was entered by hand. Four of the 91 are the generated edges, built from the window. The seven books 0.2.6 could not make conformant come out clean."
+ },
+ {
+  "version": "0.2.7",
+  "date": "2026-08-07",
+  "books": 93,
+  "modes": [
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "every family represented — the closing condition for roadmap point [1]. Two books added for `word` and `pdf-or-ocr`; the other 91 measured identically to the run before. Two modes only: `minimal` joins the corpus after this run, so the next one re-measures every book once."
+ },
+ {
+  "version": "0.2.9",
+  "date": "2026-08-08",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 44,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": false,
+  "note": "recorded exactly as the run measured it, under a rule that was wrong. All 44 errors sit in `minimal`, across 31 books; `preserve` and `strict` came out at zero on the same 93 books, and their signatures are identical to the 0.2.7 run apart from one rule id I renamed. Container-only mode leaves content byte for byte, so those are the sources' own defects carried through — but nothing had measured the sources, so the summary counted them as ours and reset the streak. Fixed after this run: the source's own verdict is recorded and the mode is judged on what it introduced. Not back-dated, because I cannot validate books I do not have, and editing a measurement to match a hypothesis is the one thing this ledger exists to prevent."
+ },
+ {
+  "version": "0.2.11",
+  "date": "2026-08-08",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 20,
+  "carried": 24,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": false,
+  "note": "the split worked and found a real defect: 24 errors carried through from the sources, 20 introduced by container-only mode across 19 books whose sources were clean. Not a summary bug this time — the mode rebuilds the package as EPUB 3 and was not declaring `properties=\"svg\"`, because the code that works properties out lived in the branch this mode skips. Under the old rule all 44 were indistinguishable and would have been written off as the sources'. Fixed after this run; 0 in modes that rewrite content."
+ },
+ {
+  "version": "0.2.12",
+  "date": "2026-08-09",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 14,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": false,
+  "note": "Same 93 books, same three modes as 0.2.11, so this one is comparable and it is counted: 24 carried and 20 introduced became 14 and 14. The `properties=\"svg\"` fix closed the six books I had locally; thirteen I have never seen still gain an error each in container-only mode, and this run could not say which error, because a signature recorded how many and not what. 0.2.13 records the EPUBCheck rule identifiers, so the next run over these books answers it without anybody sending a book. Not clean, and the streak stays at zero on its own merits — the measurement did not widen here, the defect is real."
+ },
+ {
+  "version": "0.2.13",
+  "date": "2026-08-09",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 14,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "codes": {
+   "RSC-005": 15
   },
-  {
-    "version": "0.2.6",
-    "date": "2026-08-06",
-    "books": 70,
-    "modes": [
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": true,
-    "note": "entered by hand, the ledger did not exist yet"
+  "clean": false,
+  "note": "The same 14 and 14 as 0.2.12, and this time the run says what they are: every error container-only mode introduced is `RSC-005`. On the one book of that shape I could reach — the owner's Book 7, sent separately — RSC-005 reads *Element \"title\" must not be empty*. EPUB 2 allowed an empty <title>; EPUB 3 does not, and this mode rebuilds the package as EPUB 3 around content it will not open. So they were ours after all, made by the upgrade rather than carried from the book. Fixed after this run by filling an empty title on the bytes, the second edit of the same kind as the DOCTYPE. Thirteen books diagnosed without anybody sending a book, which is what the identifiers were added for. The owner's own ledger holds this run twice — Record was pressed twice over the same shelf — and it is entered once here, because it is one measurement."
+ },
+ {
+  "version": "0.2.14",
+  "date": "2026-08-09",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 10,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "codes": {
+   "RSC-005": 11
   },
-  {
-    "version": "0.2.6",
-    "date": "2026-08-06",
-    "books": 87,
-    "modes": [
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 14,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": false,
-    "note": "the same release over 17 more books — the first conversions the corpus ever held. Seven of them carried an EPUBCheck error the previous seventy never produced: `value` on a bullet, a link to an anchor nobody defines, a stylesheet fetched from Google. All three are source defects the rebuild had no rule for; all three are fixed in 0.2.7. Entered by hand, computed from the signatures — the build that took them did not write a ledger."
+  "clean": false,
+  "note": "Filling the empty <title> closed four of the fourteen; eleven books now gain exactly one error each, still RSC-005. That is where the message identifiers stop being enough: RSC-005 is EPUBCheck's catch-all for \"this file does not match the schema\", so eleven books breaking on it says only that something in a document is wrong. From 0.2.15 the signature keeps the sentence too, with every quoted literal that is not a plain markup name masked — `element \"img\" not allowed here` keeps its `img`, an id or a path becomes `…`. Everything else on this run is the new work landing on a real shelf: 142 documents had the publisher's own rule put back, 133 stylesheets lost rules for markup their book does not contain, 119 spans were unwrapped, and two pages pinned out of the flow were translated into an in-flow equivalent — one of them the dedication that used to come out blank on the owner's reader, confirmed fixed on the device."
+ },
+ {
+  "version": "0.2.15",
+  "date": "2026-08-09",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 10,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "codes": {
+   "RSC-005": 11
   },
-  {
-    "version": "0.2.7",
-    "date": "2026-08-07",
-    "books": 91,
-    "modes": [
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": true,
-    "note": "the first run the application logged by itself — 0.2.6 had no ledger, so everything above was entered by hand. Four of the 91 are the generated edges, built from the window. The seven books 0.2.6 could not make conformant come out clean."
-  },
-  {
-    "version": "0.2.7",
-    "date": "2026-08-07",
-    "books": 93,
-    "modes": [
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": true,
-    "note": "every family represented — the closing condition for roadmap point [1]. Two books added for `word` and `pdf-or-ocr`; the other 91 measured identically to the run before. Two modes only: `minimal` joins the corpus after this run, so the next one re-measures every book once."
-  },
-  {
-    "version": "0.2.9",
-    "date": "2026-08-08",
-    "books": 93,
-    "modes": [
-      "minimal",
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 44,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": false,
-    "note": "recorded exactly as the run measured it, under a rule that was wrong. All 44 errors sit in `minimal`, across 31 books; `preserve` and `strict` came out at zero on the same 93 books, and their signatures are identical to the 0.2.7 run apart from one rule id I renamed. Container-only mode leaves content byte for byte, so those are the sources' own defects carried through — but nothing had measured the sources, so the summary counted them as ours and reset the streak. Fixed after this run: the source's own verdict is recorded and the mode is judged on what it introduced. Not back-dated, because I cannot validate books I do not have, and editing a measurement to match a hypothesis is the one thing this ledger exists to prevent."
-  },
-  {
-    "version": "0.2.11",
-    "date": "2026-08-08",
-    "books": 93,
-    "modes": [
-      "minimal",
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "introduced": 20,
-    "carried": 24,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": false,
-    "note": "the split worked and found a real defect: 24 errors carried through from the sources, 20 introduced by container-only mode across 19 books whose sources were clean. Not a summary bug this time — the mode rebuilds the package as EPUB 3 and was not declaring `properties=\"svg\"`, because the code that works properties out lived in the branch this mode skips. Under the old rule all 44 were indistinguishable and would have been written off as the sources'. Fixed after this run; 0 in modes that rewrite content."
-  },
-  {
-    "version": "0.2.12",
-    "date": "2026-08-09",
-    "books": 93,
-    "modes": [
-      "minimal",
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "introduced": 14,
-    "carried": 14,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "clean": false,
-    "note": "Same 93 books, same three modes as 0.2.11, so this one is comparable and it is counted: 24 carried and 20 introduced became 14 and 14. The `properties=\"svg\"` fix closed the six books I had locally; thirteen I have never seen still gain an error each in container-only mode, and this run could not say which error, because a signature recorded how many and not what. 0.2.13 records the EPUBCheck rule identifiers, so the next run over these books answers it without anybody sending a book. Not clean, and the streak stays at zero on its own merits — the measurement did not widen here, the defect is real."
-  },
-  {
-    "version": "0.2.13",
-    "date": "2026-08-09",
-    "books": 93,
-    "modes": [
-      "minimal",
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "introduced": 14,
-    "carried": 14,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "codes": {
-      "RSC-005": 15
-    },
-    "clean": false,
-    "note": "The same 14 and 14 as 0.2.12, and this time the run says what they are: every error container-only mode introduced is `RSC-005`. On the one book of that shape I could reach — the owner's Book 7, sent separately — RSC-005 reads *Element \"title\" must not be empty*. EPUB 2 allowed an empty <title>; EPUB 3 does not, and this mode rebuilds the package as EPUB 3 around content it will not open. So they were ours after all, made by the upgrade rather than carried from the book. Fixed after this run by filling an empty title on the bytes, the second edit of the same kind as the DOCTYPE. Thirteen books diagnosed without anybody sending a book, which is what the identifiers were added for. The owner's own ledger holds this run twice — Record was pressed twice over the same shelf — and it is entered once here, because it is one measurement."
-  },
-  {
-    "version": "0.2.14",
-    "date": "2026-08-09",
-    "books": 93,
-    "modes": [
-      "minimal",
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "introduced": 10,
-    "carried": 14,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "codes": {
-      "RSC-005": 11
-    },
-    "clean": false,
-    "note": "Filling the empty <title> closed four of the fourteen; eleven books now gain exactly one error each, still RSC-005. That is where the message identifiers stop being enough: RSC-005 is EPUBCheck's catch-all for \"this file does not match the schema\", so eleven books breaking on it says only that something in a document is wrong. From 0.2.15 the signature keeps the sentence too, with every quoted literal that is not a plain markup name masked — `element \"img\" not allowed here` keeps its `img`, an id or a path becomes `…`. Everything else on this run is the new work landing on a real shelf: 142 documents had the publisher's own rule put back, 133 stylesheets lost rules for markup their book does not contain, 119 spans were unwrapped, and two pages pinned out of the flow were translated into an in-flow equivalent — one of them the dedication that used to come out blank on the owner's reader, confirmed fixed on the device."
-  },
-  {
-    "version": "0.2.15",
-    "date": "2026-08-09",
-    "books": 93,
-    "modes": [
-      "minimal",
-      "preserve",
-      "strict"
-    ],
-    "failed": 0,
-    "errors": 0,
-    "introduced": 10,
-    "carried": 14,
-    "fatal": 0,
-    "text_lost": 0,
-    "unwritten": 0,
-    "codes": {
-      "RSC-005": 11
-    },
-    "clean": false,
-    "note": "Recorded as the application judged it on the day, and the rule it judged by was superseded hours later. The shapes it recorded for the first time named all four remaining defects, and every one is markup EPUB 2 allowed and EPUB 3 does not, in a document container-only mode promises not to open: a non-integer `width` (7) and `height` (4), `valign` (6), and `value` on a list item outside an ordered list (5). The modes that open documents translate all four into CSS and come out clean. So 0.2.16 adds a third bucket, `inherent`, for an error that mode cannot reach — gated on the tool having named the construct itself, because \"the full rebuild was clean so it must be the contract\" would have excused 0.2.11's missing `properties=\"svg\"`, which was a real defect of exactly that shape. Checked against these very signatures: all ten are named, so under the new rule this run reads clean. It is not rewritten to say so. The ledger records what the tool said on the day; 0.2.16 will say it for itself, and if it does not, this note is the prediction that was wrong."
-  }
+  "clean": false,
+  "note": "Recorded as the application judged it on the day, and the rule it judged by was superseded hours later. The shapes it recorded for the first time named all four remaining defects, and every one is markup EPUB 2 allowed and EPUB 3 does not, in a document container-only mode promises not to open: a non-integer `width` (7) and `height` (4), `valign` (6), and `value` on a list item outside an ordered list (5). The modes that open documents translate all four into CSS and come out clean. So 0.2.16 adds a third bucket, `inherent`, for an error that mode cannot reach — gated on the tool having named the construct itself, because \"the full rebuild was clean so it must be the contract\" would have excused 0.2.11's missing `properties=\"svg\"`, which was a real defect of exactly that shape. Checked against these very signatures: all ten are named, so under the new rule this run reads clean. It is not rewritten to say so. The ledger records what the tool said on the day; 0.2.16 will say it for itself, and if it does not, this note is the prediction that was wrong."
+ },
+ {
+  "version": "0.2.16",
+  "date": "2026-08-10",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 0,
+  "inherent": 10,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "The first clean run, and it is clean because the application said so itself rather than because the ledger was rewritten to forgive it. 0.2.15's note ended: *0.2.16 will say it for itself, and if it does not, this note is the prediction that was wrong.* It said it. Ten errors container-only mode cannot reach without opening a document — a non-integer width and height, valign, and value on a list item outside an ordered list — are now counted as `inherent`, each one named by `xhtml.epub2-only-markup` before EPUBCheck was asked, which is the gate the bucket depends on. Fourteen carried from the source as before; zero introduced by any mode that opens a document. Green streak: 1, and the alpha condition wants three consecutive releases at the same scope. Also the first measurement of the new fingerprint on a real shelf: 46 of 93 books carry a trace it recognises — gutenberg 17, sigil 17, calibre 16, from-mobi 5, indesign 4, pdf-or-ocr 3, word 3, several books carrying more than one. The other 47 carry none, which is what a shop EPUB looks like after the shop has finished with it."
+ }
 ]
