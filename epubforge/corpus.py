@@ -208,6 +208,12 @@ def _reusable_verdict(previous: "dict | None", output_digest: str) -> "dict | No
         return None
     if previous.get("checker") != checker_identity():
         return None
+    # A verdict recorded before the identifiers existed is a count with no
+    # explanation, and reuse would keep it that way for as long as the book and
+    # the jar hold still — which for a private corpus is forever. `{}` counts as
+    # recorded: it is what a clean book has.
+    if verdict.get("codes") is None:
+        return None
     return verdict
 
 
@@ -305,13 +311,25 @@ def _measure(
         if recorded is not None:
             measurement["epubcheck"] = recorded
         else:
-            check = validate(result.output_path)
-            measurement["epubcheck"] = {
-                "errors": check.errors,
-                "warnings": check.warnings,
-                "fatal": check.fatal,
-            }
+            measurement["epubcheck"] = _verdict(validate(result.output_path))
     return measurement
+
+
+def _verdict(check) -> dict:
+    """What EPUBCheck said, in the form a signature is allowed to keep.
+
+    Three counts and the identifiers behind them. The identifiers are the point:
+    a run that says "14 errors introduced" and cannot say which rules they broke
+    is a smoke alarm with no address, and the books are on somebody else's disk.
+    `RSC-005` names a rule in EPUBCheck's own vocabulary and nothing about the
+    book, so it stays inside the promise this file opens with.
+    """
+    return {
+        "errors": check.errors,
+        "warnings": check.warnings,
+        "fatal": check.fatal,
+        "codes": check.codes,
+    }
 
 
 def signature(
@@ -353,13 +371,10 @@ def signature(
             previous or {}
         ).get("checker") != record["checker"]
         recorded = None if stale else (previous or {}).get("source_epubcheck")
+        if recorded is not None and recorded.get("codes") is None:
+            recorded = None  # counted before the identifiers existed; ask again
         if recorded is None:
-            check = validate(str(book))
-            recorded = {
-                "errors": check.errors,
-                "warnings": check.warnings,
-                "fatal": check.fatal,
-            }
+            recorded = _verdict(validate(str(book)))
         record["source_epubcheck"] = recorded
     for mode in MODES:
         record[mode] = _measure(
@@ -374,6 +389,33 @@ def releases(records: "list[dict]") -> "dict[str, int]":
     return dict(sorted(counted.items()))
 
 
+def _scope(entry: dict) -> "tuple[int, tuple[str, ...]]":
+    """What a run measured: how many books, in how many modes.
+
+    Not *what it found* — that is the verdict. This is the size of the question
+    that was asked, and it is what has to hold still for two verdicts to be
+    comparable.
+    """
+    return (entry.get("books", 0), tuple(entry.get("modes") or ()))
+
+
+def _widened(previous: "dict | None", entry: dict) -> bool:
+    """Whether *entry* asked a larger question than the run before it.
+
+    Strictly larger, in both directions at once or in either alone: more books,
+    or the same books in more modes. A run over *fewer* books is not a widening
+    however it comes out — a shrinking corpus that reports clean is exactly the
+    shape of evidence this ledger exists to refuse.
+    """
+    if previous is None:
+        return False
+    books_before, modes_before = _scope(previous)
+    books_now, modes_now = _scope(entry)
+    if books_now < books_before or not set(modes_before) <= set(modes_now):
+        return False
+    return books_now > books_before or len(modes_now) > len(modes_before)
+
+
 def green_streak(history: "list[dict]", *, minimum: int = 1) -> "list[str]":
     """The run of consecutive releases that came out clean, most recent last.
 
@@ -384,17 +426,56 @@ def green_streak(history: "list[dict]", *, minimum: int = 1) -> "list[str]":
     *minimum* is how many books a run must cover to count at all. A run over
     three books says nothing about a corpus of eighty-six, and letting it extend
     a streak would be the same mistake as counting books instead of families.
+
+    **A release that widened the measurement is passed over rather than counted
+    against.** Every corpus run so far but one asked a larger question than the
+    run before it — 38 books, then 70, then 87, 91, 93, then the same 93 in a
+    third mode — and under the old rule each of those resets the count to zero.
+    That made "green across three consecutive releases" not a bar this project
+    could clear but a bar it was forbidden to approach, because the way to clear
+    it was to stop looking at more books. The corpus is here to find defects; a
+    rule that punishes it for succeeding is the rule that is wrong.
+
+    Passed over, not counted as green: a widening release neither extends the
+    streak nor ends it, and `widenings()` lists them so the gap is on the record
+    rather than papered over. What stops a real regression hiding in that gap is
+    that it does not go away — the next run at unchanged scope finds it, and
+    that one resets the count. The exemption is for the release that grew, not
+    for the defect it found.
     """
     streak: list[str] = []
+    previous: "dict | None" = None
     for entry in history:
         if entry.get("books", 0) < minimum:
             continue
+        if _widened(previous, entry):
+            previous = entry
+            continue
+        previous = entry
         if entry.get("clean"):
             if not streak or streak[-1] != entry.get("version"):
                 streak.append(entry.get("version", "?"))
         else:
             streak = []
     return streak
+
+
+def widenings(history: "list[dict]", *, minimum: int = 1) -> "list[str]":
+    """The releases that asked a larger question than the run before them.
+
+    The other half of the rule above. A streak that skips releases without
+    saying which, or why, is a number to be taken on trust; this is the
+    accompanying list that makes it checkable.
+    """
+    grown: list[str] = []
+    previous: "dict | None" = None
+    for entry in history:
+        if entry.get("books", 0) < minimum:
+            continue
+        if _widened(previous, entry):
+            grown.append(entry.get("version", "?"))
+        previous = entry
+    return grown
 
 
 def _rule_changes(recorded: dict, measured: dict) -> str:
@@ -423,6 +504,13 @@ def _rule_changes(recorded: dict, measured: dict) -> str:
 _METADATA = frozenset({"version", "checker"})
 _MODE_METADATA = frozenset({"checker"})
 
+#: Blocks whose *absence* from a recorded signature means the field did not
+#: exist yet, rather than that its value was nothing. Every one of them arrived
+#: after books were already recorded: the modes when `minimal` joined, the
+#: source's own verdict when carried defects had to be told from introduced
+#: ones, the identifiers when a count stopped being enough to act on.
+_NEWLY_MEASURED = frozenset({*MODES, "source_epubcheck", "epubcheck", "codes"})
+
 
 def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
     """Field-level diff, so a change reads as a sentence and not as two hashes."""
@@ -434,12 +522,19 @@ def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
             continue
         if path in MODES and key in _MODE_METADATA:
             continue
-        # A mode the recorded signature never held. Adding `minimal` made every
+        # A field the recorded signature never held. Adding `minimal` made every
         # book in the corpus report the whole block as a difference — ninety
         # lines each, ninety-three times, for a change in what is measured
-        # rather than in how a book rebuilds. There is nothing to compare
-        # against, so say that and say it once.
-        if not path and (key in MODES or key == "source_epubcheck") and old is None and new is not None:
+        # rather than in how a book rebuilds. Adding the EPUBCheck identifiers
+        # did the same on a smaller scale. There is nothing to compare against,
+        # so say that, and say it once.
+        #
+        # Named rather than inferred, because absence means two different
+        # things in this file. In a counter — `report`, `rules`, `codes`'
+        # contents — a missing key means the count was zero, and calling that
+        # "not measured" would be a lie about a measurement that ran. In these
+        # four it means the field did not exist when the signature was written.
+        if key in _NEWLY_MEASURED and key not in recorded and new is not None:
             lines.append(f"{here}: not measured before")
             continue
         if key == "rules" and isinstance(old, dict) and isinstance(new, dict):
@@ -579,6 +674,16 @@ def compare(
 RUNS = "runs.json"
 
 
+def _new_codes(source: dict, produced: dict) -> "Counter":
+    """The EPUBCheck rules broken by the rebuild and not by the book.
+
+    Counted rather than set-differenced: a source with one `RSC-005` and an
+    output with three has gained two, and calling that "nothing new" is how a
+    real regression hides behind a defect the source already had.
+    """
+    return Counter(produced.get("codes") or {}) - Counter(source.get("codes") or {})
+
+
 def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     """Append what this run measured, because a signature cannot remember.
 
@@ -600,15 +705,22 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
         "version": __version__,
         "date": datetime.date.today().isoformat(),
         "books": len(results),
+        # Half of what makes two runs comparable. Adding `minimal` widened the
+        # measurement without moving the book count by one, and nothing in the
+        # ledger recorded it — so the run that first measured a third mode read
+        # as the same question asked again, and its answer as a regression.
+        "modes": list(MODES),
         "failed": sum(1 for r in results if r.status == "failed"),
     }
     errors = introduced = carried = fatal = lost = unwritten = 0
+    blamed: Counter = Counter()
     for result in results:
         record_path = signatures / f"{result.identifier}.json"
         if not record_path.is_file():
             continue
         measured = json.loads(record_path.read_text(encoding="utf-8"))
-        source = (measured.get("source_epubcheck") or {}).get("errors", 0)
+        origin = measured.get("source_epubcheck") or {}
+        source = origin.get("errors", 0)
         for mode in MODES:
             found = measured.get(mode) or {}
             if not found.get("written"):
@@ -621,8 +733,10 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
                 # Judged on what it added, not on what it declined to fix.
                 introduced += max(0, count - source)
                 carried += min(count, source)
+                blamed.update(_new_codes(origin, check))
             else:
                 errors += count
+                blamed.update(check.get("codes") or {})
             if not found.get("text_invariant", True):
                 lost += 1
     entry.update(
@@ -633,6 +747,10 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
         text_lost=lost,
         unwritten=unwritten,
     )
+    if blamed:
+        # Which EPUBCheck rules they were. Without this the ledger records that
+        # something broke and leaves the reader with no next question to ask.
+        entry["codes"] = dict(sorted(blamed.items()))
     entry["clean"] = not (
         errors or introduced or fatal or lost or unwritten or entry["failed"]
     )
@@ -662,19 +780,24 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
         return line
 
     errors = introduced = carried = 0
+    blamed: Counter = Counter()
     for result in results:
         path = signatures / f"{result.identifier}.json"
         if not path.is_file():
             continue
         measured = json.loads(path.read_text(encoding="utf-8"))
-        source = (measured.get("source_epubcheck") or {}).get("errors", 0)
+        origin = measured.get("source_epubcheck") or {}
+        source = origin.get("errors", 0)
         for mode in MODES:
-            count = ((measured.get(mode) or {}).get("epubcheck") or {}).get("errors", 0)
+            check = (measured.get(mode) or {}).get("epubcheck") or {}
+            count = check.get("errors", 0)
             if mode in CARRIES_SOURCE_DEFECTS:
                 introduced += max(0, count - source)
                 carried += min(count, source)
+                blamed.update(_new_codes(origin, check))
             else:
                 errors += count
+                blamed.update(check.get("codes") or {})
     if not (errors or introduced or carried):
         return line
     parts = [f"{errors} EPUBCheck error(s) in modes that rewrite content"]
@@ -682,7 +805,14 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
         parts.append(f"{carried} source error(s) carried through by container-only mode")
     if introduced:
         parts.append(f"{introduced} introduced by it")
-    return line + "\n" + "; ".join(parts) + "."
+    line += "\n" + "; ".join(parts) + "."
+    if blamed:
+        named = ", ".join(
+            f"{code} ×{count}" if count > 1 else code
+            for code, count in sorted(blamed.items())
+        )
+        line += f"\nOurs, by EPUBCheck rule: {named}."
+    return line
 
 
 __all__ = [

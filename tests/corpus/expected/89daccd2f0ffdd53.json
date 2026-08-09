@@ -1,6 +1,6 @@
 {
   "source": "sha256:89daccd2f0ffdd53472d610d17a57bd494fca43d41fd41aaee8899e09396a273",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 9,
@@ -10,7 +10,7 @@
   "minimal": {
     "written": true,
     "report": {
-      "info": 6,
+      "info": 7,
       "fix": 4,
       "warn": 2
     },
@@ -25,17 +25,18 @@
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
+      "profile.paragraphs-consistent": 1,
       "reader.toc-from-ncx": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:363780a0ee03e3f2ce1ea4fd5e5bae837ef6f7019f32d834d83a3b2d64ef0bc2",
+    "output": "sha256:ea71319812c117489e17e4d08e885809dc2f3f1a54fcc2d0431541729045ee09",
     "text_characters": 159027,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 1744,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 4,
+      "errors": 3,
       "warnings": 0,
       "fatal": 0
     }
@@ -43,7 +44,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 10,
       "warn": 2
     },
@@ -57,6 +58,7 @@
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
+      "profile.paragraphs-consistent": 1,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
       "xhtml.empty-alt-added": 1,
@@ -77,7 +79,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 10,
       "warn": 2
     },
@@ -91,6 +93,7 @@
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
+      "profile.paragraphs-consistent": 1,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
       "xhtml.empty-alt-added": 1,

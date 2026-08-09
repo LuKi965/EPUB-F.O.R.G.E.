@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections import Counter
 from dataclasses import dataclass, field
 
 from . import resources
@@ -33,6 +34,19 @@ class ValidationResult:
     errors: int = 0
     warnings: int = 0
     messages: list[str] = field(default_factory=list)
+    #: Which EPUBCheck rules the errors were, counted: ``{"RSC-005": 2}``.
+    #:
+    #: EPUBCheck gives every message an identifier from a fixed vocabulary —
+    #: `OPF-014`, `RSC-005`, `HTM-004` — and the identifier is the only part of
+    #: a message that is neither the book's text nor a path inside it. That is
+    #: what makes it recordable: a corpus signature may say *what broke* without
+    #: saying anything about whose book broke it.
+    #:
+    #: Written because a run reported "14 errors introduced across 13 books" and
+    #: there was nothing further to ask. Every one of those books is on somebody
+    #: else's disk; without the identifiers the next step is to request the
+    #: books, which the corpus exists so as never to have to do.
+    codes: "dict[str, int]" = field(default_factory=dict)
 
     @property
     def clean(self) -> bool:
@@ -220,6 +234,7 @@ def validate(
             pass
 
     result = ValidationResult(available=True)
+    codes: Counter = Counter()
     for message in payload.get("messages", []):
         severity = (message.get("severity") or "").upper()
         text = message.get("message", "").strip()
@@ -235,6 +250,14 @@ def validate(
         else:
             continue
         result.messages.append(line)
+        # Warnings are left out on purpose. These are recorded to explain a
+        # failure, and a book that validates clean would otherwise carry a list
+        # of identifiers nobody is going to read.
+        if severity in ("FATAL", "ERROR"):
+            identifier = (message.get("ID") or message.get("id") or "").strip()
+            if identifier:
+                codes[identifier] += 1
+    result.codes = dict(sorted(codes.items()))
 
     if report:
         if result.clean:

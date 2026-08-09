@@ -1,6 +1,6 @@
 {
   "source": "sha256:7a1b716435bb7e3c27591d200bdcf311361c58dedfbe8a49f78210ee7d81ba98",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -23,14 +23,14 @@
       "reader.toc-from-ncx": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:ac034108e8cdafdc61e50de249f7f274fed9d0e7a9452912d490e91c08a6c9ff",
+    "output": "sha256:ab1a4bd786f2a550e8384cb97856e42ab3f366e49af45c0d6b1ab21c086ae081",
     "text_characters": 9,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 13,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 1,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0
     }

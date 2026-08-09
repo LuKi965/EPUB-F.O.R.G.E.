@@ -44,7 +44,9 @@ from tests.public_corpus import (
 #: measuring one book.
 BUILDERS = (epub2_ncx_only, nav_in_spine, right_to_left, legacy_markup, watermarked)
 
-VERDICT = {"errors": 0, "warnings": 0, "fatal": 0}
+#: `codes` present and empty is what a clean book records — "asked, none".
+#: Absent means the verdict predates the identifiers and has to be taken again.
+VERDICT = {"errors": 0, "warnings": 0, "fatal": 0, "codes": {}}
 
 
 @pytest.fixture
@@ -366,3 +368,142 @@ class TestAModeIsJudgedOnWhatItPromised:
         assert "carried through by container-only mode" in text
         assert "3 source error(s)" in text
         assert "introduced" not in text
+
+
+class TestARunSaysWhichRuleBroke:
+    """A count is a smoke alarm with no address.
+
+    0.2.12 reported *14 errors introduced across 13 books* in container-only
+    mode. Every one of those books is on the owner's disk and on no machine of
+    mine, and the signature — by design — holds nothing that would identify
+    one. So there was no next question to ask: not which rule, not which kind
+    of book, nothing but a number that had gone down from 20 and was still not
+    zero.
+
+    EPUBCheck stamps every message with an identifier from its own fixed
+    vocabulary — `RSC-005`, `OPF-014`, `HTM-004`. That identifier is the one
+    part of a message that is neither the book's text nor a path inside it, so
+    recording it keeps the promise this corpus was built on and still answers
+    *what broke*.
+    """
+
+    def payload(self, messages):
+        return {"messages": messages}
+
+    def message(self, identifier, severity="ERROR", path="EPUB/ch1.xhtml"):
+        return {
+            "ID": identifier,
+            "severity": severity,
+            "message": "something the book does wrong",
+            "locations": [{"path": path}],
+        }
+
+    def read(self, tmp_path, payload):
+        """Run `validate` against a canned EPUBCheck run."""
+        import json
+
+        from epubforge import validate as module
+
+        written = tmp_path / "report.json"
+        written.write_text(json.dumps(payload), encoding="utf-8")
+
+        def fake_run(command, **kwargs):
+            import shutil
+
+            shutil.copyfile(written, command[command.index("--json") + 1])
+
+            class Completed:
+                returncode = 0
+
+            return Completed()
+
+        original_find, original_run = module.find_epubcheck, module.subprocess.run
+        module.find_epubcheck = lambda: ["epubcheck"]
+        module.subprocess.run = fake_run
+        try:
+            return module.validate(str(tmp_path / "book.epub"))
+        finally:
+            module.find_epubcheck, module.subprocess.run = original_find, original_run
+
+    def test_the_identifiers_are_counted_not_just_listed(self, tmp_path):
+        """Two of the same rule is a different fact from one of it."""
+        result = self.read(
+            tmp_path,
+            self.payload(
+                [
+                    self.message("RSC-005"),
+                    self.message("RSC-005", path="EPUB/ch2.xhtml"),
+                    self.message("OPF-014"),
+                ]
+            ),
+        )
+        assert result.errors == 3
+        assert result.codes == {"OPF-014": 1, "RSC-005": 2}
+
+    def test_a_clean_book_records_an_empty_set_and_not_a_missing_one(self, tmp_path):
+        """The distinction the verdict cache turns on. `{}` means "asked, and
+        the answer was none"; absent means "recorded before identifiers
+        existed", and that one has to be measured again."""
+        result = self.read(tmp_path, self.payload([]))
+        assert result.codes == {}
+
+    def test_warnings_do_not_appear(self, tmp_path):
+        """These exist to explain a failure. A book that validates clean would
+        otherwise carry a list of identifiers nobody is going to read."""
+        result = self.read(
+            tmp_path,
+            self.payload([self.message("ACC-007", severity="WARNING")]),
+        )
+        assert result.warnings == 1
+        assert result.codes == {}
+
+    def test_a_verdict_without_identifiers_is_not_reused(self):
+        """Otherwise a private corpus keeps the old counts for ever: the books
+        do not change and neither does the jar, so the reuse test passes every
+        time and the identifiers never get recorded."""
+        from epubforge.corpus import _reusable_verdict, checker_identity
+
+        stored = {
+            "output": "sha256:abc",
+            "checker": checker_identity(),
+            "epubcheck": {"errors": 1, "warnings": 0, "fatal": 0},
+        }
+        assert _reusable_verdict(stored, "sha256:abc") is None
+
+        stored["epubcheck"]["codes"] = {"RSC-005": 1}
+        assert _reusable_verdict(stored, "sha256:abc") == stored["epubcheck"]
+
+    def test_only_the_rules_the_rebuild_broke_are_blamed(self):
+        """Counted, not set-differenced. A source with one `RSC-005` and an
+        output with three has gained two, and calling that "nothing new" is how
+        a regression hides behind a defect the source already had."""
+        from epubforge.corpus import _new_codes
+
+        source = {"codes": {"RSC-005": 1, "HTM-004": 2}}
+        produced = {"codes": {"RSC-005": 3, "OPF-014": 1}}
+        assert dict(_new_codes(source, produced)) == {"RSC-005": 2, "OPF-014": 1}
+
+    def test_the_summary_names_them(self, tmp_path):
+        """What the owner reads after a run, and what he could not read before:
+        not that thirteen books broke, but what they broke."""
+        import json
+
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True)
+        (signatures / ("a" * 16 + ".json")).write_text(
+            json.dumps(
+                {
+                    "source_epubcheck": {"errors": 0, "codes": {}},
+                    "minimal": {
+                        "written": True,
+                        "text_invariant": True,
+                        "epubcheck": {"errors": 1, "codes": {"OPF-014": 1}},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = summarise([Comparison("a.epub", "a" * 16, "unchanged")], signatures)
+        assert "Ours, by EPUBCheck rule: OPF-014." in text

@@ -443,10 +443,49 @@ class CorpusPanel(Panel):
         from ..corpus import summarise
 
         summary = summarise(results, self._signatures_used)
+        streak = self._streak()
+        if streak:
+            summary += "\n" + streak
         self.output.setPlainText(summary + ("\n\n" + "\n".join(lines) if lines else ""))
         # The status bar is one line high, so it gets the first one; the pane
         # below has room for the sentence that says which errors were whose.
         self.window().statusBar().showMessage(summary.splitlines()[0])
+
+    def _streak(self) -> str:
+        """How many releases in a row came out clean, read from the ledger.
+
+        Answering this from memory is how the family count came to be wrong, and
+        the owner has been asking it from outside the program: he remembered
+        three green metrics and watched the count go back to zero, with no way
+        to check which of us was right. It is one file and two functions, and
+        the person who owns the books is the person who should be able to read
+        it without a checkout.
+        """
+        import json
+
+        from ..corpus import RUNS, green_streak, widenings
+
+        if self._signatures_used is None:
+            return ""
+        ledger = pathlib.Path(self._signatures_used).parent / RUNS
+        if not ledger.is_file():
+            return ""
+        try:
+            history = json.loads(ledger.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ""
+
+        # The same floor the streak rule uses: a run over three books says
+        # nothing about a corpus of ninety.
+        streak = green_streak(history, minimum=30)
+        grown = widenings(history, minimum=30)
+        if streak:
+            said = tr("corpus.streak", count=len(streak), releases=", ".join(streak))
+        else:
+            said = tr("corpus.streak.none")
+        if grown:
+            said += " " + tr("corpus.streak.widened", releases=", ".join(grown))
+        return said
 
     def _handle_edges(self, written) -> None:
         from ..edge_cases import EDGES
