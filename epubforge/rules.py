@@ -95,6 +95,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
     # -- profile -------------------------------------------------------------
+    "profile.language-contradicted": "the book declares {declared} but the text is Polish ({rate} Polish-only letters per 1000)",
     "profile.made-by": "the book carries traces of {count} tool(s): {tools}",
     "profile.body-text-found": "the body text is {shape}: {percent}% of {blocks} paragraph(s)",
     "profile.body-text-inconsistent": "no shape covers the body text; the commonest reaches {percent}% of {blocks} paragraph(s)",
@@ -283,6 +284,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
     # -- profile -------------------------------------------------------------
+    'profile.language-contradicted': 'książka deklaruje {declared}, a tekst jest polski ({rate} liter wyłącznie polskich na 1000)',
     'profile.made-by': 'książka nosi ślady {count} {count:narzędzia|narzędzi|narzędzi}: {tools}',
     'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
     'profile.body-text-inconsistent': 'żaden kształt nie obejmuje tekstu głównego; najczęstszy sięga {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
@@ -506,6 +508,8 @@ DETAILS: dict[str, str] = {
         "{renamed} file(s) needed a new name; every reference was rewritten to match",
     "xhtml.cover-fitted":
         "No stylesheet rule and no attribute sized this image, so a reader would show it at its own pixel dimensions.",
+    "profile.language-contradicted":
+        "A reading system speaks dc:language to its text-to-speech engine and hyphenates by it, so this book is read aloud in the wrong voice and broken across lines by the wrong rules. Not corrected here: the declared language being contradicted is not the same as knowing the right one. Pass --language to set it.",
     "profile.paragraphs-mixed":
         "A book from one source does not mix the two. When it does, somebody glued two files together or ran one through two tools — which is worth knowing before any rule tries to normalise the paragraphs.",
     "profile.body-text-inconsistent":
@@ -659,6 +663,8 @@ DETAILS_PL: dict[str, str] = {
         "Zadeklarowanie tego mimo wszystko stwierdzałoby coś, czego książka nie robi.",
     "css.position-removed":
         "Objęte bloki płyną teraz razem ze stroną, zamiast być do niej przypięte.",
+    "profile.language-contradicted":
+        "Czytnik podaje dc:language syntezatorowi mowy i po nim dzieli wyrazy, więc ta książka jest czytana na głos niewłaściwym głosem i łamana niewłaściwymi regułami. Nie poprawiamy tego tutaj: „zadeklarowany język jest sprzeczny z tekstem” to nie to samo, co „znam właściwy”. Ustaw go przez --language.",
     "profile.paragraphs-mixed":
         "Książka z jednego źródła nie miesza obu sposobów. Kiedy miesza, ktoś skleił dwa pliki albo przepuścił jeden przez dwa narzędzia — a to warto wiedzieć, zanim jakakolwiek reguła spróbuje ujednolicić akapity.",
     "profile.body-text-inconsistent":

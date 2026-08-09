@@ -94,6 +94,45 @@ _FOLD = {
 }
 _FOLD_TABLE = str.maketrans(_FOLD)
 
+#: Quote marks by **shape**, never by language. The inventory used to name them
+#: by nationality — `pl-open`, `en-close` — and the table had seven entries and
+#: six keys: `”` was written twice, once as `pl-close` and once as `en-close`,
+#: and the second won. So `pl-close` was a label nothing could ever produce, and
+#: every Polish closing quote was recorded as English. A book set in perfectly
+#: ordinary Polish `„…”` was measured as mixing two conventions.
+#:
+#: A character is a shape. A convention is a *pair* of shapes, and that is where
+#: the nationality belongs.
+QUOTE_MARKS = {
+    "\u201e": "low-double",        # „
+    "\u201c": "left-double",       # “
+    "\u201d": "right-double",      # ”
+    "\u00ab": "guillemet-left",    # «
+    "\u00bb": "guillemet-right",   # »
+    '"': "straight",
+}
+
+#: ``name: (opening, closing)``. Polish and German share an opening mark and
+#: differ in the closing one, which is exactly the distinction a per-character
+#: table cannot draw and the reason this one exists.
+CONVENTIONS = {
+    "polish": ("low-double", "right-double"),
+    "german": ("low-double", "left-double"),
+    "english": ("left-double", "right-double"),
+    "french": ("guillemet-left", "guillemet-right"),
+    "straight": ("straight", "straight"),
+}
+
+#: Letters Polish has and English does not. Used to check a declared language
+#: against the text, which is K11 — *the source's declaration is not a fact*.
+POLISH_LETTERS = frozenset("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
+
+#: Polish letters per thousand characters, above which a book declaring English
+#: is not English. Polish prose runs 30–60; an English book quoting a Polish
+#: name or two runs under 1. The gap is two orders of magnitude, so the
+#: threshold sits well inside it and does not need to be delicate.
+POLISH_FLOOR = 5.0
+
 _ELLIPSIS = re.compile(r"\.\.\.")
 _WHITESPACE = re.compile(r"\s+")
 
@@ -235,3 +274,51 @@ def dominant(counts: dict[str, int]) -> str | None:
         return None
     name, count = max(counts.items(), key=lambda item: item[1])
     return name if count >= total * DOMINANCE else None
+
+
+def convention(counts: dict[str, int]) -> str | None:
+    """Which quoting convention this book uses, or None when it has not settled.
+
+    *counts* is keyed by the shape names in :data:`QUOTE_MARKS`, and the answer
+    is the convention whose **pair** of marks accounts for the text.
+
+    Taking the dominant opening and the dominant closing separately does not
+    work, and the reason is worth writing down: `\u201c` is the English *opening*
+    mark and the German *closing* one. Sorted into both buckets it beats itself,
+    and an ordinary English book comes out as "undecided". Scoring whole pairs
+    against the whole tally has no such problem — for `„…”` the Polish pair
+    explains everything and German and English explain half each.
+
+    A tie is not resolved. Two conventions explaining the text equally well is
+    a fact about the book, and answering anyway would be inventing one.
+    """
+    total = sum(counts.get(name, 0) for name in set(QUOTE_MARKS.values()))
+    if total < ENOUGH:
+        return None
+    scored = sorted(
+        ((sum(counts.get(mark, 0) for mark in set(pair)) / total, name)
+         for name, pair in CONVENTIONS.items()),
+        reverse=True,
+    )
+    best, name = scored[0]
+    if best < DOMINANCE or best == scored[1][0]:
+        return None
+    return name
+
+
+def polish_share(text: str) -> float:
+    """Polish-only letters per thousand characters.
+
+    A cheap, decisive test of a declared language, and it exists because a real
+    library said so: 2 187 books declaring `en`, of which 1 815 carry `„` — a
+    mark English typesetting does not use at all. Calibre had left `dc:language`
+    at its default and nobody noticed, because nothing had ever looked.
+
+    That matters beyond typography. A reading system speaks `dc:language` to its
+    text-to-speech engine and hyphenates by it, so a Polish book declaring
+    English is read aloud in an English voice, letter by letter where the
+    diacritics are.
+    """
+    if not text:
+        return 0.0
+    return 1000 * sum(1 for character in text if character in POLISH_LETTERS) / len(text)

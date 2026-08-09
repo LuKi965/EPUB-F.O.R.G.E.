@@ -32,7 +32,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-from . import fingerprint, watermark, xhtml
+from . import fingerprint, typography, watermark, xhtml
 from .reader import EpubReadError, read_epub
 from .report import Report
 
@@ -48,12 +48,14 @@ _CSS_CLASS = re.compile(r"\.([A-Za-z_][\w-]*)")
 
 # --------------------------------------------------------------- typography
 
-QUOTE_FORMS = {
-    "„": "pl-open", "”": "pl-close",
-    "«": "guillemet-open", "»": "guillemet-close",
-    "“": "en-open", "”": "en-close",
-    '"': "straight",
-}
+#: Kept as a name here because the reports and the corpus tooling import it.
+#: The table itself lives in `typography.py` now, and moving it there was a
+#: repair rather than tidying: this dict had seven entries and six keys — `”`
+#: was written twice, once as `pl-close` and once as `en-close` — so `pl-close`
+#: was unreachable and every Polish closing quote counted as English. A book set
+#: in ordinary Polish `„…”` measured as mixing two conventions, which is the
+#: number roadmap [7] was about to set its thresholds from.
+QUOTE_FORMS = typography.QUOTE_MARKS
 DASH_FORMS = {"-": "hyphen", "–": "en-dash", "—": "em-dash"}
 
 #: UTF-8 read as Latin-1 or CP1252 — the classic double-encoding wreck.
@@ -314,7 +316,13 @@ def measure(path: pathlib.Path) -> Book:
         # table of contents as text that appeared from nowhere. This is the
         # figure K1 is about — what a person actually reads, in reading order.
         spine_text_characters=len(" ".join(spine_text_parts)),
-        quotes={label: text.count(mark) for mark, label in QUOTE_FORMS.items() if text.count(mark)},
+        quotes=(quotes := {
+            label: text.count(mark)
+            for mark, label in QUOTE_FORMS.items()
+            if text.count(mark)
+        }),
+        quote_convention=typography.convention(quotes),
+        polish_letters_per_1000=round(typography.polish_share(text), 2),
         dashes={label: text.count(mark) for mark, label in DASH_FORMS.items()},
         ellipsis_character=text.count("…"),
         ellipsis_dots=len(re.findall(r"(?<!\.)\.\.\.(?!\.)", text)),

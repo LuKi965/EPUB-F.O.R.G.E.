@@ -57,6 +57,57 @@ none, which is what a shop EPUB looks like after the shop has finished with it,
 and it means half this shelf will tell roadmap [7] nothing about where it came
 from.
 
+### A library of 2 200 books found two defects in the measurement
+
+Not in the tool — in what the tool was measuring with, which is worse, because
+roadmap [7] was about to set its thresholds from those numbers.
+
+**`QUOTE_FORMS` had seven entries and six keys.** `”` was written twice, once as
+`pl-close` and once as `en-close`, and the second won. So `pl-close` was a label
+nothing could ever produce, and every Polish closing quote was counted as
+English — which made a book set in perfectly ordinary Polish `„…”` measure as
+*mixing two conventions*. The "35 of 93 books mix quote forms" figure from the
+previous entry was inflated by exactly this.
+
+The repair is not a corrected table but a different shape of table. A character
+is a **shape**; a convention is a **pair** of shapes, and that is where the
+nationality belongs. `typography.QUOTE_MARKS` names marks by what they look
+like, `CONVENTIONS` names the pairs, and `convention()` scores whole pairs
+against the whole tally. Taking the dominant opening and the dominant closing
+separately does not work and it is worth saying why: `“` is the English opening
+mark *and* the German closing one, so sorted into both buckets it beats itself
+and an ordinary English book comes out undecided. Polish and German share an
+opening mark and differ only in the closing one — a per-character table cannot
+tell them apart at all.
+
+**2 187 of those books declare `en`, and 1 815 of them carry `„`.** English
+typesetting does not use that mark. These are Polish books with `dc:language`
+left at Calibre's default, and nothing had ever looked. That is K11 — *the
+source's declaration is not a fact* — and it is not a typographic nicety: a
+reading system speaks `dc:language` to its text-to-speech engine and hyphenates
+by it, so the book is read aloud in an English voice and broken across lines by
+English rules. Both are immediately obvious to a reader and invisible to every
+validator.
+
+`profile.language-contradicted` now reports it as a **warning**, with the
+measured rate — over the book's own documents, excluding the navigation page,
+and only when there is a page of prose to judge from. The first version had
+neither guard and reported a Japanese manga as Polish: the only document short
+enough to swing the average was the navigation page *this tool had just
+generated*, whose title in a Polish report is "Spis treści" — one `ś` in
+seventeen characters. Measuring our own output and calling it the book is the
+mistake the profile stage's own docstring warns about, and it took one fixture
+to make it. It is never corrected: the tool knows the declared language is
+contradicted, it does not know the right one, and rewriting metadata on an
+inference is the kind of help nobody asked for. `--language` is there for the
+person holding the book.
+
+What the library is *not* good for is worth recording too: 2 199 of its 2 200
+books carry a `calibre` trace, 2 187 are EPUB 3, 2 187 declare the same
+language. One generator, one format, one declaration — no use at all as a
+regression net, whose value comes from variety of provenance. It was taken for
+the distribution and it paid for itself twice in the first minute.
+
 ### [7] groundwork: the safety apparatus, before any rule touches a character
 
 `epubforge/typography.py`. Typography is the only stage that changes text on
@@ -86,8 +137,9 @@ impose an opinion on nearly half the text.
 before there were numbers. There are now: zero-width characters **0 books**,
 mojibake **0**, hyphens frozen at a line end **0 above the floor**. Class 1
 (safe) and class 3 (reconstruction) have almost no customers here. What does:
-`...` typed for `…` and dominant in **34** books, two quote forms mixed in
-**35**, more than twenty unbound conjunctions in **39**. So the first rules are
+`...` typed for `…` and dominant in **34** books, and more than twenty unbound
+conjunctions in **39**. (The "two quote forms mixed in 35" from this same
+measurement was the duplicate-key defect above, not a fact about the books.) So the first rules are
 class 2 — quotes, ellipsis, conjunctions — and not the easy class first.
 
 One surprise worth recording: 213 591 soft hyphens, in four books. That is a

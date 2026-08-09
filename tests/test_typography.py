@@ -166,3 +166,67 @@ class TestWhatTheBookAlreadyDoes:
     def test_the_threshold_is_two_thirds_not_a_majority(self):
         assert typography.dominant({"a": 67, "b": 33}) == "a"
         assert typography.dominant({"a": 60, "b": 40}) is None
+
+
+class TestQuotesAreShapesAndConventionsArePairs:
+    """The inventory named quote marks by nationality and its table had seven
+    entries and six keys: `”` was written twice, as `pl-close` and as
+    `en-close`, and the second won. `pl-close` was a label nothing could
+    produce, and every Polish closing quote counted as English — so a book set
+    in ordinary Polish `„…”` measured as *mixing two conventions*. Roadmap [7]
+    was about to set its thresholds from that number.
+    """
+
+    def test_no_mark_is_declared_twice(self):
+        """The defect itself, in the form that would have caught it: a dict
+        literal with a repeated key loses one silently."""
+        assert len(typography.QUOTE_MARKS) == len(set(typography.QUOTE_MARKS))
+        assert len(set(typography.QUOTE_MARKS.values())) == len(typography.QUOTE_MARKS)
+
+    def test_every_convention_names_marks_that_exist(self):
+        shapes = set(typography.QUOTE_MARKS.values())
+        for name, pair in typography.CONVENTIONS.items():
+            assert set(pair) <= shapes, name
+
+    def test_polish_quotes_read_as_one_convention_not_two(self):
+        assert typography.convention({"low-double": 400, "right-double": 400}) == "polish"
+
+    def test_german_and_polish_share_an_opening_mark_and_are_told_apart(self):
+        assert typography.convention({"low-double": 400, "left-double": 400}) == "german"
+
+    def test_english_is_not_undecided(self):
+        """`“` is the English opening mark and the German closing one. Sorted
+        into an "openings" bucket and a "closings" bucket it beats itself, and
+        an ordinary English book came out as undecided."""
+        assert typography.convention({"left-double": 400, "right-double": 400}) == "english"
+
+    def test_guillemets_are_french(self):
+        assert typography.convention({"guillemet-left": 50, "guillemet-right": 50}) == "french"
+
+    def test_a_book_using_two_conventions_equally_gets_no_answer(self):
+        counts = {"low-double": 200, "right-double": 200,
+                  "guillemet-left": 200, "guillemet-right": 200}
+        assert typography.convention(counts) is None
+
+    def test_too_few_quotes_is_not_a_convention(self):
+        assert typography.convention({"low-double": 5, "right-double": 5}) is None
+
+
+class TestADeclaredLanguageIsNotAFact:
+    """K11. A real library: 2 200 books, 2 187 declaring `en`, and 1 815 of
+    those carrying `„` — a mark English typesetting does not use at all."""
+
+    def test_polish_prose_scores_far_above_the_floor(self):
+        assert typography.polish_share("Zażółć gęślą jaźń") > typography.POLISH_FLOOR
+
+    def test_english_prose_scores_zero(self):
+        assert typography.polish_share("The quick brown fox jumps over") == 0
+
+    def test_an_english_book_naming_one_pole_is_not_polish(self):
+        """The gap is two orders of magnitude, so the floor does not have to be
+        delicate — but it does have to survive a surname."""
+        text = "He met Wałęsa in Gdańsk. " + "Ordinary English prose. " * 40
+        assert typography.polish_share(text) < typography.POLISH_FLOOR
+
+    def test_empty_text_is_not_a_claim(self):
+        assert typography.polish_share("") == 0

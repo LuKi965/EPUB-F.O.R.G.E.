@@ -1854,3 +1854,102 @@ class TestWhatContainerOnlyModeCannotReach:
         it promised; this is the sentence that connects the two."""
         result = self.forge(tmp_path, '<img src="../Images/pic.png" alt="" width="50%"/>')
         assert self.finding(result).level is Level.WARN
+
+
+class TestADeclaredLanguageThatTheTextContradicts:
+    """Found on a real library of 2 200 books: 2 187 declared `en` and 1 815 of
+    those carried `„`, a mark English typesetting does not use. Calibre had
+    left `dc:language` at its default and nothing had ever looked.
+
+    It is not a typographic nicety. A reading system speaks `dc:language` to its
+    text-to-speech engine and hyphenates by it.
+    """
+
+    def book(self, tmp_path, language, body):
+        from tests.factory import write_zip
+
+        package = f"""<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Proba</dc:title><dc:language>{language}</dc:language>
+    <dc:identifier id="pub-id">urn:uuid:6b1d0f6e-0000-4000-8000-0000000000bb</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="doc" href="doc.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="doc"/></spine>
+</package>
+"""
+        nav = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Spis</title>'
+            '</head><body><nav epub:type="toc"><ol><li>'
+            '<a href="doc.xhtml">Strona</a></li></ol></nav></body></html>\n'
+        )
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Strona</title>'
+            f"</head><body>{body}</body></html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/nav.xhtml": nav.encode(),
+                "OEBPS/doc.xhtml": document.encode(),
+            },
+        )
+
+    # Long enough to clear the floor the stage puts on how much text a
+    # language rate may be computed from — a page of prose, not a caption.
+    POLISH = "<p>Zażółć gęślą jaźń, bo węże ćwiczą łaskę i pchły.</p>" * 40
+    ENGLISH = "<p>The quick brown fox jumps over the lazy dog.</p>" * 40
+
+    def rules_of(self, tmp_path, language, body, name):
+        source = self.book(tmp_path, language, body)
+        result = rebuild(source, str(tmp_path / f"{name}.epub"), Policy.preset("preserve"))
+        assert result.output_path, result.report.to_text()
+        return result, {f.rule for f in result.report.findings}
+
+    def test_polish_text_declaring_english_is_reported(self, tmp_path):
+        _, rules = self.rules_of(tmp_path, "en", self.POLISH, "a")
+        assert "profile.language-contradicted" in rules
+
+    def test_it_is_a_warning_because_a_reader_will_hear_it(self, tmp_path):
+        result, _ = self.rules_of(tmp_path, "en", self.POLISH, "b")
+        found = [f for f in result.report.findings if f.rule == "profile.language-contradicted"]
+        assert found and found[0].level is Level.WARN
+
+    def test_english_text_declaring_english_says_nothing(self, tmp_path):
+        _, rules = self.rules_of(tmp_path, "en", self.ENGLISH, "c")
+        assert "profile.language-contradicted" not in rules
+
+    def test_polish_text_declaring_polish_says_nothing(self, tmp_path):
+        _, rules = self.rules_of(tmp_path, "pl", self.POLISH, "d")
+        assert "profile.language-contradicted" not in rules
+
+    def test_a_caption_is_not_enough_text_to_judge_a_language(self, tmp_path):
+        """The floor, and it is here because of a real false positive: a
+        Japanese manga was reported as Polish, on the strength of the
+        navigation page this tool had just generated — whose title is "Spis
+        treści" in a Polish report, one `ś` in seventeen characters."""
+        _, rules = self.rules_of(tmp_path, "ja", "<p>Zażółć</p>", "f")
+        assert "profile.language-contradicted" not in rules
+
+    def test_the_declaration_is_reported_and_never_rewritten(self, tmp_path):
+        """The tool knows the declared language is contradicted. It does not
+        know the right one, and rewriting metadata on an inference is the kind
+        of help nobody asked for."""
+        result, _ = self.rules_of(tmp_path, "en", self.POLISH, "e")
+        with zipfile.ZipFile(result.output_path) as archive:
+            package = archive.read(OPF_PATH).decode()
+        assert "<dc:language>en</dc:language>" in package.replace(" ", "")
