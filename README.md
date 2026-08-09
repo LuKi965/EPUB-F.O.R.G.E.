@@ -26,7 +26,7 @@ jak książka wygląda.**
 > za przypadkową autodestrukcję plików w niej przetwarzanych. Wyznajemy zasadę —
 > **u mnie działa, u Ciebie nie musi**. Jak nie pasuje, to sobie zatenteguj.
 >
-> <div align="center"><img src="docs/to-sie-zateguje.jpg" alt="Spokojnie, to się zateguje" width="380"></div>
+> <div align="center"><img src="packaging/to-sie-zateguje.jpg" alt="Spokojnie, to się zateguje" width="380"></div>
 >
 > Uczciwie natomiast: **narzędzie nigdy nie nadpisuje pliku wejściowego**, zapis
 > jest atomowy (przerwany przebieg nie zostawia połowy pliku), a nadpisanie
@@ -188,9 +188,7 @@ pytest -q
 ## Autorzy i licencja
 
 **Łukasz „LuKi" Kniotek** — pomysł, projekt, decyzje i prowadzenie. Kod pisany
-przez modele językowe pod jego kierunkiem, na jego koncie i według jego wyborów.
-Korpus, progi i to, co narzędzie robi, a czego świadomie nie robi, wzięły się
-z jego książek i jego rozstrzygnięć — patrz akapit o Vibe Codingu na górze.
+przez modele językowe pod jego kierunkiem i według jego wyborów.
 
 Copyright © 2026 Łukasz Kniotek.
 

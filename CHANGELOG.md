@@ -15,6 +15,19 @@ installer — bump it there and everything follows.
 
 ---
 
+### A note on how books are named here
+
+Every book this changelog cites is somebody's paid-for copy on the owner's
+disk, and this repository is public. They are numbered — *Book 1*, *Book 2* —
+rather than titled. The numbering is stable across entries, so an argument that
+runs over several releases stays followable; which number is which title is
+recorded once, privately, and nowhere here.
+
+The corpus signatures never held a title in the first place: they are counts and
+hashes by design, and the file name of each is the hash of the book rather than
+its name, because a listing of titles in a public place says more about a shelf
+than about a tool.
+
 ### A note on the numbers below
 
 Releases 0.2.0 through 0.8.1 were numbered under two earlier schemes, both of
@@ -24,6 +37,8 @@ left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
 ## Unreleased
+
+## 0.2.14 — alpha — 2026-08-09
 
 ### Roadmap point [5], and a switch on everything that deletes
 
@@ -57,7 +72,7 @@ converter copied the exact ink out of the page. The span is unwrapped; the text
 inside stays exactly where it was.
 
 On the real books: *Book 1* loses **one** span, not
-219. `Book 2`, whose 1 906 spans are all deliberate italics, loses none.
+219. *Book 2*, whose 1 906 spans are all deliberate italics, loses none.
 
 **A text-ordering bug fell out of it.** The unwrap helper attached the removed
 element's tail to the element *before* it, so `<p>x<span>b<i>i</i>t</span>c</p>`
@@ -93,8 +108,8 @@ it is for things the particular book does not contain. Measured over the same
 thirty-two books: **3 995 rules, 64% of all CSS bytes**, naming a class or id
 that appears in no document of the book they were shipped in — `td.proc4`,
 `td.proc5`, `td.proc10` in a novel with no tables; `hr.dotted_line`, `hr.blue`,
-`hr.pointa` in one with no horizontal rules. Book 3: 178 of 207 rules.
-`Book 2`, which somebody made with care: 2 of 37.
+`hr.pointa` in one with no horizontal rules. *Book 3*: 178 of 207 rules.
+*Book 2*, which somebody made with care: 2 of 37.
 
 `preserve` reports and keeps every byte; `strict` removes. That split was in the
 roadmap before any of this existed, against a source document that wanted the
@@ -152,7 +167,7 @@ documents across 7 of the 32 books**, every one of them a single rule:
 | *Book 1* | `dropcap` | **37 chapters** open with `<span class="dropcap">`; the linked sheet defines only `.dropcap_small` |
 | *Book 4* | `coverimage2` | `height: 100vh` |
 | *Book 5* | `cover` | `margin: 0` |
-| three jednego wydawcy titles | `cover` | `height: 97%`, on a cover page linking no stylesheet at all |
+| three titles from one publisher | `cover` | `height: 97%`, on a cover page linking no stylesheet at all |
 | *Book 6* | `photo` | `text-align: center` |
 
 **Four of the seven are covers**, and the rules are exactly the ones that make a
@@ -173,7 +188,6 @@ defines". It fires on almost every book ever made — 34 documents in one, 134 i
 another — because converters leave class names behind that nothing ever styled.
 That is dead markup, not dead CSS, and it costs the reader nothing.
 
-## 0.2.14 — alpha — 2026-08-09
 
 ### The identifiers paid for themselves in one run, and a reader overruled a docstring
 
@@ -2274,7 +2288,7 @@ output rather than individual repairs.
 
 ## 0.4.0
 
-Driven by three more real books: Book 3, and Book 8 before
+Driven by three more real books: *Book 3*, and *Book 8* before
 and after a manual repair.
 
 ### Added

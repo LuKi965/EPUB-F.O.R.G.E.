@@ -26,7 +26,7 @@ book looking the way it looked.**
 > **it works on my machine, yours is your problem**. If you don't like it, sort
 > it out yourself.
 >
-> <div align="center"><img src="docs/to-sie-zateguje.jpg" alt="Spokojnie, to się zateguje" width="380"></div>
+> <div align="center"><img src="packaging/to-sie-zateguje.jpg" alt="Spokojnie, to się zateguje" width="380"></div>
 >
 > *("Spokojnie, to się zateguje" — roughly: relax, it'll sort itself out.)*
 >
@@ -190,10 +190,7 @@ pytest -q
 ## Authors and licence
 
 **Łukasz "LuKi" Kniotek** — concept, design, decisions and direction. The code
-was written by language models under his direction, on his account and to his
-choices. The corpus, the thresholds, and what the tool does and deliberately
-does not do all came from his books and his rulings — see the paragraph about
-vibe coding above.
+was written by language models under his direction and to his choices.
 
 Copyright © 2026 Łukasz Kniotek.
 
