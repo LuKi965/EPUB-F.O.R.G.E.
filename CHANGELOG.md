@@ -38,6 +38,38 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A third bucket, for what container-only mode is not allowed to reach
+
+0.2.15 recorded the message shapes for the first time and named all four
+remaining defects — a non-integer `width` (7) and `height` (4), `valign` (6),
+and `value` on a list item outside an ordered list (5). Every one is markup
+XHTML 1.1 allowed and HTML5 does not, in a document that mode promises not to
+open, and every one is translated into CSS by the modes that do open documents.
+
+Counting those against the release makes the corpus permanently unclean for
+keeping a promise — which is exactly the mistake `carried` was invented to
+correct, one floor up. So the ledger gains `inherent`, and it does not count
+against a clean run.
+
+**The safeguard is the whole design.** The obvious criterion — "the full
+rebuild came out clean, so the difference must be the contract" — would have
+excused 0.2.11's missing `properties="svg"`: a package container-only mode
+generated and got wrong while `preserve` got it right, on nineteen books. So
+the excuse is gated on the tool having **named the construct itself**, by
+reporting `xhtml.epub2-only-markup`. An error it does not understand is still
+counted against it, and the detector now covers all four shapes rather than the
+two it was written from.
+
+Checked against 0.2.15's own signatures: all ten are named, so under this rule
+that run reads clean. **It is not rewritten to say so.** The ledger records what
+the tool said on the day — the same reason 0.2.9 was left standing under a rule
+already known to be wrong. 0.2.16 will say it for itself, or this note is a
+prediction that was wrong.
+
+**Also:** the About dialog said MIT. It has said GPL since 0.2.14 everywhere
+else, which is the kind of thing that only gets found by somebody opening the
+window.
+
 ## 0.2.15 — alpha — 2026-08-09
 
 ### Container-only mode now says what it cannot reach

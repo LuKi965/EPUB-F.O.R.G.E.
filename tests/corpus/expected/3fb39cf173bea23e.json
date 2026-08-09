@@ -1,6 +1,6 @@
 {
   "source": "sha256:3fb39cf173bea23e208ea9aefcff88eff1a8a64c16d6cfaa3357dc61ec6e70f2",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -13,7 +13,7 @@
     "report": {
       "info": 8,
       "fix": 23,
-      "warn": 1
+      "warn": 2
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -28,6 +28,7 @@
       "profile.paragraphs-consistent": 1,
       "reader.manifest-type-corrected": 20,
       "reader.toc-from-ncx": 1,
+      "xhtml.epub2-only-markup": 1,
       "xhtml.untouched": 1
     },
     "output": "sha256:04b0335fdab04e593cadc973f656ec8b7982cdfc8bb210f2e8d581a78b93ad5e",
@@ -42,6 +43,9 @@
       "fatal": 0,
       "codes": {
         "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: value of attribute \"width\" is invalid; must be an integer": 1
       }
     }
   },

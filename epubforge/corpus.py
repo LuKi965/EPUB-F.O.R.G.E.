@@ -47,6 +47,18 @@ FROZEN_MODIFIED = "2020-01-01T00:00:00Z"
 #: with the run being parallel.
 MODES = ("minimal", "preserve", "strict")
 
+#: What the container-only mode reports when a document carries markup that was
+#: legal in EPUB 2 and is not in EPUB 3. Named here because the ledger reads it:
+#: an error that mode cannot reach is only excused when the tool **said so**.
+#:
+#: That condition is the whole safeguard. "Container-only failed and the full
+#: rebuild did not, so it must be the mode's contract" would have quietly
+#: excused a real defect — 0.2.11's missing `properties="svg"` was exactly that
+#: shape, a package this mode generated and got wrong while `preserve` got it
+#: right. Requiring the tool to name the construct first means an error it does
+#: not understand is still counted against it.
+STRANDED_BY_MODE = "xhtml.epub2-only-markup"
+
 #: The mode that promises *not* to fix things. A container-only rebuild leaves
 #: every content document byte for byte, so a source whose XHTML is invalid
 #: stays invalid — deliberately, because the alternative is touching content in
@@ -734,7 +746,7 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
         "modes": list(MODES),
         "failed": sum(1 for r in results if r.status == "failed"),
     }
-    errors = introduced = carried = fatal = lost = unwritten = 0
+    errors = introduced = carried = fatal = lost = unwritten = inherent = 0
     blamed: Counter = Counter()
     for result in results:
         record_path = signatures / f"{result.identifier}.json"
@@ -753,9 +765,16 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
             fatal += check.get("fatal", 0)
             if mode in CARRIES_SOURCE_DEFECTS:
                 # Judged on what it added, not on what it declined to fix.
-                introduced += max(0, count - source)
+                added = max(0, count - source)
                 carried += min(count, source)
-                blamed.update(_new_codes(origin, check))
+                if STRANDED_BY_MODE in (found.get("rules") or {}):
+                    # The book carries markup EPUB 2 allowed and EPUB 3 does
+                    # not, in a document this mode promises not to open, and the
+                    # report says so by name. That is the contract, not a fault.
+                    inherent += added
+                else:
+                    introduced += added
+                    blamed.update(_new_codes(origin, check))
             else:
                 errors += count
                 blamed.update(check.get("codes") or {})
@@ -764,6 +783,7 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     entry.update(
         errors=errors,
         introduced=introduced,
+        inherent=inherent,
         carried=carried,
         fatal=fatal,
         text_lost=lost,
@@ -773,6 +793,9 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
         # Which EPUBCheck rules they were. Without this the ledger records that
         # something broke and leaves the reader with no next question to ask.
         entry["codes"] = dict(sorted(blamed.items()))
+    # `inherent` is deliberately absent from this line. It counts errors the
+    # container-only mode is contractually unable to reach, on markup the report
+    # names out loud — and a run cannot be held to a promise it kept.
     entry["clean"] = not (
         errors or introduced or fatal or lost or unwritten or entry["failed"]
     )
@@ -801,7 +824,7 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     if signatures is None:
         return line
 
-    errors = introduced = carried = 0
+    errors = introduced = carried = inherent = 0
     blamed: Counter = Counter()
     said: Counter = Counter()
     for result in results:
@@ -815,19 +838,27 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
             check = (measured.get(mode) or {}).get("epubcheck") or {}
             count = check.get("errors", 0)
             if mode in CARRIES_SOURCE_DEFECTS:
-                introduced += max(0, count - source)
+                added = max(0, count - source)
                 carried += min(count, source)
-                blamed.update(_new_codes(origin, check))
-                said.update(_new_shapes(origin, check))
+                if STRANDED_BY_MODE in ((measured.get(mode) or {}).get("rules") or {}):
+                    inherent += added
+                else:
+                    introduced += added
+                    blamed.update(_new_codes(origin, check))
+                    said.update(_new_shapes(origin, check))
             else:
                 errors += count
                 blamed.update(check.get("codes") or {})
                 said.update(check.get("shapes") or {})
-    if not (errors or introduced or carried):
+    if not (errors or introduced or carried or inherent):
         return line
     parts = [f"{errors} EPUBCheck error(s) in modes that rewrite content"]
     if carried:
         parts.append(f"{carried} source error(s) carried through by container-only mode")
+    if inherent:
+        parts.append(
+            f"{inherent} it cannot reach without opening a document, and says so"
+        )
     if introduced:
         parts.append(f"{introduced} introduced by it")
     line += "\n" + "; ".join(parts) + "."

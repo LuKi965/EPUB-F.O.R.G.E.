@@ -1,6 +1,6 @@
 {
   "source": "sha256:d4d1f79e2b50faf8070572a41f09a8829923e513e539a0c187fa0e1c1da849c8",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -8,6 +8,9 @@
     "fatal": 0,
     "codes": {
       "HTM-004": 1
+    },
+    "shapes": {
+      "HTM-004: Irregular DOCTYPE: found \"…\", expected \"…\".": 1
     }
   },
   "minimal": {

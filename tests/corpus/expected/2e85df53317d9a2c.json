@@ -1,6 +1,6 @@
 {
   "source": "sha256:2e85df53317d9a2c173824a9ede4473779856cf84957ed71f2e7712a558de455",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 3,
@@ -8,6 +8,11 @@
     "fatal": 0,
     "codes": {
       "RSC-005": 3
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: element \"body\" incomplete; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\", \"": 1,
+      "RSC-005: Error while parsing file: element \"footer\" not allowed anywhere; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"": 1,
+      "RSC-005: Error while parsing file: element \"header\" not allowed anywhere; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"": 1
     }
   },
   "minimal": {

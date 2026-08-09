@@ -361,7 +361,12 @@ PL: dict[str, str] = {
     "about.author.human": "Łukasz „LuKi” Kniotek — pomysł, kierunek i wymagania",
     "about.author.ai": "Claude (Anthropic) — projekt i implementacja",
     "about.license": "Licencja",
-    "about.license.body": "MIT. Kod źródłowy dostępny na GitHubie.",
+    "about.license.body": (
+        "GNU GPL v3 lub późniejsza. Wolno używać, badać i zmieniać; to, co z tego "
+        "powstanie, też musi być na GPL i z otwartym źródłem. Bez żadnej gwarancji.\n\n"
+        "Program korzysta z bibliotek na LGPL (Qt/PySide6, cssutils) i z EPUBCheck-a "
+        "na licencji BSD. Kod źródłowy dostępny na GitHubie."
+    ),
     "about.components": "Dołączone komponenty",
     "about.components.body": (
         "EPUBCheck (W3C) — licencja BSD 3-Clause\n"
@@ -669,7 +674,12 @@ EN: dict[str, str] = {
     "about.author.human": "Łukasz \u201cLuKi\u201d Kniotek — concept, direction and requirements",
     "about.author.ai": "Claude (Anthropic) — design and implementation",
     "about.license": "License",
-    "about.license.body": "MIT. Source available on GitHub.",
+    "about.license.body": (
+        "GNU GPL v3 or later. You may use, study and change it; whatever you make "
+        "of it must be GPL too, with its source open. Without any warranty.\n\n"
+        "It links LGPL libraries (Qt/PySide6, cssutils) and BSD-licensed EPUBCheck. "
+        "Source available on GitHub."
+    ),
     "about.components": "Bundled components",
     "about.components.body": (
         "EPUBCheck (W3C) — BSD 3-Clause\n"

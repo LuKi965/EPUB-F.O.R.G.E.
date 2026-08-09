@@ -1,6 +1,6 @@
 {
   "source": "sha256:2170129a55131dfd6af1e8b9db4cbea2e4ee4bf7f050ea61fbc7f864d719bafa",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 5,
@@ -8,6 +8,13 @@
     "fatal": 0,
     "codes": {
       "RSC-005": 5
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: attribute \"aria-labelledby\" not allowed here; expected attribute \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lan": 1,
+      "RSC-005: Error while parsing file: attribute \"role\" not allowed here; expected attribute \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
+      "RSC-005: Error while parsing file: element \"body\" incomplete; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\", \"": 1,
+      "RSC-005: Error while parsing file: element \"footer\" not allowed anywhere; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"": 1,
+      "RSC-005: Error while parsing file: element \"header\" not allowed anywhere; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"": 1
     }
   },
   "minimal": {

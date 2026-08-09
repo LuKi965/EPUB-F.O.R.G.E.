@@ -1,6 +1,6 @@
 {
   "source": "sha256:2cfc9665a247abe76b880973a978d4a86171f03427f84523d369afed56d59676",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -13,7 +13,7 @@
     "report": {
       "info": 8,
       "fix": 10,
-      "warn": 2
+      "warn": 3
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -30,6 +30,7 @@
       "reader.manifest-type-corrected": 6,
       "reader.toc-from-ncx": 1,
       "xhtml.doctype-modernised": 1,
+      "xhtml.epub2-only-markup": 1,
       "xhtml.untouched-except-doctype": 1
     },
     "output": "sha256:be2fbeeef56891060924c41621b14f903674c856ec7d63f5c324d5485fae4c3d",
@@ -44,6 +45,9 @@
       "fatal": 0,
       "codes": {
         "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: value of attribute \"height\" is invalid; must be an integer": 1
       }
     }
   },

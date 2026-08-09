@@ -1,6 +1,6 @@
 {
   "source": "sha256:1fb0decad234721de8aac803b6dc2c7253158a7befd0cb5c98e6e5bc95166691",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 8,
@@ -8,6 +8,16 @@
     "fatal": 0,
     "codes": {
       "RSC-005": 8
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: attribute \"valign\" not allowed here; expected attribute \"border\", \"cellpadding\", \"cellspacing\", \"class\", \"dir\", \"f": 1,
+      "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang": 1,
+      "RSC-005: Error while parsing file: element \"a\" not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\"": 1,
+      "RSC-005: Error while parsing file: element \"a\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\",": 1,
+      "RSC-005: Error while parsing file: element \"blockquote\" incomplete; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"": 1,
+      "RSC-005: Error while parsing file: element \"img\" missing required attribute \"alt\"": 1,
+      "RSC-005: Error while parsing file: element \"span\" not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"": 1,
+      "RSC-005: Error while parsing file: text not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\", \"h5\",": 1
     }
   },
   "minimal": {
@@ -43,6 +53,10 @@
       "fatal": 0,
       "codes": {
         "RSC-005": 3
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"valign\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 2,
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-che": 1
       }
     }
   },

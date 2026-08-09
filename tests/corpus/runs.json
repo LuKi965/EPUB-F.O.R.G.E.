@@ -177,5 +177,27 @@
     },
     "clean": false,
     "note": "Filling the empty <title> closed four of the fourteen; eleven books now gain exactly one error each, still RSC-005. That is where the message identifiers stop being enough: RSC-005 is EPUBCheck's catch-all for \"this file does not match the schema\", so eleven books breaking on it says only that something in a document is wrong. From 0.2.15 the signature keeps the sentence too, with every quoted literal that is not a plain markup name masked — `element \"img\" not allowed here` keeps its `img`, an id or a path becomes `…`. Everything else on this run is the new work landing on a real shelf: 142 documents had the publisher's own rule put back, 133 stylesheets lost rules for markup their book does not contain, 119 spans were unwrapped, and two pages pinned out of the flow were translated into an in-flow equivalent — one of them the dedication that used to come out blank on the owner's reader, confirmed fixed on the device."
+  },
+  {
+    "version": "0.2.15",
+    "date": "2026-08-09",
+    "books": 93,
+    "modes": [
+      "minimal",
+      "preserve",
+      "strict"
+    ],
+    "failed": 0,
+    "errors": 0,
+    "introduced": 10,
+    "carried": 14,
+    "fatal": 0,
+    "text_lost": 0,
+    "unwritten": 0,
+    "codes": {
+      "RSC-005": 11
+    },
+    "clean": false,
+    "note": "Recorded as the application judged it on the day, and the rule it judged by was superseded hours later. The shapes it recorded for the first time named all four remaining defects, and every one is markup EPUB 2 allowed and EPUB 3 does not, in a document container-only mode promises not to open: a non-integer `width` (7) and `height` (4), `valign` (6), and `value` on a list item outside an ordered list (5). The modes that open documents translate all four into CSS and come out clean. So 0.2.16 adds a third bucket, `inherent`, for an error that mode cannot reach — gated on the tool having named the construct itself, because \"the full rebuild was clean so it must be the contract\" would have excused 0.2.11's missing `properties=\"svg\"`, which was a real defect of exactly that shape. Checked against these very signatures: all ten are named, so under the new rule this run reads clean. It is not rewritten to say so. The ledger records what the tool said on the day; 0.2.16 will say it for itself, and if it does not, this note is the prediction that was wrong."
   }
 ]

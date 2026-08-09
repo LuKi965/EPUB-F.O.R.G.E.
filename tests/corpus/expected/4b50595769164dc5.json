@@ -1,6 +1,6 @@
 {
   "source": "sha256:4b50595769164dc5acdca001431997a9d5ef571e3a2efeb9dc0da32a2d40b8fc",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 5,
@@ -8,6 +8,13 @@
     "fatal": 0,
     "codes": {
       "RSC-005": 5
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: attribute \"data-summary\" not allowed here; expected attribute \"border\", \"cellpadding\", \"cellspacing\", \"class\", \"di": 1,
+      "RSC-005: Error while parsing file: attribute \"data-summary\" not allowed here; expected attribute \"border\", \"cellpadding\", \"cellspacing\", \"dir\", \"fram": 1,
+      "RSC-005: Error while parsing file: element \"body\" incomplete; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\", \"": 1,
+      "RSC-005: Error while parsing file: element \"footer\" not allowed anywhere; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"": 1,
+      "RSC-005: Error while parsing file: element \"header\" not allowed anywhere; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"": 1
     }
   },
   "minimal": {

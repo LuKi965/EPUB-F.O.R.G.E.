@@ -1,6 +1,6 @@
 {
   "source": "sha256:c8caa6a60ae3b26b6ac38078b2272a6847f21fcf0faadc502932c1baf68c72fd",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -8,6 +8,9 @@
     "fatal": 0,
     "codes": {
       "RSC-012": 1
+    },
+    "shapes": {
+      "RSC-012: Fragment identifier is not defined.": 1
     }
   },
   "minimal": {
@@ -43,6 +46,9 @@
       "fatal": 0,
       "codes": {
         "RSC-012": 1
+      },
+      "shapes": {
+        "RSC-012: Fragment identifier is not defined.": 1
       }
     }
   },

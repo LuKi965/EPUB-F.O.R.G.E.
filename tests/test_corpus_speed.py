@@ -527,3 +527,93 @@ class TestARunSaysWhichRuleBroke:
         )
         text = summarise([Comparison("a.epub", "a" * 16, "unchanged")], signatures)
         assert "Ours, by EPUBCheck rule: OPF-014." in text
+
+
+class TestWhatTheModeCannotReachIsNotItsFault:
+    """The third bucket, and the safeguard that keeps it from being a hiding
+    place.
+
+    Four defects survived into 0.2.15's container-only mode across ten books,
+    and the message shapes named all four: a non-integer `width` or `height`,
+    `valign`, and `value` on a list item outside an ordered list. Every one is
+    markup XHTML 1.1 allowed and HTML5 does not, in a document that mode
+    promises not to open — and the modes that do open documents translate all
+    four into CSS and come out clean.
+
+    Counting those against the release makes the corpus permanently unclean for
+    keeping a promise, which is the same mistake `carried` was invented to fix,
+    one floor up.
+
+    But the obvious criterion — "the full rebuild was clean, so it must be the
+    contract" — would have excused 0.2.11's missing `properties="svg"`: a
+    package container-only mode generated and got wrong while `preserve` got it
+    right. So the excuse is gated on the tool having **named the construct
+    itself**. An error it does not understand is still counted against it.
+    """
+
+    def entry(self, tmp_path, *, minimal_errors, named: bool):
+        import json
+
+        from epubforge.corpus import Comparison, _log_run
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True, exist_ok=True)
+        identifier = "b" * 16
+        rules = {"xhtml.epub2-only-markup": 1} if named else {"xhtml.doctype-modernised": 1}
+        (signatures / f"{identifier}.json").write_text(
+            json.dumps(
+                {
+                    "source": "sha256:x",
+                    "source_epubcheck": {"errors": 0, "warnings": 0, "fatal": 0, "codes": {}},
+                    "minimal": {
+                        "written": True,
+                        "text_invariant": True,
+                        "rules": rules,
+                        "epubcheck": {
+                            "errors": minimal_errors,
+                            "warnings": 0,
+                            "fatal": 0,
+                            "codes": {"RSC-005": minimal_errors} if minimal_errors else {},
+                        },
+                    },
+                    "preserve": {"written": True, "text_invariant": True,
+                                 "epubcheck": {"errors": 0, "warnings": 0, "fatal": 0, "codes": {}}},
+                    "strict": {"written": True, "text_invariant": True,
+                               "epubcheck": {"errors": 0, "warnings": 0, "fatal": 0, "codes": {}}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        _log_run(signatures, [Comparison("a.epub", identifier, "unchanged")])
+        return json.loads((tmp_path / "runs.json").read_text(encoding="utf-8"))[-1]
+
+    def test_named_markup_is_inherent_and_the_run_is_clean(self, tmp_path):
+        entry = self.entry(tmp_path, minimal_errors=3, named=True)
+        assert entry["inherent"] == 3
+        assert entry["introduced"] == 0
+        assert entry["clean"] is True
+
+    def test_an_error_it_cannot_name_still_counts(self, tmp_path):
+        """0.2.11's defect, in miniature: container-only mode failed, the full
+        rebuild did not, and the tool said nothing about why. That is a bug, and
+        the ledger has to keep saying so."""
+        entry = self.entry(tmp_path, minimal_errors=3, named=False)
+        assert entry["inherent"] == 0
+        assert entry["introduced"] == 3
+        assert entry["clean"] is False
+
+    def test_the_summary_distinguishes_the_two(self, tmp_path):
+        from epubforge.corpus import Comparison, summarise
+
+        self.entry(tmp_path, minimal_errors=2, named=True)
+        text = summarise([Comparison("a.epub", "b" * 16, "unchanged")], tmp_path / "expected")
+        assert "cannot reach without opening a document" in text
+        assert "introduced" not in text
+
+    def test_the_gate_names_the_rule_the_stage_actually_reports(self):
+        """A constant that drifted from the rule id would silently stop
+        excusing anything — or, worse, start excusing everything."""
+        from epubforge.corpus import STRANDED_BY_MODE
+        from epubforge import rules
+
+        assert STRANDED_BY_MODE in rules.CATALOGUES["en"]

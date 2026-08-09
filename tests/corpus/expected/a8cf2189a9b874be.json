@@ -1,6 +1,6 @@
 {
   "source": "sha256:a8cf2189a9b874be0b3eb6fc8a1b001db72f3f134a9e572bebf6614f217a69a1",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -8,13 +8,17 @@
     "fatal": 0,
     "codes": {
       "PKG-005": 1
+    },
+    "shapes": {
+      "PKG-005: The mimetype file has an extra field of length 36. The use of the extra field feature of the ZIP format is not permitted for the mimetype fi": 1
     }
   },
   "minimal": {
     "written": true,
     "report": {
       "info": 7,
-      "fix": 12
+      "fix": 12,
+      "warn": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -28,6 +32,7 @@
       "reader.manifest-type-corrected": 8,
       "reader.toc-from-ncx": 1,
       "xhtml.doctype-modernised": 1,
+      "xhtml.epub2-only-markup": 1,
       "xhtml.untouched-except-doctype": 1
     },
     "output": "sha256:0809d4c8f886d48b28d50183336de57f10cf6edcb03021c2c97d130bc5357e61",
@@ -42,6 +47,9 @@
       "fatal": 0,
       "codes": {
         "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: value of attribute \"height\" is invalid; must be an integer": 1
       }
     }
   },

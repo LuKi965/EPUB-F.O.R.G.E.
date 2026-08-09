@@ -1013,11 +1013,25 @@ class ContentStage(Stage):
         the honest limit of a check written from six examples.
         """
         found: set[str] = set()
-        for element in root.iter(xhtml.qname("img"), xhtml.qname("table")):
-            for name in ("width", "height"):
-                value = (element.get(name) or "").strip()
-                if value and not value.isdigit():
-                    found.add(f"{xhtml.local_name(element)}[{name}]")
+        for element in xhtml.iter_elements(root):
+            tag = xhtml.local_name(element).lower()
+            if tag in ("img", "table", "td", "th", "object", "iframe"):
+                for name in ("width", "height"):
+                    value = (element.get(name) or "").strip()
+                    # HTML5 wants a plain pixel count. XHTML 1.1 took a
+                    # percentage, and shops used it constantly.
+                    if value and not value.isdigit():
+                        found.add(f"{tag}[{name}]")
+            if element.get("valign"):
+                # Never valid in HTML5; `vertical-align` in CSS is the
+                # equivalent, and that is what the other modes write.
+                found.add(f"{tag}[valign]")
+            if tag == "li" and element.get("value"):
+                parent = element.getparent()
+                if parent is None or xhtml.local_name(parent).lower() != "ol":
+                    # `value` on a list item is legal inside an ordered list and
+                    # nowhere else.
+                    found.add("li[value]")
         return found
 
     def _census(self, ctx: Context, root) -> None:
