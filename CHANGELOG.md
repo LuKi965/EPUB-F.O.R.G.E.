@@ -38,6 +38,48 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### [6] `fingerprint.py` — what made this book, and how sure we are
+
+Roadmap point [6], and the last thing standing before [7]. The detection
+already existed, in `inventory.py`, as a flat table of regular expressions
+producing a flat sorted list of names — which could not express the two things
+that actually matter.
+
+**How strong a trace is.** `_idGenParaOverride` is a class name InDesign
+invents; nothing else writes it and no human types it. `vellum` is the name of
+a typesetting program and also the word for parchment. The old table scored
+them identically, so a book about bookbinding came out of a program it never
+went near. Weights are now written down as data, next to the pattern, so the
+judgement can be argued with instead of reverse-engineered from behaviour.
+
+**Where it appeared.** The whole file used to be searched as one string, so
+`<meta name="generator" content="calibre">` counted for exactly as much as the
+word "calibre" in a chapter. The package document is a program writing its own
+name; a chapter is prose. Same pattern, two weights, and the weaker one no
+longer clears the floor on its own.
+
+The result is a **list with confidences**, most confident first, because files
+are layered — InDesign to Calibre to Sigil — and "90% calibre, 95% indesign"
+is not an uncertain answer, it is an accurate description of a real file.
+Confidences combine as `1 - Π(1 - w)`, so two weak traces corroborate into
+something stronger than either while nothing ever reaches certainty; the value
+is capped at 0.999 so a report never claims a fact it inferred from regular
+expressions.
+
+Each trace carries its evidence as **the string that was found** —
+`calibre:series`, `MsoNormal`, `class=ftN` — rather than a sentence about it,
+so anyone who doubts the claim can search the book for exactly that, and so it
+reads the same in both report languages.
+
+`ProfileStage` now reports it (`profile.made-by`), and the inventory uses this
+detector instead of its own — one implementation of one idea, which is the
+lesson the watermark taught the expensive way. Nothing acts on the answer yet;
+[7] is where a rule first decides how careful to be based on it.
+
+One consequence worth stating: books recognised only by a bare word in their
+text no longer count as that generator, so corpus family coverage may fall.
+That is the false positive going away, not the detector getting worse.
+
 ## 0.2.16 — alpha — 2026-08-09
 
 ### `--strict` was deleting captions that were never going anywhere

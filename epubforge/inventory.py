@@ -32,48 +32,11 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-from . import watermark, xhtml
+from . import fingerprint, watermark, xhtml
 from .reader import EpubReadError, read_epub
 from .report import Report
 
 # --------------------------------------------------------------- provenance
-
-#: Traces of the tool that produced a file, searched in the package document,
-#: the stylesheets and the markup. The result is a *list*: files are layered —
-#: exported from InDesign, converted by Calibre, patched in Sigil — and that is
-#: information rather than noise.
-GENERATOR_SIGNATURES: dict[str, tuple[str, ...]] = {
-    "calibre": (r"(?i)\bcalibre\b", r'class="[^"]*\bcalibre\d+\b', r"calibre:series"),
-    "indesign": (r"_idGenParaOverride", r"_idGenObjectStyle", r"(?i)InDesign"),
-    # Word proper, and Google Docs — which the roadmap puts in the same family
-    # and which leaves a different trace entirely: `kix` is the name of the
-    # editor inside Google, and every list it exports is numbered with it.
-    "word": (
-        r"\bMsoNormal\b",
-        r"\bmso-[a-z-]+\s*:",
-        r"<o:p>",
-        r"\blst-kix_",
-        r"\bdocs-internal-guid",
-        r"themes\.googleusercontent\.com",
-    ),
-    "sigil": (r"(?i)Sigil version", r'class="[^"]*\bsgc-'),
-    "vellum": (r"(?i)\bvellum\b",),
-    "pressbooks": (r"(?i)pressbooks", r'class="[^"]*\bwp-'),
-    # The first three are pdftohtml and ABBYY leaving their names behind. The
-    # last two are Calibre's PDF input plugin, which says so in a `generator`
-    # meta and names the pictures it lifts out `index-<page>_<n>` — the only
-    # trace once Calibre has rewritten the class names to its own.
-    "pdf-or-ocr": (
-        r'class="[^"]*\bft\d+\b',
-        r"(?i)ABBYY",
-        r"(?i)pdftohtml",
-        r"(?i)PDF Reflow conversion",
-        r"\bindex-\d+_\d+\.(?:png|jpe?g)\b",
-    ),
-    "from-mobi": (r"\bfilepos\d+", r"kindle:pos"),
-    "gutenberg": (r"x-ebookmaker", r"(?i)Project Gutenberg"),
-    "self-publishing": (r"(?i)\b(epubli|lulu\.com|blurb|draft2digital)\b",),
-}
 
 #: Class names that carry no meaning — the signature of a converter numbering
 #: styles rather than naming them.
@@ -221,11 +184,18 @@ def measure(path: pathlib.Path) -> Book:
     # by the time anything else could look.
     package = (parsed.source_package or b"").decode("utf-8", "replace")
     material = f"{package}\n{markup}\n{css}"
-    book.fields["generators"] = sorted(
-        name
-        for name, patterns in GENERATOR_SIGNATURES.items()
-        if any(re.search(pattern, material) for pattern in patterns)
-    )
+    # One detector, in `fingerprint.py`, for the same reason the watermark has
+    # one: this file used to carry a second implementation of the same idea, and
+    # when two implementations of one idea disagree it is never the longer one
+    # that is wrong quietly.
+    traces = fingerprint.identify(package=package, markup=markup, css=css)
+    book.fields["generators"] = fingerprint.names(traces)
+    # The confidences too, because "calibre" and "probably calibre" are
+    # different facts about a shelf and the flat list could not tell them apart.
+    # Counts and names of tools — nothing from inside anybody's book.
+    book.fields["generator_confidence"] = {
+        trace.name: trace.confidence for trace in traces
+    }
     # A shop EPUB carries no generator trace of its own, so the family has to be
     # recognised by what a publisher puts in a book and nobody else does. The
     # roadmap names two things and both are measured: a visible watermark, and
@@ -638,7 +608,6 @@ __all__ = [
     "Book",
     "CORPUS_FAMILIES",
     "PDF_HYPHEN_FLOOR",
-    "GENERATOR_SIGNATURES",
     "coverage",
     "coverage_report",
     "families",

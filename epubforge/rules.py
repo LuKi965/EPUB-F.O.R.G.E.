@@ -95,6 +95,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
     # -- profile -------------------------------------------------------------
+    "profile.made-by": "the book carries traces of {count} tool(s): {tools}",
     "profile.body-text-found": "the body text is {shape}: {percent}% of {blocks} paragraph(s)",
     "profile.body-text-inconsistent": "no shape covers the body text; the commonest reaches {percent}% of {blocks} paragraph(s)",
     "profile.paragraphs-mixed": "paragraphs are separated both ways: {indented} by indent, {spaced} by space",
@@ -282,6 +283,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
     # -- profile -------------------------------------------------------------
+    'profile.made-by': 'książka nosi ślady {count} {count:narzędzia|narzędzi|narzędzi}: {tools}',
     'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
     'profile.body-text-inconsistent': 'żaden kształt nie obejmuje tekstu głównego; najczęstszy sięga {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
     'profile.paragraphs-mixed': 'akapity oddzielane są na oba sposoby: {indented} wcięciem, {spaced} odstępem',

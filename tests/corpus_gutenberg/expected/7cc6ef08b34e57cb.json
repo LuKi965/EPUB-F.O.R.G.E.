@@ -1,10 +1,10 @@
 {
   "source": "sha256:7cc6ef08b34e57cb7c2a0aa722a1c106871ab3277cde8329981e10c2f6fbd493",
-  "version": "0.2.14",
+  "version": "0.2.16",
   "minimal": {
     "written": true,
     "report": {
-      "info": 11,
+      "info": 12,
       "fix": 2
     },
     "rules": {
@@ -19,6 +19,7 @@
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
@@ -31,7 +32,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 12,
+      "info": 13,
       "fix": 5,
       "preserved": 1
     },
@@ -47,6 +48,7 @@
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.entities-rewritten": 1,
@@ -62,7 +64,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 9,
+      "info": 10,
       "fix": 8,
       "preserved": 1
     },
@@ -78,6 +80,7 @@
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
       "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.entities-rewritten": 1,

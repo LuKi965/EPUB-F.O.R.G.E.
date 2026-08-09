@@ -64,6 +64,11 @@ class Context:
     #: removing out-of-flow positioning does not apply to it at all.
     positioning_contained: set[str] = field(default_factory=set)
 
+    #: What made this book, most confident first — see :mod:`epubforge.fingerprint`.
+    #: Filled by the profile stage and read by nothing yet; roadmap [7] is where
+    #: a rule first decides how careful to be based on it.
+    fingerprint: list = field(default_factory=list)
+
     #: Per-document ``{old_id: new_id}`` for ids that were not valid XML names.
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)

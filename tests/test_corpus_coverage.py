@@ -269,30 +269,28 @@ class TestTheToolsThatLeaveNoNameBehind:
         """It rewrites pdftohtml's class names to its own, so `ft0` is gone —
         but it writes `PDF Reflow conversion` into every document it produces,
         and names the pictures it lifts `index-<page>_<n>`."""
-        from epubforge.inventory import GENERATOR_SIGNATURES
-        import re
+        from epubforge import fingerprint
 
-        patterns = GENERATOR_SIGNATURES["pdf-or-ocr"]
         for material in (
             '<meta content="PDF Reflow conversion" name="generator"/>',
             '<item id="id7" href="index-1_1.jpg" media-type="image/jpeg"/>',
         ):
-            assert any(re.search(p, material) for p in patterns), material
+            named = fingerprint.names(fingerprint.identify(package=material))
+            assert "pdf-or-ocr" in named, material
 
     def test_google_docs_numbers_its_lists_with_its_own_editors_name(self):
         """`kix` is what Google calls the editor inside Docs. The roadmap puts
         Word and Google Docs in one family; only Word had any patterns."""
-        from epubforge.inventory import GENERATOR_SIGNATURES
-        import re
+        from epubforge import fingerprint
 
-        patterns = GENERATOR_SIGNATURES["word"]
         for material in (
             "ol.lst-kix_list_7-0{list-style-type:none}",
             "@import url(https://themes.googleusercontent.com/fonts/css?kit=abc);",
             '<span id="docs-internal-guid-1234">',
             "<p class=MsoNormal>",
         ):
-            assert any(re.search(p, material) for p in patterns), material
+            named = fingerprint.names(fingerprint.identify(markup=material, css=material))
+            assert "word" in named, material
 
 
 class TestTheInventoryAndThePipelineAgreeOnAWatermark:

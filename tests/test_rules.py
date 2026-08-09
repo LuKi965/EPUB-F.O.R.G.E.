@@ -31,7 +31,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: wrong about, deleted along with the finding that reported it. What it may
 #: never do is fall because a `note()` lost its identifier, and every call site
 #: carrying one is what the two tests below actually check.
-TAGGED_TODAY = 165
+TAGGED_TODAY = 166
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -138,7 +138,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: How many catalogue entries are templates today — entries whose description
 #: states the specifics itself, so a translated report does not need the English
 #: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
-TEMPLATED_TODAY = 102
+TEMPLATED_TODAY = 103
 
 
 class TestTheTranslationCannotStall:
@@ -636,6 +636,7 @@ DETAILS_THAT_ARE_DATA = {
     "reader.name-rewritten",                  # old name → new name
     "xhtml.presentational-markup-converted",  # the tag names
     "epubcheck.reported",                     # EPUBCheck's own output
+    "profile.made-by",                        # the traces themselves, verbatim
 }
 
 

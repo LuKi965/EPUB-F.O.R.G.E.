@@ -14,6 +14,7 @@ byte-for-byte comparison of every resource before and after.
 
 from __future__ import annotations
 
+from .. import fingerprint
 from .. import profile as book_profile
 from .. import xhtml
 from ..report import Level
@@ -38,7 +39,45 @@ class ProfileStage(Stage):
         css = "\n".join(sheet.text() for sheet in ctx.book.by_type("style"))
         profile = book_profile.measure(documents, css)
         ctx.profile = profile
+        self._fingerprint(ctx, css)
         self._report(ctx, profile)
+
+    def _fingerprint(self, ctx: Context, css: str) -> None:
+        """Which tools made this book, most confident first.
+
+        Reported rather than acted on. Nothing in the pipeline changes its mind
+        because of it yet — roadmap [7] is where it starts to, since the care a
+        paragraph deserves depends on whether it came out of InDesign or out of
+        an OCR pass. Until then it is a fact about the book the report can state
+        and a person can read, which is the same standing as everything else
+        this stage produces.
+
+        The package document is passed separately from the markup, because half
+        of what a trace is worth is where it turned up: `<meta name="generator">`
+        is a program saying its own name, and the same word in a chapter is
+        prose. The reader keeps the source package for exactly this.
+        """
+        markup = "\n".join(
+            resource.data.decode("utf-8", "replace")
+            for resource in ctx.book.content_docs()
+        )
+        package = (ctx.book.source_package or b"").decode("utf-8", "replace")
+        traces = fingerprint.identify(package=package, markup=markup, css=css)
+        ctx.fingerprint = traces
+        if not traces:
+            return
+        self.note(
+            ctx,
+            Level.INFO,
+            "profile.made-by",
+            values={"tools": fingerprint.describe(traces), "count": len(traces)},
+            detail="; ".join(
+                f"{trace.name}: {', '.join(trace.evidence)}"
+                for trace in traces
+                if trace.evidence
+            )
+            or None,
+        )
 
     def _report(self, ctx: Context, profile) -> None:
         body = profile.body
