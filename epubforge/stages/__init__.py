@@ -12,6 +12,9 @@ Order is load-bearing:
 * navigation before accessibility — the latter counts what the former built;
 * accessibility before compatibility — it must measure the book proper, not the
   device concessions layered on top of it;
+* typography after content — it edits the text, and the content stage moves
+  markup around it. Running it first would mean unwrapping a `<span>` through a
+  paragraph the text of which had just been retyped, for no gain;
 * compatibility last — every measure there is a step away from the standard,
   taken for a named device, and nothing earlier should have to know about it.
 """
@@ -26,6 +29,7 @@ from .metadata import MetadataStage
 from .navigation import NavigationStage
 from .profile import ProfileStage
 from .structure import StructureStage
+from .typography import TypographyStage
 
 DEFAULT_STAGES = (
     FontStage,
@@ -35,6 +39,7 @@ DEFAULT_STAGES = (
     ProfileStage,
     ContentStage,
     StyleStage,
+    TypographyStage,
     NavigationStage,
     AccessibilityStage,
     CompatibilityStage,
@@ -51,6 +56,7 @@ __all__ = [
     "ProfileStage",
     "ContentStage",
     "StyleStage",
+    "TypographyStage",
     "NavigationStage",
     "AccessibilityStage",
     "CompatibilityStage",

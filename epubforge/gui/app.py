@@ -352,6 +352,7 @@ class MainWindow(QMainWindow):
         # feature: whatever the application ever deletes must be optional to
         # untick, or asked about first.
         self.dead_check = self._checkbox(layout, "policy.dead", checked=False)
+        self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
         watermark_label = QLabel(tr("policy.watermark.label"))
         watermark_label.setObjectName("sectionLabel")
@@ -440,7 +441,8 @@ class MainWindow(QMainWindow):
         """Minimal mode regenerates only the container, so content knobs do nothing."""
         content_mode = self.mode_combo.currentData() != "minimal"
         for widget in (self.orphans_check, self.layout_check, self.scripts_check,
-                       self.dead_check, self.watermark_combo, self.watermark_label):
+                       self.dead_check, self.typography_check,
+                       self.watermark_combo, self.watermark_label):
             widget.setEnabled(content_mode)
         # Follows the mode rather than overriding it: "force the standard"
         # means tidiness wins, so it arrives ticked — and stays untickable.
@@ -559,6 +561,7 @@ class MainWindow(QMainWindow):
             policy.strip_scripts = self.scripts_check.isChecked()
             policy.remove_dead = self.dead_check.isChecked()
             policy.watermarks = self.watermark_combo.currentData()
+            policy.typography = self.typography_check.isChecked()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),

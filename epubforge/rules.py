@@ -94,6 +94,9 @@ CATALOGUE: dict[str, str] = {
     "xhtml.doctype-kept": "{count} document(s) keep a legacy DOCTYPE because an entity cannot be resolved: {documents}",
     "xhtml.entities-rewritten": "undefined named entities were rewritten as numeric references",
     "xhtml.property-withdrawn": "manifest properties the document does not bear out were withdrawn: {properties}",
+    "typography.ellipsis-normalised": "{count} run(s) of three dots became a single ellipsis character",
+    "typography.conjunctions-bound": "{count} single-letter conjunction(s) were bound to the word after them",
+    "typography.reverted": "{count} document(s) were put back unchanged: the typography pass could not show it kept the text",
     # -- profile -------------------------------------------------------------
     "profile.language-contradicted": "the book declares {declared} but the text is Polish ({rate} Polish-only letters per 1000)",
     "profile.made-by": "the book carries traces of {count} tool(s): {tools}",
@@ -284,6 +287,9 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.entities-rewritten': 'niezadeklarowane encje nazwane przepisano na referencje numeryczne',
     'xhtml.property-withdrawn': 'wycofano właściwości manifestu, których dokument nie potwierdza: {properties}',
     # -- profile -------------------------------------------------------------
+    'typography.ellipsis-normalised': '{count} {count:ciąg trzech kropek stał się|ciągi trzech kropek stały się|ciągów trzech kropek stało się} pojedynczym wielokropkiem',
+    'typography.conjunctions-bound': '{count} {count:jednoliterowy spójnik związano|jednoliterowe spójniki związano|jednoliterowych spójników związano} z następującym po nim słowem',
+    'typography.reverted': '{count} {count:dokument przywrócono|dokumenty przywrócono|dokumentów przywrócono} bez zmian: przebieg typograficzny nie potrafił wykazać, że zachował tekst',
     'profile.language-contradicted': 'książka deklaruje {declared}, a tekst jest polski ({rate} liter wyłącznie polskich na 1000)',
     'profile.made-by': 'książka nosi ślady {count} {count:narzędzia|narzędzi|narzędzi}: {tools}',
     'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',

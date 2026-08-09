@@ -96,6 +96,15 @@ class Policy:
     #: a person chooses. No preset reaches either.
     watermarks: str = "consolidate"
 
+    #: Repair the typography of the text itself — roadmap [7].
+    #:
+    #: Off everywhere, reached by no preset, and that is the point rather than
+    #: caution about an unfinished feature. Every other switch in this file
+    #: decides how markup is arranged around a text nothing may touch; this one
+    #: lets a stage retype the text. A book comes back with characters it did
+    #: not have, and no reader should discover that because a default changed.
+    typography: bool = False
+
     #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
     accessibility_metadata: bool = True
 

@@ -108,6 +108,37 @@ language. One generator, one format, one declaration — no use at all as a
 regression net, whose value comes from variety of provenance. It was taken for
 the distribution and it paid for itself twice in the first minute.
 
+### [7] first rules: the stage that changes text, and checks that it did not
+
+`epubforge/stages/typography.py`, behind `--typography` and a tickbox, off
+everywhere, reached by no preset. Every other switch in `policy.py` decides how
+markup is arranged around a text nothing may touch; this one lets a stage
+retype the text, and no reader should discover that because a default changed.
+
+**K1 is not switched off for it — it is replaced by something stronger.** The
+stage folds each document's text to the canonical form before and after its own
+work and compares the two. A document that fails goes back exactly as it came
+in and the report says so (`typography.reverted`, a warning). A rule cannot
+ship a defect past that; it can only produce a reverted document and a line
+admitting it. Two of the tests are exactly that: a deliberately broken rule
+that eats a word, and one that bites the end off a sentence.
+
+Two rules to start with, and the shelf chose them:
+
+* **three dots become an ellipsis.** Not four — a run of four is somebody's own
+  punctuation, and an ellipsis is not longer than itself.
+* **single-letter Polish conjunctions get a hard space**, so `w`, `i`, `a`, `o`,
+  `u`, `z` do not end a line. Gated on the *declared* language, not on a guess
+  from the text: a book whose declaration is contradicted is reported by the
+  profile stage and left alone here, because acting on an inference about
+  somebody's language is a larger claim than reporting one.
+
+Quotes are the third rule and are not in yet: normalising them means deciding
+which of a pair each mark is, and a straight `"` does not say.
+
+Container-only mode ignores the flag. Byte-for-byte is a promise about the
+content files and it outranks a switch.
+
 ### [7] groundwork: the safety apparatus, before any rule touches a character
 
 `epubforge/typography.py`. Typography is the only stage that changes text on

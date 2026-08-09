@@ -79,6 +79,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.watermarks = "keep"
     if args.watermarks:
         policy.watermarks = args.watermarks
+    if args.typography:
+        policy.typography = True
     if args.no_a11y_metadata:
         policy.accessibility_metadata = False
     if args.claim_conformance:
@@ -674,6 +676,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep-watermark-markup",
         action="store_true",
         help=argparse.SUPPRESS,  # superseded by --watermarks keep; still honoured
+    )
+    build.add_argument(
+        "--typography",
+        action="store_true",
+        help=(
+            "repair the text's typography: three dots become an ellipsis, and in "
+            "Polish books single-letter conjunctions are bound to the word after "
+            "them. Off by default and reached by no mode — this is the one pass "
+            "that changes the text itself"
+        ),
     )
     build.add_argument(
         "--no-a11y-metadata",

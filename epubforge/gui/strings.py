@@ -145,6 +145,17 @@ PL: dict[str, str] = {
         "Jedyna opcja, która coś traci — i dlatego trzeba ją wybrać ręcznie. "
         "Nie włącza jej żaden tryb."
     ),
+    "policy.typography": "Popraw typografię tekstu",
+    "policy.typography.tip": (
+        "Jedyne miejsce, w którym narzędzie zmienia sam tekst, a nie znaczniki "
+        "wokół niego. Dlatego jest wyłączone i nie włącza go żaden tryb.\n\n"
+        "Trzy kropki stają się wielokropkiem, a w książkach polskich "
+        "jednoliterowe spójniki (a i o u w z) dostają twardą spację, żeby nie "
+        "zostawały na końcu wiersza.\n\n"
+        "Po każdym dokumencie sprawdza samo siebie: jeżeli nie potrafi wykazać, "
+        "że zachowało tekst co do słowa, przywraca dokument bez zmian i pisze "
+        "o tym w raporcie."
+    ),
     "policy.scripts": "Usuń skrypty JavaScript",
     "policy.dead": "Usuwaj to, co nic nie robi",
     "policy.dead.tip": (
@@ -524,6 +535,16 @@ EN: dict[str, str] = {
         "buyer.\n\n"
         "The only option that loses anything, which is why you have to pick it "
         "yourself. No mode turns it on."
+    ),
+    "policy.typography": "Repair the text's typography",
+    "policy.typography.tip": (
+        "The only place this tool changes the text itself rather than the markup "
+        "around it. That is why it is off, and why no mode turns it on.\n\n"
+        "Three dots become an ellipsis, and in Polish books single-letter "
+        "conjunctions (a i o u w z) get a hard space so they do not end a line."
+        "\n\nAfter each document it checks its own work: if it cannot show it "
+        "kept the text word for word, the document goes back unchanged and the "
+        "report says so."
     ),
     "policy.scripts": "Remove JavaScript",
     "policy.dead": "Remove what does nothing",
