@@ -344,6 +344,16 @@ class NavigationStage(Stage):
                 location=old_path,
             )
 
+    @staticmethod
+    def _free_path(book, wanted: str) -> str:
+        """A path near *wanted* that nothing in the book occupies."""
+        stem, _, suffix = wanted.rpartition(".")
+        for attempt in range(1, 100):
+            candidate = f"{stem}-{attempt}.{suffix}" if attempt > 1 else f"{stem}-epub3.{suffix}"
+            if book.get(candidate) is None:
+                return candidate
+        return wanted
+
     def _write_nav(self, ctx: Context) -> None:
         book = ctx.book
         nav_path = paths.content_path(ctx.policy, "nav.xhtml")
@@ -359,6 +369,28 @@ class NavigationStage(Stage):
         # and its `linear` flag. Everything else about the document is
         # regenerated, which is the point of the stage.
         old_place = None
+
+        # The guard below used to read `book.nav_path != nav_path`, and that
+        # comparison is where a real book lost text. In container-only mode
+        # nothing is renamed, so the generated document lands on **the same
+        # path** the source's nav already occupies — the two are equal, the
+        # protection is skipped, and the publisher's contents page is
+        # overwritten in place. Twenty-four megabytes, 9 809 spine items, and
+        # 32 characters gone: the book's own word for "contents".
+        #
+        # Worse, that is the one mode whose promise is that the content files
+        # come out byte for byte, and the report said `xhtml.untouched` while
+        # it happened — true of the stage that says it, and false of the book.
+        #
+        # So when the collision is with a nav the reader can turn to, the
+        # generated one moves aside instead.
+        if (
+            book.nav_path
+            and book.nav_path == nav_path
+            and any(item.path == book.nav_path for item in book.spine)
+        ):
+            nav_path = self._free_path(book, nav_path)
+
         if book.nav_path and book.nav_path != nav_path:
             in_spine = next(
                 (i for i, item in enumerate(book.spine) if item.path == book.nav_path), None

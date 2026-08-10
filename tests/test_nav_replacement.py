@@ -247,3 +247,113 @@ class TestTheNavigationSpeaksTheBooksLanguage:
             if language != "en":
                 shared = [k for k in sections if headings[k] == NAV_HEADINGS["en"][k]]
                 assert not shared, (language, shared)
+
+
+class TestTheContentsPageSurvivesACollidingPath:
+    """Found on a real book: 24 MB, 9 809 spine items, and 32 characters gone.
+
+    The protection for a navigation document that is also a contents page was
+    guarded by `book.nav_path != nav_path`. In container-only mode nothing is
+    renamed, so the generated nav lands on the same path the source's nav
+    already holds — the two are equal, the guard is skipped, and the
+    publisher's page is overwritten in place.
+
+    That is the one mode whose promise is that content files come out byte for
+    byte, and the report said `xhtml.untouched` while it happened: true of the
+    stage that says it, false of the book.
+    """
+
+    def book(self, tmp_path):
+        from tests.factory import write_zip
+
+        nav = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops"><head>'
+            "<title>Inhoudsopgave</title></head><body>"
+            '<nav epub:type="toc"><h1>Inhoudsopgave</h1><ol><li>'
+            '<a href="d0.xhtml">Begin</a></li></ol></nav></body></html>\n'
+        )
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>R</title>'
+            "</head><body><p>Rozdzial z tekstem.</p></body></html>\n"
+        )
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="i">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>P</dc:title>
+<dc:language>nl</dc:language><dc:identifier id="i">urn:uuid:9</dc:identifier>
+<meta property="dcterms:modified">2026-01-01T00:00:00Z</meta></metadata>
+<manifest>
+  <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  <item id="d0" href="d0.xhtml" media-type="application/xhtml+xml"/>
+</manifest>
+<spine><itemref idref="nav"/><itemref idref="d0"/></spine></package>
+"""
+        container = (
+            '<?xml version="1.0"?><container version="1.0" '
+            'xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles>'
+            '<rootfile full-path="c.opf" media-type="application/oebps-package+xml"/>'
+            "</rootfiles></container>"
+        )
+        return write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": container.encode(),
+                "c.opf": package.encode(),
+                "nav.xhtml": nav.encode(),
+                "d0.xhtml": document.encode(),
+            },
+        )
+
+    @pytest.mark.parametrize("mode", ["minimal", "preserve", "strict"])
+    def test_the_publishers_own_word_for_contents_survives(self, tmp_path, mode):
+        import pathlib as _pathlib
+
+        from epubforge.inventory import spine_text
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        source = self.book(tmp_path)
+        result = rebuild(
+            source,
+            str(tmp_path / f"{mode}.epub"),
+            Policy.preset(mode, modified_override="2026-01-01T00:00:00Z"),
+        )
+        assert result.output_path, result.report.to_text()
+        before = " ".join(spine_text(_pathlib.Path(source)).split())
+        after = " ".join(spine_text(_pathlib.Path(result.output_path)).split())
+        assert "Inhoudsopgave" in before
+        assert before == after, mode
+
+    @pytest.mark.parametrize("mode", ["minimal", "preserve", "strict"])
+    def test_the_page_is_reported_as_kept_in_every_mode(self, tmp_path, mode):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        result = rebuild(
+            self.book(tmp_path),
+            str(tmp_path / f"{mode}-r.epub"),
+            Policy.preset(mode, modified_override="2026-01-01T00:00:00Z"),
+        )
+        assert "nav.contents-page-kept" in {f.rule for f in result.report.findings}
+
+    def test_the_generated_nav_moves_aside_rather_than_over(self, tmp_path):
+        """One nav document, as EPUB 3 requires, and the publisher's page still
+        in the reading order beside it."""
+        import zipfile
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        result = rebuild(
+            self.book(tmp_path),
+            str(tmp_path / "aside.epub"),
+            Policy.preset("minimal", modified_override="2026-01-01T00:00:00Z"),
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            names = archive.namelist()
+            package = next(archive.read(n).decode() for n in names if n.endswith(".opf"))
+        assert package.count('properties="nav"') == 1
+        assert any(n.endswith("nav.xhtml") for n in names)
+        assert any("nav-epub3" in n for n in names), names

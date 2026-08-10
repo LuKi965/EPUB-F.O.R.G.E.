@@ -1,14 +1,16 @@
 {
   "source": "sha256:ed34249634052393755dcd714e13853447fed8bc4eef1d0a9dbd760f91806c3c",
-  "version": "0.2.10",
+  "version": "0.2.17",
   "minimal": {
     "written": true,
     "report": {
       "info": 6,
-      "fix": 1
+      "fix": 1,
+      "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.layout-kept": 1,
@@ -16,11 +18,11 @@
       "profile.body-text-found": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:2327ff005c34a82b442245686cdc7bfc46d25cce60c2be48abc074bb3883a8c9",
-    "text_characters": 78,
-    "text_added": 51,
+    "output": "sha256:4ef4b59a107850de7d22469a5888cff7a12440f5c258ac68cb8fa59804b72852",
+    "text_characters": 27,
+    "text_added": 0,
     "text_invariant": true,
-    "blocks": 6
+    "blocks": 7
   },
   "preserve": {
     "written": true,

@@ -38,6 +38,48 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### `text_lost: 1` — found, reproduced and fixed without the book
+
+The mixed shelf's ledger carried one line that mattered more than the 120
+EPUBCheck errors above it: **one book lost 32 characters of spine text in
+container-only mode**, the mode whose promise is that content files come out
+byte for byte, and which reported `xhtml.untouched` on that very book.
+
+It did not need the book. The signature and the inventory between them said
+enough: 24 MB, EPUB 3, **9 809 documents and 9 809 spine items** — so every
+document is in the reading order, including the navigation — one TOC entry, no
+cover. `preserve` and `strict` came out at delta 0; only `minimal` was short.
+A fixture of that shape reproduced it on the first run, to the character.
+
+The protection for this case already existed and had been written for it: a
+navigation document that is also a spine item is *two things at once* — the
+machine-readable navigation, and a contents page the reader can turn to — and
+regenerating it serves the first and destroys the second. It was guarded by
+`book.nav_path != nav_path`. In container-only mode nothing is renamed, so the
+generated document lands on **the same path** the source's nav already holds:
+the two are equal, the guard is skipped, and the publisher's page is
+overwritten in place. The book's own word for "contents" — `Inhoudsopgave` —
+went, and ours arrived.
+
+The guard now asks the question it meant to ask: *is this nav a page anybody
+can turn to?* When it is, and the paths collide, the generated nav moves aside
+instead. One nav document, as EPUB 3 requires; the publisher's page still in
+the reading order beside it; K1 holds in all three modes.
+
+The public corpus confirmed it independently: one of the twelve fixtures in
+this repository has the same shape, and its signature moved
+`minimal.text_added: 51 → 0`. The generated navigation had been leaking its own
+text into that book's reading order all along, in the mode that promises to add
+nothing, and the recorded signature said so every run without anybody reading
+it that way.
+
+Two things worth keeping in view. The report said `xhtml.untouched` while
+another stage rewrote a content file — true of the stage that says it and false
+of the book, which is a claim worth narrowing. And the whole find came from a
+ledger line nobody had to be clever about: it said `text_lost: 1`, and I had
+read past it to a bigger number that turned out not to be ours at all.
+
+
 ### A second shelf, recorded and held to the same rules
 
 The regression net was one shelf — 93 Polish books — and the ledger tests said
