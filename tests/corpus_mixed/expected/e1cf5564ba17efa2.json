@@ -1,0 +1,141 @@
+{
+  "source": "sha256:e1cf5564ba17efa2a7035db83a2e9d966a9a442a8ccf1004e26f0af2a416e48a",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 17,
+    "warnings": 9,
+    "fatal": 0,
+    "codes": {
+      "OPF-029": 1,
+      "RSC-005": 8,
+      "RSC-020": 8
+    },
+    "shapes": {
+      "OPF-029: The file \"cover.png\" does not appear to match the media type image/png, as specified in the OPF file.": 1,
+      "RSC-005: Error while parsing file: attribute \"name\" not allowed here; expected attribute \"accesskey\", \"charset\", \"class\", \"coords\", \"dir\", \"href\", \"h": 1,
+      "RSC-005: Error while parsing file: element \"a\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\",": 1,
+      "RSC-005: Error while parsing file: element \"i\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\",": 1,
+      "RSC-005: Error while parsing file: element \"img\" missing required attribute \"alt\"": 1,
+      "RSC-005: Error while parsing file: element \"img\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl": 1,
+      "RSC-005: Error while parsing file: element \"span\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"d": 1,
+      "RSC-005: Error while parsing file: element \"strong\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", ": 1,
+      "RSC-005: Error while parsing file: text not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", ": 1,
+      "RSC-020: \"…\" is not a valid URL (Illegal character in path segment: space is not allowed)": 8
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 6,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "image.renamed": 1,
+      "image.type-corrected": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:defe5943a91a272d35cef7e8fa2f02c2c9bfef553d9c36dc3a31fe6bed5ff0ab",
+    "text_characters": 1128403,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 8871,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 8,
+      "fatal": 0,
+      "codes": {
+        "RSC-007": 1
+      },
+      "shapes": {
+        "RSC-007: Referenced resource \"cover.png\" could not be found in the EPUB.": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 24,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "image.renamed": 1,
+      "image.type-corrected": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-alt-added": 8,
+      "xhtml.inline-promoted": 8,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:e382b21cf4e24d4c8aa64b4ada7e95a5c6367ce08a8bf831242cb3eea7f7e4fe",
+    "text_characters": 1128403,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 8871,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 24,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "image.renamed": 1,
+      "image.type-corrected": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-alt-added": 8,
+      "xhtml.inline-promoted": 8,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:e382b21cf4e24d4c8aa64b4ada7e95a5c6367ce08a8bf831242cb3eea7f7e4fe",
+    "text_characters": 1128403,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 8871,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

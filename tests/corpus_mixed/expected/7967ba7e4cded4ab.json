@@ -1,0 +1,137 @@
+{
+  "source": "sha256:7967ba7e4cded4ab0482539632ff014b0d837735870e2bca03d65b64fb76bdef",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 1,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "RSC-012": 1
+    },
+    "shapes": {
+      "RSC-012: Fragment identifier is not defined.": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 11,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-inconsistent": 1,
+      "profile.dead-classes-found": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.manifest-type-corrected": 6,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:b8bd5bfe39031c77783f09f929a5bcd3f3c8579add02c771c11faadaf96f5ba1",
+    "text_characters": 413366,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1826,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 2,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1,
+        "RSC-012": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1,
+        "RSC-012: Fragment identifier is not defined.": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 21,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-inconsistent": 1,
+      "profile.dead-classes-found": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.manifest-type-corrected": 6,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-described": 1,
+      "xhtml.dead-fragment-dropped": 1,
+      "xhtml.empty-span-found": 1,
+      "xhtml.entities-rewritten": 8,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:a4694e7e2c3347df383f10074fab375e9a8c570abd0a4a1b70541a600f419f12",
+    "text_characters": 413366,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1826,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 23,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-inconsistent": 1,
+      "profile.dead-classes-found": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.manifest-type-corrected": 6,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-described": 1,
+      "xhtml.dead-fragment-dropped": 1,
+      "xhtml.empty-span-unwrapped": 1,
+      "xhtml.entities-rewritten": 8,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:a6e1d0f387df80115a0ea2aa358b18e6ff59c5bbc1f3b7519ab2df0771855db3",
+    "text_characters": 413366,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1826,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "source": "sha256:25831fb9f530954c3a7c9b5767ae58acb3dc4d8b95ebff82f9648fdf2f2f5c99",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 3,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "HTM-004": 1,
+      "RSC-005": 2
+    },
+    "shapes": {
+      "HTM-004: Irregular DOCTYPE: found \"…\", expected \"…\"-//W3C//DTD XHTML 1.1//EN\"…\"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"…\".": 1,
+      "RSC-005: Error while parsing file: attribute \"role\" not allowed here; expected attribute \"id\", \"ns1:file-as\", \"ns1:role\" or \"xml:lang\"": 1,
+      "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"content\", \"dir\", \"http-equiv\", \"lang\", \"scheme\" or \"xml:la": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 5
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.heading-candidates-found": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:b57a426349b649ea865852d27d1773a31419c38355a9fb8258bac8dda5ac684b",
+    "text_characters": 1673010,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 8080,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2,
+        "RSC-011": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1,
+        "RSC-011: Found a reference to a resource that is not a spine item.": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 7,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.heading-candidates-found": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 1,
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 1
+    },
+    "output": "sha256:915cf10601670f2523b21140849e1bb5a9c898fd7b1fba20dc34e644a7065d8c",
+    "text_characters": 1673010,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 8080,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2,
+        "RSC-011": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1,
+        "RSC-011: Found a reference to a resource that is not a spine item.": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 7,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.heading-candidates-found": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 1,
+      "xhtml.entities-rewritten": 1,
+      "xhtml.image-paragraph-kept": 1
+    },
+    "output": "sha256:915cf10601670f2523b21140849e1bb5a9c898fd7b1fba20dc34e644a7065d8c",
+    "text_characters": 1673010,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 8080,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2,
+        "RSC-011": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1,
+        "RSC-011: Found a reference to a resource that is not a spine item.": 1
+      }
+    }
+  }
+}

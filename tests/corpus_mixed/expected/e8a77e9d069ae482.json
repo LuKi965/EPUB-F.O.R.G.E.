@@ -1,0 +1,143 @@
+{
+  "source": "sha256:e8a77e9d069ae48221ed630034efe8741119f5f087d0b0ef33773067bcbda5d5",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 6,
+    "warnings": 1,
+    "fatal": 0,
+    "codes": {
+      "RSC-005": 3,
+      "RSC-007": 1,
+      "RSC-020": 2
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
+      "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang": 1,
+      "RSC-005: Error while parsing file: element \"head\" incomplete; missing required element \"title\"": 1,
+      "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1,
+      "RSC-020: \"…\" is not a valid URL (Illegal character in path segment: space is not allowed)": 2
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 4
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:8b997ec6e161d800fdcb3acdf3d20cf8f55ac690930a12469102f188a020b7e3",
+    "text_characters": 92814,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 361,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 4,
+      "warnings": 2,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 3,
+        "RSC-007": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1,
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 7,
+      "preserved": 4
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.dead-reference-kept": 4,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:814e8bd83a91cb0f6d7b3b52b21aebb473631c6f6588871a95875f2451ac6e38",
+    "text_characters": 92814,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 361,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2,
+        "RSC-007": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 11
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.dead-reference-neutralised": 4,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:1e546a65dfcce1d2df01f5245715bc0f93398f385ff23a8e0f51bf7ab285fee1",
+    "text_characters": 92814,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 361,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 2,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
+      }
+    }
+  }
+}

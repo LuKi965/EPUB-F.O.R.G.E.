@@ -1,0 +1,158 @@
+{
+  "source": "sha256:3768ad78935c553f5b411c3b67bcbccd3ce4a99e80879760082c4bd1e98ae675",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 5,
+    "warnings": 2,
+    "fatal": 0,
+    "codes": {
+      "RSC-005": 4,
+      "RSC-007": 1
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: element \"dc:generator\" not allowed anywhere; expected element \"dc:contributor\", \"dc:coverage\", \"dc:creator\", \"dc:d": 1,
+      "RSC-005: Error while parsing file: element \"font\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet": 1,
+      "RSC-005: Error while parsing file: element \"guide\" incomplete; missing required element \"reference\"": 1,
+      "RSC-005: Error while parsing file: element \"metadata\" incomplete; missing required elements \"dc:language\" and \"dc:title\"": 1,
+      "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 7,
+      "warn": 4
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "metadata.creator-missing": 1,
+      "metadata.language-missing": 1,
+      "metadata.title-missing": 1,
+      "nav.entry-dropped": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "nav.toc-synthesised": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:7109caa22f843dea18b6489aa91ba5ed9bd1a2dca94dac043dc56ad3743088a0",
+    "text_characters": 485668,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 471,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 2,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: element \"font\" not allowed here; expected the element end-tag, text, element \"a\", \"abbr\", \"area\", \"audio\", \"b\", \"b": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 8,
+      "fix": 25,
+      "preserved": 1,
+      "warn": 4
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "css.unreachable-rules-found": 1,
+      "metadata.creator-missing": 1,
+      "metadata.language-missing": 1,
+      "metadata.title-missing": 1,
+      "nav.entry-dropped": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "nav.toc-synthesised": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 15,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 3,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:8932f10d9739862fcb4112b82a2c6d6140351a35653ebccffe25c508110e83fd",
+    "text_characters": 485668,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 471,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 26,
+      "preserved": 1,
+      "warn": 4
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "css.unreachable-rules-removed": 1,
+      "metadata.creator-missing": 1,
+      "metadata.language-missing": 1,
+      "metadata.title-missing": 1,
+      "nav.entry-dropped": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "nav.toc-synthesised": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 15,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 3,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:3f2e63a52502c3f21a44d6a296b50b5528048fc9b211c134d03064306e3bbed1",
+    "text_characters": 485668,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 471,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

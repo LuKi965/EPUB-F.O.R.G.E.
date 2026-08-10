@@ -1,0 +1,150 @@
+{
+  "source": "sha256:3d27d5e7d4a1a552063e5f3b532d8ed2b0a4d65d3a4cdba1d0af264898de5c85",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 3,
+    "warnings": 1,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-005": 2
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"b9c9cbbd-1e5d-40d3-972e-091d82ab1e53\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"id\", \"style\" or \"title\"": 1,
+      "RSC-005: Error while parsing file: element \"metadata\" incomplete; missing required element \"dc:language\"": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 5,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "metadata.language-missing": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:2d830575876c99c9da81104c3c7c558752c5008493951e2e9a6dd9e7273a0f97",
+    "text_characters": 1650795,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 6096,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 89,
+      "preserved": 1,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-found": 1,
+      "metadata.language-missing": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 9,
+      "xhtml.empty-span-found": 1,
+      "xhtml.entities-rewritten": 51,
+      "xhtml.inline-promoted": 23,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:715827642eec26a68efcb499b374b99e6bb5f60315cee6c21b83d92f0b1bb17f",
+    "text_characters": 1650795,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 6096,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 91,
+      "preserved": 1,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-removed": 1,
+      "metadata.language-missing": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 9,
+      "xhtml.empty-span-unwrapped": 1,
+      "xhtml.entities-rewritten": 51,
+      "xhtml.inline-promoted": 23,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:e81c58198143e957ed4136b494ed608bfbece7fe9b52f41254975729db95671d",
+    "text_characters": 1650795,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 6096,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

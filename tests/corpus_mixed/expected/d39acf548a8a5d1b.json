@@ -1,0 +1,147 @@
+{
+  "source": "sha256:d39acf548a8a5d1b3df74a115864551b111915e46efc09c8fdc8699d81ae84fe",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 1,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "RSC-007": 1
+    },
+    "shapes": {
+      "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 8,
+      "fix": 5,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:28001b331f3be465288e1da05cc581ad6514c6b3fcf8d0cb594e8df08259b0c6",
+    "text_characters": 101422,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 780,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-007": 1
+      },
+      "shapes": {
+        "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 20,
+      "preserved": 3,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.url-unresolved": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 14,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:5f9f1a3e9eed76c83f423e6a156d805220884a6b0884f97a26ce6674d1d28791",
+    "text_characters": 101422,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 780,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-007": 1
+      },
+      "shapes": {
+        "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 20,
+      "preserved": 3,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.url-unresolved": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 14,
+      "xhtml.image-paragraph-kept": 2,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:5f9f1a3e9eed76c83f423e6a156d805220884a6b0884f97a26ce6674d1d28791",
+    "text_characters": 101422,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 780,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-007": 1
+      },
+      "shapes": {
+        "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1
+      }
+    }
+  }
+}

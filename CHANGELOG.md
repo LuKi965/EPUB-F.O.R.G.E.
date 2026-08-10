@@ -38,6 +38,38 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A second shelf, recorded and held to the same rules
+
+The regression net was one shelf — 93 Polish books — and the ledger tests said
+so in a hardcoded path. A second arrived and found two defects within a minute,
+both invisible on the first, because the first has no book carrying the HTML
+3.2 `<body>` palette. A net made of one kind of book catches one kind of
+regression, which is roadmap point [1] restated by experience rather than by
+argument.
+
+`tests/corpus_mixed/` now holds it: 67 Dutch and English books out of Sigil,
+Word and Calibre, with their own `expected/` and their own `runs.json`. Its
+scope is not the Polish shelf's, so its ledger and its streak are its own —
+merging them would compare runs over different books and call the difference a
+regression.
+
+`tests/shelves.py` enumerates shelves rather than naming them, so adding a
+third is dropping a folder in. Every ledger test runs over each: that a scope
+is recorded, that signatures exist to compare against, that the streak rule can
+read it, and that a signature carries no word of anybody's book. That last one
+failed on its first run and the test was wrong, not the data — `.epub` matched
+inside the rule name `xhtml.epub2-only-markup`.
+
+Two facts about the mixed shelf are pinned so a future gap cannot hide behind
+them: 67 books produce 63 signatures, because a signature is named after the
+hash of the book and a collection pulled off the internet at random has
+duplicates in it; and `text_lost: 1`, which is unresolved. One book loses 32
+characters of spine text in **container-only mode** — the mode that promises
+the content files byte for byte, and which reports `xhtml.untouched` on that
+very book. The documents came out untouched and the text got shorter, so it
+points at the spine or the navigation. It needs the book.
+
+
 ### The summary said "Ours" about defects that were the books'
 
 A shelf of 67 Dutch and English books came back with 120 EPUBCheck errors,

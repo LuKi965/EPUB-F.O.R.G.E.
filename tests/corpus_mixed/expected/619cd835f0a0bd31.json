@@ -1,0 +1,156 @@
+{
+  "source": "sha256:619cd835f0a0bd31ebce1c6ba6ba963c6c4a028bf33fce63dc96cff0206a659e",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 2,
+    "warnings": 3,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-005": 1
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: attribute \"p\" not allowed here; expected attribute \"class\", \"dir\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 6,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:411056f71e0c086534ea8a0e93046b72a2f3a507370c2b9f1c491c286abe2fe9",
+    "text_characters": 821898,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 3867,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 3,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"p\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-control": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 8,
+      "fix": 76,
+      "preserved": 1,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 68,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:84979f0cdcfa43936b94fc8a360b7c9be68e9d807805aafe8e4d5da6a3cc6d21",
+    "text_characters": 821898,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 3867,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"p\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-control": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 77,
+      "preserved": 1,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.no-usable-rules": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 68,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:170b8956a3dc04e3f257280e4239bd7f63f0cdb93b4b10bc97f7841cc70c4baa",
+    "text_characters": 821898,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 3867,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"p\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-control": 1
+      }
+    }
+  }
+}

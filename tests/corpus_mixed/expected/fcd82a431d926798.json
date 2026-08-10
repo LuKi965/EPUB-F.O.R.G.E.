@@ -1,0 +1,194 @@
+{
+  "source": "sha256:fcd82a431d926798028b1b5a579aecbd748b39ddc1197614117b76569d630a83",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 22,
+    "warnings": 1,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-005": 20,
+      "RSC-012": 1
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"e9ea276a-161c-4202-be8f-a1ad8d5cbe68\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: Duplicate \"bookmark63\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"bookmark68\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"bookmark70\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"bookmark76\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"bookmark85\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"bookmark86\"": 1,
+      "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"border\", \"cellpadding\", \"cellspacing\", \"class\", \"dir\", \"fr": 1,
+      "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang": 1,
+      "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"class\", \"id\", \"style\" or \"title\"": 1,
+      "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"abbr\", \"axis\", \"char\", \"charoff\", \"class\", \"colspan\", \"di": 1,
+      "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 6,
+      "warn": 3
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "a11y.table-without-headers": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.epub2-only-markup": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:2d48ce93102666f5544e2a78576e87d5cda90c5a77923695f50b61d3985c01ad",
+    "text_characters": 953027,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 3368,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 26,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 25,
+        "RSC-012": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark63\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark68\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark70\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark76\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark85\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark86\"": 1,
+        "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomic": 3,
+        "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: attribute \"cellpadding\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"cellspacing\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 2
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 273,
+      "preserved": 6,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "a11y.table-without-headers": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.dead-fragment-dropped": 1,
+      "xhtml.entities-rewritten": 135,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 6,
+      "xhtml.inline-promoted": 7,
+      "xhtml.presentational-markup-converted": 123,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:324f6af647054bed437976e5222f5f89a2f933acc31dd72240760839e95be2f5",
+    "text_characters": 953027,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 3368,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 9,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 9
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark63\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark68\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark70\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark76\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark85\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark86\"": 1,
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"size\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 273,
+      "preserved": 6,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "a11y.table-without-headers": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.dead-fragment-dropped": 1,
+      "xhtml.entities-rewritten": 135,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.image-paragraph-kept": 6,
+      "xhtml.inline-promoted": 7,
+      "xhtml.presentational-markup-converted": 123,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:324f6af647054bed437976e5222f5f89a2f933acc31dd72240760839e95be2f5",
+    "text_characters": 953027,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 3368,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 9,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 9
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark63\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark68\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark70\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark76\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark85\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"bookmark86\"": 1,
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"size\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
+      }
+    }
+  }
+}

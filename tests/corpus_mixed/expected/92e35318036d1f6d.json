@@ -1,0 +1,146 @@
+{
+  "source": "sha256:92e35318036d1f6dde15cb1d43e1a806a60b1c99a393687b64a455d52f68e229",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 3,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "CSS-008": 1,
+      "NCX-001": 1,
+      "RSC-005": 1
+    },
+    "shapes": {
+      "CSS-008: An error occurred while parsing the CSS: Token \"…\" not allowed here, expecting :.": 1,
+      "NCX-001: NCX identifier (\"c657c1a8-b28b-40a8-9de3-dae7a8e440a1\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"content\", \"dir\", \"http-equiv\", \"lang\", \"scheme\" or \"xml:la": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 4
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:401189f0e6cec5997709d5849b42c127874a5ebd173142336d977eda1d14f0a6",
+    "text_characters": 826154,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 3437,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "CSS-008": 1,
+        "RSC-005": 2
+      },
+      "shapes": {
+        "CSS-008: An error occurred while parsing the CSS: Token \"…\" not allowed here, expecting :.": 1,
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 19,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 1,
+      "xhtml.entities-rewritten": 14,
+      "xhtml.image-paragraph-kept": 1
+    },
+    "output": "sha256:29c845bc7b70d795ac0ae937fa43fb29b5fcdb460cc546adb364234f88a84d28",
+    "text_characters": 826154,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 3437,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "CSS-008": 1,
+        "RSC-005": 2
+      },
+      "shapes": {
+        "CSS-008: An error occurred while parsing the CSS: Token \"…\" not allowed here, expecting :.": 1,
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 20,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 1,
+      "xhtml.entities-rewritten": 14,
+      "xhtml.image-paragraph-kept": 1
+    },
+    "output": "sha256:25e1983e8fc5661c45713f416b1f557112b5b226714b1a4c1b2395b24a95ec6f",
+    "text_characters": 826154,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 3437,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 3,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "CSS-008": 1,
+        "RSC-005": 2
+      },
+      "shapes": {
+        "CSS-008: An error occurred while parsing the CSS: Token \"…\" not allowed here, expecting :.": 1,
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1
+      }
+    }
+  }
+}

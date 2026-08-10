@@ -1,0 +1,112 @@
+{
+  "source": "sha256:ce72bc24d9a43141b777414dcddaf6e9acb43b10c76ea5cc4968c1e45324ed5c",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 0,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {}
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 5
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:0194851db2c9a4c76fc0c569bf72928c79814fbb6d28bbc8dd857571b5822426",
+    "text_characters": 208441,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1699,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 30
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 23,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:db0b8bc02c591653a946baf3e484f2d349124990bb2430113375155c576ac5a2",
+    "text_characters": 208441,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1699,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 30
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 23,
+      "xhtml.image-paragraph-centred": 1,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:db0b8bc02c591653a946baf3e484f2d349124990bb2430113375155c576ac5a2",
+    "text_characters": 208441,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1699,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

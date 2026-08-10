@@ -1,0 +1,151 @@
+{
+  "source": "sha256:279d3017865f94c848014ab56ab911f19d9aa4759f90eb738fa1d1b905af621f",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 2,
+    "warnings": 41,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-005": 1
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: attribute \"font17\" not allowed here; expected attribute \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 5,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:4a2b8f9fa7ff951b9f1ed0520cb68062c2fb3ec6835c7e35a5f236fbadb96b07",
+    "text_characters": 1598375,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 5038,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 41,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"font17\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 46,
+      "fix": 75,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 21,
+      "xhtml.empty-span-found": 38,
+      "xhtml.entities-rewritten": 49,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:124ba595b2db354f257ebe6911ef83ef93dcf7da9708e3f9bd372bf870c9edb8",
+    "text_characters": 1598375,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 5038,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"font17\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 114,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 21,
+      "xhtml.empty-span-unwrapped": 38,
+      "xhtml.entities-rewritten": 49,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:3db183c637b203e8b68f9dbf7231ff8c0dc83582e0b77f6cec7c7563e21f6cbf",
+    "text_characters": 1598375,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 5038,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"font17\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 1
+      }
+    }
+  }
+}

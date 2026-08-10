@@ -1,0 +1,152 @@
+{
+  "source": "sha256:3dc79f31e501fbda38651f5864497e9d3203750aa2c0a273e72c0fee7085cb39",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 4,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "RSC-005": 4
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: element \"br\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\"": 1,
+      "RSC-005: Error while parsing file: element \"img\" missing required attribute \"alt\"": 1,
+      "RSC-005: Error while parsing file: element \"p\" not allowed here; expected the element end-tag or element \"base\", \"link\", \"meta\", \"script\" or \"style\"": 1,
+      "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be an XML name without colons": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 4,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "profile.scene-separators-found": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:952370dadc60ad398415b8a28387952bcc624aee46574cb53b591c5faac1087b",
+    "text_characters": 303885,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 2408,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 2,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1,
+        "RSC-005: Error while parsing file: element \"p\" not allowed here; expected the element end-tag or element \"base\", \"link\", \"meta\", \"ns:trigger\", \"scrip": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 7,
+      "preserved": 1,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "profile.scene-separators-found": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-alt-added": 1,
+      "xhtml.empty-span-found": 2,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:71b1f6d2ad4a2feec2e1dfe16245c7aac9171abe06978a7f1f1e2c30728e16e3",
+    "text_characters": 303885,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 2408,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: element \"p\" not allowed here; expected the element end-tag or element \"base\", \"link\", \"meta\", \"ns:trigger\", \"scrip": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 10,
+      "preserved": 1,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-removed": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "profile.scene-separators-found": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-alt-added": 1,
+      "xhtml.empty-span-unwrapped": 2,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:8f023b713c07dcf5705754d78809d7d6305fd9885480194b573c824be56096b8",
+    "text_characters": 303885,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 2408,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: element \"p\" not allowed here; expected the element end-tag or element \"base\", \"link\", \"meta\", \"ns:trigger\", \"scrip": 1
+      }
+    }
+  }
+}

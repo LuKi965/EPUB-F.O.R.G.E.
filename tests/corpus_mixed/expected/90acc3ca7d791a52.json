@@ -1,0 +1,128 @@
+{
+  "source": "sha256:90acc3ca7d791a529caf72eb14beb13d73b0843da9219db5b74e765e7348f4a9",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 3,
+    "warnings": 1,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-005": 2
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: element \"br\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\"": 1,
+      "RSC-005: Error while parsing file: element \"span\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"d": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 5,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:13759da026e1557fc20e17578e6d29d1b1f7cba3142b4b4d023348655111635f",
+    "text_characters": 539774,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 17834,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 32,
+      "preserved": 1,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 26,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:c7847df695b8d82d22cd5a214157518fafd67da970c4b2e78f32ff681a17133a",
+    "text_characters": 539774,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 17834,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 32,
+      "preserved": 1,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 26,
+      "xhtml.image-paragraph-kept": 1,
+      "xhtml.presentational-markup-converted": 1,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:c7847df695b8d82d22cd5a214157518fafd67da970c4b2e78f32ff681a17133a",
+    "text_characters": 539774,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 17834,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "source": "sha256:b6cb080288c55269045da53b16e35e79d00b842be9ca788ce4126ac037f1f5d2",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 1,
+    "warnings": 0,
+    "fatal": 1,
+    "codes": {
+      "HTM-004": 1,
+      "RSC-016": 1
+    },
+    "shapes": {
+      "HTM-004: Irregular DOCTYPE: found \"…\", expected \"…\"-//W3C//DTD XHTML 1.1//EN\"…\"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"…\".": 1,
+      "RSC-016: Fatal Error while parsing file: The entity \"nbsp\" was referenced, but not declared.": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 8,
+      "fix": 5,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.title-filled": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:2f673b449ed961347a899d957af43ba5006c8b98549a83a363fe2e7dbcb1d20a",
+    "text_characters": 2030780,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 7610,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 34,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 29,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:0370dc37163b267597f5baffaa5a25281637f803f6c449fd5f530bda349878b0",
+    "text_characters": 2030780,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 7610,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 35,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 29,
+      "xhtml.title-filled": 1
+    },
+    "output": "sha256:a40d7260c0b330fbccde1527fd3b7ab3cda5a5acee2542b283d674cbf538d135",
+    "text_characters": 2030780,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 7610,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

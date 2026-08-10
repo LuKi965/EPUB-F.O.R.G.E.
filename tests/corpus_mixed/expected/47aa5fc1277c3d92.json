@@ -1,0 +1,115 @@
+{
+  "source": "sha256:47aa5fc1277c3d92029a73a3746e01c970ef309abf1d0405e1dea400855cbeb0",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 0,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {}
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 5
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-inconsistent": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:fbcb7dcc10f7d918d62831cb9ba302353c3bd553dbebaa63f336af858217bcf5",
+    "text_characters": 85018,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 261,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 6,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-found": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-inconsistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-span-found": 1,
+      "xhtml.entities-rewritten": 1
+    },
+    "output": "sha256:9890e6d640582c62baf9aa74fc62bcecfb2eeb433ceac0c6710256a3fca2d2be",
+    "text_characters": 85018,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 261,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 3,
+      "fix": 8,
+      "preserved": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-removed": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-inconsistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-span-unwrapped": 1,
+      "xhtml.entities-rewritten": 1
+    },
+    "output": "sha256:8a954bf07c785c62725ecaeb95fcd4a1d51e6bd7310ce883311eafea1e11bcfe",
+    "text_characters": 85018,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 261,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

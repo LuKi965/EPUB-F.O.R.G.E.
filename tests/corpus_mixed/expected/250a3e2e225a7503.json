@@ -1,0 +1,187 @@
+{
+  "source": "sha256:250a3e2e225a7503a68d7772ac105b2501c9558391ac52fb1842b36e75af671b",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 200,
+    "warnings": 96,
+    "fatal": 0,
+    "codes": {
+      "RSC-005": 9,
+      "RSC-020": 191
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: attribute \"bordercolor\" not allowed here; expected attribute \"cellpadding\", \"cellspacing\", \"class\", \"dir\", \"frame\"": 1,
+      "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
+      "RSC-005: Error while parsing file: attribute \"name\" not allowed here; expected attribute \"accesskey\", \"charset\", \"class\", \"coords\", \"dir\", \"href\", \"h": 1,
+      "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
+      "RSC-005: Error while parsing file: attribute \"width\" not allowed here; expected attribute \"abbr\", \"align\", \"axis\", \"char\", \"charoff\", \"class\", \"colsp": 1,
+      "RSC-005: Error while parsing file: element \"u\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet\", ": 1,
+      "RSC-005: Error while parsing file: value of attribute \"dir\" is invalid; must be equal to \"ltr\" or \"rtl\"": 1,
+      "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be an XML name without colons": 1,
+      "RSC-005: Error while parsing file: value of attribute \"valign\" is invalid; must be equal to \"baseline\", \"bottom\", \"middle\" or \"top\"": 1,
+      "RSC-020: \"…\" is not a valid URL (Illegal character in path segment: space is not allowed)": 191
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 4,
+      "warn": 4
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "a11y.table-without-headers": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.epub2-only-markup": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:ee63bbd88ffa534f291a28f3f9fac0c325015fd9e3e69def4f85825225dc0d8c",
+    "text_characters": 1371526,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 7938,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 14,
+      "warnings": 96,
+      "fatal": 0,
+      "codes": {
+        "CSS-001": 1,
+        "RSC-005": 13
+      },
+      "shapes": {
+        "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1,
+        "RSC-005: Error while parsing file: attribute \"bordercolor\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"cellpadding\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"cellspacing\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"valign\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 1,
+        "RSC-005: Error while parsing file: attribute \"width\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomic": 2,
+        "RSC-005: Error while parsing file: attribute \"width\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
+        "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be a string matching the regular expression \"…\"": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 8,
+      "fix": 102,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.table-without-headers": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-described": 1,
+      "xhtml.empty-span-found": 1,
+      "xhtml.ids-renamed": 94,
+      "xhtml.inline-promoted": 1,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:068a1e1b566ed2a90984deddae58a20082e3f741614692b48e4d3a95f181e142",
+    "text_characters": 1371526,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 7938,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 6,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {
+        "CSS-001": 1,
+        "RSC-005": 5
+      },
+      "shapes": {
+        "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
+        "RSC-005: Error while parsing file: attribute \"bordercolor\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
+        "RSC-005: Error while parsing file: value of attribute \"name\" is invalid; must be a string matching the regular expression \"…\"": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 104,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.heading-jump": 1,
+      "a11y.metadata-added": 1,
+      "a11y.table-without-headers": 1,
+      "css.unreachable-rules-removed": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.heading-candidates-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-described": 1,
+      "xhtml.empty-span-unwrapped": 1,
+      "xhtml.ids-renamed": 94,
+      "xhtml.inline-promoted": 1,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:7400646bfd52568ed0b66b47d51dbc60e182092602926686b41f2c8a900538c5",
+    "text_characters": 1371526,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 7938,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 6,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {
+        "CSS-001": 1,
+        "RSC-005": 5
+      },
+      "shapes": {
+        "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
+        "RSC-005: Error while parsing file: attribute \"bordercolor\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
+        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
+        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
+        "RSC-005: Error while parsing file: value of attribute \"name\" is invalid; must be a string matching the regular expression \"…\"": 1
+      }
+    }
+  }
+}

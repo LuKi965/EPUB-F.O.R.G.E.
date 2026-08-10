@@ -1,0 +1,137 @@
+{
+  "source": "sha256:0973784d0d4f79def56c6e30855e7483b87a64f307ca4f836584c54a2198b64f",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 9,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "RSC-005": 9
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: element \"a\" not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\"": 1,
+      "RSC-005: Error while parsing file: element \"a\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\",": 1,
+      "RSC-005: Error while parsing file: element \"blockquote\" incomplete; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"": 1,
+      "RSC-005: Error while parsing file: element \"br\" not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4": 1,
+      "RSC-005: Error while parsing file: element \"br\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\"": 1,
+      "RSC-005: Error while parsing file: element \"img\" missing required attribute \"alt\"": 1,
+      "RSC-005: Error while parsing file: element \"span\" not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"": 1,
+      "RSC-005: Error while parsing file: text not allowed here; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"h4\", \"h5\",": 1,
+      "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be an XML name without colons": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 4,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:77c5074458e64dab7ee8900ae49509331a4c3fe8f84521475f730835134a26d9",
+    "text_characters": 2191352,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 13550,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 111,
+      "preserved": 104,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-alt-added": 105,
+      "xhtml.image-paragraph-kept": 104,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:9e3ed52152dde2d6dfca6cd63838fdc11b03d221e3ce85d884eab157fe2bc908",
+    "text_characters": 2191352,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 13550,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 111,
+      "preserved": 104,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "profile.paragraphs-consistent": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.empty-alt-added": 105,
+      "xhtml.image-paragraph-kept": 104,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:9e3ed52152dde2d6dfca6cd63838fdc11b03d221e3ce85d884eab157fe2bc908",
+    "text_characters": 2191352,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 13550,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

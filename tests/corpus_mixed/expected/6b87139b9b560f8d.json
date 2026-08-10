@@ -1,0 +1,140 @@
+{
+  "source": "sha256:6b87139b9b560f8dee5ffbfd8bcb5b604435f54bd29253270713c849da1a9953",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 2,
+    "warnings": 0,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-005": 1
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"e7e775a7-68d9-4c4b-9964-472f4d795adb\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"id\", \"style\" or \"title\"": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 9,
+      "fix": 5,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:c9f149e03e3f94d107223008a16f9defce93df796983bc4333536281ca8ffa89",
+    "text_characters": 768106,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 2904,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 1,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 1
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 8,
+      "fix": 157,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 2,
+      "xhtml.entities-rewritten": 110,
+      "xhtml.inline-promoted": 36,
+      "xhtml.presentational-markup-converted": 4
+    },
+    "output": "sha256:7803941a24dfa03752db164c0082f7fa9092a9aeda540a226dac5c9bf416ed92",
+    "text_characters": 768106,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 2904,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 158,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.missing-alt": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.cover-page-generated": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.break-runs-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.duplicate-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 2,
+      "xhtml.entities-rewritten": 110,
+      "xhtml.inline-promoted": 36,
+      "xhtml.presentational-markup-converted": 4
+    },
+    "output": "sha256:06e1e5f7432af995ff24f1da331e4145132c040049a16d1eb8cdd71528088edf",
+    "text_characters": 768106,
+    "text_added": 2,
+    "text_invariant": true,
+    "blocks": 2904,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

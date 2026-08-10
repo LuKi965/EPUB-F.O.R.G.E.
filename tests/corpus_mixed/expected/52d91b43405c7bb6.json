@@ -1,0 +1,131 @@
+{
+  "source": "sha256:52d91b43405c7bb62a2d13e06ae6c67ea3bf58f0231edd777d46f8b6d26263f9",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 3,
+    "warnings": 1,
+    "fatal": 0,
+    "codes": {
+      "NCX-001": 1,
+      "RSC-001": 1,
+      "RSC-005": 1
+    },
+    "shapes": {
+      "NCX-001: NCX identifier (\"king_wisselingvandewacht_wu123456rm\") does not match OPF identifier (\"urn:uuid:\").": 1,
+      "RSC-001: File \"…\" could not be found.": 1,
+      "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be an XML name without colons": 1
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 7,
+      "fix": 5,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.manifest-file-missing": 1,
+      "reader.manifest-type-corrected": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.doctype-modernised": 1,
+      "xhtml.untouched-except-doctype": 1
+    },
+    "output": "sha256:d70fca8fa9144ce8205622898be22ee2f86650ce2168e839179f51a8ff8df380",
+    "text_characters": 782449,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 4093,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 130,
+      "preserved": 2,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-found": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.manifest-file-missing": 1,
+      "reader.manifest-type-corrected": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 125,
+      "xhtml.image-paragraph-kept": 1
+    },
+    "output": "sha256:131bf949c8be2c44a2c4d97fee68f411cd313de6a7c54b394db11c234c167a31",
+    "text_characters": 782449,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 4093,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {}
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 5,
+      "fix": 131,
+      "preserved": 2,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "css.font-stack-generic-missing": 1,
+      "css.unreachable-rules-removed": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.dead-classes-found": 1,
+      "profile.made-by": 1,
+      "reader.manifest-file-missing": 1,
+      "reader.manifest-type-corrected": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.entities-rewritten": 125,
+      "xhtml.image-paragraph-kept": 1
+    },
+    "output": "sha256:e8d54a5e0c66488da0ebc87cced3ab63c458dc5a294a268f9af25c6dc1ce1a22",
+    "text_characters": 782449,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 4093,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 0,
+      "warnings": 1,
+      "fatal": 0,
+      "codes": {}
+    }
+  }
+}

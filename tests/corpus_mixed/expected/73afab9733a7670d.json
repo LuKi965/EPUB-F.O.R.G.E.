@@ -1,0 +1,149 @@
+{
+  "source": "sha256:73afab9733a7670d6228050bc4c80539db3b2c2e8511858d70f8eabb7609918a",
+  "version": "0.2.17",
+  "checker": "11221853fa244592",
+  "source_epubcheck": {
+    "errors": 3,
+    "warnings": 2,
+    "fatal": 0,
+    "codes": {
+      "RSC-005": 1,
+      "RSC-020": 2
+    },
+    "shapes": {
+      "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"content\", \"dir\", \"http-equiv\", \"lang\", \"scheme\" or \"xml:la": 1,
+      "RSC-020: \"…\" is not a valid URL (Illegal character in path segment: space is not allowed)": 2
+    }
+  },
+  "minimal": {
+    "written": true,
+    "report": {
+      "info": 6,
+      "fix": 5,
+      "warn": 2
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.layout-kept": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.manifest-type-corrected": 1,
+      "reader.toc-from-ncx": 1,
+      "xhtml.epub2-only-markup": 1,
+      "xhtml.untouched": 1
+    },
+    "output": "sha256:139bf8e896126f802190d99c87ff8df9f785dc1198cd8a527cc1532af8301688",
+    "text_characters": 477920,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1969,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 4,
+      "warnings": 2,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 4
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: The meta element in encoding declaration state (http-equiv=\"content-type\") must have the value \"…\"": 1,
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1,
+        "RSC-005: Error while parsing file: value of attribute \"height\" is invalid; must be an integer": 1
+      }
+    }
+  },
+  "preserve": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 8,
+      "preserved": 4,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "css.font-stack-generic-missing": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.manifest-type-corrected": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-described": 1,
+      "xhtml.image-paragraph-kept": 3,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:0d6de69602d18ae733aaa38e49c122d911431b685af6b9c788905a0f1d78f799",
+    "text_characters": 477920,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1969,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 2,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1
+      }
+    }
+  },
+  "strict": {
+    "written": true,
+    "report": {
+      "info": 4,
+      "fix": 8,
+      "preserved": 4,
+      "warn": 1
+    },
+    "rules": {
+      "a11y.metadata-added": 1,
+      "a11y.placeholder-alt": 1,
+      "css.font-stack-generic-missing": 1,
+      "metadata.date-normalised": 1,
+      "nav.generated": 1,
+      "nav.ncx-written": 1,
+      "package.upgraded": 1,
+      "profile.body-text-found": 1,
+      "profile.made-by": 1,
+      "reader.manifest-type-corrected": 1,
+      "reader.toc-from-ncx": 1,
+      "structure.relaid-out": 1,
+      "xhtml.cover-described": 1,
+      "xhtml.image-paragraph-kept": 3,
+      "xhtml.presentational-markup-converted": 1
+    },
+    "output": "sha256:0d6de69602d18ae733aaa38e49c122d911431b685af6b9c788905a0f1d78f799",
+    "text_characters": 477920,
+    "text_added": 0,
+    "text_invariant": true,
+    "blocks": 1969,
+    "checker": "11221853fa244592",
+    "epubcheck": {
+      "errors": 2,
+      "warnings": 0,
+      "fatal": 0,
+      "codes": {
+        "RSC-005": 2
+      },
+      "shapes": {
+        "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
+        "RSC-005: Error while parsing file: element \"meta\" missing required attribute \"content\"": 1
+      }
+    }
+  }
+}

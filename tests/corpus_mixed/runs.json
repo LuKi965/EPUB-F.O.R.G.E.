@@ -1,0 +1,30 @@
+[
+ {
+  "version": "0.2.17",
+  "date": "2026-08-10",
+  "books": 67,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 120,
+  "introduced": 3,
+  "inherent": 13,
+  "carried": 129,
+  "fatal": 0,
+  "text_lost": 1,
+  "unwritten": 0,
+  "codes": {
+   "CSS-001": 2,
+   "CSS-008": 2,
+   "RSC-005": 110,
+   "RSC-007": 6,
+   "RSC-011": 12,
+   "RSC-020": 2
+  },
+  "clean": false,
+  "note": "The second shelf, and the first that is not Polish: 67 books out of Sigil, Word and Calibre, 40 Dutch and 22 English, 66 of 67 EPUB 2. It exists because the Polish shelf cannot see what it does not have — the HTML 3.2 `<body>` palette and `<meta name>` without `content` were invisible there and account for 58 errors here. `introduced: 3`, all in container-only mode; the 120 in the modes that rewrite content are overwhelmingly the source's own, and those modes repair 80 of the 125 `RSC-005` that mode carries. Read as ours at first, on a summary line that said \"Ours\" and had not subtracted the source — fixed in the same release. The line that matters is `text_lost: 1`: one book loses 32 characters of spine text in container-only mode, which promises the content files byte for byte and reports `xhtml.untouched` on that very book. Unresolved, and it needs the book."
+ }
+]
