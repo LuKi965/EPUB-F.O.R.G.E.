@@ -38,6 +38,8 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.19 — alpha — 2026-08-10
+
 ### The same book twice was measured twice, raced with itself, and counted twice
 
 Both shelves came back on 0.2.18 and the line the release was written around
@@ -87,6 +89,68 @@ seen to disagree on purpose.
 Both 0.2.18 entries are recorded exactly as the run measured them, inflation and
 all, with the true figures in the note. The ledger records what the tool said on
 the day; the correction belongs in the next run, where it can be checked.
+
+### The ledger blamed us for the books, on the line the last release fixed
+
+0.2.18 fixed a summary line headed **"Ours, by EPUBCheck rule"** that added every
+code it saw without subtracting what the source already carried. It fixed the
+report. It did not fix the ledger, which computes the same field by the same
+wrong rule six functions further down — so `runs.json` blames the mixed shelf's
+release for **34 `RSC-005`, 8 `RSC-011` and 5 `RSC-007`** whose honest total is
+two rules and ten errors.
+
+The two now subtract the same thing. A report and a ledger that disagree about
+whose fault a defect is mean one of them is lying, and it was the one written
+down and kept.
+
+### Four defects the second shelf found, all of them ours
+
+With the blame arithmetic honest, what is left on the mixed shelf in the modes
+that open documents is small enough to read one line at a time. Four of those
+lines are answered here.
+
+**The same `id` twice in one document — 8 errors, 2 books.** `bookmark63` …
+`bookmark86`, which is Word's naming, and `heading_id_3`/`heading_id_5`, which is
+a converter's. Invalid in XHTML 1.1 exactly as in HTML 5, so nothing about the
+upgrade caused it and nothing about the upgrade excuses carrying it. The pass
+that made ids valid XML names now makes them unique in the same walk. **The first
+one keeps its name**: every parser resolves `#bookmark63` to the first element
+carrying it, so renaming the copies cannot move a link and renaming the first
+would. For the same reason the copies stay out of the rename map — that map
+exists to repoint references, and a reference to a duplicate was never pointing
+at the copy.
+
+**`RSC-011: Found a reference to a resource that is not a spine item` — 4 books,
+all three modes.** Absent from every source's own verdict, because EPUB 2
+navigated by NCX and had no such rule. EPUB 3 does: what the contents lead to has
+to be in the reading order. The publisher's intent is not in doubt — the document
+is in the manifest and in the contents, so it is meant to be reachable; it is out
+of the spine, so page-turning is meant not to arrive at it. `linear="no"` is the
+standard's own word for that pair, and it is what a colophon or a rights notice
+usually wants. The entry is kept and the document is spined, placed where the
+contents imply rather than appended, so a cover listed first comes out first.
+Dropping the entry is the shorter patch and it deletes the only way to reach a
+page the book still contains.
+
+**`target`, looked for in the one place it was not.** It was removed from `<a>`,
+where an EPUB has no window to open anything in. Two books kept the error through
+`preserve` and lost it in `strict` — which is not the attribute being handled but
+the element carrying it being unwrapped by a strict-only cleanup, and the tell
+that it was sitting on something else entirely. A converter copies attributes
+wholesale; `target` on a `<span>` renders exactly as `target` on an `<a>` does,
+which is not at all. Removed wherever it appears.
+
+**`CSS-001`: the text direction in a style sheet.** EPUB 3 bars `direction` and
+`unicode-bidi` from style sheets outright, because a reading system has to know
+which way the text runs before it has resolved any CSS; the markup carries it
+instead. Easy to satisfy and easy to satisfy wrongly: `direction: ltr` is
+boilerplate Word and Sigil write into every book they touch and taking it out
+cannot move a letter, while `direction: rtl` is holding an Arabic or Hebrew book
+the right way round and taking *that* out mirrors the page. Same rule, same
+message from the validator, opposite consequences. The default value goes;
+anything else stays and is reported as the deviation it is. **Conformance does
+not outrank the page** — a book that validates and reads backwards is not the
+better outcome.
 
 ## 0.2.18 — alpha — 2026-08-10
 

@@ -104,6 +104,24 @@ _OUT_OF_FLOW_RE = re.compile(
     r"([;{]\s*|^\s*)position\s*:\s*(?:absolute|fixed)\s*;?", re.IGNORECASE | re.MULTILINE
 )
 
+#: The two properties EPUB 3 forbids a style sheet from carrying at all
+#: (`CSS-001`). Text direction belongs to the markup — the `dir` attribute and
+#: `page-progression-direction` — because a reading system has to know it before
+#: it has resolved any CSS, and half of them never resolve this one.
+#: The separator is matched by a lookbehind rather than consumed, so two of
+#: these written back to back are two matches — consuming the `;` would hide the
+#: second one behind the first. It also anchors the property to the start of a
+#: declaration, which is what keeps `flex-direction: column` and the selector
+#: `a.direction:hover` out of this.
+_DIRECTION_RE = re.compile(
+    r"(?<=[;{])(\s*)(direction|unicode-bidi)\s*:\s*([^;}]*)(;?)", re.IGNORECASE
+)
+
+#: The value each of them has when nothing is said. A declaration setting the
+#: default is the whole of the observed defect: Word and Sigil write
+#: `direction: ltr` into a boilerplate sheet for every book they touch.
+_DIRECTION_DEFAULT = {"direction": "ltr", "unicode-bidi": "normal"}
+
 _FONT_FACE_RE = re.compile(r"@font-face\s*\{[^}]*\}", re.IGNORECASE)
 _FONT_FAMILY_RE = re.compile(r"font-family\s*:\s*([^;}]+)", re.IGNORECASE)
 #: Adobe Digital Editions inventions; unprefixed, so validators call them unknown.
@@ -589,20 +607,44 @@ class ContentStage(Stage):
                 self.note(ctx, Level.PRESERVED, "xhtml.watermark-kept", values={"count": kept})
 
     def _fix_identifiers(self, ctx: Context, root, path: str) -> dict[str, str]:
-        """Make every ``id`` a valid XML NCName, remembering what changed."""
+        """Make every ``id`` a valid XML NCName **and unique**, and say what moved.
+
+        Two defects, one pass, because they are the same bookkeeping: an id that
+        is not a name, and an id that is not the only one of its name. The
+        second was not handled at all until the mixed shelf produced eight
+        `RSC-005: Duplicate ID` across two books — `bookmark63` … `bookmark86`,
+        which is Word's naming, and `heading_id_3`/`heading_id_5`, which is a
+        converter's. Both are older than us and neither is reachable: a document
+        with the same id twice is invalid in XHTML 1.1 exactly as it is in
+        HTML 5, so this is not something the upgrade introduced.
+
+        **The first one keeps its name.** Every reference into the document
+        already resolved to it — that is what every parser does with a
+        duplicate — so renaming the later ones changes nothing anybody could
+        link to, and renaming the first would change where existing links land.
+        For that reason the later ones are deliberately *not* returned in the
+        rename map: the map exists to repoint references, and a reference to a
+        duplicate was never pointing at the copy.
+        """
         renamed: dict[str, str] = {}
-        taken = {
-            element.get("id")
-            for element in xhtml.iter_elements(root)
-            if element.get("id")
-        }
-        for element in xhtml.iter_elements(root):
+        duplicated: list[str] = []
+        carrying = [
+            element for element in xhtml.iter_elements(root) if element.get("id") is not None
+        ]
+        taken = {element.get("id") for element in carrying}
+        seen: set[str] = set()
+        for element in carrying:
             current = element.get("id")
-            if current is None or _NCNAME_RE.match(current):
+            repeat = current in seen
+            seen.add(current)
+            valid = _NCNAME_RE.match(current) is not None
+            if valid and not repeat:
                 continue
-            candidate = re.sub(r"[^A-Za-z0-9._\-]", "-", current)
-            if not candidate or not re.match(r"^[A-Za-z_]", candidate):
-                candidate = f"id-{candidate}".rstrip("-")
+            candidate = current
+            if not valid:
+                candidate = re.sub(r"[^A-Za-z0-9._\-]", "-", current)
+                if not candidate or not re.match(r"^[A-Za-z_]", candidate):
+                    candidate = f"id-{candidate}".rstrip("-")
             unique = candidate
             counter = 2
             while unique in taken:
@@ -610,13 +652,27 @@ class ContentStage(Stage):
                 counter += 1
             taken.add(unique)
             element.set("id", unique)
-            renamed[current] = unique
+            if repeat:
+                duplicated.append(current)
+            else:
+                # One entry per distinct name, taken from its first appearance:
+                # the map is read to rewrite `#name`, and a second entry for the
+                # same key would send every reference to whichever came last.
+                renamed[current] = unique
         if renamed:
             self.note(
                 ctx,
                 Level.FIX,
                 "xhtml.ids-renamed",
                 values={"count": len(renamed)},
+                location=path,
+            )
+        if duplicated:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.duplicate-ids-renamed",
+                values={"count": len(duplicated), "names": ", ".join(sorted(set(duplicated))[:5])},
                 location=path,
             )
         return renamed
@@ -1815,7 +1871,16 @@ class ContentStage(Stage):
         # `target` tells a browser which window to open a link in. An EPUB has
         # no windows, EPUB 3 does not allow the attribute, and removing it
         # changes nothing anybody can see.
-        if tag == "a" and element.get("target") is not None:
+        #
+        # Not only on `<a>`, which is where this looked for it and where it never
+        # actually was. Two books on the mixed shelf kept an `RSC-005` about
+        # `target` through `preserve` and lost it in `strict` — which is not the
+        # attribute being handled but the element carrying it being unwrapped by
+        # a strict-only cleanup, and the tell that it was sitting somewhere else
+        # entirely. A converter copies attributes wholesale; `target` on a
+        # `<span>` renders exactly as `target` on an `<a>` does, which is not at
+        # all.
+        if element.get("target") is not None:
             element.attrib.pop("target", None)
             changed.add("target")
 
@@ -2179,6 +2244,61 @@ class StyleStage(Stage):
             )
 
         repaired = self._repair_positioning(ctx, repaired, resource)
+        repaired = self._repair_direction(ctx, repaired, resource)
+        return repaired
+
+    def _repair_direction(self, ctx: Context, css_text: str, resource) -> str:
+        """Drop `direction` and `unicode-bidi` where they say nothing; keep them where they do.
+
+        `CSS-001: The "direction" property must not be included in an EPUB Style
+        Sheet` — EPUB 3 bars both properties outright, because a reading system
+        has to know which way the text runs before it has resolved any CSS. The
+        markup says it instead: `dir` on the element, `page-progression-direction`
+        on the spine.
+
+        That makes the rule easy to satisfy and easy to satisfy wrongly. A sheet
+        saying `direction: ltr` says nothing — it is the default, Word and Sigil
+        write it into every book they touch, and taking it out cannot move a
+        letter. A sheet saying `direction: rtl` is holding an Arabic or Hebrew
+        book the right way round, and taking that out mirrors the page. Same
+        rule, same message from the validator, opposite consequences.
+
+        So the default value goes and anything else stays, reported as the
+        deviation it is. Conformance does not outrank the page: a book that
+        validates and reads backwards is not the better outcome.
+        """
+        dropped = 0
+        kept: list[str] = []
+
+        def decide(match: re.Match) -> str:
+            nonlocal dropped
+            space, name, value = match.group(1), match.group(2).lower(), match.group(3).strip()
+            if value.lower() == _DIRECTION_DEFAULT[name]:
+                dropped += 1
+                # The whitespace that opened the declaration is put back and its
+                # terminating `;` is not: the separator before it belongs to the
+                # declaration in front, which still needs one.
+                return space
+            kept.append(f"{name}: {value}")
+            return match.group(0)
+
+        repaired = _DIRECTION_RE.sub(decide, css_text)
+        if dropped:
+            self.note(
+                ctx,
+                Level.FIX,
+                "css.direction-default-removed",
+                values={"count": dropped},
+                location=resource.path,
+            )
+        if kept:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.direction-kept",
+                values={"count": len(kept), "declarations": "; ".join(sorted(set(kept))[:3])},
+                location=resource.path,
+            )
         return repaired
 
     def _unreachable_rules(self, ctx: Context, css_text: str, resource) -> str:

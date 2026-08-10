@@ -207,3 +207,154 @@ class TestAStylesheetFetchedOverTheNetwork:
         text, dropped = strip_remote_imports(rule)
         assert dropped == 0
         assert text == rule
+
+
+class TestTheSameIdTwiceInOneDocument:
+    """Word writes `bookmark63`, a converter writes `heading_id_3`, and either
+    can land in a document twice. The mixed shelf produced eight of them across
+    two books, in all three modes — invalid under XHTML 1.1 exactly as under
+    HTML 5, so nothing about the upgrade caused it and nothing about the upgrade
+    excuses carrying it.
+    """
+
+    BODY = (
+        '<p id="bookmark63">pierwszy</p>'
+        '<p id="bookmark63">drugi</p>'
+        '<p id="bookmark63">trzeci</p>'
+        '<p><a href="#bookmark63">odnośnik</a></p>'
+    )
+
+    def test_the_document_stops_having_the_same_id_twice(self, tmp_path):
+        source = book(tmp_path / "in.epub", body=self.BODY)
+        page = chapter_of(built(source, tmp_path))
+        import re
+
+        found = re.findall(r'id="([^"]+)"', page)
+        assert len(found) == len(set(found)), found
+
+    def test_the_first_one_keeps_its_name_so_links_do_not_move(self, tmp_path):
+        """Every parser resolves `#bookmark63` to the first element carrying it.
+        Renaming that one would move an existing link; renaming the copies
+        cannot, because no link could ever have meant them."""
+        source = book(tmp_path / "in.epub", body=self.BODY)
+        page = chapter_of(built(source, tmp_path))
+
+        assert '<a href="#bookmark63"' in page
+        first = page.index('id="bookmark63"')
+        assert page.index("pierwszy") - first < page.index("drugi") - first
+
+    def test_the_rename_is_reported_with_the_name_that_repeated(self, tmp_path):
+        source = book(tmp_path / "in.epub", body=self.BODY)
+        result = built(source, tmp_path)
+        finding = next(
+            f for f in result.report.findings if f.rule == "xhtml.duplicate-ids-renamed"
+        )
+        assert finding.level is Level.FIX
+        assert finding.values["count"] == 2
+        assert "bookmark63" in finding.values["names"]
+
+    def test_a_document_whose_ids_are_already_unique_is_left_alone(self, tmp_path):
+        source = book(
+            tmp_path / "in.epub", body='<p id="a">x</p><p id="b">y</p>'
+        )
+        result = built(source, tmp_path)
+        assert "xhtml.duplicate-ids-renamed" not in rules_of(result)
+        assert 'id="a"' in chapter_of(result) and 'id="b"' in chapter_of(result)
+
+    def test_an_invalid_name_repeated_is_both_things_and_survives_both(self, tmp_path):
+        """`a b` is not an XML name *and* appears twice. The first becomes `a-b`
+        and references to it follow; the second gets a name of its own and no
+        reference follows it anywhere."""
+        source = book(
+            tmp_path / "in.epub",
+            body='<p id="a b">x</p><p id="a b">y</p><p><a href="#a b">z</a></p>',
+        )
+        page = chapter_of(built(source, tmp_path))
+        import re
+
+        found = re.findall(r'id="([^"]+)"', page)
+        assert len(found) == len(set(found)), found
+        assert all(" " not in name for name in found)
+        assert 'href="#a-b"' in page
+
+
+class TestTextDirectionInAStyleSheet:
+    """`CSS-001: The "direction" property must not be included in an EPUB Style
+    Sheet` — EPUB 3 bars `direction` and `unicode-bidi` from style sheets
+    outright, because a reading system has to know which way text runs before it
+    resolves any CSS. One book on the mixed shelf carries it, in all three modes.
+
+    The rule is easy to satisfy and easy to satisfy wrongly: `direction: ltr` is
+    boilerplate and means nothing, `direction: rtl` is holding an Arabic book the
+    right way round. Same validator message either way.
+    """
+
+    def sheet_of(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            name = next(n for n in archive.namelist() if n.endswith(".css"))
+            return archive.read(name).decode("utf-8")
+
+    def styled(self, tmp_path, css: str):
+        source = write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": CONTAINER.encode(),
+                "OEBPS/package.opf": MODERN_OPF.format(title="Test", extra_metadata="")
+                .replace(
+                    "</manifest>",
+                    '<item id="css" href="style.css" media-type="text/css"/></manifest>',
+                )
+                .encode(),
+                "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+                "OEBPS/style.css": css.encode(),
+                "OEBPS/chapter.xhtml": PAGE.format(
+                    body="<p>tekst</p>", head='<link rel="stylesheet" href="style.css"/>'
+                ).encode(),
+                "OEBPS/picture.png": png_bytes(),
+            },
+        )
+        return built(source, tmp_path)
+
+    def test_the_default_says_nothing_and_goes(self, tmp_path):
+        result = self.styled(tmp_path, "body { direction: ltr; color: red; }")
+        sheet = self.sheet_of(result)
+        assert "direction" not in sheet
+        assert "color: red" in sheet
+        assert "css.direction-default-removed" in rules_of(result)
+
+    def test_a_direction_the_page_depends_on_stays(self, tmp_path):
+        """Conformance does not outrank the page. A book that validates and
+        reads backwards is not the better outcome."""
+        result = self.styled(tmp_path, "body { direction: rtl; }")
+        assert "direction: rtl" in self.sheet_of(result)
+        finding = next(f for f in result.report.findings if f.rule == "css.direction-kept")
+        assert finding.level is Level.PRESERVED
+        assert "rtl" in finding.values["declarations"]
+
+    def test_both_barred_properties_are_seen_even_back_to_back(self, tmp_path):
+        """Consuming the separator would hide the second behind the first."""
+        result = self.styled(
+            tmp_path, "body { direction:ltr;unicode-bidi:normal;font-size:1em }"
+        )
+        sheet = self.sheet_of(result)
+        assert "direction" not in sheet and "unicode-bidi" not in sheet
+        assert "font-size:1em" in sheet
+        finding = next(
+            f for f in result.report.findings if f.rule == "css.direction-default-removed"
+        )
+        assert finding.values["count"] == 2
+
+    @pytest.mark.parametrize(
+        ("css", "survives"),
+        [
+            (".x { flex-direction: column; }", "flex-direction"),
+            ("a.direction:hover { color: red; }", "a.direction:hover"),
+        ],
+    )
+    def test_a_name_that_merely_contains_the_word_is_not_it(self, tmp_path, css, survives):
+        """`flex-direction` is a different property and `a.direction:hover` is a
+        selector. Both look like the barred declaration to a careless pattern."""
+        result = self.styled(tmp_path, css)
+        assert survives in self.sheet_of(result)
+        assert "css.direction-default-removed" not in rules_of(result)
+        assert "css.direction-kept" not in rules_of(result)

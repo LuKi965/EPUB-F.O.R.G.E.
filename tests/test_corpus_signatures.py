@@ -192,3 +192,44 @@ class TestComparing:
         before = {p for p in books.rglob("*")}
         compare(books, tmp_path / "sig", record=True)
         assert {p for p in books.rglob("*")} == before
+
+
+class TestTheLedgerAndTheReportBlameTheSameThings:
+    """0.2.18 fixed a summary line that added every code it saw under a heading
+    reading "Ours". The ledger's `codes` field was doing the same and was not
+    fixed with it, so the two disagreed about whose fault a defect was — on the
+    mixed shelf, by 34 `RSC-005` against 9.
+    """
+
+    def shelf(self, tmp_path) -> "tuple":
+        import json
+
+        from epubforge.corpus import Comparison
+
+        signatures = tmp_path / "sig"
+        signatures.mkdir()
+        (signatures / ("b" * 16 + ".json")).write_text(json.dumps({
+            "source_epubcheck": {"errors": 5, "codes": {"RSC-005": 5}},
+            "minimal": {"written": True, "epubcheck": {"errors": 5, "codes": {"RSC-005": 5}}},
+            # Five carried from the book, one the rebuild really did add.
+            "preserve": {"written": True, "epubcheck": {"errors": 6, "codes": {"RSC-005": 6}}},
+            "strict": {"written": True, "epubcheck": {"errors": 0, "codes": {}}},
+        }), encoding="utf-8")
+        return signatures, [Comparison("ksiazka.epub", "b" * 16, "changed")]
+
+    def test_the_ledger_counts_only_what_the_source_did_not_have(self, tmp_path):
+        import json
+
+        from epubforge.corpus import _log_run
+
+        signatures, results = self.shelf(tmp_path)
+        _log_run(signatures, results)
+        entry = json.loads((tmp_path / "runs.json").read_text(encoding="utf-8"))[-1]
+        assert entry["codes"] == {"RSC-005": 1}, "five of the six are the book's own"
+
+    def test_the_report_says_the_same_number(self, tmp_path):
+        from epubforge.corpus import summarise
+
+        signatures, results = self.shelf(tmp_path)
+        assert "RSC-005" in summarise(results, signatures)
+        assert "RSC-005 ×6" not in summarise(results, signatures)

@@ -83,6 +83,7 @@ class NavigationStage(Stage):
         self._had_nav = bool(ctx.book.nav_path)
         self._ensure_cover_page(ctx)
         self._prune_toc(ctx)
+        self._spine_what_the_navigation_reaches(ctx)
         if not ctx.book.toc:
             self._synthesize_toc(ctx)
         self._ensure_landmarks(ctx)
@@ -198,6 +199,75 @@ class NavigationStage(Stage):
                 "nav.fragment-cleared",
                 values={"count": dangling_fragments},
             )
+
+    def _spine_what_the_navigation_reaches(self, ctx: Context) -> None:
+        """Put a document the navigation points at into the spine, out of the flow.
+
+        `RSC-011: Found a reference to a resource that is not a spine item` — four
+        books on the mixed shelf, in all three modes, and absent from every
+        source's own verdict because EPUB 2 navigated by NCX and had no such
+        rule. EPUB 3 does: what the table of contents leads to has to be part of
+        the publication's reading order.
+
+        The publisher's intent is not in doubt. They put the document in the
+        manifest and linked it from the navigation, so they meant it to be
+        reachable; they left it out of the spine, so they meant page-turning not
+        to arrive at it. `linear="no"` is the standard's own word for exactly
+        that pair — in the spine, out of the flow — and it is what a cover page,
+        a colophon or a rights notice usually wants.
+
+        So the entry is kept and the document is spined, rather than the entry
+        being dropped. Dropping it is the shorter patch and it deletes the only
+        way to reach a page the book still contains.
+
+        Placed where the navigation implies rather than appended: an entry sits
+        before the next entry that *is* in the spine, so a cover listed first
+        comes out first. Only content documents — a table of contents pointing
+        at an image is a different defect and not one `linear="no"` describes.
+        """
+        book = ctx.book
+        placed = {item.path for item in book.spine}
+
+        # Navigation order, which is the order a reader meets these in.
+        wanted: list[str] = []
+        ordered: list[str] = []
+        for root in book.toc:
+            for node in root.walk():
+                path = node.target_path
+                if not path:
+                    continue
+                ordered.append(path)
+                if path in placed or path in wanted:
+                    continue
+                resource = book.resources.get(path)
+                if resource is not None and resource.is_content_doc:
+                    wanted.append(path)
+        if not wanted:
+            return
+
+        for path in wanted:
+            after = ordered.index(path)
+            following = next(
+                (
+                    other
+                    for other in ordered[after + 1:]
+                    if any(item.path == other for item in book.spine)
+                ),
+                None,
+            )
+            where = (
+                next(i for i, item in enumerate(book.spine) if item.path == following)
+                if following is not None
+                else len(book.spine)
+            )
+            book.spine.insert(where, SpineItem(path, linear=False))
+
+        self.note(
+            ctx,
+            Level.FIX,
+            "nav.unspined-target-added",
+            values={"count": len(wanted), "names": ", ".join(sorted(wanted)[:3])},
+        )
 
     def _synthesize_toc(self, ctx: Context) -> None:
         book = ctx.book

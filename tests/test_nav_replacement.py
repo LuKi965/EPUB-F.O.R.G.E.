@@ -357,3 +357,126 @@ class TestTheContentsPageSurvivesACollidingPath:
         assert package.count('properties="nav"') == 1
         assert any(n.endswith("nav.xhtml") for n in names)
         assert any("nav-epub3" in n for n in names), names
+
+
+UNSPINED_OPF = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:uuid:11111111-2222-3333-4444-555555555555</dc:identifier>
+    <dc:title>Książka z kolofonem</dc:title>
+    <dc:language>pl</dc:language>
+    <meta property="dcterms:modified">2020-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="toc" href="spis.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="r1" href="r1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="kol" href="kolofon.xhtml" media-type="application/xhtml+xml"/>
+    <item id="r2" href="r2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="r1"/>
+    <itemref idref="r2"/>
+  </spine>
+</package>
+"""
+
+UNSPINED_CONTENTS = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="pl">
+<head><meta charset="utf-8"/><title>Spis treści</title></head>
+<body><nav epub:type="toc"><ol>
+  <li><a href="r1.xhtml">Rozdział pierwszy</a></li>
+  <li><a href="kolofon.xhtml">Kolofon</a></li>
+  <li><a href="r2.xhtml">Rozdział drugi</a></li>
+</ol></nav></body>
+</html>"""
+
+
+def build_unspined(path) -> str:
+    with zipfile.ZipFile(path, "w") as archive:
+        info = zipfile.ZipInfo("mimetype")
+        info.compress_type = zipfile.ZIP_STORED
+        archive.writestr(info, b"application/epub+zip")
+        archive.writestr(
+            "META-INF/container.xml",
+            CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf"),
+        )
+        archive.writestr("OEBPS/package.opf", UNSPINED_OPF)
+        archive.writestr("OEBPS/spis.xhtml", UNSPINED_CONTENTS)
+        for name, title in (("r1", "Rozdział pierwszy"), ("r2", "Rozdział drugi")):
+            archive.writestr(
+                f"OEBPS/{name}.xhtml",
+                CHAPTER.format(title=title, body="Tekst.", contents="spis.xhtml"),
+            )
+        archive.writestr(
+            "OEBPS/kolofon.xhtml",
+            CHAPTER.format(title="Kolofon", body="Wydano w 1998.", contents="spis.xhtml"),
+        )
+    return str(path)
+
+
+class TestTheContentsMayNotLeadOutOfTheReadingOrder:
+    """`RSC-011: Found a reference to a resource that is not a spine item`, on
+    four books of the mixed shelf and on none of their sources' own verdicts:
+    EPUB 2 navigated by NCX and had no such rule, EPUB 3 does. The publisher
+    meant the page reachable — it is in the manifest and in the contents — and
+    meant page-turning not to arrive at it, which is `linear="no"` exactly.
+    """
+
+    @pytest.fixture(params=["preserve", "strict", "minimal"])
+    def rebuilt(self, request, tmp_path):
+        source = build_unspined(tmp_path / "in.epub")
+        return rebuild(
+            source, str(tmp_path / f"out-{request.param}.epub"), Policy.preset(request.param)
+        )
+
+    def test_the_page_joins_the_reading_order(self, rebuilt):
+        opf = read(rebuilt.output_path, ".opf")
+        assert "kolofon.xhtml" in opf
+        idref = re.search(r'<item id="([^"]+)" href="[^"]*kolofon\.xhtml"', opf)
+        assert idref, opf
+        assert re.search(rf'<itemref idref="{idref.group(1)}"[^>]*linear="no"', opf), opf
+
+    def test_it_joins_out_of_the_flow_and_not_into_it(self, rebuilt):
+        """Turning pages must not start landing on the colophon. The other two
+        stay linear, so the book still reads chapter one, chapter two."""
+        opf = read(rebuilt.output_path, ".opf")
+        itemrefs = re.findall(r"<itemref [^>]*/>", opf)
+        assert sum(1 for ref in itemrefs if 'linear="no"' in ref) == 1
+
+    def test_the_contents_entry_is_kept_rather_than_dropped(self, rebuilt):
+        nav = read(rebuilt.output_path, "nav.xhtml")
+        assert "Kolofon" in nav
+        assert "kolofon.xhtml" in nav
+
+    def test_it_sits_where_the_contents_put_it(self, rebuilt):
+        """Listed between the two chapters, so it goes between them — appending
+        would put a front-matter page after the last chapter."""
+        opf = read(rebuilt.output_path, ".opf")
+        order = [
+            re.search(rf'<item id="{ref}" href="([^"]+)"', opf).group(1)
+            for ref in re.findall(r'<itemref idref="([^"]+)"', opf)
+        ]
+        # The paths are relaid out in two of the three modes, so match on the
+        # stem the source gave each document rather than on the whole path.
+        stems = [
+            next(stem for stem in ("r1", "kolofon", "r2") if name.endswith(f"{stem}.xhtml"))
+            for name in order
+            if name.endswith(("r1.xhtml", "kolofon.xhtml", "r2.xhtml"))
+        ]
+        assert stems == ["r1", "kolofon", "r2"]
+
+    def test_it_is_reported(self, rebuilt):
+        finding = next(
+            f for f in rebuilt.report.findings if f.rule == "nav.unspined-target-added"
+        )
+        assert finding.level is Level.FIX
+        assert finding.values["count"] == 1
+        assert "kolofon" in finding.values["names"]
+
+    def test_a_book_whose_contents_stay_inside_the_spine_gains_nothing(self, tmp_path):
+        source = build(tmp_path / "in.epub", contents_in_spine=True)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert 'linear="no"' not in read(result.output_path, ".opf")
+        assert "nav.unspined-target-added" not in {
+            f.rule for f in result.report.findings if f.rule
+        }

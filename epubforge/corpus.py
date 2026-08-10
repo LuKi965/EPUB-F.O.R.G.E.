@@ -849,7 +849,16 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
                     blamed.update(_new_codes(origin, check))
             else:
                 errors += count
-                blamed.update(check.get("codes") or {})
+                # Only what the source did **not** already have — the same
+                # subtraction the report does, and for the same reason. 0.2.18
+                # fixed a summary line that added every code it saw under a
+                # heading reading "Ours" and left this one adding every code it
+                # saw into a field named `codes`. The mixed shelf's ledger
+                # therefore blames 34 `RSC-005`, 8 `RSC-011` and 5 `RSC-007` on
+                # a release whose honest figure was two rules and ten errors.
+                # A report and a ledger disagreeing about whose fault something
+                # is means one of them is lying, and it was this one.
+                blamed.update(_new_codes(origin, check))
             if not found.get("text_invariant", True):
                 lost += 1
     entry.update(

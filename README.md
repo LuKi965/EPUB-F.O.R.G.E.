@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.18` · alpha · 1397 testów · Windows / Linux / macOS
+`0.2.19` · alpha · 1433 testy · Windows / Linux / macOS
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
