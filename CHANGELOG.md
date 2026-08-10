@@ -40,6 +40,16 @@ written; only the current version was reset.
 
 ## 0.2.17 — alpha — 2026-08-10 — kamień milowy [7]
 
+> **Correction to the published release notes.** This section was written
+> across a working day and two of its paragraphs were overtaken by decisions
+> made later in the same day, which is exactly what an entry assembled in
+> pieces does when nobody re-reads the whole of it before the build runs. As
+> published, v0.2.17's notes say both that a contradicted `dc:language` is
+> corrected and that it "is never corrected", and they say quotes are "not in
+> yet" when they shipped in this very release. The text below is the corrected
+> record; the release page still carries the original, and this note is here so
+> the two can be told apart rather than quietly reconciled.
+
 ### The corpus came back clean, and said so itself
 
 93 books on 0.2.16: **0 errors introduced** by any mode that opens a document,
@@ -122,10 +132,7 @@ one fixture to make it.
 
 The correction lives in the metadata stage, which owns `dc:language`, and the
 typography stage reads what it settled — which is how the conjunction rule
-reaches the books that need it at all. It is never corrected: the tool knows the declared language is
-contradicted, it does not know the right one, and rewriting metadata on an
-inference is the kind of help nobody asked for. `--language` is there for the
-person holding the book.
+reaches the books that need it at all.
 
 What the library is *not* good for is worth recording too: 2 199 of its 2 200
 books carry a `calibre` trace, 2 187 are EPUB 3, 2 187 declare the same
@@ -177,13 +184,10 @@ Two rules to start with, and the shelf chose them:
 * **three dots become an ellipsis.** Not four — a run of four is somebody's own
   punctuation, and an ellipsis is not longer than itself.
 * **single-letter Polish conjunctions get a hard space**, so `w`, `i`, `a`, `o`,
-  `u`, `z` do not end a line. Gated on the *declared* language, not on a guess
-  from the text: a book whose declaration is contradicted is reported by the
-  profile stage and left alone here, because acting on an inference about
-  somebody's language is a larger claim than reporting one.
-
-Quotes are the third rule and are not in yet: normalising them means deciding
-which of a pair each mark is, and a straight `"` does not say.
+  `u`, `z` do not end a line. Gated on the language the *metadata stage
+  settled* — the declared one unless the text plainly contradicted it — which is
+  what lets this rule reach the books written for it at all.
+* **straight quotes are retyped into the book's own convention.** See above.
 
 Container-only mode ignores the flag. Byte-for-byte is a promise about the
 content files and it outranks a switch.
