@@ -38,6 +38,8 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.18 — alpha — 2026-08-10
+
 ### `text_lost: 1` — found, reproduced and fixed without the book
 
 The mixed shelf's ledger carried one line that mattered more than the 120
