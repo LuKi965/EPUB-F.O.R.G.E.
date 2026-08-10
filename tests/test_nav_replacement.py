@@ -21,6 +21,7 @@ found*. The output was invalid, and the report said nothing.
 
 from __future__ import annotations
 
+import pathlib
 import re
 import zipfile
 
@@ -480,3 +481,21 @@ class TestTheContentsMayNotLeadOutOfTheReadingOrder:
         assert "nav.unspined-target-added" not in {
             f.rule for f in result.report.findings if f.rule
         }
+
+    def test_the_page_is_not_counted_as_text_appearing_from_nowhere(self, tmp_path):
+        """K1 asks whether a reader loses text, and `linear="no"` is the spine's
+        own word for "not in the reading order". Counting it would have reported
+        four books gaining text for a repair that moves no word anybody reads."""
+        from epubforge.inventory import measure, spine_text
+
+        source = build_unspined(tmp_path / "in.epub")
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("minimal"))
+        before, after = spine_text(pathlib.Path(source)), spine_text(
+            pathlib.Path(result.output_path)
+        )
+        assert len(after) == len(before)
+        assert "Wydano w 1998" not in after, "the colophon is reachable, not read"
+        assert (
+            measure(pathlib.Path(result.output_path)).fields["spine_text_characters"]
+            == len(after)
+        ), "the count and the text it counts have to agree"

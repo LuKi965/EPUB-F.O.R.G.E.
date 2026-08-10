@@ -141,13 +141,26 @@ def spine_text(path: pathlib.Path) -> str:
     Separate from `measure` because a count is not enough to check K1 against.
     Two books can hold the same number of characters and not the same
     characters, so the corpus comparison needs the text itself.
+
+    `linear="no"` is left out, and that is the spine's own word for it: a
+    document flagged that way is in the publication and *not* in the reading
+    order — a colophon, a rights notice, a page the contents lead to and page
+    turning never reaches. Counting it made this figure disagree with its own
+    first sentence, and the disagreement became load-bearing the moment a
+    contents entry pointing outside the spine started being answered by putting
+    the document into the spine out of the flow: four books would have reported
+    text appearing from nowhere for a repair that moves no word a reader reads.
+
+    The cost is stated rather than hidden: if anything ever marked a real
+    chapter `linear="no"`, this measure would stop seeing its text and K1 would
+    not notice. One code path sets that flag, it sets it only for a document the
+    source itself kept out of the spine, and it says so by name in the report.
     """
     parsed = read_epub(str(path), Report(source=str(path)))
-    spine_paths = {item.path for item in parsed.spine}
     parts: list[str] = []
     for item in parsed.spine:
         document = parsed.get(item.path)
-        if document is None or item.path not in spine_paths:
+        if document is None or not item.linear:
             continue
         try:
             root, _ = xhtml.parse(document.data)
@@ -170,6 +183,11 @@ def measure(path: pathlib.Path) -> Book:
 
     documents = [r for r in parsed.content_docs()]
     spine_paths = {item.path for item in parsed.spine}
+    # The reading order proper. `spine_documents` counts the spine, which is a
+    # structural fact and includes what the spine holds out of the flow; the
+    # text figure below is about what a person reads and must not — see
+    # `spine_text`, which this has to agree with character for character.
+    reading_paths = {item.path for item in parsed.spine if item.linear}
     styles = parsed.by_type("style")
     css = "\n".join(sheet.text() for sheet in styles)
     markup = "\n".join(document.text() for document in documents)
@@ -263,8 +281,9 @@ def measure(path: pathlib.Path) -> Book:
         rendered = _rendered_text(root)
         text_parts.append(rendered)
         in_spine = document.path in spine_paths
-        if in_spine:
+        if document.path in reading_paths:
             spine_text_parts.append(rendered)
+        if in_spine:
             spine_documents += 1
         pictures = 0
         for element in xhtml.iter_elements(root):

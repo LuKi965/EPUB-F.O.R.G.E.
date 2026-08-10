@@ -132,6 +132,17 @@ contents imply rather than appended, so a cover listed first comes out first.
 Dropping the entry is the shorter patch and it deletes the only way to reach a
 page the book still contains.
 
+That repair drags one measurement behind it, and the measurement was already
+wrong. `spine_text_characters` is documented as *"what a person actually reads,
+in reading order"* and counted every spine item, `linear="no"` included — which
+is the spine's own word for **not** in the reading order. Left alone, four books
+would have reported text appearing from nowhere for a repair that moves no word
+a reader reads, and the ledger would have called the shelf red for it. The
+figure now agrees with its own first sentence. The cost, stated rather than
+hidden: if anything ever marked a real chapter `linear="no"`, K1 would stop
+seeing its text — one code path sets that flag, only for a document the source
+itself kept out of the spine, and it reports itself by name.
+
 **`target`, looked for in the one place it was not.** It was removed from `<a>`,
 where an EPUB has no window to open anything in. Two books kept the error through
 `preserve` and lost it in `strict` — which is not the attribute being handled but
