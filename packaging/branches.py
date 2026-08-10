@@ -27,6 +27,12 @@ One exception, and it is the first thing this got wrong: a branch sitting on
 is exactly what step 3 of the milestone cycle creates, so the first run after a
 release offered the next milestone's branch for deletion. "Merged" and "empty"
 look identical to `merge-base` and are opposite facts.
+
+That exception only holds until the next commit. Once `main` moves past it, the
+milestone branch in progress is genuinely an ancestor and this script has no
+way to tell it from a finished one — nothing in git records which milestone is
+open. So the stale list carries a warning instead of a guess: the tool reports
+the fact, and the person deleting checks it against the milestone.
 """
 
 from __future__ import annotations
@@ -101,7 +107,12 @@ def main() -> int:
             print(f"  {name}  ({commit})")
 
     print(f"{len(heads)} branch(es) on origin")
-    show("Fully merged into main — safe to delete in the browser:", stale)
+    show(
+        "Fully merged into main — safe to delete in the browser:",
+        stale,
+        "the milestone branch in progress lands here as soon as main moves past "
+        "it; check it against the current milestone before deleting",
+    )
     show(
         "Sitting on main's tip — not started, not finished. Leave alone:",
         fresh,
