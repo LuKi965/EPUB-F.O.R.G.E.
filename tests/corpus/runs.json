@@ -219,5 +219,25 @@
   "unwritten": 0,
   "clean": true,
   "note": "The first clean run, and it is clean because the application said so itself rather than because the ledger was rewritten to forgive it. 0.2.15's note ended: *0.2.16 will say it for itself, and if it does not, this note is the prediction that was wrong.* It said it. Ten errors container-only mode cannot reach without opening a document — a non-integer width and height, valign, and value on a list item outside an ordered list — are now counted as `inherent`, each one named by `xhtml.epub2-only-markup` before EPUBCheck was asked, which is the gate the bucket depends on. Fourteen carried from the source as before; zero introduced by any mode that opens a document. Green streak: 1, and the alpha condition wants three consecutive releases at the same scope. Also the first measurement of the new fingerprint on a real shelf: 46 of 93 books carry a trace it recognises — gutenberg 17, sigil 17, calibre 16, from-mobi 5, indesign 4, pdf-or-ocr 3, word 3, several books carrying more than one. The other 47 carry none, which is what a shop EPUB looks like after the shop has finished with it."
+ },
+ {
+  "version": "0.2.17",
+  "date": "2026-08-10",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 0,
+  "inherent": 10,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "Second clean run at the same scope, so the streak is 2 and the 1.0 condition — two consecutive releases with no new defect found on the corpus — is met on this shelf. Same 0 / 10 / 14 as 0.2.16 despite a release that moved thresholds and rewrote two detectors, which is the useful part: the quote labels, the Polish floor and the suspended hyphen all changed and this shelf did not notice, because none of those defects were ever visible here. The shelf that did notice is the second collection, recorded separately."
  }
 ]

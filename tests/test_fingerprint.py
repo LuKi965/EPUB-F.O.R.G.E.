@@ -124,6 +124,18 @@ class TestTheTableItself:
             assert signal.note, (name, signal.pattern)
 
     @pytest.mark.parametrize("name", sorted(fingerprint.SIGNATURES))
+    def test_a_needle_is_really_implied_by_its_pattern(self, name):
+        """A needle that the pattern does not require switches the signal off
+        and nothing says so — the detector simply stops finding that tool. The
+        needles exist to skip regular expressions that cannot match; one that
+        skips a regular expression that *would* have matched is a silent hole.
+        """
+        for signal in fingerprint.SIGNATURES[name]:
+            literal = signal.pattern.replace("\\", "").lower()
+            for needle in signal.needles:
+                assert needle in literal, (name, signal.pattern, needle)
+
+    @pytest.mark.parametrize("name", sorted(fingerprint.SIGNATURES))
     def test_every_generator_can_reach_the_floor_on_its_own(self, name):
         """A signature nothing can ever clear the floor with is a signature
         that has been switched off without anybody noticing."""

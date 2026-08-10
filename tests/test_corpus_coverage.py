@@ -516,8 +516,11 @@ class TestTheStreakIsReadFromHistory:
 
         For a long time the answer was zero, and this test asserted the zero:
         0.2.11 through 0.2.15 measured the same 93 books in the same three
-        modes and every one of them introduced errors. 0.2.16 is the first that
-        did not, so the streak is 1 and the alpha condition wants three.
+        modes and every one of them introduced errors. 0.2.16 was the first
+        that did not and 0.2.17 the second, which is the 1.0 condition — two
+        consecutive releases with no new defect found on the corpus — met on
+        this shelf. Not on every shelf: a collection of 67 Dutch and English
+        books produced 120 errors on the same release.
 
         The number is pinned rather than recomputed, because a test that asks
         the rule what the rule thinks would pass whatever the rule started
@@ -533,7 +536,7 @@ class TestTheStreakIsReadFromHistory:
             pathlib.Path("tests/corpus/runs.json").read_text(encoding="utf-8")
         )
         assert all("modes" in entry for entry in history)
-        assert green_streak(history, minimum=30) == ["0.2.16"]
+        assert green_streak(history, minimum=30) == ["0.2.16", "0.2.17"]
         assert "0.2.9" in widenings(history, minimum=30)
 
     def test_the_ledger_lives_beside_the_signatures_not_among_them(self):

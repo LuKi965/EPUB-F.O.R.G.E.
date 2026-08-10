@@ -1980,3 +1980,112 @@ class TestADeclaredLanguageTheTextContradicts:
         with zipfile.ZipFile(result.output_path) as archive:
             package = archive.read(OPF_PATH).decode()
         assert ">cs<" in package.replace(" ", "")
+
+
+class TestWhatADutchAndEnglishShelfFound:
+    """Sixty-seven books out of Sigil, Word and Calibre, in languages the tool
+    had never been measured on, produced 120 EPUBCheck errors in the modes that
+    open documents — against zero on the Polish shelf. Two shapes accounted for
+    fifty-eight of them and both were ours.
+    """
+
+    def build(self, tmp_path, body, head="", name="in.epub"):
+        from tests.factory import write_zip
+
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Proba</dc:title><dc:language>nl</dc:language>
+    <dc:identifier id="pub-id">urn:uuid:6b1d0f6e-0000-4000-8000-0000000000dd</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="doc" href="doc.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx"><itemref idref="doc"/></spine>
+</package>
+"""
+        ncx = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">'
+            "<head/><docTitle><text>Proba</text></docTitle><navMap>"
+            '<navPoint id="n1" playOrder="1"><navLabel><text>Strona</text></navLabel>'
+            '<content src="doc.xhtml"/></navPoint></navMap></ncx>\n'
+        )
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Strona</title>'
+            f"{head}</head>{body}</html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / name),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/doc.xhtml": document.encode(),
+                "OEBPS/toc.ncx": ncx.encode(),
+            },
+        )
+
+    def forge(self, tmp_path, body, head="", name="out"):
+        source = self.build(tmp_path, body, head, name=f"{name}-in.epub")
+        result = rebuild(source, str(tmp_path / f"{name}.epub"), Policy.preset("preserve"))
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+            return result, archive.read(path).decode()
+
+    def test_the_body_palette_becomes_css_or_goes(self, tmp_path):
+        """`bgcolor` was translated from the start and these four were not."""
+        body = ('<body text="#101010" link="#0000ff" vlink="#800080" '
+                'alink="#ff0000"><p>Tekst</p></body>')
+        _, html = self.forge(tmp_path, body, name="a")
+        assert "color: #101010" in html
+        for attribute in ("text=", "link=", "vlink=", "alink="):
+            assert attribute not in html
+
+    def test_a_link_colour_is_dropped_rather_than_invented(self, tmp_path):
+        """CSS says link colours with pseudo-classes and an inline style cannot
+        hold one. Writing `a:link` into a shared stylesheet would reach
+        documents nobody looked at."""
+        body = '<body link="#0000ff"><p>Tekst</p></body>'
+        _, html = self.forge(tmp_path, body, name="b")
+        assert "a:link" not in html
+
+    def test_a_coloured_table_border_becomes_a_border_colour(self, tmp_path):
+        body = '<body><table bordercolor="#cccccc"><tr><td>x</td></tr></table></body>'
+        _, html = self.forge(tmp_path, body, name="c")
+        assert "border-color: #cccccc" in html
+        assert "bordercolor" not in html
+
+    def test_a_link_target_goes_because_an_epub_has_no_windows(self, tmp_path):
+        body = '<body><p><a href="doc.xhtml" target="_blank">tu</a></p></body>'
+        _, html = self.forge(tmp_path, body, name="d")
+        assert "target=" not in html
+        assert 'href="' in html
+
+    def test_value_on_something_that_is_not_a_list_item_goes(self, tmp_path):
+        body = '<body><p value="3">Tekst</p></body>'
+        _, html = self.forge(tmp_path, body, name="e")
+        assert "value=" not in html
+
+    def test_value_on_an_ordered_list_item_stays(self, tmp_path):
+        """There it numbers the item, which is what it is for."""
+        body = '<body><ol><li value="7">Siedem</li></ol></body>'
+        _, html = self.forge(tmp_path, body, name="f")
+        assert 'value="7"' in html
+
+    def test_a_meta_with_a_name_and_no_content_is_completed(self, tmp_path):
+        """HTML requires the pair and EPUBCheck refuses the document without
+        it. Completed rather than removed: the publisher named something, and
+        dropping the element would throw the name away too."""
+        head = '<meta name="generator"/>'
+        _, html = self.forge(tmp_path, "<body><p>x</p></body>", head, name="g")
+        assert 'name="generator"' in html
+        assert 'content=""' in html

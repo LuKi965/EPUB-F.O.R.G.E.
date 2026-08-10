@@ -38,6 +38,68 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A Dutch and English shelf produced 120 errors where the Polish one produced none
+
+Sixty-seven books out of Sigil, Word and Calibre, in languages this tool had
+never been measured on. The modes that open documents came out with **120
+EPUBCheck errors**; the Polish shelf of 93 produces zero. Two shapes accounted
+for fifty-eight of them and both were ours.
+
+**The rest of the HTML 3.2 `<body>` palette.** `bgcolor` was translated from the
+first version and `text`, `link`, `vlink` and `bordercolor` were not — forty-two
+errors between them. `text` is the body's colour and translates exactly.
+`bordercolor` becomes `border-color`. The link colours are dropped and counted
+rather than guessed at: CSS says them with pseudo-classes, an inline style
+cannot hold one, and writing `a:link { }` into a shared stylesheet would reach
+documents nobody looked at. Also `target` on a link — an EPUB has no windows,
+EPUB 3 does not allow the attribute, and removing it changes nothing visible —
+and `value` on elements that never had a use for it, which is what a converter
+does when it copies attributes wholesale. On `<li>` inside `<ol>` it stays,
+because there it numbers the item.
+
+**`<meta name="…">` with no `content`.** Sixteen books, all out of Sigil or
+Word, which write the name and leave the value for later. HTML requires the
+pair and EPUBCheck refuses the document without it. It is **completed**, not
+removed: the publisher named something, an empty value is the honest reading of
+"named it and said nothing", and dropping the element would throw the name away
+too.
+
+### The rebuild got its speed back, and then some
+
+The owner noticed the corpus, the survey and the inventory had all slowed down
+again. Two causes, both introduced by recent work, and both measured rather
+than guessed at.
+
+**The cascade was parsed forty times per book.** Six passes over each document
+ask for the CSS that applies to it, and every one of them re-parsed the same
+stylesheet through cssutils. On a twenty-chapter book sharing one sheet that is
+**eleven of the fifteen seconds** a rebuild took. Books share a stylesheet
+almost by definition, so the parsed result is now cached on the sources it was
+built from — keyed on the sources rather than the document, because two
+documents with the same links and the same inline `<style>` have the same
+cascade. **15.8 s → 1.8 s** on that book.
+
+**The fingerprint ran thirty-five regular expressions over every book.** 0.31
+seconds each on a two-megabyte book — nothing on one book, eleven minutes on
+two thousand. Each signal now carries the plain lowercase substrings its
+pattern requires, tested with `in` against a once-lowercased haystack before
+the expression runs at all. **0.31 s → 0.08 s**, and 0.04 s for a book carrying
+no trace at all. A test holds the needles to their patterns, because a needle
+the pattern does not actually require would switch a signal off and nothing
+would say so.
+
+### Corpus 0.2.17: clean again, and the streak is 2
+
+Same 0 introduced / 10 inherent / 14 carried as 0.2.16, on a release that moved
+thresholds and rewrote two detectors. That is the useful part: the quote
+labels, the Polish floor and the suspended hyphen all changed and this shelf did
+not notice, because none of those defects were ever visible on it. The shelf
+that did notice is the one above.
+
+Two consecutive clean releases at the same scope, which is the 1.0 condition —
+on this shelf.
+
+
 ## 0.2.17 — alpha — 2026-08-10 — kamień milowy [7]
 
 > **Correction to the published release notes.** This section was written

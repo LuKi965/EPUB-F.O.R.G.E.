@@ -286,6 +286,7 @@ class ContentStage(Stage):
         self._class_cache: dict[str, frozenset[str]] = {}
         # A watermark repeats across every document, so its findings are summed
         # and reported once rather than thirty-four times.
+        self._cascade_cache: dict[tuple, css_cascade.Cascade] = {}
         self._watermarks_consolidated = 0
         self._watermarks_relocated = 0
         self._watermarks_removed = 0
@@ -640,6 +641,17 @@ class ContentStage(Stage):
         for meta in head.findall(xhtml.qname("meta")):
             if meta.get("http-equiv") or meta.get("charset"):
                 head.remove(meta)
+            elif meta.get("name") is not None and meta.get("content") is None:
+                # `<meta name="…">` with nothing to say. HTML requires the pair
+                # and EPUBCheck refuses the document without it — sixteen books
+                # out of sixty-seven, all of them out of Sigil or Word, which
+                # write the name and leave the value for later.
+                #
+                # Completed rather than removed, and the difference matters:
+                # the publisher named something, and an empty value is the
+                # honest reading of "named it and said nothing". Dropping the
+                # element would throw away the name as well.
+                meta.set("content", "")
         charset = etree.Element(xhtml.qname("meta"))
         charset.set("charset", "utf-8")
         head.insert(0, charset)
@@ -877,7 +889,20 @@ class ContentStage(Stage):
             )
 
     def _document_cascade(self, ctx: Context, root, resource) -> css_cascade.Cascade:
-        """Collect the CSS that actually applies to one document."""
+        """Collect the CSS that actually applies to one document.
+
+        The parsed result is cached on the sources it was built from, and that
+        cache is not a micro-optimisation. Six passes over each document ask
+        for the cascade, and every one of them was re-parsing the same
+        stylesheet through cssutils: on a twenty-chapter book sharing one sheet
+        that is forty parses of the same bytes, **eleven of the fifteen seconds
+        a rebuild took**. Books share a stylesheet almost by definition, so one
+        parse serves the whole book.
+
+        Keyed on the sources rather than on the document, because two documents
+        with the same links and the same inline `<style>` have the same cascade
+        and a third with an extra `<style>` does not.
+        """
         sources: list[str] = []
         for link in root.iter(xhtml.qname("link")):
             if "stylesheet" not in (link.get("rel") or "").lower():
@@ -894,7 +919,12 @@ class ContentStage(Stage):
         for style in root.iter(xhtml.qname("style")):
             if style.text:
                 sources.append(style.text)
-        return css_cascade.Cascade.parse(sources)
+        key = tuple(sources)
+        cached = self._cascade_cache.get(key)
+        if cached is None:
+            cached = css_cascade.Cascade.parse(sources)
+            self._cascade_cache[key] = cached
+        return cached
 
     #: How many rules may be lifted into one document to restore its styling.
     #:
@@ -1751,6 +1781,52 @@ class ContentStage(Stage):
                 declarations.append(f"{property_name}: {value.strip()};")
                 element.attrib.pop(attribute, None)
                 changed.add(attribute)
+
+        # The rest of the HTML 3.2 `<body>` palette. `bgcolor` was handled from
+        # the start and these four were not, which is how a Dutch and English
+        # shelf of 67 books produced forty-two EPUBCheck errors in one run —
+        # `text`, `link`, `vlink` and `bordercolor`, all of them written by
+        # Word and Sigil and all of them still meaning something on the page.
+        #
+        # `text` is the body's colour and translates exactly. The link colours
+        # do not have a plain equivalent, because CSS says them with pseudo
+        # classes and an inline style cannot hold one; they are dropped and
+        # counted rather than guessed at, since inventing `a:link { }` in a
+        # shared stylesheet would reach documents nobody looked at.
+        if tag == "body":
+            text_colour = element.get("text")
+            if text_colour:
+                declarations.append(f"color: {text_colour.strip()};")
+                element.attrib.pop("text", None)
+                changed.add("text")
+            for attribute in ("link", "vlink", "alink"):
+                if element.get(attribute) is not None:
+                    element.attrib.pop(attribute, None)
+                    changed.add(attribute)
+
+        # Table borders in colour, from the same era and the same generators.
+        if element.get("bordercolor") is not None:
+            colour = element.get("bordercolor").strip()
+            if colour:
+                declarations.append(f"border-color: {colour};")
+            element.attrib.pop("bordercolor", None)
+            changed.add("bordercolor")
+
+        # `target` tells a browser which window to open a link in. An EPUB has
+        # no windows, EPUB 3 does not allow the attribute, and removing it
+        # changes nothing anybody can see.
+        if tag == "a" and element.get("target") is not None:
+            element.attrib.pop("target", None)
+            changed.add("target")
+
+        # `value` numbers an item in an ordered list and means nothing anywhere
+        # else. The `<li>` case is handled below, on its own terms; this is the
+        # attribute turning up on elements that never had a use for it, which
+        # is what a converter does when it copies attributes wholesale.
+        if tag not in ("li", "option", "param", "input", "button", "data", "meter", "progress"):
+            if element.get("value") is not None:
+                element.attrib.pop("value", None)
+                changed.add("value")
 
         if tag == "table":
             border = element.get("border")
