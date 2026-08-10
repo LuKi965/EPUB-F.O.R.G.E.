@@ -129,6 +129,7 @@ CATALOGUE: dict[str, str] = {
     "css.position-removed": "{count} absolute or fixed position rule(s) were removed from a reflowable book",
     "css.reader-property-kept": "{count} reader-specific CSS propert(ies) inherited from the source were kept",
     "css.reader-property-removed": "{count} reader-specific CSS propert(ies) were removed",
+    "css.font-stack-generic-added": "{count} font stack(s) gained the generic family the embedded font declares about itself",
     "css.font-stack-generic-missing": "{count} font stack(s) end without a generic family",
     "css.unparseable": "a stylesheet could not be parsed for validation: {error}",
     "css.no-usable-rules": "a stylesheet contains no usable rules",
@@ -323,6 +324,7 @@ CATALOGUE_PL: dict[str, str] = {
     'css.position-removed': 'usunięto {count} {count:regułę pozycjonowania|reguły pozycjonowania|reguł pozycjonowania} absolutnego lub stałego z książki przepływalnej',
     'css.reader-property-kept': 'zachowano {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników, odziedziczoną ze źródła',
     'css.reader-property-removed': 'usunięto {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników',
+    'css.font-stack-generic-added': '{count} {count:stos czcionek dostał|stosy czcionek dostały|stosów czcionek dostało} generyczną rodzinę, którą osadzona czcionka deklaruje o sobie sama',
     'css.font-stack-generic-missing': '{count} {count:lista krojów kończy się|listy krojów kończą się|list krojów kończy się} bez rodziny generycznej',
     'css.unparseable': 'arkusza stylów nie dało się sparsować do sprawdzenia: {error}',
     'css.no-usable-rules': 'arkusz stylów nie zawiera żadnych używalnych reguł',
@@ -574,6 +576,8 @@ DETAILS: dict[str, str] = {
         "{tokens} distinct token(s), gone. The book no longer carries the mark that ties this copy to its buyer.",
     "metadata.language-corrected":
         "{rate} Polish-only letters per 1000 characters of the book's own text. A reading system speaks dc:language to its text-to-speech engine and hyphenates by it, so a wrong declaration is read aloud in the wrong voice and broken across lines by the wrong rules — neither of which any validator mentions. --language overrides this.",
+    "css.font-stack-generic-added":
+        "Read from the font's OS/2 table — PANOSE, ten bytes the designer filled in — not inferred from its name. A stack with no generic family falls back to whatever the reader likes when the embedded font fails to load, which on an e-reader it often does.",
     "xhtml.watermark-kept":
         "Meant to be read, so left exactly as the publisher wrote it.",
     "xhtml.watermark-kept-personal-data":
@@ -619,6 +623,8 @@ DETAILS_PL: dict[str, str] = {
         "{tokens} {tokens:odrębny token|odrębne tokeny|odrębnych tokenów} — nie ma. Książka nie niesie już znaku, który wiąże ten egzemplarz z kupującym.",
     "metadata.language-corrected":
         "{rate} liter wyłącznie polskich na 1000 znaków własnego tekstu książki. Czytnik podaje dc:language syntezatorowi mowy i po nim dzieli wyrazy, więc zła deklaracja to czytanie niewłaściwym głosem i łamanie niewłaściwymi regułami — o żadnym z tych dwóch nie powie ci walidator. --language to nadpisuje.",
+    "css.font-stack-generic-added":
+        "Odczytane z tablicy OS/2 samej czcionki — PANOSE, dziesięć bajtów wpisanych przez projektanta — a nie wywnioskowane z nazwy. Stos bez rodziny generycznej spada na cokolwiek, co czytnik uzna za stosowne, gdy osadzona czcionka się nie wczyta, a na czytniku zdarza się to często.",
     "xhtml.watermark-kept":
         "Ma być czytane, więc zostawione dokładnie tak, jak napisał to wydawca.",
     "xhtml.watermark-kept-personal-data":

@@ -16,7 +16,7 @@ import cssutils
 from lxml import etree
 
 from .. import cascade as css_cascade
-from .. import paths, stylesheet, watermark, xhtml
+from .. import fonts_meta, paths, stylesheet, watermark, xhtml
 from ..report import Level
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
@@ -2087,7 +2087,7 @@ class StyleStage(Stage):
             rewritten = self._repair(ctx, rewritten, resource)
             rewritten = self._vendor_properties(ctx, rewritten, resource)
             rewritten = self._unreachable_rules(ctx, rewritten, resource)
-            self._font_stacks(ctx, rewritten, resource)
+            rewritten = self._font_stacks(ctx, rewritten, resource)
             resource.data = rewritten.encode("utf-8")
 
             if unresolved:
@@ -2404,33 +2404,96 @@ class StyleStage(Stage):
         )
         return cleaned
 
-    def _font_stacks(self, ctx: Context, css_text: str, resource) -> None:
-        """Flag font stacks with no generic family to fall back on.
+    def _font_stacks(self, ctx: Context, css_text: str, resource) -> str:
+        """Give a font stack the generic family the font declares about itself.
 
-        Not a conformance error, but if the embedded font fails to load the
-        reader is left guessing. Declarations inside @font-face name a font
-        rather than build a stack, so they are excluded.
+        A stack ending in a named font and nothing else is a real weakness: when
+        the named font fails to load — and on an e-reader it often does — the
+        reader falls back to whatever it likes. Calibre calls it an error and it
+        is right; this tool reported it and left it alone, on the ground that
+        choosing between `serif` and `sans-serif` from a font's *name* is
+        guesswork.
+
+        The premise was wrong wherever the book embeds the font. Then the answer
+        is written in the font's own OS/2 table — PANOSE, ten bytes the designer
+        filled in — and appending it is reading a declaration, not making one.
+        See :mod:`epubforge.fonts_meta`.
+
+        Where the font is not embedded, or will not say, nothing is added and
+        the stack is reported exactly as before. That case really is a guess.
         """
         # Blank out @font-face bodies while keeping offsets stable.
         outside = _FONT_FACE_RE.sub(lambda match: " " * len(match.group()), css_text)
+        embedded = self._embedded_families(ctx, css_text, resource)
         offenders: list[str] = []
+        completed: list[str] = []
+        edits: list[tuple[int, int, str]] = []
+
         for match in _FONT_FAMILY_RE.finditer(outside):
             families = [part.strip().strip("\"'") for part in match.group(1).split(",")]
             families = [family for family in families if family]
-            if families and families[-1].lower() not in GENERIC_FAMILIES:
+            if not families or families[-1].lower() in GENERIC_FAMILIES:
+                continue
+            generic = None
+            # The whole stack is searched, not only its last entry: a stack is a
+            # list of preferences and any one of them being an embedded font
+            # settles what kind of type this is meant to be.
+            for family in families:
+                generic = embedded.get(family.lower())
+                if generic:
+                    break
+            if generic:
+                edits.append((match.end(1), match.end(1), f", {generic}"))
+                completed.append(f"{families[-1]} → {generic}")
+            else:
                 offenders.append(families[-1])
-        if not offenders:
-            return
-        self.note(
-            ctx,
-            Level.PRESERVED,
-            "css.font-stack-generic-missing",
-            values={
-                "count": len(offenders),
-                "examples": ", ".join(sorted(set(offenders))[:4]),
-            },
-            location=resource.path,
-        )
+
+        for start, end, insertion in reversed(edits):
+            css_text = css_text[:start] + insertion + css_text[end:]
+
+        if completed:
+            self.note(
+                ctx,
+                Level.FIX,
+                "css.font-stack-generic-added",
+                values={
+                    "count": len(completed),
+                    "examples": ", ".join(sorted(set(completed))[:4]),
+                },
+                location=resource.path,
+            )
+        if offenders:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.font-stack-generic-missing",
+                values={
+                    "count": len(offenders),
+                    "examples": ", ".join(sorted(set(offenders))[:4]),
+                },
+                location=resource.path,
+            )
+        return css_text
+
+    def _embedded_families(self, ctx: Context, css_text: str, resource) -> dict[str, str]:
+        """`{family name: generic}` for every font this sheet embeds and reads."""
+        found: dict[str, str] = {}
+        for block in _FONT_FACE_RE.finditer(css_text):
+            body = block.group()
+            name = _FONT_FAMILY_RE.search(body)
+            if not name:
+                continue
+            family = name.group(1).strip().strip("\"'").split(",")[0].strip()
+            for url in re.findall(r"url\(\s*(['\"]?)(.*?)\1\s*\)", body):
+                target = paths.resolve(resource.path, url[1])
+                font = ctx.book.get(target) if target else None
+                if font is None:
+                    continue
+                generic = fonts_meta.classify(font.data)
+                if generic:
+                    found[family.lower()] = generic
+                    break
+        return found
 
     def _validate(self, ctx: Context, resource) -> None:
         parser = cssutils.CSSParser(raiseExceptions=False, validate=False)

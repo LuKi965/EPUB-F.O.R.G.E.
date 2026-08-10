@@ -38,6 +38,40 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A font stack gains the family the font declares about itself
+
+Calibre's book check on a rebuilt book reported eleven "unexpected missing
+generic font family". It is right, and the finding was already there —
+`css.font-stack-generic-missing`, reported and deliberately not acted on,
+because choosing between `serif` and `sans-serif` from a font's *name* is
+guesswork and guessing at somebody's typography is how a tool that means well
+ruins a book.
+
+The premise was wrong wherever the book embeds the font. The answer is not a
+guess and never was: it is written in the font's own **OS/2 table** — PANOSE,
+ten bytes the type designer filled in, which every TrueType and OpenType file
+carries because Windows needs it for font substitution. `epubforge/fonts_meta.py`
+reads it, and a stack whose named font the book embeds now gains the generic
+family that font declares. Where the font is not embedded, or where it declines
+to say, nothing is added and the finding stays exactly what it was — that case
+really is a guess.
+
+It got the first real font it was pointed at wrong, which is worth writing down.
+PANOSE serif styles 14 (Flared) and 15 (Rounded) describe how a stem *ends*,
+not whether the letter has a serif, and sans-serif families use them: Lato is
+15, and calling it a serif is worse than saying nothing. They fall through to
+`sFamilyClass`, which says 8, and is right.
+
+**The other half of that Calibre report is not ours.** Seven fonts flagged as
+"MIME type inconsistent with the extension": we declare `font/ttf`, which is
+the EPUB 3.3 core media type registered by RFC 8081, and Calibre guesses from
+the extension against an older table that expects `application/x-font-truetype`.
+EPUBCheck accepts our output without a word and the corpus runs clean. Old
+Adobe RMSDK does only know the pre-RFC type, which makes it a candidate for the
+`legacy` compatibility profile — a deliberate concession to a named device, not
+a defect to fix.
+
+
 ### A Dutch and English shelf produced 120 errors where the Polish one produced none
 
 Sixty-seven books out of Sigil, Word and Calibre, in languages this tool had

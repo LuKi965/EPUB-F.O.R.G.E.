@@ -2089,3 +2089,111 @@ class TestWhatADutchAndEnglishShelfFound:
         _, html = self.forge(tmp_path, "<body><p>x</p></body>", head, name="g")
         assert 'name="generator"' in html
         assert 'content=""' in html
+
+
+class TestAFontStackGetsTheFamilyTheFontDeclares:
+    """Calibre calls a stack with no generic family an error and it is right:
+    when the embedded font fails to load — and on an e-reader it often does —
+    the reader falls back to whatever it likes. This tool reported it and left
+    it alone because picking serif or sans-serif from a *name* is guesswork.
+    Wherever the book embeds the font, it is not."""
+
+    def build(self, tmp_path, css, font=None, name="in.epub"):
+        import glob as _glob
+        import pathlib as _pathlib
+
+        from tests.factory import write_zip
+
+        if font is None:
+            found = {
+                _pathlib.Path(p).name: p
+                for p in _glob.glob("/usr/share/fonts/**/*.ttf", recursive=True)
+            }
+            for candidate in ("DejaVuSerif.ttf", "DejaVuSans.ttf"):
+                if candidate in found:
+                    font = _pathlib.Path(found[candidate]).read_bytes()
+                    break
+        package = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Proba</dc:title><dc:language>pl</dc:language>
+    <dc:identifier id="pub-id">urn:uuid:6b1d0f6e-0000-4000-8000-0000000000ee</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="doc" href="doc.xhtml" media-type="application/xhtml+xml"/>
+    <item id="css" href="s.css" media-type="text/css"/>
+    <item id="f" href="f.ttf" media-type="font/ttf"/>
+  </manifest>
+  <spine><itemref idref="doc"/></spine>
+</package>
+"""
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>S</title>'
+            '<link rel="stylesheet" href="s.css"/></head>'
+            "<body><p>Tekst</p></body></html>\n"
+        )
+        container = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>\n'
+        )
+        return write_zip(
+            str(tmp_path / name),
+            {
+                "META-INF/container.xml": container.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/doc.xhtml": document.encode(),
+                "OEBPS/s.css": css.encode(),
+                "OEBPS/f.ttf": font or b"",
+            },
+        )
+
+    def forge(self, tmp_path, css, font=None, name="out"):
+        source = self.build(tmp_path, css, font, name=f"{name}-in.epub")
+        result = rebuild(source, str(tmp_path / f"{name}.epub"), Policy.preset("preserve"))
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            sheet = next(n for n in archive.namelist() if n.endswith(".css"))
+            return result, archive.read(sheet).decode()
+
+    EMBEDDED = (
+        '@font-face { font-family: "Ksiazkowa"; src: url("f.ttf"); }\n'
+        "p { font-family: Ksiazkowa; }\n"
+    )
+
+    def test_the_stack_gains_what_the_font_says_about_itself(self, tmp_path):
+        import glob as _glob
+
+        if not _glob.glob("/usr/share/fonts/**/DejaVu*.ttf", recursive=True):
+            pytest.skip("no system font to embed")
+        result, sheet = self.forge(tmp_path, self.EMBEDDED, name="a")
+        body = sheet.split("@font-face")[-1]
+        assert "serif" in body
+        assert "css.font-stack-generic-added" in {f.rule for f in result.report.findings}
+
+    def test_the_font_face_rule_itself_is_not_touched(self, tmp_path):
+        """A declaration inside @font-face names a font, it does not build a
+        stack, and appending a generic family there would be nonsense."""
+        import glob as _glob
+
+        if not _glob.glob("/usr/share/fonts/**/DejaVu*.ttf", recursive=True):
+            pytest.skip("no system font to embed")
+        _, sheet = self.forge(tmp_path, self.EMBEDDED, name="b")
+        face = sheet[sheet.index("@font-face"):sheet.index("}", sheet.index("@font-face"))]
+        assert "serif" not in face
+
+    def test_a_font_the_book_does_not_embed_is_still_only_reported(self, tmp_path):
+        """Then it really would be a guess, and the finding stays what it was."""
+        css = "p { font-family: Garamond; }\n"
+        result, sheet = self.forge(tmp_path, css, font=b"", name="c")
+        assert "serif" not in sheet
+        rules = {f.rule for f in result.report.findings}
+        assert "css.font-stack-generic-missing" in rules
+        assert "css.font-stack-generic-added" not in rules
+
+    def test_a_stack_that_already_ends_in_a_generic_is_left_alone(self, tmp_path):
+        css = "p { font-family: Ksiazkowa, serif; }\n"
+        _, sheet = self.forge(tmp_path, css, font=b"", name="d")
+        assert sheet.count("serif") == 1
