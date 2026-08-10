@@ -526,7 +526,60 @@ class TestARunSaysWhichRuleBroke:
             encoding="utf-8",
         )
         text = summarise([Comparison("a.epub", "a" * 16, "unchanged")], signatures)
-        assert "Ours, by EPUBCheck rule: OPF-014." in text
+        assert "Not in the source, by EPUBCheck rule: OPF-014." in text
+
+
+class TestTheSummaryDoesNotBlameTheBooksOnUs:
+    """A shelf of 67 books came back with `introduced: 3` in its ledger and six
+    rule names printed under a heading that said "Ours". The heading was a lie
+    and it worked: it sent me looking for defects in this tool that belonged to
+    the books. The modes that rewrite content had their whole error list
+    blamed, with no subtraction of what the source already had."""
+
+    def test_an_error_the_source_already_had_is_not_ours(self, tmp_path):
+        import json
+
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True)
+        (signatures / ("b" * 16 + ".json")).write_text(
+            json.dumps(
+                {
+                    "source_epubcheck": {"errors": 2, "codes": {"CSS-008": 1, "RSC-011": 1}},
+                    "minimal": {"written": True, "text_invariant": True,
+                                "epubcheck": {"errors": 2,
+                                              "codes": {"CSS-008": 1, "RSC-011": 1}}},
+                    "preserve": {"written": True, "text_invariant": True,
+                                 "epubcheck": {"errors": 2,
+                                               "codes": {"CSS-008": 1, "RSC-011": 1}}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = summarise([Comparison("b.epub", "b" * 16, "unchanged")], signatures)
+        assert "CSS-008" not in text
+        assert "RSC-011" not in text
+
+    def test_an_error_only_the_rebuild_has_is_still_named(self, tmp_path):
+        import json
+
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True)
+        (signatures / ("c" * 16 + ".json")).write_text(
+            json.dumps(
+                {
+                    "source_epubcheck": {"errors": 0, "codes": {}},
+                    "preserve": {"written": True, "text_invariant": True,
+                                 "epubcheck": {"errors": 1, "codes": {"RSC-005": 1}}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = summarise([Comparison("c.epub", "c" * 16, "unchanged")], signatures)
+        assert "RSC-005" in text
 
 
 class TestWhatTheModeCannotReachIsNotItsFault:

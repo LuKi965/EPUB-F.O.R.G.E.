@@ -80,9 +80,51 @@ class CompatibilityStage(Stage):
             self._apple_fonts(ctx)
         if "guide" in measures:
             self._guide(ctx)
+        if "legacy-font-types" in measures:
+            self._legacy_font_types(ctx)
 
         if "kindle" in ctx.policy.compat_profiles:
             self._kindle_cover_advice(ctx)
+
+    #: What a font was called before RFC 8081 registered the `font/*` tree.
+    #: Adobe RMSDK predates it and knows only these; EPUB 3.3 lists them as
+    #: legacy types a reading system must still accept, so declaring one is a
+    #: concession rather than an error.
+    LEGACY_FONT_TYPES = {
+        "font/ttf": "application/x-font-truetype",
+        "font/otf": "application/vnd.ms-opentype",
+        "font/sfnt": "application/font-sfnt",
+    }
+
+    def _legacy_font_types(self, ctx: Context) -> None:
+        """Declare embedded fonts by the name an RMSDK reader recognises.
+
+        `font/ttf` is the EPUB 3.3 core media type and what this tool writes
+        everywhere else. Calibre's book check flags it as inconsistent with the
+        extension, which is Calibre guessing from an older table — that alone
+        would not be worth a measure, since EPUBCheck accepts the current type
+        without a word.
+
+        What is worth it is the device behind that table: Adobe RMSDK shipped
+        before RFC 8081 existed and looks the type up in a fixed list. A font
+        declared by a name it does not know is a font it does not load, and the
+        book falls back to the reader's own face on a device that has one bad
+        one. So the owner's call — if EPUB 3 does not need it, it belongs in a
+        backwards-compatibility profile — is right, and this is that profile.
+        """
+        changed = 0
+        for resource in ctx.book.by_type("font"):
+            legacy = self.LEGACY_FONT_TYPES.get((resource.media_type or "").lower())
+            if legacy:
+                resource.media_type = legacy
+                changed += 1
+        if changed:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "compat.legacy-font-types",
+                values={"count": changed},
+            )
 
     # ------------------------------------------------------------------ ncx
     def _ncx(self, ctx: Context) -> None:

@@ -207,3 +207,54 @@ def test_every_profile_names_only_known_measures():
 def test_every_measure_is_reachable_from_some_profile():
     used = {key for profile in compat.PROFILES.values() for key in profile.measures}
     assert used == set(compat.MEASURES)
+
+
+class TestLegacyFontTypes:
+    """The owner's call, on a Calibre report: if EPUB 3 does not need the older
+    media type, it belongs in a backwards-compatibility profile.
+
+    `font/ttf` is what this tool writes everywhere else and what EPUB 3.3
+    registers. Adobe RMSDK shipped before RFC 8081 and looks the type up in a
+    fixed list; a font declared by a name it does not know is a font it does
+    not load.
+    """
+
+    def types(self, result):
+        import zipfile
+
+        from lxml import etree
+
+        with zipfile.ZipFile(result.output_path) as archive:
+            package = etree.fromstring(archive.read("EPUB/package.opf"))
+        return {
+            item.get("href"): item.get("media-type")
+            for item in package.iter("{http://www.idpf.org/2007/opf}item")
+            if (item.get("media-type") or "").split("/")[0] in ("font", "application")
+        }
+
+    def test_the_default_is_the_type_epub3_registers(self, rebuilt):
+        found = [t for t in self.types(rebuilt).values() if "font" in (t or "")]
+        assert any(t == "font/ttf" for t in found), found
+
+    def test_the_legacy_profile_declares_what_rmsdk_knows(self, legacy_epub, tmp_path):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        policy = Policy.preset("preserve", compat_profiles=("legacy",))
+        result = rebuild(legacy_epub, str(tmp_path / "rmsdk.epub"), policy)
+        assert result.output_path, result.report.to_text()
+        found = list(self.types(result).values())
+        assert "application/x-font-truetype" in found, found
+        assert "font/ttf" not in found
+
+    def test_it_says_so_in_the_report(self, legacy_epub, tmp_path):
+        """Every measure in a compatibility profile is a step away from the
+        standard, taken for a named device, and the report says which."""
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+        from epubforge.report import Level
+
+        policy = Policy.preset("preserve", compat_profiles=("legacy",))
+        result = rebuild(legacy_epub, str(tmp_path / "rmsdk2.epub"), policy)
+        found = [f for f in result.report.findings if f.rule == "compat.legacy-font-types"]
+        assert found and found[0].level is Level.PRESERVED

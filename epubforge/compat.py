@@ -80,6 +80,20 @@ MEASURES: dict[str, Measure] = {
             "ignore the navigation document entirely"
         ),
     ),
+    "legacy-font-types": Measure(
+        key="legacy-font-types",
+        what="declares embedded fonts by their pre-RFC-8081 media types",
+        why=(
+            "Adobe RMSDK shipped before font/ttf was registered and looks the type "
+            "up in a fixed list; a font declared by a name that list does not hold "
+            "is a font it does not load"
+        ),
+        cost=(
+            "the package then names a type EPUB 3.3 calls legacy. EPUBCheck accepts "
+            "it, and every reader written since 2017 accepts font/ttf, so this is a "
+            "step backwards taken for one family of devices"
+        ),
+    ),
     "guide": Measure(
         key="guide",
         what="adds the EPUB 2 <guide> element to the package document",
@@ -146,7 +160,7 @@ PROFILES: dict[str, Profile] = {
     "legacy": Profile(
         key="legacy",
         devices="Adobe RMSDK readers — PocketBook, Nook, Sony, older Kobo and Onyx",
-        measures=("ncx", "guide", "html5-blocks", "page-break"),
+        measures=("ncx", "guide", "html5-blocks", "page-break", "legacy-font-types"),
     ),
 }
 

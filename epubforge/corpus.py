@@ -848,8 +848,15 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
                     said.update(_new_shapes(origin, check))
             else:
                 errors += count
-                blamed.update(check.get("codes") or {})
-                said.update(check.get("shapes") or {})
+                # Only what the source did **not** already have. This branch
+                # used to blame every code it saw, and the line beneath was
+                # headed "Ours" — so a shelf of 67 books whose ledger said
+                # `introduced: 3` printed six rule names under a heading
+                # claiming all of them. It sent me looking for defects in this
+                # tool that belonged to the books, and a report that misstates
+                # whose fault something is, is worse than one that stays quiet.
+                blamed.update(_new_codes(origin, check))
+                said.update(_new_shapes(origin, check))
     if not (errors or introduced or carried or inherent):
         return line
     parts = [f"{errors} EPUBCheck error(s) in modes that rewrite content"]
@@ -867,7 +874,7 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
             f"{code} ×{count}" if count > 1 else code
             for code, count in sorted(blamed.items())
         )
-        line += f"\nOurs, by EPUBCheck rule: {named}."
+        line += f"\nNot in the source, by EPUBCheck rule: {named}."
     if said:
         line += "\n" + "\n".join(
             f"  {shape}" + (f" ×{count}" if count > 1 else "")

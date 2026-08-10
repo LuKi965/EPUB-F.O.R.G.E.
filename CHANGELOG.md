@@ -38,6 +38,45 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The summary said "Ours" about defects that were the books'
+
+A shelf of 67 Dutch and English books came back with 120 EPUBCheck errors,
+and under them a line reading **"Ours, by EPUBCheck rule: CSS-001 ×2, CSS-008
+×2, RSC-005 ×110, RSC-007 ×6, RSC-011 ×12, RSC-020 ×2."** Its own ledger, two
+lines above, said `introduced: 3`.
+
+Both numbers came out of the same function. For the modes that rewrite content
+it added **every** code it saw to the blamed list, with no subtraction of what
+the source already carried — while the bucket beside it was computed correctly.
+The heading was a lie and it worked: it sent me looking for defects in this tool
+that belonged to the books, and I had already started fixing two of them.
+
+The giveaway was there and I missed it. `CSS-008`, `CSS-001`, `RSC-011` and
+`RSC-020` appear in **all three modes including container-only**, which opens no
+documents and can therefore introduce nothing of that kind. An error present in
+that mode is the source's, by definition.
+
+Fixed both ways round: only codes and shapes the source did not have are
+collected, and the heading now says what it means — *"Not in the source, by
+EPUBCheck rule"*. A report that misstates whose fault something is, is worse
+than one that stays quiet.
+
+### `--compat legacy` declares fonts the way Adobe RMSDK reads them
+
+The owner's call on the other half of that Calibre report: if EPUB 3 does not
+need the older media type, it belongs in a backwards-compatibility profile
+anyway. Right — the type this tool writes, `font/ttf`, is what EPUB 3.3
+registers and what EPUBCheck wants, and RMSDK shipped before RFC 8081 and looks
+the type up in a fixed list. A font declared by a name that list does not hold
+is a font that does not load.
+
+So `legacy` gains `legacy-font-types`: `font/ttf` becomes
+`application/x-font-truetype`, `font/otf` becomes `application/vnd.ms-opentype`.
+Only under that profile, reported as a preserved deviation, and never by
+default — every measure in a compatibility profile is a step away from the
+standard taken for a named device.
+
+
 ### A font stack gains the family the font declares about itself
 
 Calibre's book check on a rebuilt book reported eleven "unexpected missing

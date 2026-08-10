@@ -192,6 +192,7 @@ CATALOGUE: dict[str, str] = {
     # -- compatibility profiles ---------------------------------------------
     "compat.unknown-profile": "the compatibility profile {profile} does not exist and was ignored",
     "compat.applied": "compatibility profiles were applied: {profiles}",
+    "compat.legacy-font-types": "{count} embedded font(s) are declared by the media type Adobe RMSDK knows, not the one EPUB 3.3 registers",
     "compat.ncx-required": "a selected profile needs the legacy NCX, which was switched off",
     "compat.stylesheet-added": "{stylesheet} was linked into {count} document(s)",
     "compat.page-break-mirrored": "{count} fragmentation declaration(s) were mirrored into page-break-*",
@@ -380,6 +381,7 @@ CATALOGUE_PL: dict[str, str] = {
     'font.deobfuscated': 'odciemniono {count} {count:osadzoną czcionkę|osadzone czcionki|osadzonych czcionek} i usunięto plik szyfrowania',
     'compat.unknown-profile': 'profil zgodności {profile} nie istnieje i został pominięty',
     'compat.applied': 'zastosowano profile zgodności: {profiles}',
+    'compat.legacy-font-types': '{count} {count:osadzona czcionka jest zadeklarowana|osadzone czcionki są zadeklarowane|osadzonych czcionek jest zadeklarowanych} typem, który zna Adobe RMSDK, a nie tym, który rejestruje EPUB 3.3',
     'compat.ncx-required': 'wybrany profil wymaga starego NCX, który był wyłączony',
     'compat.stylesheet-added': '{stylesheet} podlinkowano do {count} {count:dokumentu|dokumentów|dokumentów}',
     'compat.page-break-mirrored': '{count} {count:deklarację łamania odwzorowano|deklaracje łamania odwzorowano|deklaracji łamania odwzorowano} na page-break-*',
