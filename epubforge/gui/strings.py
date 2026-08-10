@@ -273,6 +273,7 @@ PL: dict[str, str] = {
     "corpus.status.changed": "inny wynik",
     "corpus.status.new": "nowa",
     "corpus.status.failed": "błąd",
+    "corpus.status.duplicate": "ta sama",
     "corpus.edges": "Dołóż brzegi",
     "corpus.edges.tip": (
         "Dopisuje do folderu z książkami cztery pliki, których nie da się kupić: "
@@ -648,6 +649,7 @@ EN: dict[str, str] = {
     "corpus.status.changed": "different result",
     "corpus.status.new": "new",
     "corpus.status.failed": "failed",
+    "corpus.status.duplicate": "same file",
     "corpus.edges": "Add the edge cases",
     "corpus.edges.tip": (
         "Writes four books into the folder that nobody can buy: no cover, one 9 MB "

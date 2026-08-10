@@ -1,6 +1,6 @@
 {
   "source": "sha256:f2f3ecbe034ae2be55d019dc10980f3fce1751417eca4118ccbeb681381d1429",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -55,13 +55,14 @@
     "written": true,
     "report": {
       "info": 8,
-      "fix": 28,
+      "fix": 29,
       "preserved": 1,
       "warn": 4
     },
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.missing-alt": 1,
+      "css.font-stack-generic-added": 1,
       "css.font-stack-generic-missing": 1,
       "css.unreachable-rules-found": 1,
       "font.unrecognised": 3,
@@ -80,7 +81,7 @@
       "xhtml.entities-rewritten": 17,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:4aadab051350f93584ad1c13fa419a5978a06aa850c649ab64cd7eb3d9d53396",
+    "output": "sha256:b2c3d4de47cb415e0b0f0415087f49c54e6a141b228a0cfee89aa474f25263b8",
     "text_characters": 577221,
     "text_added": 0,
     "text_invariant": true,
@@ -97,13 +98,14 @@
     "written": true,
     "report": {
       "info": 7,
-      "fix": 29,
+      "fix": 30,
       "preserved": 1,
       "warn": 4
     },
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.missing-alt": 1,
+      "css.font-stack-generic-added": 1,
       "css.font-stack-generic-missing": 1,
       "css.unreachable-rules-removed": 1,
       "font.unrecognised": 3,
@@ -122,7 +124,7 @@
       "xhtml.entities-rewritten": 17,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:7aefcddcb045ab149334d5632cf449276bd63f2291ad05855edc5b208ca612a0",
+    "output": "sha256:177cb18dfefa1e48532118bb6ffb678034208c23885696ba7a828d3d7fead400",
     "text_characters": 577221,
     "text_added": 0,
     "text_invariant": true,

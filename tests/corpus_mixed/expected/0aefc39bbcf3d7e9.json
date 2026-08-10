@@ -1,6 +1,6 @@
 {
   "source": "sha256:0aefc39bbcf3d7e9cbfcb405f670deb0c8292957df1fae378b603abe4e27df15",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 11,
@@ -82,7 +82,7 @@
     "written": true,
     "report": {
       "info": 5,
-      "fix": 69,
+      "fix": 72,
       "preserved": 4,
       "warn": 2
     },
@@ -102,33 +102,27 @@
       "xhtml.entities-rewritten": 31,
       "xhtml.image-paragraph-kept": 4,
       "xhtml.inline-promoted": 4,
-      "xhtml.presentational-markup-converted": 28,
+      "xhtml.presentational-markup-converted": 31,
       "xhtml.title-filled": 1
     },
-    "output": "sha256:88eca1c5dea4761880a3ae06aecefce9ef2e48a2bf1e9c519dadd1bd43b006c8",
+    "output": "sha256:d8187e3f5d1a32edd586fd1c8aed869098b41dce60088f51f5336a8348c7436a",
     "text_characters": 1191346,
     "text_added": 2,
     "text_invariant": true,
     "blocks": 4930,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 2,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0,
-      "codes": {
-        "RSC-005": 2
-      },
-      "shapes": {
-        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
-        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
-      }
+      "codes": {}
     }
   },
   "strict": {
     "written": true,
     "report": {
       "info": 5,
-      "fix": 69,
+      "fix": 72,
       "preserved": 4,
       "warn": 2
     },
@@ -148,26 +142,20 @@
       "xhtml.entities-rewritten": 31,
       "xhtml.image-paragraph-kept": 4,
       "xhtml.inline-promoted": 4,
-      "xhtml.presentational-markup-converted": 28,
+      "xhtml.presentational-markup-converted": 31,
       "xhtml.title-filled": 1
     },
-    "output": "sha256:88eca1c5dea4761880a3ae06aecefce9ef2e48a2bf1e9c519dadd1bd43b006c8",
+    "output": "sha256:d8187e3f5d1a32edd586fd1c8aed869098b41dce60088f51f5336a8348c7436a",
     "text_characters": 1191346,
     "text_added": 2,
     "text_invariant": true,
     "blocks": 4930,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 2,
+      "errors": 0,
       "warnings": 0,
       "fatal": 0,
-      "codes": {
-        "RSC-005": 2
-      },
-      "shapes": {
-        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
-        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
-      }
+      "codes": {}
     }
   }
 }

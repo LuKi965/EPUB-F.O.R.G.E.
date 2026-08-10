@@ -536,7 +536,7 @@ class TestTheStreakIsReadFromHistory:
             pathlib.Path("tests/corpus/runs.json").read_text(encoding="utf-8")
         )
         assert all("modes" in entry for entry in history)
-        assert green_streak(history, minimum=30) == ["0.2.16", "0.2.17"]
+        assert green_streak(history, minimum=30) == ["0.2.16", "0.2.17", "0.2.18"]
         assert "0.2.9" in widenings(history, minimum=30)
 
     def test_the_ledger_lives_beside_the_signatures_not_among_them(self):

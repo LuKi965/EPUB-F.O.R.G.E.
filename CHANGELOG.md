@@ -38,6 +38,56 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The same book twice was measured twice, raced with itself, and counted twice
+
+Both shelves came back on 0.2.18 and the line the release was written around
+did what it said it would: **`text_lost: 1 → 0`**. The book is *The Wheel of
+Time*, 26 million characters, every document in the reading order including the
+navigation, and its signature now reads `minimal.text_added: -32 → 0`,
+`text_invariant: false → true`, `+nav.contents-page-kept`. Diagnosed without the
+book, fixed without the book, confirmed by the book. The Polish shelf came out
+0 / 10 / 14 for the third release running — **green streak 3**.
+
+What the same run found is ours, and it is the shelf's oldest known fact biting
+from an angle nobody had looked from. This shelf holds 67 files and 63 books:
+four of them are byte-identical copies, because it was pulled off the internet
+whole. A signature is named after the hash of a book's bytes, so a copy and its
+original are one signature — right, and written down since the shelf arrived.
+
+The working directory was named the same way.
+
+    room = scratch / identifier_for(book)
+
+Books are measured side by side, and that directory exists *because* they are:
+two threads writing `scratch/preserve.epub` would each validate a file the other
+had just replaced. Keying it by identity closed that for every book except the
+one case where two threads really do hold the same identity. Windows said so
+out loud — four `PermissionError`s, one thread replacing a file the other still
+had open, and the run recorded `failed: 4`. That was the lucky outcome. The
+same race on Linux produces no error and a plausible wrong answer, which is the
+failure this directory was created to prevent, restated in the fix that was
+supposed to be the prevention.
+
+The room is now unique per measurement rather than per book, and above it
+`compare` no longer measures identical bytes twice at all: a duplicate is
+reported as a duplicate, naming the file it copies, and three JVM starts are
+not spent to re-learn what the first copy already said.
+
+Underneath sat the quieter half. Every total in the ledger is read out of
+`signatures/{identifier}.json`, once per **result** — so four duplicate results
+read four signatures a second time and added their errors again. The mixed
+shelf's ledger says `carried: 129` for 0.2.17 and 0.2.18; the books say 122. It
+says `errors: 54` where there are 53, and `RSC-005 ×44` where there are 42.
+Small numbers, and wrong in the direction that flatters nobody — but this
+ledger's whole purpose is to be the thing that is not remembered, and a total
+that counts some books twice cannot do that job. Counted per book now, with
+`duplicates` stated in the entry so `books` and every figure beneath it can be
+seen to disagree on purpose.
+
+Both 0.2.18 entries are recorded exactly as the run measured them, inflation and
+all, with the true figures in the note. The ledger records what the tool said on
+the day; the correction belongs in the next run, where it can be checked.
+
 ## 0.2.18 — alpha — 2026-08-10
 
 ### `text_lost: 1` — found, reproduced and fixed without the book

@@ -23,6 +23,7 @@ import hashlib
 import json
 import pathlib
 import re
+import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -80,12 +81,12 @@ class Comparison:
 
     book: str
     identifier: str
-    status: str  # "new" | "unchanged" | "changed" | "failed"
+    status: str  # "new" | "unchanged" | "changed" | "duplicate" | "failed"
     differences: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return self.status in ("new", "unchanged")
+        return self.status in ("new", "unchanged", "duplicate")
 
 
 def digest(data: bytes) -> str:
@@ -375,8 +376,20 @@ def signature(
     # two threads writing `scratch/preserve.epub` would each be checking a file
     # the other had just overwritten — a race that produces a plausible wrong
     # answer rather than a crash, which is the worst kind to introduce.
-    room = scratch / identifier_for(book)
-    room.mkdir(parents=True, exist_ok=True)
+    #
+    # Keyed by the book's *identity* at first, which is its content hash, and
+    # that reopened the same race for the one case where it bites hardest: a
+    # shelf holding the same file twice hands two threads the same room. On the
+    # owner's second shelf — a folder downloaded whole, so four books are exact
+    # duplicates of four others — it surfaced as four `PermissionError`s from
+    # Windows, one thread replacing a file the other still had open. Windows was
+    # the lucky part. The same race on Linux is silent and answers wrongly.
+    #
+    # So the room is unique per measurement, not per book. `compare` no longer
+    # measures identical bytes twice at all, and this is the floor under that:
+    # anything holding this function directly gets a room nobody else is in.
+    scratch.mkdir(parents=True, exist_ok=True)
+    room = pathlib.Path(tempfile.mkdtemp(prefix=identifier_for(book) + "-", dir=scratch))
 
     source = _read_source(book)
     source_digest = digest(book.read_bytes())
@@ -625,9 +638,16 @@ def compare(
     Books are measured side by side; the results come back in shelf order
     regardless, because a corpus report that shuffles itself between runs is one
     nobody can diff.
+
+    A shelf may hold the same file twice — the owner's second one does, four
+    times over, being a folder downloaded whole. A signature is named after the
+    book's bytes, so both copies are one signature and measuring the second is
+    three JVM runs spent to learn what the first already said. Worse than
+    wasteful: both copies wrote to one working directory and both were counted
+    into the ledger, so a shelf of 67 files reported the totals of 71. Duplicates
+    are now named as such and measured once.
     """
     import concurrent.futures
-    import tempfile
     import threading
 
     signatures.mkdir(parents=True, exist_ok=True)
@@ -643,10 +663,21 @@ def compare(
         # name, and "changed: ksiazka.epub" would then be ambiguous.
         return str(book.relative_to(books)) if book.is_relative_to(books) else book.name
 
+    # Read once, here, rather than inside every worker: the identifier is the
+    # hash of the whole file, and the grouping below needs it before any thread
+    # starts anyway.
+    identity = {book: identifier_for(book) for book in shelf}
+    original: dict[str, pathlib.Path] = {}
+    copies: dict[pathlib.Path, pathlib.Path] = {}
+    for book in shelf:
+        first = original.setdefault(identity[book], book)
+        if first is not book:
+            copies[book] = first
+
     def measure_one(book: pathlib.Path, scratch: str) -> Comparison:
         nonlocal done
         label = label_for(book)
-        identifier = identifier_for(book)
+        identifier = identity[book]
         reference = signatures / f"{identifier}.json"
         previous = (
             json.loads(reference.read_text(encoding="utf-8"))
@@ -682,13 +713,34 @@ def compare(
                 on_book(done - 1, label)
         return outcome
 
+    def note_copy(book: pathlib.Path) -> Comparison:
+        nonlocal done
+        label = label_for(book)
+        if on_book is not None:
+            with progress_lock:
+                done += 1
+                on_book(done - 1, label)
+        return Comparison(
+            label,
+            identity[book],
+            "duplicate",
+            [f"byte for byte the same file as {label_for(copies[book])}"],
+        )
+
+    fresh = [book for book in shelf if book not in copies]
     with tempfile.TemporaryDirectory(prefix="epubforge-corpus-") as scratch:
-        count = workers_for(len(shelf), workers)
+        count = workers_for(len(fresh), workers)
         if count == 1:
-            results = [measure_one(book, scratch) for book in shelf]
+            taken = [measure_one(book, scratch) for book in fresh]
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=count) as pool:
-                results = list(pool.map(lambda b: measure_one(b, scratch), shelf))
+                taken = list(pool.map(lambda b: measure_one(b, scratch), fresh))
+
+    # Back into shelf order, duplicates in the place their file occupies. The
+    # shelf has 67 files and the report says 67, because that is what is on the
+    # disk; what it no longer does is count four of them twice.
+    measured = dict(zip(fresh, taken))
+    results = [measured[book] if book in measured else note_copy(book) for book in shelf]
 
     if record:
         _log_run(signatures, results)
@@ -701,6 +753,26 @@ def compare(
 #: living there is a trap for every loop that reads it — the owner's inventory
 #: landed there once by accident and broke the analysis on the spot.
 RUNS = "runs.json"
+
+
+def _once_each(results: "list[Comparison]") -> "list[Comparison]":
+    """The results, with a book that appears twice on the shelf counted once.
+
+    Every total below is read out of `signatures/{identifier}.json`, and the
+    identifier is the book's content hash — so two results for one file read the
+    same signature and add its errors twice. The owner's second shelf holds four
+    exact duplicates, and its ledger for 0.2.17 and 0.2.18 says 129 carried where
+    the books say 122, and one error more than there is. The count of *files* is
+    honest and stays; the count of *defects* has to be per book.
+    """
+    seen: set[str] = set()
+    unique = []
+    for result in results:
+        if result.identifier in seen:
+            continue
+        seen.add(result.identifier)
+        unique.append(result)
+    return unique
 
 
 def _new_shapes(source: dict, produced: dict) -> "Counter":
@@ -748,7 +820,7 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     }
     errors = introduced = carried = fatal = lost = unwritten = inherent = 0
     blamed: Counter = Counter()
-    for result in results:
+    for result in _once_each(results):
         record_path = signatures / f"{result.identifier}.json"
         if not record_path.is_file():
             continue
@@ -799,6 +871,12 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     entry["clean"] = not (
         errors or introduced or fatal or lost or unwritten or entry["failed"]
     )
+    copies = len(results) - len(_once_each(results))
+    if copies:
+        # Stated rather than quietly subtracted: `books` counts the files on the
+        # shelf, every total counts the books, and a reader comparing the two
+        # needs to be told why they differ.
+        entry["duplicates"] = copies
 
     ledger = signatures.parent / RUNS
     history = json.loads(ledger.read_text(encoding="utf-8")) if ledger.is_file() else []
@@ -814,20 +892,20 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     one: those were the source's, carried through by the mode that promises not
     to touch content. What a reader needs is the two figures apart.
     """
-    counts = {status: 0 for status in ("new", "unchanged", "changed", "failed")}
-    for result in results:
-        counts[result.status] += 1
+    counts = Counter(result.status for result in results)
     line = (
         f"{len(results)} book(s): {counts['unchanged']} unchanged, "
         f"{counts['changed']} changed, {counts['new']} new, {counts['failed']} failed"
     )
+    if counts["duplicate"]:
+        line += f", {counts['duplicate']} the same file twice"
     if signatures is None:
         return line
 
     errors = introduced = carried = inherent = 0
     blamed: Counter = Counter()
     said: Counter = Counter()
-    for result in results:
+    for result in _once_each(results):
         path = signatures / f"{result.identifier}.json"
         if not path.is_file():
             continue

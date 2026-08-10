@@ -1,6 +1,6 @@
 {
   "source": "sha256:250a3e2e225a7503a68d7772ac105b2501c9558391ac52fb1842b36e75af671b",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 200,
@@ -83,7 +83,7 @@
     "written": true,
     "report": {
       "info": 8,
-      "fix": 102,
+      "fix": 196,
       "warn": 2
     },
     "rules": {
@@ -105,27 +105,24 @@
       "xhtml.empty-span-found": 1,
       "xhtml.ids-renamed": 94,
       "xhtml.inline-promoted": 1,
-      "xhtml.presentational-markup-converted": 1
+      "xhtml.presentational-markup-converted": 95
     },
-    "output": "sha256:068a1e1b566ed2a90984deddae58a20082e3f741614692b48e4d3a95f181e142",
+    "output": "sha256:fda6ae4bcb5ef9842345987ede9df7c5b27eaef42d18f931b0ceb5ef5ca91296",
     "text_characters": 1371526,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 7938,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 6,
+      "errors": 3,
       "warnings": 1,
       "fatal": 0,
       "codes": {
         "CSS-001": 1,
-        "RSC-005": 5
+        "RSC-005": 2
       },
       "shapes": {
         "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
-        "RSC-005: Error while parsing file: attribute \"bordercolor\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
-        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
-        "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
         "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
         "RSC-005: Error while parsing file: value of attribute \"name\" is invalid; must be a string matching the regular expression \"…\"": 1
       }
@@ -135,7 +132,7 @@
     "written": true,
     "report": {
       "info": 7,
-      "fix": 104,
+      "fix": 198,
       "warn": 2
     },
     "rules": {
@@ -158,27 +155,24 @@
       "xhtml.empty-span-unwrapped": 1,
       "xhtml.ids-renamed": 94,
       "xhtml.inline-promoted": 1,
-      "xhtml.presentational-markup-converted": 1
+      "xhtml.presentational-markup-converted": 95
     },
-    "output": "sha256:7400646bfd52568ed0b66b47d51dbc60e182092602926686b41f2c8a900538c5",
+    "output": "sha256:4dfff9ec3d735a2eda1db35ac6c95318c41a2838f362f28e39d50f1ca21b8936",
     "text_characters": 1371526,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 7938,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 6,
+      "errors": 3,
       "warnings": 1,
       "fatal": 0,
       "codes": {
         "CSS-001": 1,
-        "RSC-005": 5
+        "RSC-005": 2
       },
       "shapes": {
         "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
-        "RSC-005: Error while parsing file: attribute \"bordercolor\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-": 1,
-        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
-        "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
         "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
         "RSC-005: Error while parsing file: value of attribute \"name\" is invalid; must be a string matching the regular expression \"…\"": 1
       }

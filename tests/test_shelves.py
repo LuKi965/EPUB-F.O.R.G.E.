@@ -99,8 +99,14 @@ class TestTheSecondShelfIsRecorded:
         assert ledger(shelf)[-1]["books"] == 67
 
     def test_the_text_loss_is_recorded_rather_than_rounded_away(self):
-        """One book loses 32 characters of spine text in container-only mode.
-        It is unresolved, and a ledger that quietly dropped it would be a ledger
-        nobody could use to find out when it started."""
+        """One book lost 32 characters of spine text in container-only mode at
+        0.2.17. A ledger that quietly dropped that would be a ledger nobody
+        could use to find out when it started — and one that quietly dropped
+        the run where it went back to zero would be worse, because the fix is
+        the part somebody will want to date. Both entries stay pinned."""
         shelf = next(s for s in shelves() if s.name == "corpus_mixed")
-        assert ledger(shelf)[-1]["text_lost"] == 1
+        history = ledger(shelf)
+        found = {entry["version"]: entry["text_lost"] for entry in history}
+        assert found["0.2.17"] == 1
+        assert found["0.2.18"] == 0
+        assert history[-1]["text_lost"] == 0

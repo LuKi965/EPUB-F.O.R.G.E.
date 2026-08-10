@@ -1,6 +1,6 @@
 {
   "source": "sha256:d4d1f79e2b50faf8070572a41f09a8829923e513e539a0c187fa0e1c1da849c8",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 1,
@@ -52,11 +52,12 @@
     "written": true,
     "report": {
       "info": 8,
-      "fix": 18,
+      "fix": 19,
       "preserved": 4
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "css.font-stack-generic-added": 1,
       "css.font-stack-generic-missing": 1,
       "css.reader-property-kept": 1,
       "css.unreachable-rules-found": 1,
@@ -76,7 +77,7 @@
       "xhtml.inline-promoted": 4,
       "xhtml.orphaned-styling-restored": 1
     },
-    "output": "sha256:cd2edd981a1f4471ed288cf09c45c0972c061c2f27d5381038070ebef81e2257",
+    "output": "sha256:ab622ab6ea4e95b1e5139d4e63e1db70971e8ecaf4fe9207e0877b932e3aefd3",
     "text_characters": 435532,
     "text_added": 0,
     "text_invariant": true,

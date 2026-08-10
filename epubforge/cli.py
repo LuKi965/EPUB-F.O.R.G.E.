@@ -462,6 +462,10 @@ def command_corpus(args: argparse.Namespace) -> int:
                 console.print(f"    [dim]{line}[/]")
         elif result.status == "new":
             console.print(f"  [cyan]new[/]      {result.book}")
+        elif result.status == "duplicate":
+            console.print(f"  [dim]same[/]     {result.book}")
+            for line in result.differences:
+                console.print(f"    [dim]{line}[/]")
     console.print(f"\n  {summarise(results, signatures)}")
     _report_streak(console, signatures)
     if args.record:

@@ -239,5 +239,25 @@
   "unwritten": 0,
   "clean": true,
   "note": "Second clean run at the same scope, so the streak is 2 and the 1.0 condition — two consecutive releases with no new defect found on the corpus — is met on this shelf. Same 0 / 10 / 14 as 0.2.16 despite a release that moved thresholds and rewrote two detectors, which is the useful part: the quote labels, the Polish floor and the suspended hyphen all changed and this shelf did not notice, because none of those defects were ever visible here. The shelf that did notice is the second collection, recorded separately."
+ },
+ {
+  "version": "0.2.18",
+  "date": "2026-08-10",
+  "books": 93,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 0,
+  "errors": 0,
+  "introduced": 0,
+  "inherent": 10,
+  "carried": 14,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "clean": true,
+  "note": "Third clean run at the same scope: 0 / 10 / 14 for the third release running. The streak is 3, which is the number the alpha condition asked for and which was met at 0.2.0 by other means; what it buys today is the 1.0 condition, twice over. Twenty-five of the 93 changed and every one of them the same way — `+css.font-stack-generic-added`, the generic family read out of the embedded font's own PANOSE bytes, and on eleven of them `css.font-stack-generic-missing` disappears in the same move: a finding that was reported and not acted on for six releases stopped being a guess the moment the font was asked instead of its name. Nothing else moved. The navigation fix that closed `text_lost` on the other shelf is invisible here, because no Polish book on this shelf has its navigation in the reading order."
  }
 ]

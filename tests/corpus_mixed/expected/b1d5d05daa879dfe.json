@@ -1,6 +1,6 @@
 {
   "source": "sha256:b1d5d05daa879dfe23dba71e696409940637dc673c84295a40921222e7c432de",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 6,
@@ -69,7 +69,7 @@
     "written": true,
     "report": {
       "info": 5,
-      "fix": 17,
+      "fix": 29,
       "preserved": 12
     },
     "rules": {
@@ -84,27 +84,26 @@
       "structure.relaid-out": 1,
       "xhtml.dead-reference-kept": 12,
       "xhtml.entities-rewritten": 12,
+      "xhtml.presentational-markup-converted": 12,
       "xhtml.title-filled": 1
     },
-    "output": "sha256:b1817ba0d2286ca92a9ea88ab54d436878d060d1a3fe746ff7d02659b68a9835",
+    "output": "sha256:9d8ff9b102da1df03b8f8ce70e16900c258840a3b2cd845faa49f093f887e0cd",
     "text_characters": 303132,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 945,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 5,
+      "errors": 3,
       "warnings": 0,
       "fatal": 0,
       "codes": {
-        "RSC-005": 3,
+        "RSC-005": 1,
         "RSC-007": 1,
         "RSC-020": 1
       },
       "shapes": {
-        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
         "RSC-005: Error while parsing file: attribute \"target\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-co": 1,
-        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
         "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1,
         "RSC-020: \"…\" is not a valid URL (Backslash (\"…\") used as path segment delimiter)": 1
       }
@@ -114,7 +113,7 @@
     "written": true,
     "report": {
       "info": 5,
-      "fix": 29
+      "fix": 41
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -128,26 +127,24 @@
       "structure.relaid-out": 1,
       "xhtml.dead-reference-neutralised": 12,
       "xhtml.entities-rewritten": 12,
+      "xhtml.presentational-markup-converted": 12,
       "xhtml.title-filled": 1
     },
-    "output": "sha256:52a5e7e6b57ef1c0874e6804d8f4d6dc36923aedc6f57472f3b27f04a19fee58",
+    "output": "sha256:7e7b1e323f89f55ba887a43c8d7a2fab26c13d3921674328897c2909d4ab36aa",
     "text_characters": 303132,
     "text_added": 0,
     "text_invariant": true,
     "blocks": 945,
     "checker": "11221853fa244592",
     "epubcheck": {
-      "errors": 4,
+      "errors": 2,
       "warnings": 0,
       "fatal": 0,
       "codes": {
-        "RSC-005": 2,
         "RSC-007": 1,
         "RSC-020": 1
       },
       "shapes": {
-        "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-cont": 1,
-        "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
         "RSC-007: Referenced resource \"…\" could not be found in the EPUB.": 1,
         "RSC-020: \"…\" is not a valid URL (Backslash (\"…\") used as path segment delimiter)": 1
       }

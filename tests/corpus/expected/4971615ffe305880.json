@@ -1,6 +1,6 @@
 {
   "source": "sha256:4971615ffe305880bd0574e454abdfa3cce5c4333184f3dbf8a8cd7d8316eac5",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 0,
@@ -56,7 +56,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 15,
+      "info": 14,
       "fix": 170,
       "preserved": 25,
       "warn": 2
@@ -74,7 +74,6 @@
       "profile.body-text-found": 1,
       "profile.dead-classes-found": 1,
       "profile.duplicate-classes-found": 1,
-      "profile.paragraphs-consistent": 1,
       "reader.manifest-type-corrected": 12,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,

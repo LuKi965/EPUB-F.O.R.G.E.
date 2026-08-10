@@ -1,6 +1,6 @@
 {
   "source": "sha256:ff928f12d7ce51f38a75cebdbe14ef38ca3ac2d87548875584cb0d334487b195",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "checker": "11221853fa244592",
   "source_epubcheck": {
     "errors": 6,

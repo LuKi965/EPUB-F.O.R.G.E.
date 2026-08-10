@@ -432,6 +432,7 @@ class CorpusPanel(Panel):
             "changed": tr("corpus.status.changed"),
             "new": tr("corpus.status.new"),
             "failed": tr("corpus.status.failed"),
+            "duplicate": tr("corpus.status.duplicate"),
         }
         lines: list[str] = []
         for result in results:

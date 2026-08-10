@@ -26,5 +26,33 @@
   },
   "clean": false,
   "note": "The second shelf, and the first that is not Polish: 67 books out of Sigil, Word and Calibre, 40 Dutch and 22 English, 66 of 67 EPUB 2. It exists because the Polish shelf cannot see what it does not have — the HTML 3.2 `<body>` palette and `<meta name>` without `content` were invisible there and account for 58 errors here. `introduced: 3`, all in container-only mode; the 120 in the modes that rewrite content are overwhelmingly the source's own, and those modes repair 80 of the 125 `RSC-005` that mode carries. Read as ours at first, on a summary line that said \"Ours\" and had not subtracted the source — fixed in the same release. The line that matters is `text_lost: 1`: one book loses 32 characters of spine text in container-only mode, which promises the content files byte for byte and reports `xhtml.untouched` on that very book. Unresolved, and it needs the book."
+ },
+ {
+  "version": "0.2.18",
+  "date": "2026-08-10",
+  "books": 67,
+  "modes": [
+   "minimal",
+   "preserve",
+   "strict"
+  ],
+  "failed": 4,
+  "errors": 54,
+  "introduced": 3,
+  "inherent": 13,
+  "carried": 129,
+  "fatal": 0,
+  "text_lost": 0,
+  "unwritten": 0,
+  "codes": {
+   "CSS-001": 2,
+   "CSS-008": 2,
+   "RSC-005": 44,
+   "RSC-007": 6,
+   "RSC-011": 12,
+   "RSC-020": 2
+  },
+  "clean": false,
+  "note": "**`text_lost: 1 → 0`.** The prediction written into 0.2.18's changelog — that a navigation document which is also a page in the reading order stops being overwritten — is confirmed on the book it was diagnosed from without anybody sending it: `minimal.text_added: -32 → 0`, `text_invariant: false → true`, `+nav.contents-page-kept`. K1 holds in all three modes on this shelf. The `<body>` palette landed too: 110 `RSC-005` became 44, `errors` 120 became 54, and the modes that rewrite content now come out clean on ten books that were not. What is *new* and is ours is `failed: 4`. Four of the 67 files are byte-identical copies of four others, which this shelf has been noted for since it arrived — but a book's working directory was keyed by its content hash, so a copy and its original were handed the same one, and two threads writing one file is exactly the race that directory was created to prevent. Windows said so out loud (`PermissionError` on the replace); Linux would have answered plausibly and wrongly. The same mistake inflates every total in this entry: each of the four signatures was read twice. The books say `errors: 53`, `carried: 122`, `RSC-005 ×42`; the numbers above are what the run recorded and they stay as recorded. Both halves fixed after this run — duplicates are named as duplicates, measured once, counted once."
  }
 ]

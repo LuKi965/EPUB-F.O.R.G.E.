@@ -128,6 +128,65 @@ class TestComparing:
         compare(books, signatures, record=True)
         assert len(list(signatures.glob("*.json"))) == 1
 
+    def test_the_copy_is_named_as_a_copy_and_not_measured_again(self, tmp_path, monkeypatch):
+        """Measuring identical bytes twice cannot say anything the first did not,
+        and cost four books on a real shelf: both copies were handed the same
+        working directory, and on Windows one replaced a file the other still
+        had open. Four `PermissionError`s, and on Linux the same race is silent.
+        """
+        from epubforge import corpus
+
+        books = tmp_path / "lib"
+        (books / "A").mkdir(parents=True)
+        (books / "B").mkdir()
+        make_modern_epub(str(books / "A" / "ta sama.epub"), title="Ta sama")
+        make_modern_epub(str(books / "B" / "ta sama.epub"), title="Ta sama")
+
+        taken = []
+        real = corpus.signature
+        monkeypatch.setattr(
+            corpus, "signature",
+            lambda book, scratch, previous=None: (taken.append(book), real(book, scratch, previous))[1],
+        )
+        results = compare(books, tmp_path / "sig", record=True)
+
+        assert len(taken) == 1
+        assert len(results) == 2, "the shelf holds two files and the report says so"
+        copy = next(r for r in results if r.status == "duplicate")
+        assert copy.ok, "a shelf with a duplicate on it is not a failing shelf"
+        assert "ta sama.epub" in copy.differences[0]
+
+    def test_a_book_filed_twice_is_counted_once_in_the_ledger(self, tmp_path):
+        """`books` counts files, every other total counts books.
+
+        The owner's second shelf holds four exact duplicates and its ledger read
+        129 carried errors where the signatures hold 122: each total was read out
+        of `{identifier}.json`, once per result rather than once per book.
+        """
+        import json
+
+        from epubforge.corpus import Comparison, _log_run
+
+        signatures = tmp_path / "sig"
+        signatures.mkdir()
+        (signatures / ("a" * 16 + ".json")).write_text(json.dumps({
+            "source_epubcheck": {"errors": 0, "codes": {}},
+            "minimal": {"written": True, "epubcheck": {"errors": 0, "codes": {}}},
+            "preserve": {"written": True, "epubcheck": {"errors": 7, "codes": {"RSC-005": 7}}},
+            "strict": {"written": True, "epubcheck": {"errors": 0, "codes": {}}},
+        }), encoding="utf-8")
+        twice = [
+            Comparison("A/ta sama.epub", "a" * 16, "unchanged"),
+            Comparison("B/ta sama.epub", "a" * 16, "duplicate"),
+        ]
+
+        _log_run(signatures, twice)
+        entry = json.loads((tmp_path / "runs.json").read_text(encoding="utf-8"))[-1]
+        assert entry["books"] == 2
+        assert entry["duplicates"] == 1
+        assert entry["errors"] == 7, "seven errors in one book, not fourteen in two"
+        assert entry["codes"] == {"RSC-005": 7}
+
     def test_nothing_is_written_next_to_the_books(self, tmp_path):
         books = shelf(tmp_path / "lib")
         before = {p for p in books.rglob("*")}
