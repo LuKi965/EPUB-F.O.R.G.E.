@@ -41,5 +41,12 @@ version = { attr = "epubforge.__version__" }
 [tool.setuptools.packages.find]
 include = ["epubforge*"]
 
+# The validator driver is Java source that ships with the package and is
+# compiled on first use where there is a JDK — a packaged release compiles it
+# at packaging time instead. Without this line setuptools installs only the
+# .py files and an installed copy silently starts a JVM per book.
+[tool.setuptools.package-data]
+epubforge = ["java/*.java"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

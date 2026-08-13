@@ -38,6 +38,52 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### One JVM instead of one per book
+
+The owner asked whether making EPUBCheck a gate before publication really means
+a JVM per book, and if so whether it can be sped up or replaced. Measured
+rather than guessed, on eight real books between 0.8 MB and 23 MB with the JVM
+options already tuned:
+
+| | |
+| --- | --- |
+| bare JVM start | 37 ms |
+| JVM with EPUBCheck's classes loaded | 125 ms |
+| a 1.8 KB book, end to end | 3602 ms |
+| eight real books, a process each | 35.3 s |
+
+A 1.8 KB book costing three and a half seconds is the whole finding. The cost
+is not the JVM, and it is not the book — it is EPUBCheck compiling its RelaxNG
+and Schematron schemas at every start. **So the answer to (A) is yes and the
+answer is not a flag**: the flags were tuned two releases ago and buy tenths of
+a second. It is not throwing the JVM away between books.
+
+Those eight books through one process held open: **8.4 s**, the first book
+paying 4.0 s and the rest 0.2–1.7 s each. This suite went from 153 s to 100 s
+on the same change.
+
+As for (B), a non-JVM EPUBCheck: there isn't one. EPUBCheck is the reference
+implementation the specification's own test suite runs against, the alternatives
+are wrappers around this same jar, and a second implementation of the rules
+would be this program marking its own homework. The question stops mattering at
+8.4 s.
+
+What the driver does **not** do is check anything itself. It calls EPUBCheck's
+own entry point with the argv the command line would have used, so the JSON is
+written by EPUBCheck's code and the fast answer is the same answer — held to
+that by tests on clean books, broken books and damaged archives.
+
+Every way it can fail ends in a fresh process for that one book: no driver
+class, no compiler, a process that died, an answer that is not a number,
+silence past the timeout, or the checker throwing. And it now notices when the
+validator changes underneath it — a live process used to answer from the jar it
+was started with for the rest of the session, so pointing `EPUBCHECK_JAR` at a
+new release would have changed nothing and said nothing.
+
+The checkbox is in the diagnostics panel and `--separate-validator-process` is
+on the command line, because "turn the fast path off" is the first thing worth
+trying when a verdict looks wrong.
+
 ## 0.2.22 — alpha — 2026-08-13
 
 ### The build that reported success while installing nothing

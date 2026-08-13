@@ -151,6 +151,31 @@ def stage_epubcheck(archive: Path | None) -> None:
             shutil.copy2(item, destination)
     shutil.rmtree(raw)
     log(f"epubcheck staged ({sum(f.stat().st_size for f in target.rglob('*') if f.is_file()) >> 20} MiB)")
+    stage_validator_driver(target)
+
+
+def stage_validator_driver(target: Path) -> None:
+    """Compile the one class that lets a JVM validate more than one book.
+
+    Here rather than at runtime, because the bundled runtime is a jlink image
+    and a jlink image has no compiler. Measured on eight real books: 35.3 s
+    with a JVM per book, 8.4 s through one held open. Without this class the
+    packaged build still validates — it just pays the JVM every time, which is
+    the behaviour it had before and not a broken build.
+    """
+    source = PROJECT_ROOT / "epubforge" / "java" / "ForgeValidator.java"
+    if not source.is_file():
+        log("no validator driver source; the build will start a JVM per book")
+        return
+    try:
+        javac = find_tool("javac")
+    except SystemExit:
+        log("no javac; the build will start a JVM per book")
+        return
+    run([javac, "-cp", str(target / "epubcheck.jar"), "-d", str(target), str(source)])
+    if not (target / "ForgeValidator.class").is_file():
+        raise SystemExit("javac reported success and produced no class")
+    log("validator driver compiled")
 
 
 def jlink_compression(jlink: str) -> str:

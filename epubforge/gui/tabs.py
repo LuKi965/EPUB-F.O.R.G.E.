@@ -380,6 +380,16 @@ class DiagnosticsPanel(Panel):
         self.fidelity_choice.setToolTip(tr("diagnostics.fidelity.tip"))
         self.layout_.addWidget(self.fidelity_choice)
 
+        # Reachable from the window, because everything in this program is —
+        # including the switch that turns an optimisation off. "Is it the new
+        # fast path?" is the first question worth asking about a verdict that
+        # surprises somebody, and it should not require an environment variable
+        # and a terminal to answer.
+        self.shared_validator = QCheckBox(tr("diagnostics.shared"))
+        self.shared_validator.setToolTip(tr("diagnostics.shared.tip"))
+        self.shared_validator.setChecked(True)
+        self.layout_.addWidget(self.shared_validator)
+
         for widget in (self.inspect_choice, self.validate_choice, self.fidelity_choice):
             widget.toggled.connect(lambda _checked: self.invalidate())
         self.folder.textChanged.connect(lambda _text: self.invalidate())
@@ -419,6 +429,15 @@ class DiagnosticsPanel(Panel):
         if not books:
             QMessageBox.information(self, tr("common.pickfolder"), tr("common.nofolder"))
             return
+
+        from .. import validate as validate_module
+
+        os.environ[validate_module.ENV_SHARED] = (
+            "1" if self.shared_validator.isChecked() else "0"
+        )
+        if not self.shared_validator.isChecked():
+            validate_module.SHARED.stop()
+
         if self.inspect_choice.isChecked():
             answer = self._describe
         elif self.validate_choice.isChecked():
@@ -491,17 +510,25 @@ class DiagnosticsPanel(Panel):
     @staticmethod
     def _validate(book: str) -> list[str]:
         from ..report import Report
-        from ..validate import validate
+        from ..validate import SHARED, validate
 
         result = validate(book, Report(source=book))
         if not result.available:
             return ["  EPUBCheck nie jest dostępny"]
-        if result.clean:
-            return [f"  poprawny — ostrzeżeń: {result.warnings}"]
-        return [
-            f"  NIEPOPRAWNY — błędów krytycznych: {result.fatal}, błędów: {result.errors}",
-            *(f"    {message}" for message in result.messages[:40]),
-        ]
+        lines = (
+            [f"  poprawny — ostrzeżeń: {result.warnings}"]
+            if result.clean
+            else [
+                f"  NIEPOPRAWNY — błędów krytycznych: {result.fatal}, błędów: {result.errors}",
+                *(f"    {message}" for message in result.messages[:40]),
+            ]
+        )
+        # Said out loud rather than kept inside. A batch that quietly went back
+        # to a JVM per book is four times slower for a reason somebody would
+        # otherwise have to guess at.
+        if SHARED.reason:
+            lines.append(f"  (osobny proces walidatora: {SHARED.reason})")
+        return lines
 
     def handle(self, result) -> None:
         self.output.setPlainText(result or tr("diagnostics.empty"))

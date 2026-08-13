@@ -164,6 +164,19 @@ PL: dict[str, str] = {
         "„Poprawny plik” i „ta sama książka” to dwa różne pytania. To jest to "
         "drugie."
     ),
+    "diagnostics.shared": "Jeden proces walidatora na całą partię",
+    "diagnostics.shared.tip": (
+        "EPUBCheck kompiluje swoje schematy przy każdym starcie i to trwa około "
+        "trzech i pół sekundy — niezależnie od tego, czy książka ma 2 kB czy "
+        "23 MB. Osobny proces na książkę płaci ten koszt za każdym razem.\n\n"
+        "Zmierzone na ośmiu prawdziwych książkach: 35,3 s przy procesie na "
+        "książkę, 8,4 s przy jednym utrzymywanym. Odpowiedzi są identyczne — "
+        "sterownik nie sprawdza niczego sam, tylko woła EPUBCheck tak samo jak "
+        "wiersz poleceń.\n\n"
+        "Odznacz, jeżeli chcesz porównać wynik z zachowaniem sprzed tej zmiany. "
+        "Gdy cokolwiek pójdzie nie tak, program i tak wraca do osobnego procesu "
+        "i mówi w raporcie dlaczego."
+    ),
     "diagnostics.files": "Plik lub folder:",
     "diagnostics.mode": "Pytanie:",
     "diagnostics.inspect": "Co jest w tym pliku",
@@ -695,6 +708,18 @@ EN: dict[str, str] = {
         "order.\n\n"
         "\"A valid file\" and \"the same book\" are two different questions. "
         "This is the second one."
+    ),
+    "diagnostics.shared": "One validator process for the whole batch",
+    "diagnostics.shared.tip": (
+        "EPUBCheck compiles its schemas every time it starts, and that takes "
+        "about three and a half seconds whether the book is 2 kB or 23 MB. A "
+        "process per book pays that cost again for every book.\n\n"
+        "Measured on eight real books: 35.3 s with a process per book, 8.4 s "
+        "through one held open. The answers are identical — the driver checks "
+        "nothing itself, it calls EPUBCheck exactly as the command line does.\n\n"
+        "Uncheck it to compare against the behaviour from before this change. "
+        "If anything goes wrong the program falls back to a separate process "
+        "anyway, and says in the report why."
     ),
     "diagnostics.files": "File or folder:",
     "diagnostics.mode": "Question:",

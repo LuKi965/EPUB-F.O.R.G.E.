@@ -18,6 +18,7 @@ from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
 from .report import Level, batch_to_json, Report
+from . import validate as validate_module
 from .validate import validate
 
 LEVEL_STYLE = {
@@ -708,6 +709,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="Rebuild EPUB files into clean EPUB 3.3 while preserving their appearance.",
     )
     parser.add_argument("--version", action="version", version=f"epub-forge {version_string()}")
+    parser.add_argument(
+        "--separate-validator-process",
+        action="store_true",
+        help=(
+            "start a new JVM for every book instead of holding one open. "
+            "EPUBCheck spends about three and a half seconds compiling its "
+            "schemas at every start, so this costs roughly four times the wall "
+            "clock on a batch; it is here because 'turn the fast path off' is "
+            "the first thing worth trying when a verdict looks wrong"
+        ),
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build = subparsers.add_parser("build", help="rebuild one or more EPUB files")
@@ -984,6 +996,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "separate_validator_process", False):
+        os.environ[validate_module.ENV_SHARED] = "0"
     return args.func(args)
 
 

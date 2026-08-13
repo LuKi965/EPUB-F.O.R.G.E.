@@ -7,13 +7,16 @@ it, just unverified.
 
 from __future__ import annotations
 
+import atexit
 import json
 import functools
 import os
+import pathlib
 import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -21,6 +24,12 @@ from . import resources
 from .report import Level, Report
 
 ENV_JAR = "EPUBCHECK_JAR"
+
+#: Set to `0` to make every validation start its own JVM, the way it used to.
+#: Kept because "turn the clever thing off" is the first question worth asking
+#: about any answer that disagrees with the command line's, and the checkbox in
+#: the diagnostics panel writes it.
+ENV_SHARED = "EPUBFORGE_SHARED_VALIDATOR"
 SEARCH_PATHS = (
     os.path.expanduser("~/.cache/epubforge/epubcheck/epubcheck.jar"),
     "/usr/share/java/epubcheck.jar",
@@ -184,6 +193,249 @@ def _no_console() -> dict:
     return options
 
 
+# --------------------------------------------------------------------------
+# One JVM instead of one per book
+# --------------------------------------------------------------------------
+#
+# Measured here, eight real books between 0.8 MB and 23 MB, JVM options already
+# tuned: **4415 ms per book**, and a 1.8 KB book costs 3602 ms of that. The cost
+# is neither the JVM (37 ms to start, 125 ms with EPUBCheck's classes loaded)
+# nor the book — it is EPUBCheck compiling its RelaxNG and Schematron schemas,
+# about three and a half seconds, paid again by every new process.
+#
+# Through one JVM held open: 4030 ms for the first book, 200–1700 ms for each
+# one after. The same eight books go from 35.3 s to 7.5 s.
+#
+# One process, one book at a time, on purpose. Four one-shot JVMs in parallel
+# came to about 9 s for those eight books, so a single warm JVM already wins
+# without spending four cores; several warm JVMs would each pay the warm-up.
+#
+# The rule this is built to: a speed-up must never become a new way to fail.
+# Every path out of here that is not a clean answer returns `None`, and `None`
+# means "start a process for this one book" — which is exactly what the program
+# did before, still works, and is still what the tests compare against.
+
+
+def _driver_source() -> pathlib.Path:
+    return pathlib.Path(__file__).with_name("java") / "ForgeValidator.java"
+
+
+def _driver_class() -> pathlib.Path | None:
+    """The compiled driver, bundled or built once into the cache.
+
+    A packaged build has no compiler — the bundled runtime is a jlink image —
+    so the release compiles this at packaging time and ships the class beside
+    `epubcheck.jar`. Running from a source checkout there is usually a JDK
+    around, and a one-off `javac` into the cache costs a second, once.
+    """
+    root = resources.bundle_root()
+    if root is not None:
+        bundled = root / "epubcheck" / "ForgeValidator.class"
+        if bundled.is_file():
+            return bundled
+
+    source = _driver_source()
+    if not source.is_file():
+        return None
+    cached = pathlib.Path(
+        os.path.expanduser("~/.cache/epubforge/driver")
+    ) / "ForgeValidator.class"
+    if cached.is_file() and cached.stat().st_mtime >= source.stat().st_mtime:
+        return cached
+
+    javac = shutil.which("javac")
+    jar = _jar_of(find_epubcheck())
+    if javac is None or jar is None:
+        return None
+    try:
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        built = subprocess.run(
+            [javac, "-cp", jar, "-d", str(cached.parent), str(source)],
+            capture_output=True,
+            timeout=300,
+            **_no_console(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return cached if built.returncode == 0 and cached.is_file() else None
+
+
+def _jar_of(command: list[str] | None) -> str | None:
+    """The jar out of a `java … -jar <jar>` command, if that is what it is."""
+    if not command or "-jar" not in command:
+        return None
+    index = command.index("-jar")
+    return command[index + 1] if index + 1 < len(command) else None
+
+
+class SharedValidator:
+    """A JVM kept alive across books, with the old path one failure away.
+
+    Not a pool and not a server: one process, started on the first book that
+    needs it, serialised by a lock because it validates one book at a time.
+    """
+
+    def __init__(self) -> None:
+        self._process: subprocess.Popen | None = None
+        #: The command the live process was started with. Checked before every
+        #: book, because a process that outlives the answer to "which validator
+        #: is this" is a process quietly giving the old jar's verdict: point
+        #: `EPUBCHECK_JAR` at a different release and nothing would have
+        #: noticed. Found by a test that stubbed the lookup and got a real
+        #: EPUBCheck run — the stub was read at start-up and never again.
+        self._started_with: list[str] | None = None
+        self._lock = threading.Lock()
+        #: Why it is not being used, if it is not. Shown in diagnostics rather
+        #: than kept to itself — "it is slow again and nobody said why" is the
+        #: failure mode of every silent fallback.
+        self.reason = ""
+
+    def enabled(self) -> bool:
+        return os.environ.get(ENV_SHARED, "1") not in ("0", "no", "false")
+
+    def _command(self) -> list[str] | None:
+        command = find_epubcheck()
+        jar = _jar_of(command)
+        if command is None or jar is None:
+            self.reason = "EPUBCheck is not a jar this can drive"
+            return None
+        driver = _driver_class()
+        if driver is None:
+            self.reason = "the driver class is not built and no javac was found"
+            return None
+        separator = ";" if os.name == "nt" else ":"
+        java = command[0]
+        return [
+            java,
+            *accepted_tuning(java),
+            "-cp",
+            f"{jar}{separator}{driver.parent}",
+            "ForgeValidator",
+        ]
+
+    def _start(self, command: list[str] | None) -> subprocess.Popen | None:
+        if command is None:
+            return None
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                **_no_console(),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            self.reason = f"{type(exc).__name__}: {exc}"
+            return None
+        # It says `ready` when its classes are loaded. Waiting for that here
+        # means the first book's timeout is a timeout on the book rather than
+        # on a JVM that had not finished starting.
+        ready = _read_line(process, timeout=180)
+        if ready != "ready":
+            self.reason = "the driver did not come up"
+            _kill(process)
+            return None
+        self.reason = ""
+        return process
+
+    def check(self, epub_path: str, json_path: str, timeout: float) -> int | None:
+        """EPUBCheck's exit code, or ``None`` — meaning: do it the old way."""
+        if not self.enabled():
+            self.reason = f"{ENV_SHARED} is off"
+            return None
+        with self._lock:
+            if self._process is not None and self._process.poll() is not None:
+                self._process = None  # it died between books
+            if self._process is not None and self._command() != self._started_with:
+                self.reason = "the validator changed underneath it"
+                self._drop()
+            if self._process is None:
+                self._started_with = self._command()
+                self._process = self._start(self._started_with)
+                if self._process is None:
+                    return None
+            payload = "\0".join([epub_path, "--json", json_path, "--quiet"]).encode("utf-8")
+            try:
+                assert self._process.stdin is not None
+                self._process.stdin.write(f"{len(payload)}\n".encode("ascii") + payload)
+                self._process.stdin.flush()
+            except (OSError, ValueError, AssertionError):
+                self.reason = "the driver stopped listening"
+                self._drop()
+                return None
+            answer = _read_line(self._process, timeout)
+            if answer is None:
+                # Silence past the timeout leaves the pipe in an unknown state:
+                # the next answer to arrive would belong to this book and be
+                # read as the next one's. Killing it is the only honest move.
+                self.reason = f"no answer within {timeout:.0f}s"
+                self._drop()
+                return None
+            try:
+                code = int(answer)
+            except ValueError:
+                self.reason = f"unreadable answer: {answer[:40]!r}"
+                self._drop()
+                return None
+            # -1 is the driver saying the checker threw. That is not an answer
+            # about the book, so the book gets its own process.
+            return None if code < 0 else code
+
+    def _drop(self) -> None:
+        if self._process is not None:
+            _kill(self._process)
+            self._process = None
+
+    def stop(self) -> None:
+        with self._lock:
+            if self._process is None:
+                return
+            try:
+                assert self._process.stdin is not None
+                self._process.stdin.write(b"bye\n")
+                self._process.stdin.flush()
+                self._process.wait(timeout=10)
+            except (OSError, ValueError, AssertionError, subprocess.TimeoutExpired):
+                _kill(self._process)
+            self._process = None
+
+
+def _read_line(process: subprocess.Popen, timeout: float) -> str | None:
+    """One line from the process, or ``None`` if it does not arrive in time.
+
+    A blocking `readline` on a pipe has no timeout on Windows, and a validator
+    that hangs would hang the window with it. A thread doing the blocking read
+    is the portable answer; when it times out the process is killed by the
+    caller, which is what frees the thread.
+    """
+    box: list[str] = []
+
+    def read() -> None:
+        assert process.stdout is not None
+        line = process.stdout.readline()
+        if line:
+            box.append(line.decode("utf-8", "replace").strip())
+
+    worker = threading.Thread(target=read, daemon=True)
+    worker.start()
+    worker.join(timeout)
+    return box[0] if box else None
+
+
+def _kill(process: subprocess.Popen) -> None:
+    try:
+        process.kill()
+        process.wait(timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+#: The one shared by everything in this process.
+SHARED = SharedValidator()
+
+atexit.register(SHARED.stop)
+
+
 #: How many distinct message shapes one verdict may record.
 MAX_SHAPES = 12
 
@@ -258,13 +510,16 @@ def validate(
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
         json_path = handle.name
     try:
-        subprocess.run(
-            command + [epub_path, "--json", json_path, "--quiet"],
-            capture_output=True,
-            timeout=300,
-            check=False,
-            **_no_console(),
-        )
+        # The warm JVM first; `None` from it means "this one goes the old way",
+        # and the old way is the line below, unchanged.
+        if SHARED.check(epub_path, json_path, timeout=300) is None:
+            subprocess.run(
+                command + [epub_path, "--json", json_path, "--quiet"],
+                capture_output=True,
+                timeout=300,
+                check=False,
+                **_no_console(),
+            )
         with open(json_path, encoding="utf-8") as handle:
             payload = json.load(handle)
     except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
