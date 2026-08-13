@@ -12,11 +12,13 @@ no separate EPUBCheck install on the target machine.
 from __future__ import annotations
 
 import argparse
+import http.client
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -78,6 +80,37 @@ def find_tool(name: str) -> str:
     )
 
 
+def _download(url: str, target: Path, attempts: int = 4) -> None:
+    """Fetch *url* to *target*, retrying a connection that simply drops.
+
+    The release build for 0.2.20 died here: `http.client.RemoteDisconnected:
+    Remote end closed connection without response`, on the first byte, after the
+    whole test suite had passed on the runner. Nothing about the release was
+    wrong — a CDN closed a socket, and a release with seven audit findings in it
+    sat unbuilt because of it.
+
+    Written to the final name only once the bytes are all here, so a half
+    download cannot be mistaken for a cached archive on the next run: the file's
+    existence is what tells this function to skip the fetch.
+    """
+    import time
+
+    staging = target.with_suffix(target.suffix + ".part")
+    for attempt in range(1, attempts + 1):
+        try:
+            log(f"downloading {url}" + (f" (attempt {attempt})" if attempt > 1 else ""))
+            urllib.request.urlretrieve(url, staging)
+            staging.replace(target)
+            return
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
+            staging.unlink(missing_ok=True)
+            if attempt == attempts:
+                raise SystemExit(f"could not download {url}: {exc}") from exc
+            pause = 2**attempt
+            log(f"  {type(exc).__name__}: {exc} — retrying in {pause}s")
+            time.sleep(pause)
+
+
 def stage_epubcheck(archive: Path | None) -> None:
     target = BUNDLE_DIR / "epubcheck"
     if target.exists():
@@ -87,8 +120,7 @@ def stage_epubcheck(archive: Path | None) -> None:
     if archive is None:
         archive = BUNDLE_DIR / f"epubcheck-{EPUBCHECK_VERSION}.zip"
         if not archive.is_file():
-            log(f"downloading {EPUBCHECK_URL}")
-            urllib.request.urlretrieve(EPUBCHECK_URL, archive)
+            _download(EPUBCHECK_URL, archive)
     log(f"extracting {archive.name}")
 
     with zipfile.ZipFile(archive) as handle:
