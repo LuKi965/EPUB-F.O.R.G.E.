@@ -918,6 +918,60 @@ def _parse_guide(package, opf_path: str) -> list[Landmark]:
     return landmarks
 
 
+#: What becomes of each file OCF reserves a name for in `META-INF/`.
+#:
+#: All of them used to be skipped by one `startswith("META-INF/")`, and skipped
+#: is not a decision — it is the absence of one. A book carrying rights metadata
+#: or an organisation's signature came back without them and without a word,
+#: which is a compliance problem dressed as tidiness.
+#:
+#: * `carry` — copied through untouched. `rights.xml` and `metadata.xml` say
+#:   things about the publication that the rebuild does not change and has no
+#:   business editing.
+#: * `invalidated` — dropped, loudly. A signature is computed over exact bytes,
+#:   and this program rewrites the package document even in the mode that leaves
+#:   content byte for byte. There is no way to keep one valid without the
+#:   signer's private key, which we do not have and should not want. Leaving it
+#:   in place is the one genuinely bad option: a tool that checks it reports not
+#:   "unsigned" but *the signature does not match* — true, and reading as an
+#:   accusation of tampering where there was a repair. The owner chose "remove,
+#:   but say so out loud" (2026-08-13) after asking what the thing was.
+#: * `rebuilt` — this program writes its own; the source's is not carried.
+#: * `manifest.xml` is OCF's own optional inventory of the container. Ours would
+#:   be wrong the moment anything is renamed, and a stale one is worse than
+#:   none, so it goes the same way as the signature: named, then dropped.
+META_INF_POLICY = {
+    "META-INF/container.xml": "rebuilt",
+    "META-INF/encryption.xml": "rebuilt",
+    "META-INF/rights.xml": "carry",
+    "META-INF/metadata.xml": "carry",
+    "META-INF/signatures.xml": "invalidated",
+    "META-INF/manifest.xml": "invalidated",
+}
+
+
+def _carry_meta_inf(entries: dict[str, bytes], book: Book, report: Report) -> None:
+    """Give every reserved `META-INF` file a decision, and say what it was."""
+    for name, data in sorted(entries.items()):
+        if not name.startswith("META-INF/") or name.endswith("/"):
+            continue
+        decision = META_INF_POLICY.get(name)
+        if decision == "rebuilt":
+            continue
+        if decision == "carry":
+            book.container_files[name] = data
+            report.add("reader", Level.INFO, "reader.meta-inf-carried", location=name)
+        elif decision == "invalidated":
+            report.add("reader", Level.WARN, "reader.meta-inf-invalidated", location=name)
+        else:
+            # Not a name OCF reserves — somebody's own file, in a directory
+            # reserved for the format. Carried, because it is data this program
+            # did not put there and cannot read: the one thing worse than
+            # keeping it is deciding on its behalf that it did not matter.
+            book.container_files[name] = data
+            report.add("reader", Level.INFO, "reader.meta-inf-unknown-carried", location=name)
+
+
 def _parse_encryption(entries: dict[str, bytes], book: Book, report: Report) -> None:
     data = entries.get("META-INF/encryption.xml")
     if not data:
@@ -1047,6 +1101,8 @@ def read_epub(source: str, report: Report) -> Book:
 
     book.cover_path = _detect_cover(package, by_id, book)
     _parse_encryption(entries, book, report)
+
+    _carry_meta_inf(entries, book, report)
 
     manifested = set(book.resources)
     skipped_prefixes = ("META-INF/",)
