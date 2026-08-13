@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass, replace
 from enum import Enum
 
+from . import invariants
 from .model import Book
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -226,6 +227,32 @@ def rebuild(
     # it, and it cannot.
     if os.path.abspath(destination) == os.path.abspath(source):
         report.add("writer", Level.ERROR, "package.source-protected", location=source)
+        return Result(report, book, None, Status.BLOCKED)
+
+    # The commit point. Everything above may mutate the book; from here it is
+    # either published or it is not, and nothing in between reaches a name a
+    # person will open. The archive verifier inside `write_epub` asks whether
+    # the ZIP survived the trip to disk; this asks whether the book makes sense
+    # — a question nothing had been asking.
+    broken = invariants.check(book)
+    if broken:
+        # One finding, not one per violation, and the catalogue's own tests
+        # taught me that within the minute. A rule id passed as a variable is an
+        # id nothing can check — the test that forbids it exists because a
+        # tagging pass once spliced one into a concatenation and two releases
+        # went out reporting `compat.appliedapple, kindle`. Nine ids whose whole
+        # Polish translation was a copy of the English `{detail}` were not nine
+        # rules; they were one rule with nine shapes, and the shapes belong in
+        # the values.
+        report.add(
+            "writer",
+            Level.ERROR,
+            "package.invariant-failed",
+            values={
+                "count": len(broken),
+                "detail": "; ".join(str(violation) for violation in broken[:3]),
+            },
+        )
         return Result(report, book, None, Status.BLOCKED)
 
     parent = os.path.dirname(os.path.abspath(destination))
