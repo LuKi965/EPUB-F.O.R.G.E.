@@ -38,6 +38,90 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.22 — alpha — 2026-08-13
+
+The release that closes the 0.2.19 engineering audit. Thirty findings, every one
+with a command that decides whether it is done — and, in the last stretch, the
+rest of the audit: the compliance grades, the fidelity model, the security
+budgets, the test-gap matrix, the fourteen system invariants and the roadmap.
+
+### A link this program cannot resolve is not a link it may rewrite
+
+**F-010.** A `noteref` to `przypisy.xhtml#fn-17` whose fragment was dropped
+points at `przypisy.xhtml`, so tapping footnote seventeen lands on footnote one.
+Not a broken link a reader can see — a *working* link to the wrong place, made
+by this tool and reported as a repair.
+
+Three states now, and no others: `PRESERVED`, `REPAIRED` — which requires a
+mapping this rebuild produced and can point at — and `UNRESOLVED`. Neither mode
+touches the last one. What the modes disagree about is the result: preserve
+publishes the book with the publisher's own broken link and says so, strict
+refuses to publish it.
+
+And where somebody is at the window, the program **asks** rather than guessing.
+The dialog shows the link, its own text — for a footnote, the number the reader
+sees — and the anchors the target document really has. One answer can cover the
+whole book. The same question is available at a terminal behind `--ask`.
+
+### What the rebuild was losing without saying so
+
+- **A navigation section this program has no rule for** was regenerated into
+  nothing. A list of illustrations, a list of tables: entries a publisher wrote,
+  gone from the output. Carried now, with `epub:type`, `hidden` and `aria-label`
+  intact.
+- **293 of 294 page links, on every Project Gutenberg title.** They are written
+  as `epub:type="landmarks"` with every entry typed `normal`, and landmarks were
+  deduplicated by type alone. Found by the fidelity harness on the third book it
+  was pointed at; no validator has an opinion about a book that came out with
+  three hundred fewer links in it.
+- **A file called `chapter.bak`**, deleted on the strength of its extension,
+  with no test of whether the book used it and no switch to turn it off.
+- **`<?xml-stylesheet?>`**, removed with nothing put in its place, so a book
+  styled the old way came out unstyled.
+- **`linearGradient` spelled `lineargradient`** after an HTML recovery — SVG is
+  case-sensitive and HTML is not, so a gradient rendered as flat colour in a
+  file that validates.
+- **A container offering two renditions** produced one publication plus somebody
+  else's chapters. Each rendition is now rebuilt into its own file.
+- **Metadata refinements with no field in the model**, and `<link>` inside
+  `<metadata>`. Carried, and a refinement is re-pointed at whatever id the
+  rebuilt package gives that node.
+
+### Proof rather than assertion
+
+The **fidelity harness** compares a book with its rebuild: every word of the
+text, the count of headings and pictures and paragraphs, every image and font
+byte for byte, the reading order, and the declarations that reach each element.
+Reachable as `epub-forge fidelity` and as a third question in the window's
+Diagnostics tab. It found the Gutenberg loss above in its first hour.
+
+**Fuzz and property tests** — sixty deliberately damaged archives per run,
+asserting that the program does not crash, does not leave a file on disk while
+reporting failure, answers inside a minute, and can read back whatever it
+writes. They found two crashes in their first minute: a corrupt deflate stream
+and an empty entry, both of which escaped as exceptions and would have ended a
+batch.
+
+**A reproducible mode**, because a mechanism nobody can ask for is a thing the
+author knows rather than a feature. Two rebuilds of one book are byte-identical:
+the modification date comes from the source, and a book with no identifier gets
+one derived from its content instead of a fresh `uuid4` — which matters, because
+font obfuscation is keyed on the publication identifier.
+
+**A stage is held to what it says about itself.** One that declares it only
+measures the book is fingerprinted before and after; if it changed anything, the
+run is blocked. And a document is parsed once per version of its bytes rather
+than five times.
+
+### Smaller, and worth knowing
+
+- A ZIP entry name is a name and an `href` is a URL. Percent-decoding the entry
+  name changed which file a path meant — `a%2Fb.xhtml` became `a/b.xhtml`, a
+  file moved into a directory.
+- The dependency lock, with hashes, generated on the runner that builds.
+- The output is read back by this program's own reader before it is called done.
+
+
 ## 0.2.21 — alpha — 2026-08-13
 
 Four more of the audit's findings, and a plan in the private notes with a clause
