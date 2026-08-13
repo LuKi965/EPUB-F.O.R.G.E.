@@ -487,13 +487,56 @@ class ContentStage(Stage):
                     values={"encoding": parsed.encoding_mended},
                     location=resource.path,
                 )
-            if mode == "html":
+            if parsed.stylesheet_links:
+                added = self._carry_stylesheet_pis(root, parsed.stylesheet_links)
+                if added:
+                    # A construct that carries visual meaning is translated, not
+                    # removed — the project's own rule, and this was the one
+                    # place quietly breaking it.
+                    self.note(
+                        ctx,
+                        Level.FIX,
+                        "xhtml.stylesheet-pi-converted",
+                        values={"count": added, "names": ", ".join(parsed.stylesheet_links[:3])},
+                        location=resource.path,
+                    )
+            if parsed.svg_case_restored:
                 self.note(
                     ctx,
                     Level.FIX,
-                    "xhtml.recovered-with-html-parser",
+                    "xhtml.svg-case-restored",
+                    values={"count": parsed.svg_case_restored},
                     location=resource.path,
                 )
+            if mode == "html":
+                # Two documents can end up here and they are not the same event.
+                #
+                # An EPUB 2 book may legitimately carry `text/html`, and an HTML
+                # parser is then simply *the right parser* — nothing was
+                # recovered from anything, and calling that a warning would put
+                # one on almost every legacy book this tool exists to rebuild.
+                #
+                # A document that claims to be XHTML and does not parse as XML
+                # is the audit's F-004: what comes back is a reconstruction, not
+                # a repair with a known result, and this program cannot show
+                # that it means what the publisher wrote. WARN, and the status
+                # of the whole rebuild follows — a book with one of these does
+                # not come back reading a flat "succeeded".
+                if self._declared_html(resource):
+                    self.note(
+                        ctx,
+                        Level.FIX,
+                        "xhtml.html-source-parsed",
+                        location=resource.path,
+                    )
+                else:
+                    ctx.recovered.append(resource.path)
+                    self.note(
+                        ctx,
+                        Level.WARN,
+                        "xhtml.recovered-with-html-parser",
+                        location=resource.path,
+                    )
             elif mode == "xml-entities":
                 self.note(ctx, Level.FIX, "xhtml.entities-rewritten", location=resource.path)
 
@@ -808,6 +851,46 @@ class ContentStage(Stage):
             # between container-only mode and a conformant EPUB 3, there was no
             # record that it was already being done three feet away.
             self._titles_filled += 1
+
+    @staticmethod
+    def _declared_html(resource) -> bool:
+        """Did the source say this document was HTML rather than XHTML?
+
+        EPUB 2 allowed `text/html`, and half the books this tool is pointed at
+        are EPUB 2. For those an HTML parse is the correct reading of the file,
+        not a rescue from a broken one.
+        """
+        path = (resource.original_path or resource.path).lower()
+        return resource.media_type == "text/html" or path.endswith((".html", ".htm"))
+
+    def _carry_stylesheet_pis(self, root, hrefs: list[str]) -> int:
+        """Turn `<?xml-stylesheet href="…"?>` into `<link rel="stylesheet">`.
+
+        The PI is how an XHTML document written before EPUB 3 links a
+        stylesheet. EPUB 3 does not allow it, so it goes — and it was going
+        without anything taking its place, which means the book came out
+        unstyled and the report said nothing. The `<link>` says the same thing
+        in the form this specification uses, and the href is rewritten with
+        every other reference in the document afterwards.
+        """
+        head = root.find(xhtml.qname("head"))
+        if head is None:
+            return 0
+        existing = {
+            (element.get("href") or "").strip()
+            for element in head.iter(xhtml.qname("link"))
+        }
+        added = 0
+        for href in hrefs:
+            if not href or href in existing or paths.is_remote(href):
+                continue
+            link = etree.SubElement(head, xhtml.qname("link"))
+            link.set("rel", "stylesheet")
+            link.set("type", "text/css")
+            link.set("href", href)
+            existing.add(href)
+            added += 1
+        return added
 
     def _derive_title(self, root, resource) -> str:
         for level in ("h1", "h2", "h3", "h4", "title"):

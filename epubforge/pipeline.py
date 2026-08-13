@@ -361,7 +361,9 @@ def rebuild(
     # would refuse a large part of every shelf — but a rebuild that hands back a
     # flat "succeeded" while a footnote marker leads nowhere has told the person
     # something untrue. The file is written; the status says there is something
-    # in the report worth reading.
-    clean = report.ok and not ctx.unresolved
+    # in the report worth reading. The same goes for a document that only
+    # parsed after a tag-soup recovery: what came out of that is a
+    # reconstruction, and this program cannot show it means what went in.
+    clean = report.ok and not ctx.unresolved and not ctx.recovered
     status = Status.SUCCEEDED if clean else Status.SUCCEEDED_WITH_PROBLEMS
     return Result(report, book, destination, status)

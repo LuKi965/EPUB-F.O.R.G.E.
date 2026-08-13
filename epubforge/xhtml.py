@@ -46,13 +46,89 @@ _SVG_TAGS = {
     "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text",
     "tspan", "defs", "use", "image", "symbol", "marker", "clippath", "mask", "pattern",
     "lineargradient", "radialgradient", "stop", "filter", "desc", "title", "switch",
-    "foreignobject", "animate", "animatetransform",
+    "foreignobject", "animate", "animatetransform", "textpath", "animatemotion",
+    "feblend", "fecolormatrix", "fecomponenttransfer", "fecomposite",
+    "feconvolvematrix", "fediffuselighting", "fedisplacementmap", "fedistantlight",
+    "fedropshadow", "feflood", "fefunca", "fefuncb", "fefuncg", "fefuncr",
+    "fegaussianblur", "feimage", "femerge", "femergenode", "femorphology", "feoffset",
+    "fepointlight", "fespecularlighting", "fespotlight", "fetile", "feturbulence",
 }
+
+#: SVG names that are not all-lowercase, keyed by what an HTML parser turns
+#: them into.
+#:
+#: The audit's F-004, and the reason it is a finding rather than a curiosity:
+#: **SVG is case-sensitive and HTML is not.** A document that has to be
+#: recovered by the HTML parser comes back with `linearGradient` spelled
+#: `lineargradient`, which is not the SVG element of that name — it is nothing,
+#: and the shape it filled draws in flat black or not at all. The same for
+#: `viewBox`, without which the drawing has no coordinate system to scale into.
+#:
+#: Restoring the spelling is a deterministic repair: there is exactly one
+#: correct capitalisation of each of these names, and it is written down here.
+#: Nothing is guessed and nothing outside the table is touched.
+_SVG_CAMEL_ELEMENTS = {
+    name.lower(): name
+    for name in (
+        "linearGradient", "radialGradient", "clipPath", "foreignObject", "textPath",
+        "animateTransform", "animateMotion", "feBlend", "feColorMatrix",
+        "feComponentTransfer", "feComposite", "feConvolveMatrix", "feDiffuseLighting",
+        "feDisplacementMap", "feDistantLight", "feDropShadow", "feFlood", "feFuncA",
+        "feFuncB", "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge",
+        "feMergeNode", "feMorphology", "feOffset", "fePointLight",
+        "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence",
+    )
+}
+
+_SVG_CAMEL_ATTRIBUTES = {
+    name.lower(): name
+    for name in (
+        "viewBox", "preserveAspectRatio", "gradientUnits", "gradientTransform",
+        "spreadMethod", "patternUnits", "patternContentUnits", "patternTransform",
+        "clipPathUnits", "maskUnits", "maskContentUnits", "markerUnits", "markerWidth",
+        "markerHeight", "refX", "refY", "textLength", "lengthAdjust", "startOffset",
+        "baseFrequency", "numOctaves", "stdDeviation", "kernelMatrix", "pathLength",
+        "diffuseConstant", "specularConstant", "specularExponent", "surfaceScale",
+        "requiredFeatures", "requiredExtensions", "systemLanguage", "attributeName",
+        "attributeType", "repeatCount", "repeatDur", "keyPoints", "keyTimes",
+        "keySplines", "calcMode", "xChannelSelector", "yChannelSelector",
+        "primitiveUnits", "filterUnits", "edgeMode", "tableValues", "targetX",
+        "targetY", "baseProfile", "zoomAndPan",
+    )
+}
+
+
+def _restore_svg_case(root) -> int:
+    """Put the capitals back on SVG names an HTML parse folded away.
+
+    Only inside an `<svg>` subtree, and only names in the tables above: outside
+    SVG, lowercase is correct and "restoring" anything would be inventing it.
+    """
+    restored = 0
+    for svg in root.iter(f"{{{SVG_NS}}}svg"):
+        for element in svg.iter():
+            if not isinstance(element.tag, str) or not element.tag.startswith(f"{{{SVG_NS}}}"):
+                continue
+            local = element.tag.rpartition("}")[2]
+            correct = _SVG_CAMEL_ELEMENTS.get(local)
+            if correct and correct != local:
+                element.tag = f"{{{SVG_NS}}}{correct}"
+                restored += 1
+            for key in list(element.attrib):
+                if not isinstance(key, str) or key.startswith("{"):
+                    continue
+                proper = _SVG_CAMEL_ATTRIBUTES.get(key)
+                if proper and proper != key:
+                    element.set(proper, element.attrib.pop(key))
+                    restored += 1
+    return restored
+
 
 _ENTITY_RE = re.compile(rb"&([A-Za-z][A-Za-z0-9]{1,31});")
 _XML_DECL_RE = re.compile(rb"^\s*<\?xml[^>]*\?>", re.IGNORECASE)
 _DOCTYPE_RE = re.compile(rb"<!DOCTYPE[^>\[]*(\[[^\]]*\])?[^>]*>", re.IGNORECASE)
 _STYLESHEET_PI_RE = re.compile(rb"<\?xml-stylesheet[^>]*\?>", re.IGNORECASE)
+_PI_HREF_RE = re.compile(rb"""href\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 
 
 def _numeric_entities(data: bytes) -> bytes:
@@ -206,6 +282,17 @@ class ParseResult(NamedTuple):
     #: The encoding this document turned out to really be in, when that is not
     #: what it said. Empty when the declaration was true.
     encoding_mended: str = ""
+    #: Stylesheet hrefs found in `<?xml-stylesheet?>` processing instructions.
+    #:
+    #: The PI is how an XHTML document written before EPUB 3 links a stylesheet,
+    #: and it was being deleted here without a word — one `sub()` at the top of
+    #: the parse, so a book styled that way came out unstyled and the report
+    #: said nothing. It is a construct that carries visual meaning, which under
+    #: this project's own rule is translated rather than removed; the caller
+    #: turns each of these into a `<link rel="stylesheet">`.
+    stylesheet_links: list[str] = []
+    #: SVG names an HTML recovery had folded to lowercase and that were put back.
+    svg_case_restored: int = 0
 
 
 
@@ -310,6 +397,17 @@ def parse_document(data: bytes) -> ParseResult:
     them. This is for the one that has to report what changed.
     """
     data, mended = mend_encoding(data)
+    # Captured before it is removed. Removing it is right — EPUB 3 documents
+    # link stylesheets with `<link>` — but only once what it *said* has been
+    # carried over.
+    stylesheet_links = [
+        href for href in (
+            _PI_HREF_RE.search(match.group(0)) for match in _STYLESHEET_PI_RE.finditer(data)
+        ) if href
+    ]
+    stylesheet_links = [
+        match.group(1).decode("utf-8", "replace") for match in stylesheet_links
+    ]
     prepared = _STYLESHEET_PI_RE.sub(b"", data)
 
     # Before the DOCTYPE is dropped, because dropping it is what strands the
@@ -333,12 +431,16 @@ def parse_document(data: bytes) -> ParseResult:
         # Well-formed but namespace-less documents parse cleanly as XML and
         # would then fail every namespaced lookup downstream.
         tree = root if root.tag.startswith("{") else _namespacify(root)
-        return ParseResult(tree, mode, expanded, refused, mended)
+        return ParseResult(tree, mode, expanded, refused, mended, stylesheet_links)
 
     html_root = lxml_html.document_fromstring(
         normalized or b"<html><body></body></html>", parser=HTML_PARSER
     )
-    return ParseResult(_namespacify(html_root), "html", expanded, refused)
+    tree = _namespacify(html_root)
+    # Only on this path. A document the XML parser accepted never lost its
+    # capitals, so there is nothing to restore and nothing to report.
+    restored = _restore_svg_case(tree)
+    return ParseResult(tree, "html", expanded, refused, "", stylesheet_links, restored)
 
 
 def parse(data: bytes) -> tuple[etree._Element, str]:

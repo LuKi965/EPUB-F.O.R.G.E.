@@ -86,6 +86,11 @@ class Context:
     #: refuses to publish a book that has any, and the window lists them.
     unresolved: list[Unresolved] = field(default_factory=list)
 
+    #: Documents that only parsed after a tag-soup recovery. Not a repair with
+    #: a known result but a reconstruction, so the rebuild declines to call
+    #: itself plainly successful with one of these in it — the audit's F-004.
+    recovered: list[str] = field(default_factory=list)
+
     #: Who to ask when the program cannot decide. `None` — a batch run, the
     #: corpus, a library caller — means nobody is there, and nothing is asked.
     resolver: Resolver | None = None
