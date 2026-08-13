@@ -868,6 +868,25 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
         if not lists:
             continue
         if nav_type == "landmarks":
+            # An entry with no `epub:type` is not a landmark.
+            #
+            # A landmark *is* its type — "the cover", "where the body matter
+            # starts" — and the writer keeps one of each, because two documents
+            # cannot both be where the book begins. So an entry with no type was
+            # read as `bodymatter`, and a nav full of them collapsed to a single
+            # surviving entry.
+            #
+            # Which is not a hypothetical. Project Gutenberg labels its page
+            # list `epub:type="landmarks"` with `aria-label="Page List"` and
+            # gives none of its entries a type: 291 links into the book, of
+            # which this program kept one. The fidelity harness found it on the
+            # third book it was pointed at, which is the whole argument for
+            # having written the harness.
+            #
+            # So the typed entries are landmarks and the untyped ones are a
+            # section this program has no rule for — carried whole under F-018's
+            # rule rather than deleted for want of a classification.
+            untyped: list[NavPoint] = []
             for li in children(lists[0], "li"):
                 anchors = children(li, "a")
                 if not anchors:
@@ -878,11 +897,22 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
                     continue
                 fragment = (href or "").partition("#")[2]
                 target = f"{resolved}#{fragment}" if fragment else resolved
-                landmarks.append(
-                    Landmark(
-                        (attr(anchors[0], "type", EPUB_NS) or "bodymatter").strip(),
-                        text_of(anchors[0]),
-                        target,
+                declared = (attr(anchors[0], "type", EPUB_NS) or "").strip()
+                if declared:
+                    landmarks.append(Landmark(declared, text_of(anchors[0]), target))
+                else:
+                    untyped.append(NavPoint(text_of(anchors[0]) or "—", target))
+            if untyped:
+                extra.append(
+                    NavSection(
+                        # No `epub:type` of its own: the source's word for it was
+                        # `landmarks`, and these are not landmarks. A `nav` with
+                        # no type is legal, and claiming a type this program
+                        # inferred would be stating something nobody said.
+                        epub_type="",
+                        entries=untyped,
+                        hidden=nav.get("hidden") is not None,
+                        aria_label=(nav.get("aria-label") or "").strip(),
                     )
                 )
         elif nav_type == "page-list":
@@ -908,6 +938,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
                         heading=heading,
                         entries=entries,
                         hidden=nav.get("hidden") is not None,
+                        aria_label=(nav.get("aria-label") or "").strip(),
                     )
                 )
     return toc, landmarks, page_list, extra

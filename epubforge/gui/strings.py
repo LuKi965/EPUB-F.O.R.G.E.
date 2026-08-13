@@ -149,8 +149,20 @@ PL: dict[str, str] = {
     # --- diagnostics panel ----------------------------------------------
     "tab.diagnostics": "Diagnostyka",
     "diagnostics.intro": (
-        "Dwa pytania o pliki, na które nie trzeba niczego przebudowywać: co jest "
-        "w środku i czy walidator to przyjmuje. Nic tutaj nie zmienia żadnego pliku."
+        "Trzy pytania o pliki: co jest w środku, czy walidator to przyjmuje i czy "
+        "przebudowa zachowa książkę. Nic tutaj nie zmienia ani nie nadpisuje "
+        "żadnego Twojego pliku."
+    ),
+    "diagnostics.fidelity": "Czy przebudowa zachowa tę książkę",
+    "diagnostics.fidelity.tip": (
+        "Przebudowuje książkę do folderu tymczasowego i porównuje ją ze "
+        "źródłem — nic nie jest zapisywane tam, gdzie to znajdziesz.\n\n"
+        "Sprawdza to, o czym walidator nie ma zdania: czy każde słowo źródła "
+        "jest w wyniku, czy zgadza się liczba nagłówków, obrazów i akapitów, "
+        "czy każdy obrazek i font przeszedł bajt w bajt i czy dokumenty idą w "
+        "tej samej kolejności.\n\n"
+        "„Poprawny plik” i „ta sama książka” to dwa różne pytania. To jest to "
+        "drugie."
     ),
     "diagnostics.files": "Plik lub folder:",
     "diagnostics.mode": "Pytanie:",
@@ -671,6 +683,18 @@ EN: dict[str, str] = {
     "diagnostics.intro": (
         "Two questions about files that need nothing rebuilt to answer: what is "
         "inside, and whether a validator accepts it. Nothing here changes a file."
+    ),
+    "diagnostics.fidelity": "Would a rebuild keep this book",
+    "diagnostics.fidelity.tip": (
+        "Rebuilds the book into a temporary folder and compares it with the "
+        "source — nothing is written anywhere you will find it.\n\n"
+        "It checks what a validator has no opinion about: whether every word of "
+        "the source is in the result, whether the count of headings, pictures "
+        "and paragraphs still matches, whether every image and font came "
+        "through byte for byte, and whether the documents are in the same "
+        "order.\n\n"
+        "\"A valid file\" and \"the same book\" are two different questions. "
+        "This is the second one."
     ),
     "diagnostics.files": "File or folder:",
     "diagnostics.mode": "Question:",

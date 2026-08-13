@@ -335,6 +335,10 @@ class NavSection:
     entries: list[NavPoint] = field(default_factory=list)
     #: Whether the source kept it out of the rendered page.
     hidden: bool = False
+    #: The section's `aria-label`, which is what a screen reader announces and
+    #: often the only name a section has — Project Gutenberg labels its page
+    #: list that way and gives it no heading at all.
+    aria_label: str = ""
 
 
 @dataclass

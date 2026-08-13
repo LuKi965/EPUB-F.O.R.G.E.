@@ -372,7 +372,15 @@ class DiagnosticsPanel(Panel):
         self.validate_choice.setToolTip(tr("diagnostics.validate.tip"))
         self.layout_.addWidget(self.validate_choice)
 
-        for widget in (self.inspect_choice, self.validate_choice):
+        # The third question, and the one nothing else in the program answers:
+        # not "is this file valid" but "did the rebuild keep the book". F-017 and
+        # F-028 — the audit's point that the suite proves the output validates
+        # and does not prove it still looks like itself.
+        self.fidelity_choice = QRadioButton(tr("diagnostics.fidelity"))
+        self.fidelity_choice.setToolTip(tr("diagnostics.fidelity.tip"))
+        self.layout_.addWidget(self.fidelity_choice)
+
+        for widget in (self.inspect_choice, self.validate_choice, self.fidelity_choice):
             widget.toggled.connect(lambda _checked: self.invalidate())
         self.folder.textChanged.connect(lambda _text: self.invalidate())
 
@@ -411,16 +419,19 @@ class DiagnosticsPanel(Panel):
         if not books:
             QMessageBox.information(self, tr("common.pickfolder"), tr("common.nofolder"))
             return
-        inspecting = self.inspect_choice.isChecked()
+        if self.inspect_choice.isChecked():
+            answer = self._describe
+        elif self.validate_choice.isChecked():
+            answer = self._validate
+        else:
+            answer = self._fidelity
 
         def work(emit):
             lines: list[str] = []
             for index, book in enumerate(books):
                 emit(index, len(books), os.path.basename(book))
                 lines.append(f"--- {os.path.basename(book)}")
-                lines.extend(
-                    self._describe(book) if inspecting else self._validate(book)
-                )
+                lines.extend(answer(book))
                 lines.append("")
             return "\n".join(lines)
 
@@ -454,6 +465,28 @@ class DiagnosticsPanel(Panel):
             ("DRM", "TAK" if parsed.has_drm else "nie"),
         ]
         return [f"  {name:<20} {value}" for name, value in rows]
+
+    @staticmethod
+    def _fidelity(book: str) -> list[str]:
+        """Rebuild it into a temporary folder and compare the two.
+
+        Nothing is written where anybody will find it: the question is about the
+        rebuild, and the answer does not need the file kept. Everything this
+        reports is something EPUBCheck has no opinion about.
+        """
+        import tempfile
+
+        from .. import fidelity
+        from ..pipeline import rebuild
+        from ..policy import Policy
+
+        with tempfile.TemporaryDirectory() as room:
+            destination = os.path.join(room, os.path.basename(book))
+            result = rebuild(book, destination, Policy.preset("preserve"))
+            if not result.status.wrote_a_file:
+                return ["  nie udało się przebudować, więc nie ma czego porównać"]
+            measured = fidelity.compare(book, destination)
+            return [f"  {check}" for check in measured.checks]
 
     @staticmethod
     def _validate(book: str) -> list[str]:

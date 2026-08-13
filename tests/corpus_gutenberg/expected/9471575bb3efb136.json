@@ -1,6 +1,6 @@
 {
   "source": "sha256:9471575bb3efb13650ee258ea57c473c4aaae2e8a18c8e845f7b604f45a7b83d",
-  "version": "0.2.19",
+  "version": "0.2.21",
   "minimal": {
     "written": true,
     "report": {
@@ -22,11 +22,11 @@
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:ead2f160cbdda278cd7984c99f1d004526d463d41255a500f5604626c0ca53e4",
+    "output": "sha256:051a6905cb055f9d997cbf04cb6d9d62359a31decadad2765558006222ea2431",
     "text_characters": 304577,
     "text_added": 2,
     "text_invariant": true,
-    "blocks": 1405
+    "blocks": 1698
   },
   "preserve": {
     "written": true,
@@ -54,11 +54,11 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:dd1c37baa1f76ff42e50b33f4ac10ce8cd7d1cfdc4a1087c7c1fdf29e6914f55",
+    "output": "sha256:518e30c84f2b09afb2d56666aac406bf87a19ed9c6da6f5ea5174445713c92e1",
     "text_characters": 304577,
     "text_added": 2,
     "text_invariant": true,
-    "blocks": 1405
+    "blocks": 1698
   },
   "strict": {
     "written": true,
@@ -86,10 +86,10 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:cab3ca6330aefcc44faa93584caea32f04d84693d7237e13b37f46ceff7a28b4",
+    "output": "sha256:8cbfa3020f44474f87ab4f082f185b40a69f0e3f34fea4b407289dcdf7f08fd5",
     "text_characters": 304577,
     "text_added": 2,
     "text_invariant": true,
-    "blocks": 1405
+    "blocks": 1698
   }
 }

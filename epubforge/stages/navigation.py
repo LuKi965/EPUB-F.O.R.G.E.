@@ -355,13 +355,35 @@ class NavigationStage(Stage):
             if first_body:
                 book.landmarks.append(Landmark("bodymatter", "Start of Content", first_body))
 
-        seen: set[str] = set()
+        # Deduplicated by *type and target*, not by type alone.
+        #
+        # By type alone reads "a book has one cover and one table of contents",
+        # which is true of the handful of types that mean a place in the
+        # publication and false of everything else. Project Gutenberg writes its
+        # page list as `epub:type="landmarks"` with 294 entries all typed
+        # `normal`; this kept the first and deleted 293 links into the book,
+        # silently, on every Gutenberg title. Found by the fidelity harness on
+        # the third book it was pointed at — a validator has nothing to say
+        # about it, and neither did any test here.
+        #
+        # `_ensure_cover_page` above removes the source's own `cover` landmark
+        # before inserting its own, so the one case that really must not double
+        # is handled where the decision is made rather than by a sweep here.
+        seen: set[tuple[str, str]] = set()
         deduped: list[Landmark] = []
         for landmark in book.landmarks:
-            if landmark.epub_type in seen:
+            key = (landmark.epub_type, landmark.target)
+            if key in seen:
                 continue
-            seen.add(landmark.epub_type)
+            seen.add(key)
             deduped.append(landmark)
+        if len(deduped) != len(book.landmarks):
+            self.note(
+                ctx,
+                Level.FIX,
+                "nav.landmarks-deduplicated",
+                values={"count": len(book.landmarks) - len(deduped)},
+            )
         book.landmarks = deduped
 
     def _render_nav_list(self, nodes: list[NavPoint], nav_path: str, indent: str) -> str:
@@ -673,7 +695,10 @@ class NavigationStage(Stage):
             attributes = f' epub:type="{_escape(section.epub_type)}"' if section.epub_type else ""
             role = f' role="{_ARIA_ROLES[section.epub_type]}"' if section.epub_type in _ARIA_ROLES else ""
             hidden = ' hidden="hidden"' if section.hidden else ""
-            sections.append(f'    <nav{attributes} id="nav-{index + 1}"{role}{hidden}>')
+            label = f' aria-label="{_escape(section.aria_label)}"' if section.aria_label else ""
+            sections.append(
+                f'    <nav{attributes} id="nav-{index + 1}"{role}{label}{hidden}>'
+            )
             if section.heading:
                 sections.append(f"      <h1>{_escape(section.heading)}</h1>")
             sections.append(self._render_nav_list(entries, nav_path, "      "))

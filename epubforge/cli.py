@@ -404,6 +404,43 @@ def command_check(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def command_fidelity(args: argparse.Namespace) -> int:
+    """Did the rebuild keep the book — asked of real files, not of a fixture.
+
+    The audit's F-017/F-028 in the form a person can run: rebuild a book (or
+    take one already rebuilt) and compare the two for the things a validator
+    cannot see — text, structure, pictures, reading order.
+    """
+    import tempfile
+
+    from . import fidelity as harness
+
+    console = Console()
+    # Its own mode rather than `build_policy`, which reads two dozen flags this
+    # subcommand does not define. The question here is "did the rebuild keep the
+    # book", and the mode is the only part of the rebuild that changes the answer.
+    policy = Policy.preset(args.mode)
+    exit_code = 0
+    with tempfile.TemporaryDirectory() as room:
+        for source in collect_inputs(args.inputs):
+            console.rule(f"[bold]{os.path.basename(source)}")
+            rebuilt = args.against
+            if not rebuilt:
+                rebuilt = os.path.join(room, os.path.basename(source))
+                result = rebuild(source, rebuilt, policy)
+                if not result.status.wrote_a_file:
+                    console.print("[red]nothing was rebuilt to compare against[/]")
+                    exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
+                    continue
+            measured = harness.compare(source, rebuilt)
+            for check in measured.checks:
+                style = "green" if check.ok else "bold red"
+                console.print(f"  [{style}]{check.name}[/]" + (f" — {check.detail}" if check.detail else ""))
+            if not measured.ok:
+                exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
+    return exit_code
+
+
 def command_survey(args: argparse.Namespace) -> int:
     """What breaks across a whole library, ranked — not book by book."""
     from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
@@ -825,6 +862,24 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="run EPUBCheck against existing files")
     check.add_argument("inputs", nargs="+")
     check.set_defaults(func=command_check)
+
+    fidelity_command = subparsers.add_parser(
+        "fidelity",
+        help="compare a book with its rebuild: text, structure, pictures, reading order",
+    )
+    fidelity_command.add_argument("inputs", nargs="+")
+    fidelity_command.add_argument(
+        "--mode",
+        choices=("preserve", "strict", "minimal"),
+        default="preserve",
+        help="which rebuild to compare against (default: preserve)",
+    )
+    fidelity_command.add_argument(
+        "--against",
+        metavar="FILE",
+        help="an already-rebuilt file to compare with; without it, one is built in a temporary folder",
+    )
+    fidelity_command.set_defaults(func=command_fidelity)
 
     survey = subparsers.add_parser(
         "survey",
