@@ -16,7 +16,7 @@ import cssutils
 from lxml import etree
 
 from .. import cascade as css_cascade
-from .. import fonts_meta, paths, stylesheet, typography, watermark, xhtml
+from .. import fonts_meta, paths, references, stylesheet, typography, watermark, xhtml
 from ..report import Level
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
@@ -824,9 +824,11 @@ class ContentStage(Stage):
         """Repoint every href/src at the resource's new location."""
         source_path = resource.original_path or resource.path
         broken = 0
-        lost_fragments = 0
-        kept_fragments = 0
+        unresolved = 0
+        repointed = 0
+        sent_to_document = 0
         dangling: list[tuple[object, str]] = []
+        examples: list[str] = []
 
         def resolves(path: str, fragment: str) -> bool:
             """Is there anything in `path` carrying that id?
@@ -838,6 +840,33 @@ class ContentStage(Stage):
             """
             known = present_ids.get(path)
             return known is None or fragment in known
+
+        def unresolvable(element, target_path: str, fragment: str) -> references.Decision:
+            """Record one reference nothing here can resolve, and ask about it.
+
+            The question carries what a person needs to answer it: the link's
+            own text — for a footnote that is the number the reader sees — and
+            the anchors the target document does have. Nobody to ask is the
+            normal case and answers `keep`.
+            """
+            nonlocal unresolved
+            question = references.Unresolved(
+                document=resource.path,
+                target=target_path,
+                fragment=fragment,
+                text=re.sub(r"\s+", " ", "".join(element.itertext())).strip()[:80],
+                candidates=tuple(sorted(present_ids.get(target_path) or ())),
+            )
+            answer = ctx.ask(question)
+            if answer.action == references.KEEP:
+                # Recorded only when it stays unresolved. `strict` reads this
+                # list to decide whether the book may be published at all, and
+                # a reference a person has just answered is answered.
+                ctx.unresolved.append(question)
+                unresolved += 1
+                if len(examples) < 3:
+                    examples.append(str(question))
+            return answer
 
         for element in xhtml.iter_elements(root):
             for attribute in REFERENCE_ATTRS:
@@ -851,12 +880,30 @@ class ContentStage(Stage):
                     fragment = value[1:]
                     local_map = global_ids.get(resource.path, {})
                     if fragment in local_map:
+                        # REPAIRED: this rebuild renamed that id and holds the
+                        # map that says what to.
                         element.set(attribute, f"#{local_map[fragment]}")
                     elif fragment and not resolves(resource.path, fragment):
-                        # Nothing here answers to that name. A bare "#" is not a
-                        # legal reference either, so the attribute goes.
-                        element.attrib.pop(attribute, None)
-                        lost_fragments += 1
+                        # Nothing in this document answers to that name.
+                        #
+                        # This used to remove the attribute — the link became
+                        # inert text and the validator stopped complaining. That
+                        # is the same false repair as the cross-document case
+                        # below, one step further along: a link the publisher
+                        # wrote is *gone*, and the report called it a fix. The
+                        # reference stays now, and a person may decide otherwise.
+                        answer = unresolvable(element, resource.path, fragment)
+                        if answer.action == references.REPOINT:
+                            element.set(attribute, f"#{answer.fragment}")
+                            repointed += 1
+                        elif answer.action == references.POINT_AT_DOCUMENT:
+                            # There is no such thing as a same-document
+                            # reference to no place: `href="#"` is not one. A
+                            # person asking for this is asking for the link to
+                            # stop being a link, which is what removing the
+                            # attribute does — the text stays put.
+                            element.attrib.pop(attribute, None)
+                            sent_to_document += 1
                     continue
 
                 target = paths.resolve(source_path, value)
@@ -886,17 +933,24 @@ class ContentStage(Stage):
                         # place, which is worse, and this tool called it a
                         # repair.
                         #
-                        # So the modes part company, as they do everywhere else.
-                        # `preserve` keeps what the source said: the fragment is
-                        # a statement about meaning and this program does not
-                        # know what it meant. `strict` is chosen by somebody who
-                        # wants the file to conform, and there the fragment
-                        # goes — reported either way, and never silently.
-                        if not ctx.policy.strict:
-                            kept_fragments += 1
-                        else:
+                        # The first answer to the audit's F-010 split the modes:
+                        # `preserve` kept it, `strict` still dropped it. That was
+                        # half an answer, and it never shipped. Strict is
+                        # not a licence to invent a meaning — it is a promise
+                        # that the output conforms, and a fragment removed to
+                        # buy a validator's silence keeps the promise by
+                        # breaking the book. So neither mode touches it now:
+                        # the reference is UNRESOLVED, it stays exactly as the
+                        # publisher wrote it, and what the modes disagree about
+                        # is whether the result may be published at all —
+                        # decided at the commit gate, not here.
+                        answer = unresolvable(element, new_target, fragment)
+                        if answer.action == references.REPOINT:
+                            fragment = answer.fragment
+                            repointed += 1
+                        elif answer.action == references.POINT_AT_DOCUMENT:
                             fragment = ""
-                            lost_fragments += 1
+                            sent_to_document += 1
                 href = paths.relative(resource.path, new_target)
                 element.set(attribute, f"{href}#{fragment}" if fragment else href)
 
@@ -914,20 +968,35 @@ class ContentStage(Stage):
                 text = self._rewrite_css_urls(ctx, text, source_path, resource.path)
             style_element.text = text
 
-        if kept_fragments:
+        if unresolved:
+            # WARN, not PRESERVED, and the level is the finding. `PRESERVED`
+            # means *this program decided to keep a deviation because removing
+            # it would change how the book looks* — a decision with a reason
+            # behind it. This is the opposite: a defect the book arrived with,
+            # which the rebuild could not resolve and did not pretend to. The
+            # status of the whole rebuild follows the same distinction, so a
+            # book carrying these never comes back reading `succeeded` flat.
             self.note(
                 ctx,
-                Level.PRESERVED,
-                "xhtml.dead-fragment-kept",
-                values={"count": kept_fragments},
+                Level.WARN,
+                "xhtml.fragment-unresolved",
+                values={"count": unresolved, "examples": "; ".join(examples)},
                 location=resource.path,
             )
-        if lost_fragments:
+        if repointed:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.fragment-repointed",
+                values={"count": repointed},
+                location=resource.path,
+            )
+        if sent_to_document:
             self.note(
                 ctx,
                 Level.FIX,
                 "xhtml.dead-fragment-dropped",
-                values={"count": lost_fragments},
+                values={"count": sent_to_document},
                 location=resource.path,
             )
         if remote_imports:

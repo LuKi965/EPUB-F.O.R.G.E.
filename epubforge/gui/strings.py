@@ -194,6 +194,57 @@ PL: dict[str, str] = {
         "i wie, co robi. Zaznaczone: plik powstanie mimo wszystko, a raport "
         "powie, czego w nim nie ma. Nie sprawia, że strata staje się cicha."
     ),
+    "policy.ask": "Pytaj mnie o odnośniki, których nie da się rozwiązać",
+    "policy.ask.tip": (
+        "Odnośnik potrafi wskazywać kotwicę, której w dokumencie docelowym nie "
+        "ma — najczęściej po konwersji z PDF-a, gdzie tylko część przypisów "
+        "dostała identyfikator. Program **nie zgadnie**, dokąd taki odnośnik "
+        "miał prowadzić: usunięcie fragmentu uciszyłoby walidator i wysłało "
+        "czytelnika z przypisu siedemnastego do pierwszego.\n\n"
+        "Zaznaczone: przy każdym takim odnośniku dostajesz okno z jego treścią "
+        "i listą kotwic, które w dokumencie docelowym naprawdę są — i decydujesz "
+        "sam. Można odpowiedzieć raz na całą książkę.\n\n"
+        "Odznaczone: odwołanie zostaje dokładnie takie, jakie napisał wydawca, a "
+        "raport je wymienia. W trybie ścisłym książka z takimi odnośnikami nie "
+        "zostanie w ogóle zapisana."
+    ),
+    "ask.title": "Dokąd prowadzi ten odnośnik?",
+    "ask.explanation": (
+        "Ten odnośnik wskazuje kotwicę, której w dokumencie docelowym nie ma. "
+        "Program nie wie, dokąd miał prowadzić, i nie zgadnie za Ciebie."
+    ),
+    "ask.facts": (
+        "Dokument: {document}\n"
+        "Odnośnik: {reference}\n"
+        "Treść odnośnika: {text}"
+    ),
+    "ask.no-text": "(bez tekstu)",
+    "ask.keep": "Zostaw tak, jak napisał wydawca",
+    "ask.keep.tip": (
+        "Odwołanie zostaje nietknięte. Czytelnik zobaczy, że odnośnik jest "
+        "zepsuty — co jest uczciwsze niż odnośnik, który po cichu prowadzi w "
+        "niewłaściwe miejsce. Raport wymieni je wszystkie."
+    ),
+    "ask.repoint": "Wskaż kotwicę, o którą chodzi:",
+    "ask.repoint.tip": (
+        "Lista identyfikatorów, które w dokumencie docelowym naprawdę są. "
+        "Wybrana kotwica trafia do odnośnika, a raport zapisuje, że wskazał ją "
+        "człowiek, a nie program."
+    ),
+    "ask.document": "Kieruj na początek dokumentu docelowego",
+    "ask.document.tip": (
+        "Fragment znika, odnośnik prowadzi na początek pliku. Program sam tego "
+        "nigdy nie zrobi — przy przypisie oznacza to trafienie w przypis "
+        "pierwszy zamiast siedemnastego. Wybierz to, jeżeli wiesz, że w tej "
+        "książce tak jest dobrze."
+    ),
+    "ask.all": "Zastosuj tę odpowiedź do wszystkich pozostałych w tej książce",
+    "ask.all.tip": (
+        "Konwersja potrafi zostawić dwieście takich odnośników. Dotyczy tylko "
+        "odpowiedzi, które znaczą to samo wszędzie — wskazania konkretnej "
+        "kotwicy nie da się zastosować do całej książki, bo każdy odnośnik "
+        "wskazywałby wtedy to samo miejsce."
+    ),
     "policy.typography": "Popraw typografię tekstu",
     "policy.typography.tip": (
         "Jedyne miejsce, w którym narzędzie zmienia sam tekst, a nie znaczniki "
@@ -635,6 +686,58 @@ EN: dict[str, str] = {
         "This box is the way through for a person holding that book who knows "
         "what they are doing. Ticked: the file is written anyway and the report "
         "says what is not in it. It does not make the loss quiet."
+    ),
+    "policy.ask": "Ask me about references that cannot be resolved",
+    "policy.ask.tip": (
+        "A link can name an anchor the target document does not have — usually "
+        "after a PDF conversion, where only some of the notes were given an "
+        "identifier. This program **will not guess** where such a link was "
+        "meant to lead: removing the fragment would silence the validator and "
+        "send the reader from footnote seventeen to footnote one.\n\n"
+        "Ticked: each one comes to you in a window with the link's own text and "
+        "the anchors the target document really has, and you decide. One answer "
+        "can cover the whole book.\n\n"
+        "Unticked: the reference is left exactly as the publisher wrote it and "
+        "the report lists them. In strict mode a book carrying them is not "
+        "written at all."
+    ),
+    "ask.title": "Where does this link lead?",
+    "ask.explanation": (
+        "This link names an anchor the target document does not have. The "
+        "program does not know where it was meant to lead, and will not guess "
+        "on your behalf."
+    ),
+    "ask.facts": (
+        "Document: {document}\n"
+        "Reference: {reference}\n"
+        "Link text: {text}"
+    ),
+    "ask.no-text": "(no text)",
+    "ask.keep": "Leave it as the publisher wrote it",
+    "ask.keep.tip": (
+        "The reference is untouched. A reader will see that the link is broken "
+        "— which is honester than a link that quietly arrives somewhere wrong. "
+        "The report lists every one of them."
+    ),
+    "ask.repoint": "Point it at this anchor:",
+    "ask.repoint.tip": (
+        "The identifiers the target document really has. The chosen anchor goes "
+        "into the link, and the report records that a person chose it rather "
+        "than the program."
+    ),
+    "ask.document": "Send it to the top of the target document",
+    "ask.document.tip": (
+        "The fragment goes and the link lands at the start of the file. The "
+        "program will never do this by itself — for a footnote it means "
+        "arriving at footnote one instead of seventeen. Choose it when you know "
+        "that is right for this book."
+    ),
+    "ask.all": "Apply this answer to every remaining one in this book",
+    "ask.all.tip": (
+        "A conversion can leave two hundred of these. It applies only to "
+        "answers that mean the same thing everywhere — pointing at one "
+        "particular anchor cannot be applied to a whole book, because every "
+        "link would then lead to the same place."
     ),
     "policy.typography": "Repair the text's typography",
     "policy.typography.tip": (

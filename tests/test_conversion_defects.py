@@ -108,11 +108,14 @@ class TestALinkToAnAnchorNobodyDefines:
     *working* link to the wrong place, produced by this tool and called a
     repair.
 
-    So the modes part company, as they do everywhere else in this program.
-    `preserve` keeps what the publisher wrote, because a fragment is a
-    statement about meaning and nothing here knows what it meant. `strict` is
-    chosen by somebody who wants the file to conform, and there it goes. Both
-    say so in the report.
+    The first answer to that split the modes: `preserve` kept the fragment,
+    `strict` still dropped it. Half of it was still the same forgery, and a
+    review caught it before it shipped — strict does not promise a *tidy* book,
+    it promises a conforming one, and a fragment removed to buy a validator's
+    silence buys it with the reader's footnote. Neither mode touches it now. What
+    the modes disagree about is the result: `preserve` publishes the book with
+    the publisher's own broken link intact and says so, `strict` refuses to
+    publish it at all. The full model lives in `test_unresolved_references.py`.
     """
 
     @staticmethod
@@ -121,9 +124,11 @@ class TestALinkToAnAnchorNobodyDefines:
         notes but not this one — the shape the whole argument is about.
 
         Deliberately not a link into the navigation: that document is
-        regenerated, so the source's fragment genuinely stops meaning anything
-        and dropping it there is right. Pointing this test at the nav is how its
-        first version passed while testing something else.
+        regenerated, so its anchors are governed by a mapping this program
+        writes itself rather than by anything the source can be asked about.
+        Pointing this test at the nav is how its first version passed while
+        testing something else — see `test_unresolved_references.py` for the
+        regenerated-document case, which is a different rule.
         """
         notes = PAGE.format(body='<aside id="fn-1">jeden</aside>', head="")
         package = MODERN_OPF.format(title="Test", extra_metadata="").replace(
@@ -146,14 +151,12 @@ class TestALinkToAnAnchorNobodyDefines:
         result = built(self.two_documents(tmp_path / "frag.epub"), tmp_path)
         chapter = chapter_of(result)
         assert "#fn-17" in chapter, "footnote seventeen must not become footnote one"
-        assert "xhtml.dead-fragment-kept" in rules_of(result)
+        assert "xhtml.fragment-unresolved" in rules_of(result)
 
-    def test_strict_drops_it_and_the_link_still_reaches_the_file(self, tmp_path):
+    def test_strict_refuses_the_book_rather_than_the_fragment(self, tmp_path):
         result = built(self.two_documents(tmp_path / "frag.epub"), tmp_path, mode="strict")
-        chapter = chapter_of(result)
-        assert "#fn-17" not in chapter
-        assert "przypisy.xhtml" in chapter
-        assert "xhtml.dead-fragment-dropped" in rules_of(result)
+        assert result.output_path is None
+        assert "package.unresolved-references" in rules_of(result)
 
     def test_an_anchor_that_exists_is_left_alone(self, tmp_path):
         source = book(
@@ -162,16 +165,22 @@ class TestALinkToAnAnchorNobodyDefines:
         )
         result = built(source, tmp_path)
         assert "#tu" in chapter_of(result)
-        assert "xhtml.dead-fragment-dropped" not in rules_of(result)
+        assert "xhtml.fragment-unresolved" not in rules_of(result)
 
     def test_a_same_document_link_is_judged_the_same_way(self, tmp_path):
+        """And judged the same way now means *kept*.
+
+        This test used to assert the opposite: that `href="#brak"` lost its
+        attribute entirely and the link became inert text. That was the same
+        false repair as the cross-document case, one step worse — a reference
+        the publisher wrote, deleted, and reported as a fix.
+        """
         source = book(tmp_path / "same.epub", body='<p><a href="#brak">gdzieś</a></p>')
         result = built(source, tmp_path)
         chapter = chapter_of(result)
-        assert "#brak" not in chapter
-        # The text stays; only the reference that pointed nowhere is gone.
+        assert "#brak" in chapter
         assert "gdzieś" in chapter
-        assert "xhtml.dead-fragment-dropped" in rules_of(result)
+        assert "xhtml.fragment-unresolved" in rules_of(result)
 
     def test_a_fragment_into_something_we_did_not_parse_is_not_guessed_at(self, tmp_path):
         """An SVG carries ids this stage never reads. Silence is not a "no"."""

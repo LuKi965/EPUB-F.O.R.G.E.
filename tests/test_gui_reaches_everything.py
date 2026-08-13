@@ -121,3 +121,38 @@ class TestTheControlsThatWereMissing:
         assert "policy.allow_incomplete = self.incomplete_check.isChecked()" in source
         assert "policy.deobfuscate_fonts = self.fonts_check.isChecked()" in source
         assert "policy.transcode_images = self.images_check.isChecked()" in source
+
+
+class TestTheQuestionTheProgramCannotAnswerItself:
+    """F-010 added a capability that is not a `Policy` field, and the rule that
+    every feature is reachable from the window applies to it all the same.
+
+    The rebuild can now stop and ask a person where a broken link belongs. If
+    that lived only behind `--ask`, the owner — who runs the Windows build —
+    would have a program that refuses books in strict mode with no way to
+    answer it, which is the shape of defect this whole file exists to catch.
+    """
+
+    def test_it_has_a_control_a_label_and_a_tooltip(self):
+        from epubforge.gui.strings import EN, PL
+
+        assert "self.ask_check" in window_source()
+        for catalogue in (EN, PL):
+            assert catalogue["policy.ask"]
+            assert len(catalogue["policy.ask.tip"]) > 200
+
+    def test_the_control_reaches_the_rebuild(self):
+        """A checkbox wired to nothing is worse than no checkbox."""
+        source = (ROOT / "epubforge" / "gui" / "app.py").read_text(encoding="utf-8")
+        assert "if not self.ask_check.isChecked():" in source
+        assert "resolver=self._resolver" in source
+
+    def test_the_dialog_says_what_each_answer_does(self):
+        """Three options, one of which changes where a footnote lands. Nobody
+        should have to guess which."""
+        from epubforge.gui.strings import EN, PL
+
+        for catalogue in (EN, PL):
+            for key in ("ask.keep", "ask.repoint", "ask.document", "ask.all"):
+                assert catalogue[key]
+                assert len(catalogue[f"{key}.tip"]) > 80, key

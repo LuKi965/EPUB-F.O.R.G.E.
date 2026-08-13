@@ -333,3 +333,98 @@ class TestTheWindowSpeaksOneLanguageAtATime:
         assert "3 book(s)" in english and "source versions" in english
         # The defect this guards: Polish headings printed over an English report.
         assert "książki" not in english
+
+
+class TestAskingAboutAReferenceNothingCanResolve:
+    """F-010's interactive half, which is the owner's rule made operational.
+
+    *If the application cannot do something itself, let us involve the user* —
+    and specifically not: quietly pick whichever answer keeps the validator
+    happy, so that the program never has to interrupt anybody. The dialog is
+    tested here for what it *returns*, because that is what the rebuild acts
+    on; how it looks belongs in front of a person.
+    """
+
+    @staticmethod
+    def question():
+        from epubforge.references import Unresolved
+
+        return Unresolved(
+            document="EPUB/text/0002-chapter.xhtml",
+            target="EPUB/text/0003-notes.xhtml",
+            fragment="fn-17",
+            text="17",
+            candidates=("fn-1", "fn-2"),
+        )
+
+    def dialog(self, qt_app):
+        from epubforge.gui.ask import AskDialog
+
+        return AskDialog(self.question())
+
+    def test_it_defaults_to_leaving_the_publishers_reference_alone(self, qt_app):
+        from epubforge import references
+
+        assert self.dialog(qt_app).decision().action == references.KEEP
+
+    def test_choosing_an_anchor_repoints_the_link(self, qt_app):
+        from epubforge import references
+
+        dialog = self.dialog(qt_app)
+        dialog.repoint_radio.setChecked(True)
+        dialog.candidates.setCurrentRow(1)
+        decision = dialog.decision()
+        assert decision.action == references.REPOINT
+        assert decision.fragment == "fn-2"
+
+    def test_selecting_from_the_list_is_itself_the_choice(self, qt_app):
+        """A list of anchors that does nothing until a radio button above it is
+        found is a dialog that answers itself wrongly."""
+        from epubforge import references
+
+        dialog = self.dialog(qt_app)
+        dialog.candidates.setCurrentRow(0)
+        assert dialog.decision().action == references.REPOINT
+
+    def test_the_top_of_the_document_is_available_but_never_the_default(self, qt_app):
+        from epubforge import references
+
+        dialog = self.dialog(qt_app)
+        assert not dialog.document_radio.isChecked()
+        dialog.document_radio.setChecked(True)
+        assert dialog.decision().action == references.POINT_AT_DOCUMENT
+
+    def test_one_answer_can_cover_the_book_but_a_chosen_anchor_cannot(self, qt_app):
+        dialog = self.dialog(qt_app)
+        dialog.all_check.setChecked(True)
+        assert dialog.decision().apply_to_all
+        dialog.repoint_radio.setChecked(True)
+        dialog.candidates.setCurrentRow(0)
+        assert not dialog.decision().apply_to_all
+
+    def test_a_document_with_no_anchors_offers_nothing_to_choose(self, qt_app):
+        from epubforge.gui.ask import AskDialog
+        from epubforge.references import Unresolved
+
+        dialog = AskDialog(Unresolved("a.xhtml", "b.xhtml", "fn-17"))
+        assert not dialog.repoint_radio.isEnabled()
+
+    def test_the_window_offers_the_whole_thing_and_wires_it_up(self, window):
+        """A dialog nothing reaches is not a feature. The box is on by default:
+        somebody is at the window, which is the entire premise."""
+        assert window.ask_check.isChecked()
+        assert window._ask_resolver() is not None
+        window.ask_check.setChecked(False)
+        assert window._ask_resolver() is None
+
+    def test_the_resolver_answers_on_the_thread_it_is_called_from(self, window, monkeypatch):
+        """Called from the GUI thread it must not use the blocking signal — a
+        blocking queued connection to one's own thread is a deadlock."""
+        from epubforge import references
+        from epubforge.gui import ask
+
+        monkeypatch.setattr(
+            ask.Ask, "_answer", lambda self, question: references.Decision(references.KEEP)
+        )
+        resolver = ask.Ask(window)
+        assert resolver.resolve(TestAskingAboutAReferenceNothingCanResolve.question()) is not None

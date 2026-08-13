@@ -180,6 +180,55 @@ EXIT_WRITTEN_WITH_PROBLEMS = 2
 _SEVERITY = {EXIT_OK: 0, EXIT_WRITTEN_WITH_PROBLEMS: 1, EXIT_NOT_WRITTEN: 2}
 
 
+class TerminalAsk:
+    """The `--ask` resolver: the window's question, at a terminal.
+
+    The window is where this feature belongs and where the owner will use it.
+    It is here as well because the alternative is a rule that only holds when
+    somebody is looking at a GUI — strict mode refuses a book over an
+    unresolvable reference, and from a shell there would be no way to answer,
+    only a way to give up. A script that pipes input gets no questions at all:
+    `isatty` is the test for whether anybody is there.
+    """
+
+    def __init__(self, console: Console):
+        self.console = console
+
+    def resolve(self, question):
+        from . import references
+
+        if not sys.stdin.isatty():  # pragma: no cover - depends on the terminal
+            return None
+        self.console.print()
+        self.console.rule("[bold]a link nothing here can resolve")
+        self.console.print(f"  [dim]in[/] {question.document}")
+        self.console.print(f"  [dim]points at[/] {question.reference}")
+        if question.text:
+            self.console.print(f'  [dim]link text[/] "{question.text}"')
+        for index, candidate in enumerate(question.candidates[:40], start=1):
+            self.console.print(f"    [cyan]{index:>3}[/] {candidate}")
+        if len(question.candidates) > 40:  # pragma: no cover - long documents
+            self.console.print(f"    [dim]… and {len(question.candidates) - 40} more[/]")
+        self.console.print(
+            "  [dim]number = point the link there · d = top of the document · "
+            "Enter = leave it · a = leave every remaining one[/]"
+        )
+        try:
+            answer = input("  > ").strip()
+        except (EOFError, KeyboardInterrupt):  # pragma: no cover - depends on the terminal
+            self.console.print()
+            return references.Decision(references.KEEP, apply_to_all=True)
+        if answer.lower() == "d":
+            return references.Decision(references.POINT_AT_DOCUMENT)
+        if answer.lower() == "a":
+            return references.Decision(references.KEEP, apply_to_all=True)
+        if answer.isdigit() and 1 <= int(answer) <= len(question.candidates):
+            return references.Decision(
+                references.REPOINT, fragment=question.candidates[int(answer) - 1]
+            )
+        return references.Decision()
+
+
 def _worse(current: int, candidate: int) -> int:
     return candidate if _SEVERITY[candidate] > _SEVERITY[current] else current
 
@@ -235,7 +284,12 @@ def command_build(args: argparse.Namespace) -> int:
         source, destination = job.source, job.destination
 
         console.rule(f"[bold]{os.path.basename(source)}")
-        result = rebuild(source, destination, policy)
+        result = rebuild(
+            source,
+            destination,
+            policy,
+            resolver=TerminalAsk(console) if args.ask else None,
+        )
 
         if args.check and result.output_path:
             validate(
@@ -651,6 +705,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
+    build.add_argument(
+        "--ask",
+        action="store_true",
+        help=(
+            "stop and ask when a link names an anchor no document has, instead "
+            "of leaving it as the publisher wrote it. The program never guesses "
+            "at these: removing the fragment would point footnote seventeen at "
+            "footnote one. Ignored when nothing is attached to the terminal"
+        ),
+    )
     build.add_argument(
         "--strict-exit",
         action="store_true",

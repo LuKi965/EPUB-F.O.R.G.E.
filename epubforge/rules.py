@@ -78,6 +78,7 @@ CATALOGUE: dict[str, str] = {
     "nav.generated": "the book had no navigation document and one was generated, with {count} entries",
     "nav.contents-page-kept": "the publisher's contents page was kept and the navigation put beside it",
     "nav.repointed": "{count} reference(s) to the replaced navigation document were repointed",
+    "nav.fragment-carried": "{count} reference(s) into the replaced navigation document kept their anchor, because the section it named has a counterpart in the regenerated one",
     "nav.kept-in-spine": "the navigation document stayed in the reading order, where the source had it",
     "nav.entry-dropped": "{count} table-of-contents entry/entries pointed at something that is not there",
     "nav.fragment-cleared": "{count} navigation anchor(s) do not exist, so the entries now point at the document",
@@ -153,7 +154,9 @@ CATALOGUE: dict[str, str] = {
     "package.not-written": "the rebuilt book could not be written where it was asked to go: {error}. The source is untouched and every other book in this run is unaffected",
     "package.invariant-failed": "{count} thing(s) about the rebuilt book are not true, so nothing was written: {detail}",
     "structure.reference-bearing-kept": "a {media_type} file links to {count} other file(s) in this book ({names}) and nothing here can rewrite those links, so it was left exactly where the publisher put it rather than moved to a file that no longer exists",
-    "xhtml.dead-fragment-kept": "{count} link(s) point at an anchor their target file does not have; the reference was left exactly as the publisher wrote it, because a footnote marker that silently leads to the wrong footnote is worse than one a reader can see is broken",
+    "xhtml.fragment-unresolved": "{count} link(s) name an anchor their target document does not have ({examples}); the reference was left exactly as the publisher wrote it, because nothing here knows where it was meant to lead and a footnote marker that silently arrives at the wrong footnote is worse than one a reader can see is broken",
+    "xhtml.fragment-repointed": "{count} link(s) whose anchor was missing were given a new one, chosen by the person running the rebuild",
+    "package.unresolved-references": "{count} link(s) name an anchor no document has ({examples}), and strict mode does not publish a book whose references it cannot honestly resolve; nothing was written",
     "xhtml.encoding-mended": "this document said it was in one encoding and its bytes were in another ({encoding}); it was read as what it is rather than parsed with the difference substituted away, which is how a character of a book disappears without anybody being told",
     "xhtml.document-language-corrected": "the document said it was written in {was} and its own text is plainly Polish, so it now says {now}; a reading system speaks this attribute to its voice and hyphenates by it",
     "xhtml.duplicate-ids-renamed": "{count} id attribute(s) appeared more than once in the same document ({names}); the first of each keeps its name and the later ones were renamed, so every existing link still lands where it did",
@@ -164,7 +167,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.body-added": "a missing <body> element was added",
     "xhtml.dead-reference-kept": "{count} reference(s) point at files not in the book and were left unchanged",
     "xhtml.dead-reference-neutralised": "{count} reference(s) to files absent from the book were neutralised",
-    "xhtml.dead-fragment-dropped": "{count} link(s) pointed at an anchor no document defines; the fragment was dropped",
+    "xhtml.dead-fragment-dropped": "{count} link(s) pointed at an anchor no document defines and were sent to the top of the target document instead, because the person running the rebuild said that is where they belong",
     "xhtml.presentational-markup-converted": "legacy presentational markup was converted to CSS",
     "xhtml.image-paragraph-centred": "{count} image-only paragraph(s) were centred and their text indent removed",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
@@ -296,6 +299,7 @@ CATALOGUE_PL: dict[str, str] = {
     'nav.generated': 'książka nie miała dokumentu nawigacyjnego i został utworzony, z {count} {count:pozycją|pozycjami|pozycjami}',
     'nav.contents-page-kept': 'zachowano stronę spisu treści wydawcy, a wygenerowaną nawigację umieszczono obok',
     'nav.repointed': 'przepięto {count} {count:odwołanie|odwołania|odwołań} do zastąpionego dokumentu nawigacyjnego',
+    'nav.fragment-carried': '{count} {count:odwołanie do zastąpionego dokumentu nawigacyjnego zachowało|odwołania do zastąpionego dokumentu nawigacyjnego zachowały|odwołań do zastąpionego dokumentu nawigacyjnego zachowało} swoją kotwicę, bo sekcja, którą wskazywała, ma odpowiednik w dokumencie wygenerowanym',
     'nav.kept-in-spine': 'dokument nawigacyjny został w kolejności czytania, tam gdzie miało go źródło',
     'nav.entry-dropped': '{count} {count:pozycja spisu treści wskazywała|pozycje spisu treści wskazywały|pozycji spisu treści wskazywało} na coś, czego nie ma',
     'nav.fragment-cleared': '{count} {count:kotwica nawigacyjna nie istnieje|kotwice nawigacyjne nie istnieją|kotwic nawigacyjnych nie istnieje}, więc pozycje wskazują teraz na sam dokument',
@@ -370,7 +374,9 @@ CATALOGUE_PL: dict[str, str] = {
     'package.not-written': 'przebudowanej książki nie dało się zapisać tam, gdzie miała trafić: {error}. Źródło jest nietknięte, a pozostałe książki w tym przebiegu to nie dotyczy',
     'package.invariant-failed': '{count} {count:rzecz w przebudowanej książce nie jest prawdą|rzeczy w przebudowanej książce nie są prawdą|rzeczy w przebudowanej książce nie jest prawdą}, więc nic nie zapisano: {detail}',
     'structure.reference-bearing-kept': 'plik {media_type} odwołuje się do {count} {count:innego pliku|innych plików|innych plików} tej książki ({names}), a nic tutaj nie umie przepisać tych odwołań — został więc dokładnie tam, gdzie umieścił go wydawca, zamiast wskazywać plik, którego już nie ma',
-    'xhtml.dead-fragment-kept': '{count} {count:odnośnik wskazuje|odnośniki wskazują|odnośników wskazuje} kotwicę, której docelowy plik nie ma; odwołanie zostawiono dokładnie tak, jak napisał je wydawca — znacznik przypisu, który po cichu prowadzi do niewłaściwego przypisu, jest gorszy od takiego, o którym czytelnik widzi, że jest zepsuty',
+    'xhtml.fragment-unresolved': '{count} {count:odnośnik wskazuje|odnośniki wskazują|odnośników wskazuje} kotwicę, której docelowy dokument nie ma ({examples}); odwołanie zostawiono dokładnie tak, jak napisał je wydawca — nic tutaj nie wie, dokąd miało prowadzić, a znacznik przypisu, który po cichu trafia do niewłaściwego przypisu, jest gorszy od takiego, o którym czytelnik widzi, że jest zepsuty',
+    'xhtml.fragment-repointed': '{count} {count:odnośnik z brakującą kotwicą dostał|odnośniki z brakującą kotwicą dostały|odnośników z brakującą kotwicą dostało} nową, wskazaną przez osobę prowadzącą przebudowę',
+    'package.unresolved-references': '{count} {count:odnośnik wskazuje|odnośniki wskazują|odnośników wskazuje} kotwicę, której nie ma w żadnym dokumencie ({examples}), a tryb ścisły nie wydaje książki z odwołaniami, których nie potrafi uczciwie rozwiązać; nic nie zapisano',
     'xhtml.encoding-mended': 'ten dokument twierdził, że jest w jednym kodowaniu, a jego bajty były w innym ({encoding}); odczytano go jako to, czym jest, zamiast sparsować z podmianą różnicy — bo tak właśnie znika znak książki i nikt się o tym nie dowiaduje',
     'xhtml.document-language-corrected': 'dokument twierdził, że jest w {was}, a jego własny tekst jest ewidentnie polski, więc mówi teraz {now}; czytnik podaje ten atrybut syntezatorowi mowy i dzieli po nim wyrazy',
     'xhtml.duplicate-ids-renamed': '{count} {count:atrybut id powtarzał się|atrybuty id powtarzały się|atrybutów id powtarzało się} w tym samym dokumencie ({names}); pierwszy z każdej pary zachowuje nazwę, późniejsze przemianowano — każdy istniejący odnośnik trafia tam, gdzie trafiał',
@@ -381,7 +387,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.body-added': 'dodano brakujący element <body>',
     'xhtml.dead-reference-kept': '{count} {count:odwołanie wskazuje|odwołania wskazują|odwołań wskazuje} na pliki, których w książce nie ma; zostawiono je bez zmian',
     'xhtml.dead-reference-neutralised': 'unieszkodliwiono {count} {count:odwołanie|odwołania|odwołań} do plików nieobecnych w książce',
-    'xhtml.dead-fragment-dropped': '{count} {count:odnośnik wskazywał|odnośniki wskazywały|odnośników wskazywało} na kotwicę, której żaden dokument nie definiuje; usunięto fragment',
+    'xhtml.dead-fragment-dropped': '{count} {count:odnośnik wskazywał|odnośniki wskazywały|odnośników wskazywało} na kotwicę, której żaden dokument nie definiuje, i {count:prowadzi teraz|prowadzą teraz|prowadzi teraz} na początek dokumentu docelowego — bo tak zdecydowała osoba prowadząca przebudowę',
     'xhtml.presentational-markup-converted': 'stare znaczniki prezentacyjne zamieniono na CSS',
     'xhtml.image-paragraph-centred': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} i usunięto z nich wcięcie',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
@@ -571,7 +577,13 @@ DETAILS: dict[str, str] = {
     "xhtml.dead-reference-kept":
         "These are source defects and remain conformance errors. Use --strict to neutralise them.",
     "xhtml.dead-fragment-dropped":
-        "The file each link names is present; the anchor inside it is not. Keeping the fragment leaves an error nobody can act on, so the link now lands at the top of the right document instead of nowhere.",
+        "The file each link names is present; the anchor inside it is not. The link now lands at the top of that document. This is the only route from a missing anchor to no anchor, and it runs through a person who looked at the book: the program will not take it on its own, because a link that quietly arrives somewhere plausible cannot be told apart from one that works.",
+    "xhtml.fragment-unresolved":
+        "The target document exists and the anchor in it does not, so where the link was meant to lead is not knowable from the file. It is a defect inherited from the source, and it is reported rather than repaired: removing the fragment would silence the validator by sending the reader to the top of the document — for a footnote marker, to the wrong footnote — and nothing here can tell that apart from a repair. Strict mode refuses to publish a book carrying these; in the window each one can be answered by hand.",
+    "xhtml.fragment-repointed":
+        "A person chose the anchor, which is evidence this program does not have. Counted separately from anything it worked out for itself.",
+    "package.unresolved-references":
+        "Every one of them is listed in the report with the document holding it. Rebuild in preserve mode to get the file with the publisher's own broken references intact, or open the book in the window, where each of these can be answered one at a time.",
     "css.remote-import-removed":
         "EPUB 3 allows one kind of remote resource — a font declared on its manifest item — and a stylesheet is not one. The font-family declarations are untouched, so the book falls back exactly as it would have.",
     "xhtml.remote-import-removed":
@@ -732,7 +744,13 @@ DETAILS_PL: dict[str, str] = {
     "xhtml.dead-reference-kept":
         "To są defekty źródła i pozostają błędami zgodności. Użyj --strict, żeby je unieszkodliwić.",
     "xhtml.dead-fragment-dropped":
-        "Plik, który wskazuje każdy z tych odnośników, jest na miejscu; kotwicy w nim nie ma. Zostawienie fragmentu to błąd, z którym nikt nic nie zrobi, więc odnośnik prowadzi teraz na początek właściwego dokumentu, a nie donikąd.",
+        "Plik, który wskazuje każdy z tych odnośników, jest na miejscu; kotwicy w nim nie ma. Odnośnik prowadzi teraz na początek tego dokumentu. To jedyna droga od brakującej kotwicy do jej braku i prowadzi przez człowieka, który zajrzał do książki: program sam tego nie zrobi, bo odnośnika, który po cichu trafia w miejsce prawdopodobne, nie da się odróżnić od działającego.",
+    "xhtml.fragment-unresolved":
+        "Dokument docelowy istnieje, kotwicy w nim nie ma — więc z samego pliku nie da się odczytać, dokąd odnośnik miał prowadzić. To defekt odziedziczony ze źródła i jest zgłaszany, a nie naprawiany: usunięcie fragmentu uciszyłoby walidator, wysyłając czytelnika na początek dokumentu, a przy znaczniku przypisu — do niewłaściwego przypisu, i nic tutaj nie odróżni tego od naprawy. Tryb ścisły nie wyda książki, która je niesie; w oknie aplikacji można odpowiedzieć na każde z osobna.",
+    "xhtml.fragment-repointed":
+        "Kotwicę wskazał człowiek, czyli dowód, którego program nie ma. Liczone osobno od wszystkiego, co ustalił sam.",
+    "package.unresolved-references":
+        "Każde z nich jest w raporcie razem z dokumentem, który je zawiera. Przebuduj w trybie zachowawczym, żeby dostać plik z nienaruszonymi zepsutymi odwołaniami wydawcy, albo otwórz książkę w oknie aplikacji, gdzie można odpowiedzieć na każde po kolei.",
     "css.remote-import-removed":
         "EPUB 3 dopuszcza jeden rodzaj zasobu zdalnego — font zadeklarowany przy pozycji manifestu — a arkusz stylów nim nie jest. Deklaracje font-family zostają nietknięte, więc książka podstawia kroje dokładnie tak, jak podstawiłaby wcześniej.",
     "xhtml.remote-import-removed":

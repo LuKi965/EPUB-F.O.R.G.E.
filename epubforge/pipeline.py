@@ -11,6 +11,7 @@ from .budget import Budget, BudgetExceeded
 from .model import Book
 from .policy import Policy
 from .reader import EpubReadError, read_epub
+from .references import Resolver
 from .report import Level, Report
 from .stages import DEFAULT_STAGES, Context
 from .writer import ArchiveVerificationError, write_epub
@@ -137,6 +138,8 @@ def rebuild(
     destination: str,
     policy: Policy | None = None,
     stages: "tuple[type, ...] | list[type] | None" = None,
+    *,
+    resolver: "Resolver | None" = None,
 ) -> Result:
     """Rebuild *source* into a conforming EPUB 3.3 at *destination*.
 
@@ -145,6 +148,12 @@ def rebuild(
     answer is a rebuild with it and a rebuild without it, compared byte for
     byte, and there is no way to get the second without being able to say which
     stages ran. Nothing in the application passes it.
+
+    *resolver* is somebody to ask when the rebuild reaches a question it cannot
+    answer — today, a reference whose anchor does not exist. `None` means nobody
+    is there, which is what a batch run, the corpus and a library caller all
+    want; the rebuild then changes nothing it cannot justify and says so in the
+    report. See :mod:`epubforge.references`.
     """
     policy = policy or Policy()
     report = Report(source=source, output=destination)
@@ -207,7 +216,7 @@ def rebuild(
         report.add("package", Level.WARN, "package.version-unusable")
 
     policy = _settle_layout(book, policy, report)
-    ctx = Context(book=book, policy=policy, report=report, budget=budget)
+    ctx = Context(book=book, policy=policy, report=report, budget=budget, resolver=resolver)
 
     for stage_class in (DEFAULT_STAGES if stages is None else stages):
         stage = stage_class()
@@ -252,6 +261,36 @@ def rebuild(
     # it, and it cannot.
     if os.path.abspath(destination) == os.path.abspath(source):
         report.add("writer", Level.ERROR, "package.source-protected", location=source)
+        return Result(report, book, None, Status.BLOCKED)
+
+    # Strict mode's half of F-010.
+    #
+    # A reference whose anchor does not exist cannot be repaired by this program
+    # — see `references.py` for why removing the fragment is not a repair but a
+    # forgery. What is left is a choice about the *result*, and the two modes
+    # answer it differently, which is the only place they are allowed to
+    # disagree about this at all.
+    #
+    # `preserve` publishes the book with the publisher's own broken reference
+    # intact and the finding in the report. `strict` does not: its whole promise
+    # is a file that conforms, and this book does not, so it says so instead of
+    # producing something that validates by having had meaning removed from it.
+    #
+    # BLOCKED rather than FAILED — nothing went wrong here. The book was refused
+    # on purpose, by a rule the person chose when they chose the mode, and the
+    # report names every reference and the document holding it. If somebody is
+    # at the window, they were asked first: a resolver turns most of these into
+    # answers before this line is reached.
+    if policy.strict and ctx.unresolved:
+        report.add(
+            "writer",
+            Level.ERROR,
+            "package.unresolved-references",
+            values={
+                "count": len(ctx.unresolved),
+                "examples": "; ".join(str(u) for u in ctx.unresolved[:3]),
+            },
+        )
         return Result(report, book, None, Status.BLOCKED)
 
     # The commit point. Everything above may mutate the book; from here it is
@@ -316,5 +355,13 @@ def rebuild(
         )
         return Result(report, book, None, Status.FAILED)
 
-    status = Status.SUCCEEDED if report.ok else Status.SUCCEEDED_WITH_PROBLEMS
+    # `SUCCEEDED` is a claim, and a book that still carries references this
+    # program could not resolve is not entitled to it. They are not errors —
+    # they are defects the source arrived with, and refusing the book over them
+    # would refuse a large part of every shelf — but a rebuild that hands back a
+    # flat "succeeded" while a footnote marker leads nowhere has told the person
+    # something untrue. The file is written; the status says there is something
+    # in the report worth reading.
+    clean = report.ok and not ctx.unresolved
+    status = Status.SUCCEEDED if clean else Status.SUCCEEDED_WITH_PROBLEMS
     return Result(report, book, destination, status)

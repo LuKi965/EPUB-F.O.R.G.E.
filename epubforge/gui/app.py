@@ -72,11 +72,22 @@ class Worker(QObject):
     finished_one = Signal(int, object)
     finished_all = Signal()
 
-    def __init__(self, jobs: list[tuple[str, str]], policy: Policy, run_check: bool):
+    def __init__(
+        self,
+        jobs: list[tuple[str, str]],
+        policy: Policy,
+        run_check: bool,
+        resolver=None,
+    ):
         super().__init__()
         self._jobs = jobs
         self._policy = policy
         self._run_check = run_check
+        #: Who the rebuild asks when it cannot decide — see `gui/ask.py`. It
+        #: belongs to the GUI thread and is called from this one, which is the
+        #: whole reason it is an object with a blocking signal rather than a
+        #: function.
+        self._resolver = resolver
         self._cancelled = False
 
     def cancel(self) -> None:
@@ -88,7 +99,7 @@ class Worker(QObject):
                 break
             self.progress.emit(index, os.path.basename(source))
             try:
-                result = rebuild(source, destination, self._policy)
+                result = rebuild(source, destination, self._policy, resolver=self._resolver)
                 if self._run_check and result.output_path:
                     self.validating.emit(index, os.path.basename(source))
                     validate(
@@ -397,6 +408,13 @@ class MainWindow(QMainWindow):
             layout, "policy.incomplete", checked=False
         )
 
+        # F-010's other half. A reference whose anchor does not exist cannot be
+        # repaired from the file, and the program refuses to invent an answer —
+        # so the only way one of these is ever *resolved* rather than reported
+        # is a person looking at it. On by default: this is a window, somebody
+        # is here, and asking is the point rather than the fallback.
+        self.ask_check = self._checkbox(layout, "policy.ask", checked=True)
+
         self._mode_changed()
         return box
 
@@ -596,6 +614,21 @@ class MainWindow(QMainWindow):
                     policy.default_language = value
         return policy
 
+    def _ask_resolver(self):
+        """Somebody for the rebuild to ask, or nobody, as the box says.
+
+        Built fresh for each run and parented to the window, so it lives in the
+        GUI thread — which is the requirement the whole arrangement exists to
+        satisfy. `None` means the rebuild behaves exactly as it does in a batch:
+        it changes nothing it cannot justify, and reports what it left.
+        """
+        if not self.ask_check.isChecked():
+            return None
+        from .ask import Ask
+
+        self._resolver = Ask(self)
+        return self._resolver
+
     def _run(self) -> None:
         if not self._sources:
             QMessageBox.information(self, tr("dialog.nothing.title"), tr("dialog.nothing.body"))
@@ -626,7 +659,12 @@ class MainWindow(QMainWindow):
         self.run_button.setEnabled(False)
 
         self._thread = QThread()
-        self._worker = Worker(jobs, self._policy(), self.validate_check.isChecked())
+        self._worker = Worker(
+            jobs,
+            self._policy(),
+            self.validate_check.isChecked(),
+            self._ask_resolver(),
+        )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._on_progress)

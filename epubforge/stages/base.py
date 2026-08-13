@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from ..budget import Budget
 from ..model import Book
 from ..policy import Policy
+from ..references import Answers, Decision, Resolver, Unresolved
 from ..report import Level, Report
 
 
@@ -78,6 +79,27 @@ class Context:
     #: Per-document ``{old_id: new_id}`` for ids that were not valid XML names.
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    #: References whose anchor this program could not honestly resolve — see
+    #: :mod:`epubforge.references`. Kept on the context rather than counted and
+    #: forgotten, because two things outside the stage need them: `strict`
+    #: refuses to publish a book that has any, and the window lists them.
+    unresolved: list[Unresolved] = field(default_factory=list)
+
+    #: Who to ask when the program cannot decide. `None` — a batch run, the
+    #: corpus, a library caller — means nobody is there, and nothing is asked.
+    resolver: Resolver | None = None
+
+    #: What was asked and answered during this rebuild.
+    answers: Answers = field(default_factory=Answers)
+
+    def ask(self, question: Unresolved) -> Decision:
+        """Put one unresolvable reference to the person, if there is one.
+
+        Always returns a decision; `Decision()` — leave it alone — is what
+        comes back when nobody is there to ask, which is the default.
+        """
+        return self.answers.ask(self.resolver, question)
 
     def remap_fragment(self, target: str | None) -> str | None:
         if not target or "#" not in target:

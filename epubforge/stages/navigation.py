@@ -156,6 +156,28 @@ class NavigationStage(Stage):
             # Unknown document (an image, say): nothing to verify against.
             return fragment in known if known is not None else True
 
+        # ------------------------------------------------------------------
+        # KNOWN, NOT YET DECIDED — the same shape as F-010, in three places
+        # below (`prune`, the landmark loop, the page-list loop).
+        #
+        # A contents entry, a landmark or a page-list entry whose anchor is
+        # missing has that anchor removed and is kept pointing at the file. That
+        # is exactly the transformation `references.py` forbids in a content
+        # document: a page-list entry for page 214 that lands at the top of the
+        # chapter is *wrong* rather than merely imprecise, and nothing in the
+        # output says so.
+        #
+        # It is left alone here on purpose, and not out of agreement with it.
+        # F-010's review asked for the content-document case to be fixed first
+        # and for the others to be named rather than swept along, because they
+        # are not the same argument: a navigation entry with no target at all is
+        # dropped from the table, so "keep it exactly as the publisher wrote it"
+        # has a second consequence here that it does not have in a chapter — the
+        # entry can disappear from the contents entirely. That trade needs
+        # measuring on real books before it is made.
+        #
+        # Tracked in the private notes as F-010b, beside F-016 and F-018.
+        # ------------------------------------------------------------------
         def prune(nodes: list[NavPoint]) -> list[NavPoint]:
             nonlocal removed
             kept: list[NavPoint] = []
@@ -340,6 +362,54 @@ class NavigationStage(Stage):
         lines.append(f"{indent}</ol>")
         return "\n".join(lines)
 
+    #: What the regenerated navigation calls each of its sections. The ids are
+    #: written in `_write_nav`; naming them once means the mapping below cannot
+    #: quietly stop matching the document it describes.
+    SECTION_IDS = {"toc": "toc", "landmarks": "landmarks", "page-list": "page-list"}
+
+    def _fragment_map(self, ctx: Context, old_path: str) -> dict[str, str]:
+        """`{old anchor: new anchor}` for the navigation document being replaced.
+
+        The one deterministic repair available here, and the reason F-010 has a
+        clause about regenerated resources at all. A book that links to
+        `nav.xhtml#spis` is linking to the source's table of contents; this
+        stage is about to write a table of contents of its own and knows what it
+        calls it. `spis -> toc` is therefore not a guess — it is a fact about a
+        transformation this program is performing, which is the only kind of
+        evidence that earns the word *repaired*.
+
+        Only the `<nav>` elements are mapped, and only by `epub:type`, because
+        those are the parts of the old document the new one is a replacement
+        for. Anything else the old navigation carried an id for — a heading, a
+        list item — has no counterpart in the regenerated document, and the
+        reference to it is treated as changed by a transformation this program
+        chose to make, which is the fourth case in the audit's list and the only
+        place a fragment is allowed to go without a person saying so.
+        """
+        resource = ctx.book.get(old_path)
+        if resource is None:
+            return {}
+        try:
+            markup = resource.data.decode("utf-8", "replace")
+        except (AttributeError, UnicodeDecodeError):  # pragma: no cover - defensive
+            return {}
+
+        present = {"toc"}
+        if ctx.book.landmarks:
+            present.add("landmarks")
+        if ctx.book.page_list:
+            present.add("page-list")
+
+        mapping: dict[str, str] = {}
+        for tag in re.finditer(r"<nav\b[^>]*>", markup, re.IGNORECASE):
+            attributes = dict(re.findall(r"""\b([\w:-]+)=["']([^"']*)["']""", tag.group(0)))
+            kind = (attributes.get("epub:type") or "").strip().lower()
+            old_id = (attributes.get("id") or "").strip()
+            new_id = self.SECTION_IDS.get(kind)
+            if old_id and new_id and kind in present:
+                mapping[old_id] = new_id
+        return mapping
+
     def _redirect(self, ctx: Context, old_path: str, new_path: str) -> None:
         """Point everything that referenced `old_path` at `new_path` instead.
 
@@ -350,10 +420,23 @@ class NavigationStage(Stage):
         to contents" is linking to the page that is about to stop existing.
 
         Retargeted rather than deleted: a link to the table of contents still
-        means the table of contents, and the new document is it.
+        means the table of contents, and the new document is it. Where the
+        anchor inside it also has a counterpart, the anchor follows too — see
+        `_fragment_map`.
         """
         book = ctx.book
         moved = 0
+        mapped = 0
+        fragments = self._fragment_map(ctx, old_path)
+
+        def arrival(fragment: str) -> str:
+            """Where a reference to `old_path#fragment` now points."""
+            nonlocal mapped
+            new_fragment = fragments.get(fragment)
+            if not new_fragment:
+                return new_path
+            mapped += 1
+            return f"{new_path}#{new_fragment}"
 
         def retarget(target: str | None) -> str | None:
             nonlocal moved
@@ -363,9 +446,7 @@ class NavigationStage(Stage):
             if path != old_path:
                 return target
             moved += 1
-            # The fragment belonged to the old document and means nothing in
-            # the regenerated one.
-            return new_path
+            return arrival(fragment)
 
         for root in book.toc:
             for node in root.walk():
@@ -386,7 +467,7 @@ class NavigationStage(Stage):
             replaced = 0
 
             def repoint(match: re.Match) -> str:
-                nonlocal replaced
+                nonlocal replaced, mapped
                 attribute, quote, value = match.group(1), match.group(2), match.group(3)
                 if not value or paths.is_remote(value) or value.startswith("#"):
                     return match.group(0)
@@ -394,13 +475,31 @@ class NavigationStage(Stage):
                 if paths.resolve(resource.path, href) != old_path:
                     return match.group(0)
                 replaced += 1
-                return f"{attribute}={quote}{paths.relative(resource.path, new_path)}{quote}"
+                landing = paths.relative(resource.path, new_path)
+                new_fragment = fragments.get(fragment)
+                if new_fragment:
+                    mapped += 1
+                    landing = f"{landing}#{new_fragment}"
+                return f"{attribute}={quote}{landing}{quote}"
 
             updated = _HREF_ATTRIBUTE.sub(repoint, text)
             if replaced:
                 resource.data = updated.encode("utf-8")
                 in_documents += replaced
 
+        if mapped:
+            # Said separately from the repointing, because it is a different
+            # claim. Moving a reference to the document that replaced its target
+            # is bookkeeping; carrying its anchor across is the one place in
+            # this stage where a fragment survives a document being regenerated,
+            # and F-010 exists because that was not happening.
+            self.note(
+                ctx,
+                Level.FIX,
+                "nav.fragment-carried",
+                values={"count": mapped},
+                location=new_path,
+            )
         if moved or in_documents:
             self.note(
                 ctx,
