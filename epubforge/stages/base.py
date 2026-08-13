@@ -98,6 +98,66 @@ class Context:
     #: What was asked and answered during this rebuild.
     answers: Answers = field(default_factory=Answers)
 
+    #: Parsed documents, keyed by the bytes they were parsed from — see
+    #: :meth:`parsed`. Not part of the book; a working set that lives as long as
+    #: one rebuild does.
+    _trees: dict = field(default_factory=dict)
+
+    def parsed(self, resource):
+        """The parse tree for *resource*, parsed once per version of its bytes.
+
+        The audit's F-030: five stages parse the same documents, and lxml
+        parsing is the most expensive thing this program does per byte. Measured
+        on one real book — 15 documents, 22 parses.
+
+        Keyed on a digest of the bytes rather than on the path, which is what
+        makes it safe: the content stage rewrites a document and the next stage
+        asking for it gets a *new* parse, because they are different bytes. A
+        cache keyed on the path would hand out a tree of the previous version,
+        which is the failure this whole program exists to avoid, arriving by a
+        new route.
+
+        The tree is shared, not copied — copying a large tree costs about what
+        parsing it costs, which would leave the finding fixed and the cost
+        unchanged. Sharing is safe for the stages that read; a stage that
+        *modifies* a tree writes the result back as bytes, and that changes the
+        key. `test_stage_contract.py` holds the line.
+        """
+        import hashlib
+
+        key = hashlib.sha256(resource.data).digest()
+        tree = self._trees.get(key)
+        if tree is None:
+            from .. import xhtml
+
+            tree = xhtml.parse_document(resource.data)
+            self._trees[key] = tree
+        return tree
+
+    def take(self, resource):
+        """The parse tree for *resource*, for a stage that is going to change it.
+
+        Same cache, and it **gives the tree up**: a mutated tree must not stay
+        under a key that says "this is what those bytes parse to", because it is
+        about to stop being true.
+
+        The hazard is not theoretical, and it is why this is a second method
+        rather than a flag. Two documents in one book can be byte-identical —
+        two blank pages, two identical colophons — and they share a key. Without
+        the eviction, a stage that took the tree for the first, edited it and
+        wrote it back would then be handed *its own edits* as the parse of the
+        second document, which is one document silently overwriting another.
+        """
+        import hashlib
+
+        key = hashlib.sha256(resource.data).digest()
+        tree = self._trees.pop(key, None)
+        if tree is None:
+            from .. import xhtml
+
+            tree = xhtml.parse_document(resource.data)
+        return tree
+
     def ask(self, question: Unresolved) -> Decision:
         """Put one unresolvable reference to the person, if there is one.
 
@@ -127,6 +187,19 @@ class Stage:
     """One transformation pass over the book."""
 
     name = "stage"
+
+    #: Whether this stage may change the book at all.
+    #:
+    #: The audit's F-029 says a mutable `Book` passed through large stages means
+    #: any stage can change anything and nothing notices. Making the model
+    #: immutable is a refactor of the whole program; making a stage's *claim*
+    #: checkable is one line here and an enforced fact in the pipeline, and it
+    #: covers the case the finding is actually about — a stage that says it only
+    #: measures and does not.
+    #:
+    #: True by default: a stage that has not thought about it is assumed to
+    #: change things, which is the safe assumption and not the flattering one.
+    mutates = True
 
     def run(self, ctx: Context) -> None:  # pragma: no cover - interface
         raise NotImplementedError

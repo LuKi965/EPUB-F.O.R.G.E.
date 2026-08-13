@@ -461,7 +461,9 @@ class ContentStage(Stage):
 
         for resource in ctx.book.content_docs():
             try:
-                parsed = xhtml.parse_document(resource.data)
+                # `take`, not `parsed`: this stage edits the tree and writes it
+                # back, so it must own the one it gets — see `Context.take`.
+                parsed = ctx.take(resource)
                 root, mode = parsed.root, parsed.mode
                 if parsed.entities_expanded:
                     expanded_entities[resource.path] = parsed.entities_expanded

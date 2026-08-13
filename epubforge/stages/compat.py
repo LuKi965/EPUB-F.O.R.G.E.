@@ -155,7 +155,7 @@ class CompatibilityStage(Stage):
         linked = 0
         for resource in documents:
             try:
-                root, _ = xhtml.parse(resource.data)
+                root = ctx.parsed(resource).root
             except Exception:  # noqa: BLE001 - a document we cannot read is left alone
                 continue
             if self._link_stylesheet(root, resource.path, sheet_path):

@@ -160,7 +160,7 @@ class AccessibilityStage(Stage):
         for resource in book.content_docs():
             survey["documents"] += 1
             try:
-                root, _ = xhtml.parse(resource.data)
+                root = ctx.parsed(resource).root
             except Exception:
                 continue
 

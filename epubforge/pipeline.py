@@ -124,6 +124,33 @@ LOSES_INPUT = frozenset({
 })
 
 
+def _fingerprint(book: Book) -> tuple:
+    """Everything about a book that a stage could change, cheaply comparable.
+
+    Bytes are hashed rather than held, so this costs one pass over the content
+    and no second copy of a book that may be a quarter of a gigabyte. It covers
+    what the audit's F-029 is about: the resources and their contents, the
+    reading order, the navigation, and the metadata a reader sees.
+    """
+    import hashlib
+
+    return (
+        tuple(
+            (path, hashlib.sha256(resource.data).digest(), resource.media_type)
+            for path, resource in sorted(book.resources.items())
+        ),
+        tuple((item.path, item.linear) for item in book.spine),
+        book.cover_path,
+        book.nav_path,
+        book.ncx_path,
+        book.metadata.title,
+        tuple(identifier.value for identifier in book.metadata.identifiers),
+        len(book.toc),
+        len(book.landmarks),
+        len(book.page_list),
+    )
+
+
 def _input_lost(report: Report) -> set[str]:
     """Which entries of the source did not survive being read."""
     return {
@@ -314,6 +341,11 @@ def rebuild(
 
     for stage_class in (DEFAULT_STAGES if stages is None else stages):
         stage = stage_class()
+        # F-029, the checkable part. Making the model immutable is a refactor of
+        # the whole program; making a stage's *claim* enforceable is this, and it
+        # covers what the finding is about — a stage that says it only measures
+        # and quietly does not, in a program where any stage can change anything.
+        before = _fingerprint(book) if not stage.mutates else None
         try:
             budget.deadline(stage.name)
             stage.run(ctx)
@@ -345,6 +377,18 @@ def rebuild(
                 values={"stage": stage.name, "error": f"{type(exc).__name__}: {exc}"},
             )
             return Result(report, book, None, Status.FAILED)
+        if before is not None and _fingerprint(book) != before:
+            # Not a warning. A stage that changed the book while declaring it
+            # would not is a stage whose every other claim is now unevidenced,
+            # and the output was produced under an assumption that turned out
+            # false. Nothing is written.
+            report.add(
+                stage.name,
+                Level.ERROR,
+                "package.stage-broke-its-word",
+                values={"stage": stage.name},
+            )
+            return Result(report, book, None, Status.BLOCKED)
 
     if book.has_drm:
         return Result(report, book, None, Status.BLOCKED)

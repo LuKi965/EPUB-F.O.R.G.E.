@@ -25,12 +25,15 @@ class ProfileStage(Stage):
     """Measures the book's shape and puts it in the report."""
 
     name = "profile"
+    #: It measures and writes findings; it does not touch the book. Enforced by
+    #: the pipeline rather than asserted here — see `Stage.mutates`.
+    mutates = False
 
     def run(self, ctx: Context) -> None:
         documents = []
         for resource in ctx.book.content_docs():
             try:
-                documents.append(xhtml.parse_document(resource.data).root)
+                documents.append(ctx.parsed(resource).root)
             except Exception:  # noqa: BLE001 — the content stage reports this
                 continue
         if not documents:
