@@ -195,6 +195,20 @@ PL: dict[str, str] = {
         "i wie, co robi. Zaznaczone: plik powstanie mimo wszystko, a raport "
         "powie, czego w nim nie ma. Nie sprawia, że strata staje się cicha."
     ),
+    "policy.reproducible": "Buduj reprodukowalnie (te same bajty za każdym razem)",
+    "policy.reproducible.tip": (
+        "Dwie przebudowy tej samej książki dają plik bajt w bajt identyczny. "
+        "Przydaje się, gdy chcesz porównać dwa buildy albo sprawdzić, że to, co "
+        "masz, faktycznie powstaje z tego źródła.\n\n"
+        "Zmienia dwie rzeczy. `dcterms:modified` bierze się ze źródła, a nie z "
+        "zegara — a jeżeli źródło nie ma żadnej daty, wpisywana jest epoka "
+        "(1970), bo wymyślenie wiarygodnie wyglądającej daty byłoby zmyśleniem "
+        "faktu o cudzej książce. Książka bez własnego identyfikatora dostaje "
+        "identyfikator **wyliczony z jej zawartości**, a nie losowy — ten sam "
+        "plik zawsze ten sam, dwie różne książki nigdy taki sam.\n\n"
+        "Domyślnie wyłączone, bo uczciwą datą modyfikacji pliku zrobionego "
+        "przed chwilą jest „przed chwilą”."
+    ),
     "policy.junk": "Usuwaj pozostałości po pakowaniu",
     "policy.junk.tip": (
         "`.DS_Store`, `Thumbs.db`, `__MACOSX/`, cienie `._`, "
@@ -701,6 +715,21 @@ EN: dict[str, str] = {
         "This box is the way through for a person holding that book who knows "
         "what they are doing. Ticked: the file is written anyway and the report "
         "says what is not in it. It does not make the loss quiet."
+    ),
+    "policy.reproducible": "Reproducible build (the same bytes every time)",
+    "policy.reproducible.tip": (
+        "Two rebuilds of one book produce a byte-for-byte identical file. "
+        "Useful for comparing two builds, or for checking that what you have "
+        "is what this source actually produces.\n\n"
+        "It changes two things. `dcterms:modified` comes from the source rather "
+        "than the clock — and where the source carries no date at all, the "
+        "epoch (1970) is stamped, because inventing a plausible-looking date "
+        "would be making up a fact about somebody's book. A book with no "
+        "identifier of its own gets one **derived from its content** instead of "
+        "a random one: the same file always the same, two different books never "
+        "the same.\n\n"
+        "Off by default, because the honest modification date of a file made a "
+        "moment ago is a moment ago."
     ),
     "policy.junk": "Remove packaging leftovers",
     "policy.junk.tip": (

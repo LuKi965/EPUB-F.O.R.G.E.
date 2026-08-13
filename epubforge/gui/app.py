@@ -418,6 +418,9 @@ class MainWindow(QMainWindow):
         # is a person looking at it. On by default: this is a window, somebody
         # is here, and asking is the point rather than the fallback.
         self.ask_check = self._checkbox(layout, "policy.ask", checked=True)
+        # Two builds of one book, byte for byte the same. Off by default,
+        # because the honest modification date of a file produced now is now.
+        self.reproducible_check = self._checkbox(layout, "policy.reproducible", checked=False)
 
         self._mode_changed()
         return box
@@ -607,6 +610,7 @@ class MainWindow(QMainWindow):
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.allow_incomplete = self.incomplete_check.isChecked()
+        policy.reproducible = self.reproducible_check.isChecked()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),

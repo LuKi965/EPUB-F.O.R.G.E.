@@ -222,7 +222,11 @@ class MetadataStage(Stage):
         metadata.identifiers = cleaned
 
         if not metadata.identifiers:
-            generated = f"urn:uuid:{uuid.uuid4()}"
+            generated = (
+                self._derived_identifier(ctx)
+                if ctx.policy.reproducible
+                else f"urn:uuid:{uuid.uuid4()}"
+            )
             metadata.identifiers = [Identifier(generated, None, primary=True)]
             self.note(ctx, Level.FIX, "metadata.identifier-minted", detail=generated)
             return
@@ -230,6 +234,42 @@ class MetadataStage(Stage):
         if not any(i.primary for i in metadata.identifiers):
             metadata.identifiers[0].primary = True
             self.note(ctx, Level.FIX, "metadata.identifier-promoted")
+
+    @staticmethod
+    def _derived_identifier(ctx: Context) -> str:
+        """A UUID that is a function of the book rather than of the clock.
+
+        `uuid4` mints a different identifier every run, which makes a book with
+        no identifier of its own unreproducible by construction — and the
+        identifier is also what font obfuscation is keyed on, so it is not a
+        cosmetic difference. UUID version 5 over a digest of every resource
+        gives one identifier per set of bytes: the same book twice gets the same
+        one, two different books never get the same one, and nothing about the
+        machine it ran on gets into it.
+        """
+        import hashlib
+
+        digest = hashlib.sha256()
+        for path in sorted(ctx.book.resources):
+            digest.update(path.encode("utf-8"))
+            digest.update(hashlib.sha256(ctx.book.resources[path].data).digest())
+        return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, digest.hexdigest())}"
+
+    def _pinned_modified(self, ctx: Context) -> str:
+        """`dcterms:modified` for a reproducible build.
+
+        The source's own value if it has one — that is a fact about the book and
+        it does not move. Failing that the publication date, which is a weaker
+        fact and still a fact. Failing both, the epoch, which is the
+        reproducible-builds convention and is obviously not a real date: a
+        fabricated timestamp that *looked* plausible would be this program
+        inventing a fact about somebody's book to keep a promise about bytes.
+        """
+        for candidate in (ctx.book.metadata.modified, ctx.book.metadata.published):
+            if candidate and re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$", candidate):
+                return candidate
+        self.note(ctx, Level.INFO, "metadata.modified-pinned-to-epoch")
+        return "1970-01-01T00:00:00Z"
 
     def _dates(self, ctx: Context) -> None:
         metadata = ctx.book.metadata
@@ -257,9 +297,14 @@ class MetadataStage(Stage):
         # same input, so it is also the one thing standing between this tool and
         # byte-for-byte reproducible output. Pinning it is therefore a supported
         # choice rather than something to work around.
-        metadata.modified = ctx.policy.modified_override or dt.datetime.now(
-            dt.timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if ctx.policy.modified_override:
+            metadata.modified = ctx.policy.modified_override
+        elif ctx.policy.reproducible:
+            metadata.modified = self._pinned_modified(ctx)
+        else:
+            metadata.modified = dt.datetime.now(dt.timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
 
     def _creators(self, ctx: Context) -> None:
         metadata = ctx.book.metadata

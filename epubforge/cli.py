@@ -77,6 +77,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.reorganize_files = False
     if args.keep_junk:
         policy.remove_junk = False
+    if getattr(args, "reproducible", False):
+        policy.reproducible = True
     if args.keep_watermark_markup:
         policy.watermarks = "keep"
     if args.watermarks:
@@ -707,6 +709,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
+    build.add_argument(
+        "--reproducible",
+        action="store_true",
+        help=(
+            "produce the same bytes every time: dcterms:modified is taken from "
+            "the source instead of the clock, and a book with no identifier gets "
+            "one derived from its content rather than a fresh uuid4"
+        ),
+    )
     build.add_argument(
         "--keep-junk",
         action="store_true",

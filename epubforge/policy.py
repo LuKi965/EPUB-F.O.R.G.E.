@@ -215,6 +215,26 @@ class Policy:
     #: ``"2026-01-01T00:00:00Z"``.
     modified_override: str | None = None
 
+    #: Produce the same bytes every time this book is rebuilt.
+    #:
+    #: The audit's F-022, and the reason it was filed as "did not reproduce":
+    #: the *mechanism* was already here — every ZIP entry carries a fixed
+    #: timestamp and `modified_override` pins the one field that moves — but
+    #: there was no way to *ask for* a reproducible build. A mechanism nobody
+    #: can switch on is not a feature; it is a thing the author knows.
+    #:
+    #: Two things move between runs and this pins both. `dcterms:modified` is
+    #: taken from the source rather than from the clock. And a book with no
+    #: identifier at all had one minted with `uuid4`, which is a different book
+    #: every time; under this it is derived from the content, so the same input
+    #: gets the same identifier and two different books never collide.
+    #:
+    #: Off by default because the honest `dcterms:modified` for a file produced
+    #: now is now. This is for comparing two builds, for a corpus measurement,
+    #: and for anybody who wants to check that what they downloaded is what the
+    #: source produces.
+    reproducible: bool = False
+
     #: Force a language tag when the source has none or an invalid one.
     default_language: str = "en"
 

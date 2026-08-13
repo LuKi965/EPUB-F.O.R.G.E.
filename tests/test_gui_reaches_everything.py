@@ -45,9 +45,10 @@ NOT_IN_THE_WINDOW = {
     "metadata_overrides": "the title, author and language fields are this",
     "compat_profiles": "one checkbox per device profile, built from the compat module",
     "modified_override": (
-        "the timestamp written into the package. Reachable, but as part of a "
-        "reproducible-build mode rather than as a bare date field — open, and "
-        "named in docs/PLAN-PO-AUDYCIE.md under F-022"
+        "the timestamp written into the package. Reachable as part of the "
+        "reproducible-build mode rather than as a bare date field: the tick is "
+        "`policy.reproducible`, and a person who wants one particular timestamp "
+        "rather than reproducibility is a script, which has --modified"
     ),
     "accessibility_metadata": (
         "generated accessibility metadata describes what the rebuild did and is "
