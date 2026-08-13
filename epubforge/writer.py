@@ -583,6 +583,23 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     return opf, id_by_path
 
 
+class ArchiveVerificationError(OSError):
+    """The file this program just wrote is not the file it meant to write.
+
+    A distinct type because it means something categorically different from the
+    `OSError`s around it. A full disk or a read-only folder is the world saying
+    no, and a batch should record that book as failed and carry on. *This* is
+    the archive failing its own read-back — a defect in this program, or a disk
+    corrupting what it was handed — and swallowing it into a tidy result would
+    hide the one failure nobody else can see.
+
+    Introduced when catching `OSError` in `rebuild` for batch isolation (F-026)
+    turned out to catch this too, and the failure-injection suite said so within
+    the hour: six tests that pin "a container reading back wrong is not
+    promoted" stopped seeing anything raised at all.
+    """
+
+
 def _verify_container(path: str) -> None:
     """Read back what was just written and check it is an EPUB at all.
 
@@ -596,13 +613,13 @@ def _verify_container(path: str) -> None:
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         if not names or names[0] != "mimetype":
-            raise OSError("the written archive does not start with 'mimetype'")
+            raise ArchiveVerificationError("the written archive does not start with 'mimetype'")
         if archive.read("mimetype") != b"application/epub+zip":
-            raise OSError("the written archive has the wrong mimetype")
+            raise ArchiveVerificationError("the written archive has the wrong mimetype")
         if archive.getinfo("mimetype").compress_type != zipfile.ZIP_STORED:
-            raise OSError("the written mimetype entry is compressed")
+            raise ArchiveVerificationError("the written mimetype entry is compressed")
         if "META-INF/container.xml" not in names:
-            raise OSError("the written archive has no META-INF/container.xml")
+            raise ArchiveVerificationError("the written archive has no META-INF/container.xml")
         # Parsed, not merely present. "Has a container.xml" was the whole check,
         # and a container whose `full-path` carried an unescaped `&` passed it
         # while lxml refused to read the file — an archive nothing could open,
@@ -614,19 +631,19 @@ def _verify_container(path: str) -> None:
         try:
             container = etree.fromstring(archive.read("META-INF/container.xml"))
         except etree.XMLSyntaxError as exc:
-            raise OSError(f"the written container.xml is not well-formed XML: {exc}") from exc
+            raise ArchiveVerificationError(f"the written container.xml is not well-formed XML: {exc}") from exc
         rootfiles = container.findall(
             ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
         )
         if not rootfiles:
-            raise OSError("the written container.xml names no rootfile")
+            raise ArchiveVerificationError("the written container.xml names no rootfile")
         for rootfile in rootfiles:
             target = rootfile.get("full-path")
             if not target or target not in names:
-                raise OSError(f"the written container.xml points at a missing rootfile: {target!r}")
+                raise ArchiveVerificationError(f"the written container.xml points at a missing rootfile: {target!r}")
         broken = archive.testzip()
         if broken is not None:
-            raise OSError(f"the written archive has a corrupt entry: {broken}")
+            raise ArchiveVerificationError(f"the written archive has a corrupt entry: {broken}")
 
 
 def write_epub(

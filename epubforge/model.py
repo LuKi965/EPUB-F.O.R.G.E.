@@ -57,18 +57,45 @@ MEDIA_FOLDERS = (
 )
 
 
-def guess_media_type(path: str, declared: str | None = None) -> str:
-    """Trust the extension over a declared type.
+#: Declared types that are wrong often enough for the extension to win, and the
+#: only ones. Every entry is a generator's habit rather than a guess:
+#: `text/html` for XHTML is what Calibre and Sigil write, and
+#: `application/octet-stream` is what a tool writes when it has not looked.
+#:
+#: The list exists because the rule used to be *the extension always wins*, and
+#: that is a different and worse rule. Reproduced on 0.2.21: a stylesheet
+#: correctly declared `text/css` and named `styl.xhtml` came out of the rebuild
+#: as `application/xhtml+xml` — a file the pipeline then tries to parse as a
+#: document, on the strength of the part of its name a person typed by mistake.
+#: A declaration that is *plausible for the bytes* is evidence; a filename is a
+#: convention.
+OVERRIDABLE_DECLARATIONS = frozenset({
+    "",
+    "text/html",
+    "application/octet-stream",
+    "application/xml",
+    "text/xml",
+    "unknown/unknown",
+    "application/x-dtbook+xml",
+})
 
-    Broken generators routinely declare ``text/html`` for XHTML or
-    ``application/octet-stream`` for fonts; the extension is the better signal.
+
+def guess_media_type(path: str, declared: str | None = None) -> str:
+    """What this file is, weighing what it says against what it is called.
+
+    A declared type is believed unless it is one the generators of this world
+    write when they have not looked — see `OVERRIDABLE_DECLARATIONS`. With no
+    declaration at all, the extension is all there is.
     """
+    stated = (declared or "").strip()
     ext = path.rpartition(".")[2].lower()
     guessed = MEDIA_TYPES.get(ext)
+    if stated and stated.lower() not in OVERRIDABLE_DECLARATIONS:
+        return stated
     if guessed:
         return guessed
-    if declared:
-        return declared.strip()
+    if stated:
+        return stated
     return "application/octet-stream"
 
 
@@ -186,7 +213,69 @@ class Resource:
         return posixpath.basename(self.path)
 
     def text(self, encoding: str = "utf-8") -> str:
-        return self.data.decode(encoding, errors="replace")
+        """This resource's bytes as text, without quietly inventing characters.
+
+        It was one line — `decode("utf-8", errors="replace")` — and that line
+        is a K1 breach with a friendly face. Measured: a chapter carrying one
+        `0x92` (an apostrophe in the Windows-1250 an older Polish shop wrote)
+        came out with `�` in the text, the rebuild reported **nothing**,
+        and the output was valid UTF-8 for ever after. A character of the book
+        was gone and the file looked repaired.
+
+        So the declared encoding is asked first, in the order a reading system
+        would: a byte-order mark, then the XML declaration, then `meta charset`,
+        then UTF-8, and only then the legacy encodings that actually turn up in
+        books this old. A round trip has to reproduce the bytes — an encoding
+        that decodes without error but re-encodes differently has not read the
+        file, it has guessed at it.
+
+        Replacement is still possible for a genuinely damaged file, and
+        `decoded()` is how a caller finds out that it happened. This method
+        keeps its shape so nothing that only wants a string has to care.
+        """
+        return self.decoded(encoding)[0]
+
+    #: Tried in order, after whatever the document declares about itself. Both
+    #: appear in Polish and Central European books old enough to predate the
+    #: shops standardising on UTF-8; `latin-1` is last because it decodes every
+    #: byte sequence ever written and so must never win by default.
+    _FALLBACK_ENCODINGS = ("cp1250", "cp1252", "latin-1")
+
+    def decoded(self, encoding: str = "utf-8") -> "tuple[str, str, int]":
+        """Return ``(text, encoding_used, characters_replaced)``."""
+        import re as _re
+
+        data = self.data
+        candidates: list[str] = []
+        if data.startswith(b"\xef\xbb\xbf"):
+            candidates.append("utf-8-sig")
+        for pattern in (
+            rb'<\?xml[^>]*encoding=["\']([A-Za-z0-9_.\-]+)["\']',
+            rb'<meta[^>]*charset=["\']?([A-Za-z0-9_.\-]+)',
+            rb'charset=([A-Za-z0-9_.\-]+)',
+        ):
+            found = _re.search(pattern, data[:2048], _re.IGNORECASE)
+            if found:
+                candidates.append(found.group(1).decode("ascii", "ignore"))
+        candidates.append(encoding)
+        candidates.extend(self._FALLBACK_ENCODINGS)
+
+        for candidate in candidates:
+            try:
+                text = data.decode(candidate)
+            except (UnicodeDecodeError, LookupError):
+                continue
+            # The round trip is the whole test. `latin-1` decodes anything, so
+            # "it did not raise" proves nothing; "it comes back the same bytes"
+            # proves the file was read rather than guessed at.
+            try:
+                if text.encode(candidate) == data:
+                    return text, candidate, 0
+            except (UnicodeEncodeError, LookupError):
+                continue
+
+        text = data.decode(encoding, errors="replace")
+        return text, encoding, text.count("�")
 
 
 @dataclass

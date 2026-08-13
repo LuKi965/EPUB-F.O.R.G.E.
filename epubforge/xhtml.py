@@ -203,6 +203,104 @@ class ParseResult(NamedTuple):
     entities_expanded: list[str] = []
     #: Entity declarations refused — external, or past the expansion limits.
     entities_refused: list[str] = []
+    #: The encoding this document turned out to really be in, when that is not
+    #: what it said. Empty when the declaration was true.
+    encoding_mended: str = ""
+
+
+
+#: How a document says what it is encoded in, in the order a reading system
+#: asks. `latin-1` is deliberately absent from the fallbacks tried here even
+#: though `Resource.decoded` has it: it decodes every byte sequence ever
+#: written, so it can only ever be a last resort, and a last resort that
+#: silently succeeds is how a mojibake book gets called repaired.
+_DECLARED_ENCODING = re.compile(
+    rb'(?:<\?xml[^>]*encoding=["\']([A-Za-z0-9_.\-]+)["\']'
+    rb'|<meta[^>]*charset=["\']?([A-Za-z0-9_.\-]+))',
+    re.IGNORECASE,
+)
+
+_ENCODINGS_BOOKS_ACTUALLY_USE = ("cp1250", "cp1252")
+
+
+def mend_encoding(data: bytes) -> tuple[bytes, str]:
+    """Read a document that lies about its encoding, without inventing anything.
+
+    Measured on 0.2.21: a chapter declaring `encoding="utf-8"` and carrying one
+    `0x92` — an apostrophe in the Windows-1250 an older Polish shop wrote — was
+    handed to lxml, which recovered by substituting `U+FFFD`. The output was
+    valid UTF-8, the report said **nothing**, and a character of the book was
+    gone. K1 says no character of the book's text is lost; this was the path
+    that lost one and called it a repair.
+
+    **The declaration chooses the method, the bytes fill in the details**, and
+    the first version of this got that backwards with an interesting result
+    worth keeping written down. It asked only "does some legacy encoding decode
+    the whole file and round-trip?" — and for a UTF-8 document with one stray
+    byte, `cp1250` answers yes. The file came back with every Polish letter
+    reinterpreted: `jaźń` became `jaĹşĹ„`. One `U+FFFD` had been replaced by a
+    document of mojibake, which is a worse outcome arrived at by a better
+    intention.
+
+    So:
+
+    * a document declaring a legacy encoding is **believed**, and re-encoded to
+      UTF-8 whole with its declaration corrected;
+    * a document declaring UTF-8, or nothing, that is UTF-8 apart from a few
+      bytes is **repaired byte by byte** — each invalid byte is read as
+      Windows-1250, which is what it almost always is, and the rest of the
+      document is left exactly as it was.
+
+    Returns the bytes to parse, and what was done — empty when the document was
+    telling the truth.
+    """
+    try:
+        data.decode("utf-8")
+        return data, ""
+    except UnicodeDecodeError:
+        pass
+
+    found = _DECLARED_ENCODING.search(data[:2048])
+    declared = next(
+        (group.decode("ascii", "ignore") for group in (found.groups() if found else ()) if group),
+        "",
+    )
+    normalised = declared.lower().replace("_", "-")
+
+    def redeclare(mended: bytes) -> bytes:
+        """Point the declaration at what the bytes now are."""
+        if not found:
+            return mended
+        return _DECLARED_ENCODING.sub(
+            lambda m: m.group(0).replace((m.group(1) or m.group(2)), b"utf-8"), mended, count=1
+        )
+
+    if normalised and normalised not in ("utf-8", "utf8"):
+        try:
+            text = data.decode(declared)
+            if text.encode(declared) == data:
+                return redeclare(text.encode("utf-8")), declared
+        except (UnicodeDecodeError, LookupError):
+            pass
+
+    # Declared UTF-8 and nearly is. Rescue the stray bytes where they stand.
+    rescued = bytearray()
+    remaining = data
+    repaired = 0
+    while True:
+        try:
+            remaining.decode("utf-8")
+        except UnicodeDecodeError as bad:
+            rescued += remaining[: bad.start]
+            rescued += remaining[bad.start : bad.end].decode("cp1250", "replace").encode("utf-8")
+            repaired += bad.end - bad.start
+            remaining = remaining[bad.end :]
+            continue
+        rescued += remaining
+        break
+    if repaired:
+        return redeclare(bytes(rescued)), f"utf-8, {repaired} stray byte(s) read as cp1250"
+    return data, ""
 
 
 def parse_document(data: bytes) -> ParseResult:
@@ -211,6 +309,7 @@ def parse_document(data: bytes) -> ParseResult:
     Most callers only want the tree; :func:`parse` is the two-value form for
     them. This is for the one that has to report what changed.
     """
+    data, mended = mend_encoding(data)
     prepared = _STYLESHEET_PI_RE.sub(b"", data)
 
     # Before the DOCTYPE is dropped, because dropping it is what strands the
@@ -234,7 +333,7 @@ def parse_document(data: bytes) -> ParseResult:
         # Well-formed but namespace-less documents parse cleanly as XML and
         # would then fail every namespaced lookup downstream.
         tree = root if root.tag.startswith("{") else _namespacify(root)
-        return ParseResult(tree, mode, expanded, refused)
+        return ParseResult(tree, mode, expanded, refused, mended)
 
     html_root = lxml_html.document_fromstring(
         normalized or b"<html><body></body></html>", parser=HTML_PARSER

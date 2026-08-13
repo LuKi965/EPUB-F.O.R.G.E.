@@ -181,8 +181,13 @@ class TestTheWriteIsAllOrNothing:
         before = destination.read_bytes()
 
         self.failing_writer(monkeypatch, entry)
-        with pytest.raises(OSError):
-            rebuild(book, str(destination), Policy.preset("preserve"))
+        # A full disk is the world saying no, and since 0.2.22 that is a failed
+        # result rather than an exception — one bad destination in a batch of a
+        # thousand must not take the other 991 with it. What the disk does to
+        # the file on it is unchanged and is what this test is about.
+        result = rebuild(book, str(destination), Policy.preset("preserve"))
+        assert result.status is Status.FAILED
+        assert result.output_path is None
 
         assert destination.read_bytes() == before
 
@@ -190,17 +195,15 @@ class TestTheWriteIsAllOrNothing:
         destination = tmp_path / "fresh.epub"
         self.failing_writer(monkeypatch, "nav.xhtml")
 
-        with pytest.raises(OSError):
-            rebuild(book, str(destination), Policy.preset("preserve"))
-
+        result = rebuild(book, str(destination), Policy.preset("preserve"))
+        assert result.status is Status.FAILED
         assert not destination.exists()
 
     def test_no_temporary_file_is_left_behind(self, book, tmp_path, monkeypatch):
         self.failing_writer(monkeypatch, "nav.xhtml")
 
-        with pytest.raises(OSError):
-            rebuild(book, str(tmp_path / "out.epub"), Policy.preset("preserve"))
-
+        result = rebuild(book, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.status is Status.FAILED
         assert os.listdir(tmp_path) == ["book.epub"], os.listdir(tmp_path)
 
     def test_a_container_that_reads_back_wrong_is_not_promoted(

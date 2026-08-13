@@ -13,7 +13,7 @@ from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .report import Level, Report
 from .stages import DEFAULT_STAGES, Context
-from .writer import write_epub
+from .writer import ArchiveVerificationError, write_epub
 
 
 class Status(str, Enum):
@@ -280,16 +280,41 @@ def rebuild(
         )
         return Result(report, book, None, Status.BLOCKED)
 
-    parent = os.path.dirname(os.path.abspath(destination))
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    write_epub(
-        book,
-        destination,
-        report,
-        content_dir=policy.content_dir,
-        package_name=policy.package_name,
-    )
+    # Writing is where the outside world gets a vote: a full disk, a read-only
+    # folder, a name the filesystem will not take. Until 0.2.22 those left this
+    # function as an exception — reproduced with a destination whose parent is
+    # a file, which raised `NotADirectoryError` straight out of `rebuild`. In a
+    # batch that is not one failed book, it is the end of the batch: the ninth
+    # of a thousand takes the other 991 with it and none of them appear in the
+    # report either.
+    #
+    # Only the errors the world produces are caught. A bug in the writer still
+    # raises, because a `Result` saying FAILED would hide it.
+    try:
+        parent = os.path.dirname(os.path.abspath(destination))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        write_epub(
+            book,
+            destination,
+            report,
+            content_dir=policy.content_dir,
+            package_name=policy.package_name,
+        )
+    except ArchiveVerificationError:
+        # Not the world saying no — this program's own read-back saying the file
+        # it wrote is not the file it meant to. Nobody else can see that, so it
+        # is not turned into a tidy failed result.
+        raise
+    except OSError as exc:
+        report.add(
+            "writer",
+            Level.ERROR,
+            "package.not-written",
+            values={"error": f"{type(exc).__name__}: {exc}"},
+            location=destination,
+        )
+        return Result(report, book, None, Status.FAILED)
 
     status = Status.SUCCEEDED if report.ok else Status.SUCCEEDED_WITH_PROBLEMS
     return Result(report, book, destination, status)

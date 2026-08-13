@@ -476,6 +476,17 @@ class ContentStage(Stage):
                     location=resource.path,
                 )
                 continue
+            if parsed.encoding_mended:
+                # Said out loud, because a silent repair is only a little better
+                # than a silent loss: both leave a person unable to tell what
+                # the file they have is.
+                self.note(
+                    ctx,
+                    Level.FIX,
+                    "xhtml.encoding-mended",
+                    values={"encoding": parsed.encoding_mended},
+                    location=resource.path,
+                )
             if mode == "html":
                 self.note(
                     ctx,

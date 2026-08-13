@@ -957,6 +957,59 @@ META_INF_POLICY = {
 }
 
 
+#: A number inside a filename, for sorting `rozdzial-2` before `rozdzial-10`.
+_DIGITS = re.compile(r"(\d+)")
+
+
+def _natural(path: str) -> list:
+    """Sort key that reads runs of digits as numbers rather than as text."""
+    return [int(part) if part.isdigit() else part.lower() for part in _DIGITS.split(path)]
+
+
+def _recover_reading_order(book: Book) -> list[str]:
+    """Put a book with no spine back in order, using better evidence than the alphabet.
+
+    A missing spine used to be answered with `sorted(paths)`, and the audit is
+    right that lexicographic order is not evidence of anything. Reproduced: a
+    manifest listing `rozdzial-2`, `rozdzial-10`, `przedmowa` came back as
+    `przedmowa`, `rozdzial-10`, `rozdzial-2` — a book that reads chapter ten
+    before chapter two, and says nothing about it.
+
+    Three sources, in the order they deserve to be believed:
+
+    1. **The navigation.** A table of contents is the publisher stating the
+       order in their own words. Nothing this program can work out beats it.
+    2. **The manifest.** Its order is not normative and it is not random either:
+       every tool that writes one writes it in the order it thinks about the
+       book, which is usually the order the book is read in.
+    3. **The filenames**, sorted naturally so that ten follows two. This is the
+       guess, and it only decides between documents the first two never
+       mentioned.
+
+    None of this makes the answer *right* — a book with no spine has lost the
+    only authoritative statement of its order, and this cannot invent one. It
+    makes the answer *defensible*, which is as far as evidence goes.
+    """
+    documents = [r.path for r in book.resources.values() if r.is_content_doc]
+    remaining = set(documents)
+    order: list[str] = []
+
+    for root in book.toc:
+        for node in root.walk():
+            path = (node.target or "").split("#")[0]
+            if path in remaining:
+                order.append(path)
+                remaining.discard(path)
+
+    for path in documents:  # manifest order, as the reader recorded it
+        if path in remaining:
+            order.append(path)
+            remaining.discard(path)
+
+    order.extend(sorted(remaining, key=_natural))
+    return order
+
+
 def _carry_meta_inf(entries: dict[str, bytes], book: Book, report: Report) -> None:
     """Give every reserved `META-INF` file a decision, and say what it was."""
     for name, data in sorted(entries.items()):
@@ -1122,7 +1175,7 @@ def read_epub(source: str, report: Report, budget: Budget | None = None) -> Book
         report.add("reader", Level.INFO, "reader.unmanifested-file", location=name)
 
     if not book.spine:
-        recovered = sorted(r.path for r in book.resources.values() if r.is_content_doc)
+        recovered = _recover_reading_order(book)
         book.spine = [SpineItem(path) for path in recovered]
         if recovered:
             report.add(
