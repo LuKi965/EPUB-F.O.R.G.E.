@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 
 from .. import resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
-from ..policy import Policy
+from ..policy import GATES, Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_to_json
 from .. import rules
@@ -444,6 +444,27 @@ class MainWindow(QMainWindow):
         # because the honest modification date of a file produced now is now.
         self.reproducible_check = self._checkbox(layout, "policy.reproducible", checked=False)
 
+        # The audit's K.2 invariant 12, as a choice rather than a policy this
+        # program makes on somebody's behalf. It follows the mode by default —
+        # strict refuses an invalid file, the other two publish and report — and
+        # the mode combo resets it, so changing the mode never leaves a stricter
+        # setting behind than the mode implies.
+        gate_label = QLabel(tr("policy.gate"))
+        gate_label.setToolTip(tr("policy.gate.tip"))
+        layout.addWidget(gate_label)
+        self.gate_label = gate_label
+
+        self.gate_combo = QComboBox()
+        self.gate_combo.setToolTip(tr("policy.gate.tip"))
+        for index, value in enumerate(GATES):
+            key = f"policy.gate.{value}"
+            self.gate_combo.addItem(tr(key), value)
+            # Each one refuses a different set of books, and one of them refuses
+            # books this program did nothing wrong to. That has to be readable
+            # before it is chosen, not after a batch stops.
+            self.gate_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        layout.addWidget(self.gate_combo)
+
         self._mode_changed()
         return box
 
@@ -515,6 +536,13 @@ class MainWindow(QMainWindow):
         self.dead_check.setChecked(
             content_mode and self.mode_combo.currentData() == "strict"
         )
+        # The gate follows the mode for the same reason: the mode is the answer
+        # to "how much may this program change", and refusing to publish an
+        # invalid file is part of that answer rather than a separate opinion.
+        # Set rather than merely defaulted, so switching strict → preserve does
+        # not leave a batch quietly refusing books preserve exists to publish.
+        preset = Policy.preset(self.mode_combo.currentData())
+        self.gate_combo.setCurrentIndex(GATES.index(preset.validate_before_publish))
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu(tr("menu.file"))
@@ -633,6 +661,7 @@ class MainWindow(QMainWindow):
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.allow_incomplete = self.incomplete_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()
+        policy.validate_before_publish = self.gate_combo.currentData()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),

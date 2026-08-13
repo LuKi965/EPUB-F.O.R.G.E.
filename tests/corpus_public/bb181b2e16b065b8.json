@@ -1,6 +1,6 @@
 {
   "source": "sha256:bb181b2e16b065b8a1b0d7b360aa35274bafed85f34b9756f03e7d03619b9726",
-  "version": "0.2.17",
+  "version": "0.2.22",
   "minimal": {
     "written": true,
     "report": {
@@ -59,7 +59,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 5,
       "preserved": 1,
       "warn": 3
@@ -69,6 +69,7 @@
       "a11y.missing-alt": 1,
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
+      "epubcheck.clean": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,

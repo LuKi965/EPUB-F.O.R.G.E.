@@ -765,12 +765,28 @@ def _verify_container(path: str) -> None:
             raise ArchiveVerificationError(f"the written archive has a corrupt entry: {broken}")
 
 
+class PublicationRefused(Exception):
+    """A gate said no between the archive being written and it being published.
+
+    Not an error — a decision. Whatever was already at the destination is
+    untouched, because the refusal happens before the `os.replace`, and the
+    staging file is removed by the same handler that cleans up after a crash.
+
+    That ordering is the whole reason this exists as a hook rather than a check
+    the caller runs afterwards: `write_epub` replaces the destination
+    atomically, so "validate the file and delete it if it is bad" would delete
+    the *previous* good book at that path. A gate that destroys the thing it was
+    protecting is not a gate.
+    """
+
+
 def write_epub(
     book: Book,
     destination: str,
     report: Report,
     content_dir: str = "EPUB",
     package_name: str = "package.opf",
+    before_publish=None,
 ) -> None:
     """Write *book* to *destination*, or leave whatever is there untouched.
 
@@ -805,14 +821,27 @@ def write_epub(
     opf, _ = build_opf(book, opf_path, report)
 
     directory = os.path.dirname(os.path.abspath(destination))
+    # `.part.epub` rather than `.part`, and the `.epub` is load-bearing:
+    # EPUBCheck refuses a file whose name does not end in `.epub` before it
+    # opens it, and `before_publish` validates this file rather than the
+    # published one — that is the point of it. Measured the wrong way once, by
+    # reading `errors == 0` off a result whose `available` was False: a refusal
+    # to look and a clean bill of health are the same three zeroes.
     handle, staging = tempfile.mkstemp(
-        dir=directory, prefix=f".{os.path.basename(destination)}.", suffix=".part"
+        dir=directory, prefix=f".{os.path.basename(destination)}.", suffix=".part.epub"
     )
     os.close(handle)
 
     try:
         _write_archive(book, staging, opf_path, opf)
         _verify_container(staging)
+        # The last moment at which nothing has been published. `before_publish`
+        # is handed the finished archive — the same bytes that are about to
+        # become the destination — and returns a reason to refuse, or nothing.
+        if before_publish is not None:
+            refusal = before_publish(staging)
+            if refusal:
+                raise PublicationRefused(refusal)
         os.replace(staging, destination)
     except BaseException:
         # Including KeyboardInterrupt: a half-written book must not survive a

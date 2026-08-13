@@ -1123,6 +1123,21 @@ class ContentStage(Stage):
             else:
                 parent = element.getparent()
                 if parent is not None:
+                    # A `<picture>` is required to contain an `<img>`, and the
+                    # `<img>` is the only part of it a reader ever displays; the
+                    # `<source>` elements are alternatives to it. Removing the
+                    # dead `<img>` and leaving the wrapper produced a `<picture>`
+                    # with no `<img>` — invalid, and displaying nothing either
+                    # way, so the wrapper goes with it.
+                    #
+                    # Found by the publication gate on the corpus the hour it
+                    # was switched on: strict mode was the only mode that
+                    # introduced an EPUBCheck error anywhere, and this was it.
+                    if (
+                        xhtml.local_name(element).lower() == "img"
+                        and xhtml.local_name(parent).lower() == "picture"
+                    ):
+                        element = parent
                     self._unwrap(element, keep_children=False)
                     removed += 1
         self.note(

@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.22` · alpha · 1904 tests · **Windows**
+`0.2.23` · alpha · 1949 tests · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -156,6 +156,13 @@ Things worth knowing before rather than after:
   way, because that is the field scripts match on. This covers the detail
   paragraph under a finding too. What stays English is data rather than
   sentences: tag names, metadata values and EPUBCheck's own output.
+- **Strict mode can refuse to publish, from 0.2.23.** It asks EPUBCheck
+  *before* the file takes its name and will not publish something the validator
+  calls invalid — including when the defect arrived with the book and this
+  program did not make it. On the public corpus that is two books out of
+  twelve. A refusal **never touches** the file already at that name. Preserve
+  and minimal publish and report as before; the choice is in the window and
+  under `--gate`.
 - **It does not convert from PDF, MOBI or Word.** That is a different job
   and deliberately out of scope.
 - **No DRM removal**, and there will not be.
@@ -164,7 +171,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-1397 tests, including three independent safety nets:
+1949 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

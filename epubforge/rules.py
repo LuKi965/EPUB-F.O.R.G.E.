@@ -264,6 +264,12 @@ CATALOGUE: dict[str, str] = {
     "epubcheck.clean": "EPUBCheck accepted the output, with {warnings} warning(s)",
     "epubcheck.unavailable": "EPUBCheck is not installed, so the output was not validated",
     "epubcheck.failed": "EPUBCheck could not be run at all: {error}",
+    # -- the gate before publication (K.2 invariant 12) ----------------------
+    "package.gate-refused": "EPUBCheck calls the rebuilt book invalid ({count} error(s): {detail}) and this mode does not publish an invalid file; nothing was written and whatever was at that name is untouched",
+    "package.gate-refused-new": "this rebuild introduced {count} EPUBCheck error(s) the source (version {source_version}) did not have ({detail}); the book was not published, because carrying a book's own defects is one thing and adding to them is another",
+    "package.errors-were-already-there": "EPUBCheck calls the book invalid in {count} place(s) and called the source invalid in the same places, so it was published as it arrived; the defects are the publisher's and they are listed in the report",
+    "package.gate-cannot-run": "the {gate} gate was asked for and there is no validator to run it, so the book was not published; a gate that passes what it could not check is not a gate",
+    "package.gate-skipped": "there is no validator here, so nothing was compared before publication; the rebuild's own invariant gate and read-back still ran",
     # -- the window ---------------------------------------------------------
     "gui.unexpected-failure": "the rebuild failed in a way nothing anticipated: {error}",
 }
@@ -488,6 +494,12 @@ CATALOGUE_PL: dict[str, str] = {
     'epubcheck.clean': 'EPUBCheck przyjął wynik, z {warnings} ostrzeżeniem/ami',
     'epubcheck.unavailable': 'EPUBCheck nie jest zainstalowany, więc wynik nie został zweryfikowany',
     'epubcheck.failed': 'EPUBCheck w ogóle nie dał się uruchomić: {error}',
+    # -- the gate before publication (K.2 invariant 12) ----------------------
+    'package.gate-refused': 'EPUBCheck uznaje przebudowaną książkę za niepoprawną ({count} {count:błąd|błędy|błędów}: {detail}), a ten tryb nie wydaje niepoprawnego pliku; nic nie zapisano, a to, co leżało pod tą nazwą, jest nietknięte',
+    'package.gate-refused-new': 'ta przebudowa dołożyła {count} {count:błąd EPUBCheck, którego|błędy EPUBCheck, których|błędów EPUBCheck, których} nie było w źródle (wersja {source_version}) ({detail}); książki nie wydano, bo przenieść cudzy defekt to jedno, a dołożyć własny to drugie',
+    'package.errors-were-already-there': 'EPUBCheck uznaje książkę za niepoprawną w {count} {count:miejscu|miejscach|miejscach} i uznawał źródło za niepoprawne w tych samych miejscach, więc wydano ją taką, jaka przyszła; te defekty są wydawcy i są wypisane w raporcie',
+    'package.gate-cannot-run': 'poproszono o bramkę {gate}, a nie ma czym jej uruchomić, więc książki nie wydano; bramka, która przepuszcza to, czego nie sprawdziła, nie jest bramką',
+    'package.gate-skipped': 'nie ma tu walidatora, więc przed wydaniem nic nie porównano; własna bramka inwariantów i odczyt zwrotny i tak się wykonały',
     # -- the window ---------------------------------------------------------
     'gui.unexpected-failure': 'przebudowa zawiodła w sposób, którego nic nie przewidziało: {error}',
 }

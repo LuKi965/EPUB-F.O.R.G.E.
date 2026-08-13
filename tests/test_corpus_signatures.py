@@ -73,7 +73,16 @@ class TestTheTextInvariantMeansWhatItSays:
         record = signature(book, tmp_path)
         assert record["preserve"]["written"]
         assert record["preserve"]["text_invariant"], record["preserve"]
-        assert record["strict"]["text_invariant"]
+        # Strict does not publish this fixture any more and there is no version
+        # of it to measure, which is the publication gate working rather than a
+        # regression: the stylesheet points at `Fonts/moja.ttf`, the source has
+        # no such file, and EPUB 3 calls that an error where EPUB 2 did not.
+        # Strict neutralises a dead reference in a document and does not yet do
+        # it in a stylesheet, so it cannot make this book conformant and says
+        # so. The question this test asks is about text, so it asks it of the
+        # mode that answers.
+        assert record["strict"]["written"] is False
+        assert record["minimal"]["text_invariant"], record["minimal"]
 
     def test_the_recorded_count_is_the_reader_s_text(self, tmp_path):
         from epubforge.inventory import measure

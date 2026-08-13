@@ -38,6 +38,73 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.23 — alpha — 2026-08-13 — kamień milowy [audyt]
+
+The release that closes the last of the audit's fourteen system invariants, and
+the milestone that closes the 0.2.19 engineering audit itself.
+
+### EPUBCheck, asked before the file is published
+
+**K.2 invariant 12**, and the only one of the fourteen left undone. The reason
+recorded for leaving it was cost — a JVM per book, a few seconds each — and the
+reason stopped being true (below).
+
+**Where the gate stands is the whole design.** `write_epub` builds the archive
+under a temporary name beside the destination and then calls `os.replace`,
+which is atomic; that is how a disk filling up halfway stopped being able to
+leave a truncated file where a good book had been. So "validate the file and
+delete it if it is bad" would delete the *previous* good book at that name. The
+gate is handed the staging file one line before the replace, and a refusal
+never reaches the destination at all. **A file already at that name is left
+byte for byte as it was**, which is asserted rather than intended.
+
+Three settings, because two would have forced a bad choice — and the corpus
+said so within the hour of the gate being switched on:
+
+| setting | refuses | default in |
+| --- | --- | --- |
+| `off` | nothing; validates on request and reports | preserve, minimal |
+| `no-new-errors` | only what this rebuild added, source validated too | — |
+| `clean` | anything EPUBCheck calls an error, whoever made it | strict |
+
+`clean` was tried as the general default and withdrawn the same hour: a chapter
+linking to a file the book does not contain is valid EPUB 2, invalid EPUB 3,
+and arrived that way from the publisher. Refusing it would break the promise
+preserve exists to keep. `no-new-errors` is the honest form of the question,
+with one caveat stated wherever it is offered: a 2.0 source is judged by EPUB 2
+rules and a 3.3 rebuild by EPUB 3 rules, so "new" can also mean "EPUB 3 has a
+rule EPUB 2 did not". The refusal names the source's version for that reason.
+
+**With no validator installed, `clean` refuses and `no-new-errors` publishes.**
+That asymmetry is a decision: `clean` is an absolute claim about the file and a
+claim nobody checked is not a claim — passing it would be 0.2.19's fail-open
+defect wearing a gate's name. `no-new-errors` is a comparison, and there is
+nothing to compare; the invariant gate, the read-back and the fidelity checks
+still ran.
+
+**Strict now refuses two of the twelve public corpus books**, for defects they
+arrived with and that strict cannot repair without guessing. That is the gate
+telling the truth rather than a regression, and it is in both READMEs under
+Limits because it is worth knowing before rather than after.
+
+### What the gate found in its first hour
+
+- **A `<picture>` outliving the `<img>` inside it.** Strict removes a reference
+  to a file the book does not contain; where that reference was the `<img>` of
+  a `<picture>`, the wrapper stayed behind — and a `<picture>` with no `<img>`
+  is invalid and displays nothing either way. Across the whole public corpus in
+  all three modes this was the only place any mode introduced an EPUBCheck
+  error. Fixed: the wrapper goes with it.
+- **A stylesheet pointing at a font the book never had.** Strict neutralises a
+  dead reference in a document and does not yet do it in a stylesheet, so it
+  cannot make such a book conformant and now says so instead of publishing it.
+  Named here rather than fixed quietly: it is a real gap and it belongs in its
+  own change.
+
+A test now runs the entire public corpus through every mode and asserts that
+**no mode adds an EPUBCheck error to any book in it**. That is the measurement
+the gate exists to keep true.
+
 ### One JVM instead of one per book
 
 The owner asked whether making EPUBCheck a gate before publication really means

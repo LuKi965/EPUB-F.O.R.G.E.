@@ -220,6 +220,44 @@ PL: dict[str, str] = {
         "i wie, co robi. Zaznaczone: plik powstanie mimo wszystko, a raport "
         "powie, czego w nim nie ma. Nie sprawia, że strata staje się cicha."
     ),
+    "policy.gate": "Zanim wyda plik, zapytaj EPUBCheck:",
+    "policy.gate.tip": (
+        "Czy wynik ma być sprawdzony walidatorem **zanim** trafi pod swoją "
+        "nazwę — a nie po fakcie.\n\n"
+        "Sprawdzenie dzieje się na pliku tymczasowym, tuż przed podmianą, więc "
+        "odmowa nie rusza tego, co już leży pod tą nazwą. To jest cały powód, "
+        "dla którego bramka stoi tutaj, a nie „sprawdź i skasuj, jak złe”: "
+        "kasowanie po podmianie zniszczyłoby poprzednią, dobrą książkę.\n\n"
+        "Ustawia się samo według trybu i możesz to nadpisać."
+    ),
+    "policy.gate.off": "nie pytaj — wydaj i opisz w raporcie",
+    "policy.gate.off.tip": (
+        "Tak działał ten program do tej pory. Walidacja jest dostępna osobno, "
+        "w zakładce Diagnostyka i pod „sprawdź wynik”, i nic nie blokuje.\n\n"
+        "Domyślne dla trybu zachowawczego i minimalnego, bo książki przychodzą "
+        "z defektami i ten program ma je przenieść, a nie odmówić wydania."
+    ),
+    "policy.gate.no-new-errors": "wydaj, o ile ta przebudowa nie dołożyła błędu",
+    "policy.gate.no-new-errors.tip": (
+        "Sprawdza także źródło i porównuje. Książka, która przyszła zepsuta, "
+        "wychodzi zepsuta i jest o tym napisane; książka, którą zepsuł ten "
+        "program, nie wychodzi wcale.\n\n"
+        "Uwaga na to, co dokładnie porównuje: źródło EPUB 2 jest sądzone "
+        "regułami EPUB 2, a wynik EPUB 3 regułami EPUB 3. „Nowy” może więc "
+        "znaczyć „EPUB 3 ma regułę, której EPUB 2 nie miał”. Raport podaje "
+        "wersję źródła obok odmowy, żeby to było widać, a nie do wywnioskowania."
+    ),
+    "policy.gate.clean": "wydaj tylko plik, który EPUBCheck przyjmuje",
+    "policy.gate.clean.tip": (
+        "Dosłowny inwariant: zero błędów przed wydaniem, czyjekolwiek by nie "
+        "były. Domyślne dla trybu ścisłego — tryb ścisły, który wydaje "
+        "niepoprawny plik, nie jest ścisły.\n\n"
+        "Odmówi książek, których ten program nie zepsuł: takich, które "
+        "przyszły niepoprawne i nie da się ich naprawić bez zgadywania. Na "
+        "korpusie publicznym to trzy książki z dwunastu.\n\n"
+        "Gdy walidatora nie ma, ta bramka **odmawia**. Twierdzenie, którego "
+        "nikt nie sprawdził, nie jest twierdzeniem."
+    ),
     "policy.reproducible": "Buduj reprodukowalnie (te same bajty za każdym razem)",
     "policy.reproducible.tip": (
         "Dwie przebudowy tej samej książki dają plik bajt w bajt identyczny. "
@@ -764,6 +802,46 @@ EN: dict[str, str] = {
         "This box is the way through for a person holding that book who knows "
         "what they are doing. Ticked: the file is written anyway and the report "
         "says what is not in it. It does not make the loss quiet."
+    ),
+    "policy.gate": "Before publishing, ask EPUBCheck:",
+    "policy.gate.tip": (
+        "Whether the result is checked by the validator **before** it takes its "
+        "name, rather than after.\n\n"
+        "The check runs on the staging file, immediately before the swap, so a "
+        "refusal never touches whatever is already at that name. That is the "
+        "whole reason the gate lives here and not in a \"validate it and delete "
+        "it if bad\" step: deleting after the swap would destroy the previous, "
+        "good book.\n\n"
+        "It follows the mode by default, and you can override it."
+    ),
+    "policy.gate.off": "do not ask — publish and report",
+    "policy.gate.off.tip": (
+        "How this program has always worked. Validation is still available on "
+        "its own, in the Diagnostics tab and under \"check the result\", and "
+        "nothing blocks.\n\n"
+        "The default for preserve and minimal, because books arrive with "
+        "defects and this program is here to carry them, not to refuse them."
+    ),
+    "policy.gate.no-new-errors": "publish unless this rebuild added an error",
+    "policy.gate.no-new-errors.tip": (
+        "Validates the source as well, and compares. A book that arrived broken "
+        "comes out broken with the report saying so; a book this program broke "
+        "does not come out at all.\n\n"
+        "Mind what it compares: a 2.0 source is judged by EPUB 2 rules and a 3.3 "
+        "rebuild by EPUB 3 rules, so \"new\" can also mean \"EPUB 3 has a rule "
+        "EPUB 2 did not\". The report names the source's version beside the "
+        "refusal so that difference is visible rather than inferred."
+    ),
+    "policy.gate.clean": "publish only a file EPUBCheck accepts",
+    "policy.gate.clean.tip": (
+        "The literal invariant: no errors before publication, whoever made "
+        "them. The default in strict — a strict mode that publishes an invalid "
+        "file is not strict.\n\n"
+        "It will refuse books this program did nothing wrong to: ones that "
+        "arrived invalid and cannot be repaired without guessing. On the public "
+        "corpus that is three books out of twelve.\n\n"
+        "With no validator present this gate **refuses**. A claim nobody "
+        "checked is not a claim."
     ),
     "policy.reproducible": "Reproducible build (the same bytes every time)",
     "policy.reproducible.tip": (

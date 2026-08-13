@@ -13,7 +13,7 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, plan_batch
-from .policy import Policy
+from .policy import GATES, Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -80,6 +80,11 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.remove_junk = False
     if getattr(args, "reproducible", False):
         policy.reproducible = True
+    # `None` means "whatever the mode says", which is not the same as "off" —
+    # the preset already chose, and a default of "off" here would quietly
+    # disarm strict's gate for everybody who never passes the flag.
+    if getattr(args, "gate", None) is not None:
+        policy.validate_before_publish = args.gate
     if args.keep_watermark_markup:
         policy.watermarks = "keep"
     if args.watermarks:
@@ -788,6 +793,20 @@ def build_parser() -> argparse.ArgumentParser:
             "produce the same bytes every time: dcterms:modified is taken from "
             "the source instead of the clock, and a book with no identifier gets "
             "one derived from its content rather than a fresh uuid4"
+        ),
+    )
+    build.add_argument(
+        "--gate",
+        choices=GATES,
+        default=None,
+        help=(
+            "ask EPUBCheck before the file is published, not after. 'clean' "
+            "refuses anything the validator calls invalid, whoever made it — "
+            "the default in strict. 'no-new-errors' validates the source too "
+            "and refuses only what this rebuild added, which is the honest "
+            "form of the question when a book arrives broken. 'off' publishes "
+            "and reports, the default everywhere else. A refusal never touches "
+            "whatever is already at the destination"
         ),
     )
     build.add_argument(

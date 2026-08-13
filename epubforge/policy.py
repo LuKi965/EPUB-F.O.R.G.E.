@@ -6,6 +6,10 @@ from dataclasses import dataclass, field
 
 from . import watermark
 
+#: What `Policy.validate_before_publish` may say. Ordered least to most
+#: refusing, which is the order they are offered in every interface.
+GATES = ("off", "no-new-errors", "clean")
+
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 #:
 #: `image/webp` belongs here and was missing until 0.2.20. EPUB 3.3 lists it
@@ -235,6 +239,48 @@ class Policy:
     #: source produces.
     reproducible: bool = False
 
+    #: Ask EPUBCheck **before** the file is published, and refuse on the answer.
+    #:
+    #: The audit's K.2 invariant 12, and the only one of the fourteen left
+    #: unimplemented. The argument against it was cost: a JVM per book, a few
+    #: seconds each. That argument is gone — the JVM was never the cost, and one
+    #: held open validates eight books in 8.4 s instead of 35.3 s.
+    #:
+    #: Three settings, because two would force a bad choice:
+    #:
+    #: ``"off"``
+    #:     Validate if somebody asks, after the fact, and report. What this
+    #:     program did until now.
+    #: ``"no-new-errors"``
+    #:     Refuse to publish if the rebuild carries an EPUBCheck error the
+    #:     source did not already have — this program may carry a publisher's
+    #:     defect, but not add one of its own. Costs a second validation, the
+    #:     source's, which is why it needed the shared JVM to be reasonable.
+    #:
+    #:     **Read the answer knowing what it compares.** A 2.0 source is judged
+    #:     by EPUB 2 rules and a 3.3 rebuild by EPUB 3 rules, so "new" here can
+    #:     also mean "EPUB 3 has a rule EPUB 2 did not". Tried as the preserve
+    #:     default and withdrawn within the hour: a chapter linking to a file
+    #:     the book does not contain passes as EPUB 2, fails as EPUB 3, and
+    #:     arrived that way from the publisher. The report names the source's
+    #:     version alongside the refusal so the difference is visible rather
+    #:     than inferred.
+    #: ``"clean"``
+    #:     Refuse to publish anything EPUBCheck calls an error, whoever made it.
+    #:     The literal invariant, and the default in `strict` — a strict mode
+    #:     that publishes an invalid file is not strict. Wrong as a general
+    #:     default for the same reason as above: it refuses most real books over
+    #:     defects they arrived with.
+    #:
+    #: **When the validator is missing**, `"clean"` refuses and `"no-new-errors"`
+    #: warns. That asymmetry is deliberate rather than a compromise: `"clean"` is
+    #: an absolute claim about the file, and a claim nobody checked is not a
+    #: claim — passing it would be the 0.2.19 fail-open defect wearing a gate's
+    #: name. `"no-new-errors"` is a *comparison*, and with no validator there is
+    #: no comparison to make; the invariant gate, the read-back and the
+    #: fidelity checks still ran, so the file is not unexamined.
+    validate_before_publish: str = "off"
+
     #: Force a language tag when the source has none or an invalid one.
     default_language: str = "en"
 
@@ -249,14 +295,36 @@ class Policy:
                 f"unknown watermark mode: {self.watermarks!r} "
                 f"(expected one of {', '.join(watermark.MODES)})"
             )
+        # Same reasoning as above, and it matters more here: a misspelt gate
+        # setting would mean "no gate", which is the one outcome that looks like
+        # everything is fine.
+        if self.validate_before_publish not in GATES:
+            raise ValueError(
+                f"unknown validation gate: {self.validate_before_publish!r} "
+                f"(expected one of {', '.join(GATES)})"
+            )
         _check_ocf_segment("content_dir", self.content_dir, allow_empty=True)
         _check_ocf_segment("package_name", self.package_name, allow_empty=False)
 
     @classmethod
     def preset(cls, name: str, **overrides) -> "Policy":
         if name == "strict":
-            base = cls(strict=True, strip_scripts=False, remove_dead=True)
+            # Strict already refuses a book over a reference it cannot resolve.
+            # Refusing one EPUBCheck calls invalid is the same posture, and a
+            # strict mode that publishes an invalid file is not strict.
+            base = cls(
+                strict=True,
+                strip_scripts=False,
+                remove_dead=True,
+                validate_before_publish="clean",
+            )
         elif name == "preserve":
+            # Not gated, and that is preserve's whole promise rather than a
+            # concession. Measured on the suite's own fixtures the moment the
+            # gate went in: a book referencing a file it does not contain is
+            # invalid EPUB 3, was tolerated as EPUB 2, and arrives that way from
+            # the publisher. Preserve exists to publish that book with the
+            # defect intact and the report saying so.
             base = cls(strict=False)
         elif name == "minimal":
             # Container-only rebuild: content files come out byte-identical.

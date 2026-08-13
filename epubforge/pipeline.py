@@ -14,7 +14,7 @@ from .reader import EpubReadError, read_epub
 from .references import Resolver
 from .report import Level, Report
 from .stages import DEFAULT_STAGES, Context
-from .writer import ArchiveVerificationError, write_epub
+from .writer import ArchiveVerificationError, PublicationRefused, write_epub
 
 
 class Status(str, Enum):
@@ -149,6 +149,121 @@ def _fingerprint(book: Book) -> tuple:
         len(book.landmarks),
         len(book.page_list),
     )
+
+
+def _publication_gate(source: str, policy: Policy, report: Report):
+    """The audit's K.2 invariant 12, as a callable handed to the writer.
+
+    Returns `None` when the policy asks for no gate — the writer then publishes
+    the way it always did — and otherwise a function that is given the finished
+    archive before it becomes the destination, and answers with a reason to
+    refuse or the empty string.
+
+    Why the comparison mode exists at all: `preserve` promises to publish a book
+    the way its publisher wrote it, defects included, and to say so. Refusing
+    every book EPUBCheck dislikes would break that promise on most of a real
+    shelf — the corpus has titles that arrive with errors and have arrived with
+    them for years. What `preserve` may never do is *add* one. So the gate
+    validates the source too and compares, and the refusal names exactly what
+    this rebuild introduced.
+
+    The comparison is on message **shapes** rather than counts or codes.
+    `RSC-005` is EPUBCheck's catch-all for "does not match the schema" and
+    covers a hundred different defects; a book that arrives with one RSC-005 and
+    leaves with a different one would pass a count. The shape is the sentence
+    with everything book-specific masked out, which is exactly the granularity
+    at which "the same complaint" means something.
+    """
+    if policy.validate_before_publish == "off":
+        return None
+
+    from .validate import find_epubcheck, validate
+
+    def gate(candidate: str) -> str:
+        if find_epubcheck() is None:
+            # Asymmetric on purpose; the reasoning is in `Policy`. "clean" is an
+            # absolute claim about the file and an unchecked claim is not one;
+            # "no-new-errors" is a comparison, and there is nothing to compare.
+            if policy.validate_before_publish == "clean":
+                report.add(
+                    "epubcheck",
+                    Level.ERROR,
+                    "package.gate-cannot-run",
+                    values={"gate": policy.validate_before_publish},
+                )
+                return "the validator this gate needs is not installed"
+            report.add("epubcheck", Level.WARN, "package.gate-skipped", values={})
+            return ""
+
+        produced = validate(candidate, report, content_untouched=not policy.rewrite_content)
+        if not produced.available:
+            if policy.validate_before_publish == "clean":
+                report.add(
+                    "epubcheck",
+                    Level.ERROR,
+                    "package.gate-cannot-run",
+                    values={"gate": policy.validate_before_publish},
+                )
+                return "the validator did not answer"
+            return ""
+
+        if policy.validate_before_publish == "clean":
+            if produced.clean:
+                return ""
+            report.add(
+                "epubcheck",
+                Level.ERROR,
+                "package.gate-refused",
+                values={
+                    "count": produced.fatal + produced.errors,
+                    "detail": "; ".join(produced.messages[:3]),
+                },
+            )
+            return f"EPUBCheck reports {produced.fatal + produced.errors} error(s)"
+
+        # "no-new-errors": what did this rebuild add?
+        if produced.clean:
+            return ""
+        # The source is validated into a report of its own, so the book's own
+        # long-standing defects do not arrive in this run's report looking like
+        # something that happened today.
+        before = validate(source, Report(source=source))
+        if not before.available:
+            report.add("epubcheck", Level.WARN, "package.gate-skipped", values={})
+            return ""
+        introduced = {
+            shape: count
+            for shape, count in produced.shapes.items()
+            if count > before.shapes.get(shape, 0)
+        }
+        if not introduced:
+            # The book arrived with these and leaves with these. Said out loud,
+            # because "published, and it is still invalid" is worth knowing even
+            # when it is not this program's doing.
+            report.add(
+                "epubcheck",
+                Level.WARN,
+                "package.errors-were-already-there",
+                values={"count": produced.fatal + produced.errors},
+            )
+            return ""
+        report.add(
+            "epubcheck",
+            Level.ERROR,
+            "package.gate-refused-new",
+            values={
+                "count": sum(introduced.values()),
+                "detail": "; ".join(list(introduced)[:3]),
+                # Because "new" is doing more work than it looks when the
+                # version changed: EPUB 3 has rules EPUB 2 did not, and a defect
+                # that arrived with the book can be new to the *validator*
+                # without being new to the book.
+                "source_version": report.stats.get("source_version", "?"),
+            },
+        )
+        return f"this rebuild introduced {sum(introduced.values())} EPUBCheck error(s)"
+
+    return gate
 
 
 def _reread(destination: str) -> str:
@@ -495,7 +610,13 @@ def rebuild(
             report,
             content_dir=policy.content_dir,
             package_name=policy.package_name,
+            before_publish=_publication_gate(source, policy, report),
         )
+    except PublicationRefused:
+        # Already reported by the gate itself, in more detail than an exception
+        # message carries. Nothing was published and nothing at the destination
+        # was touched.
+        return Result(report, book, None, Status.BLOCKED)
     except ArchiveVerificationError:
         # Not the world saying no — this program's own read-back saying the file
         # it wrote is not the file it meant to. Nobody else can see that, so it

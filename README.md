@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.22` · alpha · 1904 testów · **Windows**
+`0.2.23` · alpha · 1949 testów · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -164,6 +164,13 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   skryptów. Dotyczy to również akapitu szczegółów pod znaleziskiem. To, co
   zostaje po angielsku, to dane, a nie zdania: nazwy znaczników, wartości
   metadanych i komunikaty samego EPUBCheck-a.
+- **Tryb ścisły od 0.2.23 potrafi odmówić wydania pliku.** Pyta EPUBCheck
+  *zanim* plik trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje
+  za niepoprawne — również wtedy, gdy defekt przyszedł razem z książką i ten
+  program go nie stworzył. Na korpusie publicznym dotyczy to dwóch książek na
+  dwanaście. Odmowa **nie rusza** pliku, który już leży pod tą nazwą.
+  Tryb zachowawczy i minimalny wydają i opisują, tak jak dotąd; wybór jest w
+  oknie i pod `--gate`.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
   zakresem.
 - **Nie zdejmuje DRM** i nie będzie.
@@ -172,7 +179,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-1397 testów, w tym trzy niezależne siatki bezpieczeństwa:
+1949 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

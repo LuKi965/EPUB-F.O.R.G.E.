@@ -1,6 +1,6 @@
 {
   "source": "sha256:10b80354823705289f7c2251dbfd0b65654ac4799821c99df8f939f58e62e476",
-  "version": "0.2.17",
+  "version": "0.2.22",
   "minimal": {
     "written": true,
     "report": {
@@ -44,11 +44,12 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 2
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "epubcheck.clean": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,

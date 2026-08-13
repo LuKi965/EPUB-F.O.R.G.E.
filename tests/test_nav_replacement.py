@@ -113,7 +113,19 @@ class TestAContentsPageInTheSpineIsKept:
     @pytest.fixture(params=["preserve", "strict", "minimal"])
     def rebuilt(self, request, tmp_path):
         source = build(tmp_path / "src.epub", contents_in_spine=True)
-        result = rebuild(source, str(tmp_path / f"{request.param}.epub"), Policy.preset(request.param))
+        # The gate is off here on purpose, and the reason is worth stating: this
+        # fixture arrives with an EPUBCheck error of its own — a document links
+        # to a resource the spine does not hold — and strict now refuses to
+        # publish an invalid file, so the whole class would be testing the gate
+        # rather than the nav replacement it is named after. Measured: source
+        # and rebuild carry that error in equal number, so nothing here
+        # introduces it. That strict *does* refuse this book is asserted in
+        # `tests/test_publication_gate.py`, where it is the subject.
+        result = rebuild(
+            source,
+            str(tmp_path / f"{request.param}.epub"),
+            Policy.preset(request.param, validate_before_publish="off"),
+        )
         assert result.output_path, result.report.to_text()
         return result
 
@@ -149,7 +161,19 @@ class TestAReplacedNavTakesItsReferencesWithIt:
     @pytest.fixture(params=["preserve", "strict", "minimal"])
     def rebuilt(self, request, tmp_path):
         source = build(tmp_path / "src.epub", contents_in_spine=False)
-        result = rebuild(source, str(tmp_path / f"{request.param}.epub"), Policy.preset(request.param))
+        # The gate is off here on purpose, and the reason is worth stating: this
+        # fixture arrives with an EPUBCheck error of its own — a document links
+        # to a resource the spine does not hold — and strict now refuses to
+        # publish an invalid file, so the whole class would be testing the gate
+        # rather than the nav replacement it is named after. Measured: source
+        # and rebuild carry that error in equal number, so nothing here
+        # introduces it. That strict *does* refuse this book is asserted in
+        # `tests/test_publication_gate.py`, where it is the subject.
+        result = rebuild(
+            source,
+            str(tmp_path / f"{request.param}.epub"),
+            Policy.preset(request.param, validate_before_publish="off"),
+        )
         assert result.output_path, result.report.to_text()
         return result
 
@@ -426,8 +450,16 @@ class TestTheContentsMayNotLeadOutOfTheReadingOrder:
     @pytest.fixture(params=["preserve", "strict", "minimal"])
     def rebuilt(self, request, tmp_path):
         source = build_unspined(tmp_path / "in.epub")
+        # Gate off, same reason as the class above and worth being exact about:
+        # this fixture's source carries one `RSC-011` and its rebuild carries
+        # one `RSC-011`, so the repair below is not what leaves it there and
+        # nothing here introduces it. Strict refuses the book over it, which is
+        # strict working; asserting that belongs in the gate's own tests, not in
+        # four tests about where a colophon sits in the reading order.
         return rebuild(
-            source, str(tmp_path / f"out-{request.param}.epub"), Policy.preset(request.param)
+            source,
+            str(tmp_path / f"out-{request.param}.epub"),
+            Policy.preset(request.param, validate_before_publish="off"),
         )
 
     def test_the_page_joins_the_reading_order(self, rebuilt):
