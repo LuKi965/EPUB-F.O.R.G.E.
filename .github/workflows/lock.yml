@@ -1,0 +1,60 @@
+# Generates the dependency lock the repository cannot generate for itself.
+#
+# `pyproject.toml` carries version *ranges*, so `pip install` picks whatever is
+# newest inside them at that moment. A lock is the opposite: an exact version
+# for every package including the ones our dependencies pull in, each with the
+# SHA-256 of the artifact file, so `pip install --require-hashes` refuses
+# anything whose bytes are not the bytes that were tested.
+#
+# Why this is a workflow and not a script anybody runs. Hashes are per
+# *artifact*, and artifacts are per platform and per Python version: `lxml` for
+# CPython 3.12 on Windows is a different wheel with a different hash from the
+# one on Linux. This project's release build is Windows, so the lock has to be
+# resolved on Windows or it locks the wrong files. Generating it on the machine
+# that develops here would produce something that either fails the build or, if
+# forced, pins artifacts nobody verified — worse than no lock, because it would
+# look like one.
+#
+# Run it by hand, download the artifact, commit it. Nothing is committed from
+# CI on purpose: a workflow with write access to its own repository is a
+# supply-chain hole in a job whose entire purpose is closing one.
+
+name: Generate the dependency lock
+
+on:
+  workflow_dispatch:
+
+jobs:
+  lock:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The version the release build uses. A lock resolved under a different
+      # interpreter pins different wheels.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip pip-tools
+          # --generate-hashes is the whole point; --all-extras covers the GUI
+          # and the test tooling, which are part of what builds a release.
+          pip-compile --generate-hashes --all-extras `
+            --output-file requirements.lock pyproject.toml
+          # PyInstaller is installed by the build workflow rather than declared
+          # as a dependency, so it has to be resolved alongside or the lock
+          # covers everything except the thing that does the packaging.
+          "pyinstaller" | Out-File -Encoding utf8 pyinstaller.in
+          pip-compile --generate-hashes --output-file pyinstaller.lock pyinstaller.in
+          Get-Content requirements.lock -TotalCount 20
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependency-lock
+          path: |
+            requirements.lock
+            pyinstaller.lock
+          retention-days: 90

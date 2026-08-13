@@ -70,11 +70,26 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # If a lock is present it is used, and used strictly: --require-hashes
+      # makes pip refuse any artifact whose bytes are not the bytes that were
+      # resolved. Without one, the ranges in pyproject.toml apply and the build
+      # says so out loud rather than looking pinned.
       - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[gui,dev]"
-          pip install pyinstaller
+          if (Test-Path requirements.lock) {
+            Write-Host "installing from requirements.lock with hash checking"
+            pip install --require-hashes -r requirements.lock
+            if (Test-Path pyinstaller.lock) {
+              pip install --require-hashes -r pyinstaller.lock
+            }
+            pip install -e . --no-deps
+          } else {
+            Write-Host "no requirements.lock -- resolving from the ranges in pyproject.toml"
+            pip install -e ".[gui,dev]"
+            pip install pyinstaller
+          }
 
       # Which versions actually built this. The dependency declarations carry
       # bounds rather than a lock, so the only honest record of what produced a

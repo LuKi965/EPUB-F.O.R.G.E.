@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 
 from . import invariants
+from .budget import Budget, BudgetExceeded
 from .model import Book
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -147,9 +148,23 @@ def rebuild(
     """
     policy = policy or Policy()
     report = Report(source=source, output=destination)
+    # Made here, so the deadline covers reading as well as rebuilding: a book
+    # that takes five minutes to *open* has already cost what the limit is for.
+    budget = Budget()
 
     try:
-        book = read_epub(source, report)
+        book = read_epub(source, report, budget)
+    except BudgetExceeded as exc:
+        # A refusal, not a crash, and it says both numbers. A limit whose
+        # message does not say what it was is a limit nobody can act on.
+        report.add(
+            "reader",
+            Level.ERROR,
+            "package.budget-exceeded",
+            values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
+            location=exc.where,
+        )
+        return Result(report, None, None, Status.BLOCKED)
     except EpubReadError as exc:
         report.add(
             "reader",
@@ -192,12 +207,22 @@ def rebuild(
         report.add("package", Level.WARN, "package.version-unusable")
 
     policy = _settle_layout(book, policy, report)
-    ctx = Context(book=book, policy=policy, report=report)
+    ctx = Context(book=book, policy=policy, report=report, budget=budget)
 
     for stage_class in (DEFAULT_STAGES if stages is None else stages):
         stage = stage_class()
         try:
+            budget.deadline(stage.name)
             stage.run(ctx)
+        except BudgetExceeded as exc:
+            report.add(
+                stage.name,
+                Level.ERROR,
+                "package.budget-exceeded",
+                values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
+                location=exc.where,
+            )
+            return Result(report, book, None, Status.BLOCKED)
         except Exception as exc:  # noqa: BLE001 — reported, then the run stops
             # A stage mutates the shared Book as it goes, so an exception leaves
             # the model half-changed: some documents rewritten, some not, the

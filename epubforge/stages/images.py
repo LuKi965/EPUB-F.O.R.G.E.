@@ -59,6 +59,23 @@ class ImageStage(Stage):
             self._inspect(ctx, resource)
 
     def _inspect(self, ctx: Context, resource) -> None:
+        # Read the header first, then judge it. The budget check used to sit
+        # inside the `try` below and never fired: `except Exception` caught
+        # `BudgetExceeded` and reported an image bomb as `image.unreadable` —
+        # a refusal turned into a shrug by the broad catch two lines under it.
+        try:
+            with Image.open(io.BytesIO(resource.data)) as image:
+                measurements = (image.width, image.height, getattr(image, "n_frames", 1))
+        except Exception:  # noqa: BLE001 — reported by the verify pass below
+            measurements = None
+        if measurements:
+            # Asked of the header, before anything decodes it. A PNG declaring
+            # 100 000 × 100 000 is a few kilobytes on disk and forty gigabytes
+            # of RGBA the moment somebody calls `convert`, and Pillow's own
+            # decompression-bomb warning is a warning — this program has to turn
+            # it into a decision.
+            ctx.budget.image(*measurements, resource.path)
+
         try:
             with Image.open(io.BytesIO(resource.data)) as image:
                 actual_format = image.format

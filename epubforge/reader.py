@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from lxml import etree
 
 from . import ocf, paths
+from .budget import Budget
 from .model import (
     Book,
     Collection,
@@ -213,7 +214,7 @@ def _read_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes | No
     return bytes(buffer)
 
 
-def _read_archive(source: str, report: Report) -> _RawArchive:
+def _read_archive(source: str, report: Report, budget: Budget | None = None) -> _RawArchive:
     try:
         archive = zipfile.ZipFile(source)
     except zipfile.BadZipFile as exc:
@@ -234,7 +235,13 @@ def _read_archive(source: str, report: Report) -> _RawArchive:
             location=name,
         )
 
+    budget = budget or Budget()
     with archive:
+        # Counted before a single entry is read. A hundred thousand members are
+        # cheap in the archive and expensive everywhere after it: a `ZipInfo`, a
+        # canonical name, a dictionary slot and a decision each, before anybody
+        # has looked at what is inside them.
+        budget.archive_entries(sum(1 for info in archive.infolist() if not info.is_dir()))
         for info in archive.infolist():
             if info.is_dir():
                 continue
@@ -1019,9 +1026,10 @@ def _detect_cover(package, by_id: dict[str, Resource], book: Book) -> str | None
     return None
 
 
-def read_epub(source: str, report: Report) -> Book:
+def read_epub(source: str, report: Report, budget: Budget | None = None) -> Book:
     """Load *source* into a :class:`Book`, recovering from structural damage."""
-    archive = _read_archive(source, report)
+    budget = budget or Budget()
+    archive = _read_archive(source, report, budget)
     entries = archive.entries
     if not archive.mimetype_ok:
         report.add("reader", Level.FIX, "reader.mimetype-invalid")

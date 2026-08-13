@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..budget import Budget
 from ..model import Book
 from ..policy import Policy
 from ..report import Level, Report
@@ -21,6 +22,11 @@ class Context:
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None
+
+    #: What this book is allowed to cost. One per rebuild, because the deadline
+    #: it carries starts when it is made — a shared default would measure how
+    #: long the process has been running rather than how long this book took.
+    budget: Budget = field(default_factory=Budget)
 
     #: Stylesheets that must gain the consolidated watermark rule, because a
     #: document they style had its repeated inline styling removed.
