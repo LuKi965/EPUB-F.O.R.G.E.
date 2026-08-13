@@ -225,6 +225,48 @@ def _declare_prefixes(document: str, metadata) -> str:
     return f" prefix={quoteattr(' '.join(declarations))}" if declarations else ""
 
 
+#: ONIX Code List 5 — "Product identifier type", the vocabulary this program
+#: declares when it says `scheme="onix:codelist5"`. Its members are two-digit
+#: codes, and a two-digit code is what a distributor's importer reads.
+#:
+#: This wrote the word `ISBN` into that field for as long as the field existed:
+#: `scheme="onix:codelist5">ISBN<`, which announces a vocabulary and then says
+#: something that is not in it. Valid XML, valid EPUB, and unreadable by the
+#: only kind of software that asks the question.
+_ONIX_CODELIST_5 = {"ISBN_13": "15", "ISBN_10": "02", "DOI": "06"}
+
+
+def _identifier_type(identifier) -> tuple[str, str]:
+    """The code and vocabulary for one identifier's `identifier-type`.
+
+    ISBN-13 and ISBN-10 are different codes in the same list, so the digits
+    decide rather than the word: everything an EPUB carries in practice is a
+    13-digit ISBN, but a book old enough to have a 10-digit one is exactly the
+    book somebody is rebuilding.
+
+    A scheme this does not know keeps its own word and loses the ONIX claim,
+    because the alternative is asserting membership of a list on a value that
+    is not in it — which is the defect this exists to stop making.
+    """
+    scheme = (identifier.scheme or "").strip()
+    # A source that already wrote a code keeps it, whatever it is. The reader
+    # fills `scheme` from the source's own refinement when there is one, so this
+    # value may well be a code already — the kitchen-sink fixture carries `06` —
+    # and rewriting somebody's ONIX code because it is not one of the three
+    # spelled out below would be inventing metadata, not repairing it. Two
+    # digits in a field declared as this list is a code.
+    if len(scheme) == 2 and scheme.isdigit():
+        return scheme, "onix:codelist5"
+    if scheme.upper() == "ISBN":
+        digits = "".join(c for c in identifier.value if c.isdigit() or c in "Xx")
+        key = "ISBN_10" if len(digits) == 10 else "ISBN_13"
+        return _ONIX_CODELIST_5[key], "onix:codelist5"
+    code = _ONIX_CODELIST_5.get(scheme.upper())
+    if code:
+        return code, "onix:codelist5"
+    return scheme, "xsd:string"
+
+
 def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str, str]]:
     """Render the package document; also returns the path→manifest-id map."""
     metadata = book.metadata
@@ -252,9 +294,10 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     if identifier:
         lines.append(f"    {_element('dc:identifier', identifier.value, id='pub-id')}")
         if identifier.scheme:
+            code, vocabulary = _identifier_type(identifier)
             lines.append(
                 f'    <meta refines="#pub-id" property="identifier-type" '
-                f'scheme="onix:codelist5">{escape(identifier.scheme)}</meta>'
+                f'scheme="{vocabulary}">{escape(code)}</meta>'
             )
     for index, extra in enumerate(i for i in metadata.identifiers if not i.primary):
         lines.append(f"    {_element('dc:identifier', extra.value, id=f'id-{index}')}")
@@ -275,6 +318,12 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     if metadata.subtitle:
         lines.append(f"    {_element('dc:title', metadata.subtitle, id='subtitle')}")
         lines.append('    <meta refines="#subtitle" property="title-type">subtitle</meta>')
+    # Everything past the main title and the subtitle. Written without a
+    # `title-type`, because the source did not say what they were and inventing
+    # a type is a claim; written at all, because the alternative is what this
+    # did until 0.2.20 — a third `dc:title` that simply stopped existing.
+    for index, other in enumerate(metadata.titles[1:]):
+        lines.append(f"    {_element('dc:title', other, id=f'title-{index}')}")
 
     lines.append(f"    {_element('dc:language', language)}")
     for extra_language in metadata.languages_extra:
@@ -554,6 +603,27 @@ def _verify_container(path: str) -> None:
             raise OSError("the written mimetype entry is compressed")
         if "META-INF/container.xml" not in names:
             raise OSError("the written archive has no META-INF/container.xml")
+        # Parsed, not merely present. "Has a container.xml" was the whole check,
+        # and a container whose `full-path` carried an unescaped `&` passed it
+        # while lxml refused to read the file — an archive nothing could open,
+        # pronounced good by the thing whose job is to say so. The rootfile it
+        # names has to be in the archive too: a container pointing at a package
+        # document that was never written is the same failure one step later.
+        from lxml import etree
+
+        try:
+            container = etree.fromstring(archive.read("META-INF/container.xml"))
+        except etree.XMLSyntaxError as exc:
+            raise OSError(f"the written container.xml is not well-formed XML: {exc}") from exc
+        rootfiles = container.findall(
+            ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
+        )
+        if not rootfiles:
+            raise OSError("the written container.xml names no rootfile")
+        for rootfile in rootfiles:
+            target = rootfile.get("full-path")
+            if not target or target not in names:
+                raise OSError(f"the written container.xml points at a missing rootfile: {target!r}")
         broken = archive.testzip()
         if broken is not None:
             raise OSError(f"the written archive has a corrupt entry: {broken}")
@@ -578,6 +648,18 @@ def write_epub(
     ``os.replace`` is atomic within a filesystem, which is why the temporary
     file is created in the destination's own directory rather than in /tmp.
     """
+    # Checked here as well as in `Policy`, because a dataclass field assigned
+    # after construction never sees `__post_init__` — and that is not a corner
+    # case, it is the ordinary way a caller adjusts one setting. The measured
+    # result of trusting the constructor: four archive members beginning `../`
+    # written from `policy.content_dir = '../evil&dir'` set on a policy that
+    # had already validated itself. This function is the last place the values
+    # are still just values; after it they are names in an archive.
+    from .policy import _check_ocf_segment
+
+    _check_ocf_segment("content_dir", content_dir, allow_empty=True)
+    _check_ocf_segment("package_name", package_name, allow_empty=False)
+
     # An empty content directory means the package sits at the archive root,
     # which is what Calibre produces and what some readers were built against.
     # Joining unconditionally gave "/content.opf" — a leading slash, and an
@@ -617,7 +699,15 @@ def _write_archive(book: Book, destination: str, opf_path: str, opf: str) -> Non
         archive.writestr(_entry("mimetype", zipfile.ZIP_STORED), b"application/epub+zip")
 
         archive.writestr(
-            _entry("META-INF/container.xml"), CONTAINER_XML.format(opf_path=opf_path)
+            # Escaped, because `opf_path` reaches here from two directions: a
+            # `Policy` a library caller built, and the layout of the source
+            # archive, which is somebody else's file. Both are checked before
+            # they get this far; this is the line that does not depend on that
+            # being true. An unescaped `&` in a directory name is enough to make
+            # `container.xml` unparsable, and the archive verifier — which reads
+            # entry order, mimetype and CRC — pronounced such a book good.
+            _entry("META-INF/container.xml"),
+            CONTAINER_XML.format(opf_path=escape(opf_path, {'"': "&quot;"})),
         )
         # Reader-specific container entries, added only by a compatibility
         # profile. Written next to container.xml because that is where the

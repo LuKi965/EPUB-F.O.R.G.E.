@@ -7,7 +7,25 @@ from dataclasses import dataclass, field
 from . import watermark
 
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
-CORE_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/svg+xml"}
+#:
+#: `image/webp` belongs here and was missing until 0.2.20. EPUB 3.3 lists it
+#: among the core media types, and this is not a reading of the prose: the
+#: EPUBCheck we ship validates a book containing a bare `image/webp` with no
+#: fallback and reports zero errors, under EPUB 3.3 rules. A foreign resource
+#: used without a fallback is an error, so the validator saying nothing is the
+#: validator saying the type is core.
+#:
+#: Its absence was not cosmetic. Everything outside this set is transcoded to
+#: PNG through a single-frame decode, so a two-frame animated WebP came out a
+#: still picture — measured, not feared — with its ICC profile and its metadata
+#: gone, in a book that needed none of it changed.
+CORE_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/svg+xml",
+    "image/webp",
+}
 CORE_FONT_TYPES = {
     "font/ttf",
     "font/otf",
@@ -16,6 +34,46 @@ CORE_FONT_TYPES = {
     "application/font-sfnt",
     "application/vnd.ms-opentype",
 }
+
+
+#: Characters that cannot appear in a path this program writes into an archive.
+#: `"` and `&` are here because the path is also interpolated into the XML of
+#: `container.xml`; the rest are here because they are how a path stops meaning
+#: one file.
+_FORBIDDEN_IN_PATH = set('"&<>\\\x00:|?*')
+
+
+def _check_ocf_segment(field_name: str, value: str, *, allow_empty: bool) -> None:
+    """Refuse a package path that cannot safely be a path.
+
+    `content_dir` and `package_name` are interpolated into two places at once:
+    the names of ZIP members and the text of `container.xml`. Neither was
+    checked, and `Policy` is public API — so a library caller, a preset or a
+    future configuration file could set `content_dir='../evil&dir'` and
+    `package_name='p"q.opf'` and get exactly what it asked for. Measured on
+    0.2.19: four archive members beginning `../`, a `container.xml` that lxml
+    refuses to parse, and an internal verifier that pronounced the result good.
+    An unescaped `&` is enough on its own; the `..` is how a zip-slip looks.
+
+    Refused here rather than escaped later, because there is no book anywhere
+    that needs a package document called `p"q.opf` and no honest reason to
+    write one.
+    """
+    text = value or ""
+    if not text.strip("/"):
+        if allow_empty:
+            return
+        raise ValueError(f"{field_name} must not be empty")
+    for segment in text.strip("/").split("/"):
+        if not segment:
+            raise ValueError(f"{field_name}: empty path segment in {value!r}")
+        if segment in (".", ".."):
+            raise ValueError(f"{field_name}: {segment!r} is not a directory this may write to")
+        bad = sorted(set(segment) & _FORBIDDEN_IN_PATH)
+        if bad:
+            raise ValueError(f"{field_name}: {''.join(bad)!r} cannot appear in {value!r}")
+        if len(segment.encode("utf-8")) > 255:
+            raise ValueError(f"{field_name}: path segment longer than 255 bytes")
 
 
 @dataclass
@@ -86,6 +144,24 @@ class Policy:
     #: a picture somebody is still looking at.
     drop_orphans: bool = False
 
+    #: Rebuild from a source the reader could not read all of.
+    #:
+    #: Off, and it is the only setting in this file whose default is chosen
+    #: against convenience rather than for it. When an entry of the archive
+    #: cannot be read — a monstrous member, a broken stream, a name with no
+    #: usable form — the reader says so and the rebuild now stops. Until 0.2.19
+    #: it did not: an EPUB whose only chapter exceeded the per-entry limit
+    #: produced a file on disk, `succeeded-with-problems`, and no chapter. K1
+    #: says no character of the book's text is lost; a rebuild that cannot see
+    #: the text cannot keep that promise, and a status nobody reads is not a
+    #: warning.
+    #:
+    #: Turning it on is the owner's standing rule applied to a refusal rather
+    #: than to a deletion: the person holding the book gets the last word. It
+    #: does not make the loss quiet — the finding stays, at WARN, naming what
+    #: went missing.
+    allow_incomplete: bool = False
+
     #: What to do with a publisher's opaque watermark marker — one of
     #: :data:`epubforge.watermark.MODES`.
     #:
@@ -139,6 +215,8 @@ class Policy:
                 f"unknown watermark mode: {self.watermarks!r} "
                 f"(expected one of {', '.join(watermark.MODES)})"
             )
+        _check_ocf_segment("content_dir", self.content_dir, allow_empty=True)
+        _check_ocf_segment("package_name", self.package_name, allow_empty=False)
 
     @classmethod
     def preset(cls, name: str, **overrides) -> "Policy":

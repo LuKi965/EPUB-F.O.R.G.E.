@@ -629,6 +629,21 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
         resource.fallback = item.get("fallback")
         resource.media_overlay = item.get("media-overlay")
         if item_id:
+            if item_id in resources:
+                # "Last one wins" is a decision, and it is not ours to make.
+                # `<spine><itemref idref="dup"/>` then resolves to whichever
+                # element came second, which is a different document from the
+                # one that came first — measured: a book whose spine pointed at
+                # `first.xhtml` came out reading `second.xhtml`, with no finding
+                # of any kind. The output has unique ids, so nothing downstream
+                # can even see that the question was asked.
+                report.add(
+                    "reader",
+                    Level.ERROR,
+                    "reader.manifest-id-duplicated",
+                    values={"id": item_id, "first": resources[item_id].path, "second": path},
+                    location=path,
+                )
             resources[item_id] = resource
             id_by_path[path] = item_id
         else:
@@ -649,7 +664,14 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                     Level.WARN,
                     "reader.dangling-reference",
                     values={"attribute": attribute.replace("_", "-"), "reference": reference},
-                    location=resource.path,
+                    # A remote item has an `href` and no `path` — it is a
+                    # declaration about somewhere else, which is the whole
+                    # point of the class. Reaching for `.path` to fill in a
+                    # location turned a book with a remote video and a bad
+                    # fallback into an `AttributeError` out of the reader:
+                    # a traceback where a finding belonged, and in a batch, the
+                    # end of the batch.
+                    location=getattr(resource, "path", None) or getattr(resource, "href", ""),
                 )
                 setattr(resource, attribute, None)
             else:

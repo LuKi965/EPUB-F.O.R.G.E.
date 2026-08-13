@@ -38,6 +38,116 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.20 — alpha — 2026-08-11
+
+### An outside audit, and nine of nine
+
+An engineering audit of commit `003d254` came back with thirty findings and a
+one-word answer to *would you run ten thousand random EPUBs through this
+unattended and ship the results*: **no**. Nine of the thirty were checkable here
+in an afternoon. **All nine reproduced exactly as written.** That number is the
+important one and it is recorded before anything else in this entry, because
+this project has a habit of checking confident reports and finding them wrong,
+and this one was not wrong about anything it could be checked on.
+
+Seven are fixed below. Each has a test in `tests/test_audit_0219.py` naming what
+was measured on 0.2.19, written before the fix, in the order the audit asked
+for.
+
+**A book could be written with a chapter missing.** The worst of them, and the
+one this project had argued itself into on purpose. When an archive entry cannot
+be read — too large, broken stream — the reader said so and carried on, and
+`rebuild()` wrote whatever was left. Measured: an EPUB whose only chapter
+exceeded the per-entry limit produced `succeeded-with-problems`, a file on disk,
+and **no chapter** — `mimetype`, `container.xml`, the package, the nav, the NCX.
+A complete, openable, empty book, reported as a qualified success.
+
+The argument against it was already in the file, four lines away, guarding the
+archive-wide limit: *for a tool whose first rule is that no character is lost,
+half a book is a worse outcome than a refusal.* It was right there and applied
+to one of the two limits. Now a source that cannot be read in full stops the
+rebuild before any stage runs, and `--allow-incomplete` is how a person says go
+on anyway — the owner's standing rule about deletions, pointed at a refusal.
+
+The first draft of that set was too wide, and the suite caught it inside the
+hour: it counted `reader.name-dropped` as a lost resource, which would refuse
+every book carrying a `__MACOSX` shadow or a `../` entry. Those are not
+publication resources going missing. Removed from the set, and the reasoning
+written next to it.
+
+**Two manifest items with one id.** A manifest with two `id="dup"` items and a
+spine naming it produced a book reading the *second* document, silently. The
+output's ids are unique, so nothing downstream could see the question had been
+asked. Last-one-wins is a decision and it is not this program's to make; the
+ambiguity now stops the rebuild and the finding names both candidates.
+
+**A remote item with a bad fallback crashed the reader.** `AttributeError:
+'RemoteResource' object has no attribute 'path'` — a traceback where a finding
+belonged, and in a batch, the end of the batch. A remote item has an `href` and
+no `path`; that is the whole point of the class.
+
+**A document's own language was overwritten.** A chapter declaring `lang="fr"`
+in a book whose package says `en` came out saying `en`, taking the hyphenation,
+the speech synthesiser's accent and the dictionary with it. A bilingual edition
+is not an error to be tidied.
+
+The fix was half right and the public corpus said so within the hour, which is
+the best argument for that corpus this project has produced. "Believe the
+document" is not the rule either: three Polish Gutenberg books wrap Polish text
+in `<html lang="en">`, because the boilerplate says `en` and nobody edits it, and
+believing that hands a text-to-speech engine an English voice for *Pan Tadeusz*.
+So the rule is the one already applied to the package's own declaration, one
+level down — **the text decides.** On the six public books it separates them
+exactly: a 233 946-character Polish novel declaring `en` is corrected, and the
+18 726-character English Gutenberg licence beside it *in the same book* keeps
+`en`. That is the bilingual case arrived at from the other direction.
+
+**WebP is a core media type, and converting it cost an animation its frames.**
+A two-frame animated WebP came out a one-frame PNG. Two defects at once: EPUB
+3.3 lists `image/webp` among the core media types, so nothing needed converting;
+and the conversion that was not needed decoded one frame and saved it.
+
+Not a reading of the prose — the EPUBCheck this repository ships validates a
+book holding a bare `image/webp` with no fallback and reports zero errors under
+EPUB 3.3 rules, and a foreign resource used without a fallback is an error. The
+validator saying nothing is the validator saying the type is core. Alongside it:
+any multi-frame image is now kept as it came in rather than flattened, because
+a moving picture converted to a still one has not been converted.
+
+**A package path this may not write.** `content_dir='../evil&dir'` and
+`package_name='p"q.opf'` produced four archive members beginning `../`, a
+`container.xml` lxml refuses to parse, and an internal verifier that pronounced
+the archive good. `Policy` is public API; nothing in the CLI or the GUI can reach
+this, and that is not a reason to accept it. Both fields are validated at
+construction *and* in the writer — a dataclass field assigned afterwards never
+sees `__post_init__`, which is how the original reproduction was written — the
+container is XML-escaped, and the verifier now parses what it wrote and checks
+the rootfile it names is in the archive.
+
+**A third `dc:title` stopped existing.** Three untagged titles came out as two:
+first stayed, second became the subtitle, third was dropped — and the finding
+said "3 collapsed", which reads like an accounting of where they went. EPUB 3
+allows as many as the publisher wrote.
+
+**The ONIX code was not a code.** `scheme="onix:codelist5">ISBN<` announces a
+vocabulary of two-digit codes and then says something that is not in it. ISBN-13
+is `15`, ISBN-10 is `02`, and the digits decide rather than the word. A source
+that already carries a code keeps it, whatever it is — rewriting somebody's ONIX
+code because it is not one of the three spelled out here would be inventing
+metadata rather than repairing it.
+
+### What the audit found that is not fixed here
+
+Named, not buried. F-002 (ZIP names, OCF paths and URLs are all `str`), F-003
+(a standalone SVG's references are not repointed when relayout moves it —
+reproduced, still open), F-004 (HTML recovery lowercases `linearGradient` and
+drops an XML processing instruction), F-006's other half (a full pre-commit
+validation gate; this release closes the read-side half), F-017 and F-028 (the
+approximate cascade authorising deletions, and a test suite that does not
+measure rendering). These are architecture-scale and each is in `docs/ROADMAP.md`
+with what it would take. The audit's own advice was not to start there, and it
+is right.
+
 ## 0.2.19 — alpha — 2026-08-10
 
 ### The same book twice was measured twice, raced with itself, and counted twice

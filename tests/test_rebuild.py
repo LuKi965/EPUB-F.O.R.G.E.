@@ -203,8 +203,8 @@ class TestReferenceIntegrity:
 
     def test_css_urls_follow_transcoded_images(self, archive):
         css = archive.read("EPUB/styles/main.css").decode()
-        assert "deco.webp" not in css
-        assert "deco.png" in css
+        assert "stara.bmp" not in css
+        assert "stara.png" in css
         assert "../fonts/moja.ttf" in css
 
     def test_toc_entries_pointing_nowhere_are_dropped(self, rebuilt):
@@ -216,10 +216,19 @@ class TestReferenceIntegrity:
 
 
 class TestAssets:
-    def test_webp_is_transcoded_to_png(self, archive):
+    def test_a_foreign_image_is_transcoded_to_png(self, archive):
+        """BMP is not a core media type and readers disagree about it."""
         names = archive.namelist()
-        assert not any(name.endswith(".webp") for name in names)
-        assert "EPUB/images/deco.png" in names
+        assert not any(name.endswith(".bmp") for name in names)
+        assert "EPUB/images/stara.png" in names
+
+    def test_webp_is_left_alone(self, archive):
+        """It is a core media type in EPUB 3.3 — the EPUBCheck this repository
+        ships validates a bare one with no fallback and says nothing. Converting
+        it was work nobody asked for that cost an animation its frames."""
+        names = archive.namelist()
+        assert "EPUB/images/deco.webp" in names
+        assert "EPUB/images/deco.png" not in names
 
     def test_non_ascii_filenames_are_slugged(self, archive):
         assert "EPUB/images/okladka.png" in archive.namelist()

@@ -1,8 +1,15 @@
 """Image normalisation: correct mistyped files and transcode non-core formats.
 
-EPUB 3 readers are only required to support JPEG, PNG, GIF and SVG. WebP, BMP
-and TIFF appear in the wild and render on some devices but not others, so they
-are converted rather than trusted.
+EPUB 3 readers must support JPEG, PNG, GIF, SVG **and WebP** without a fallback.
+This module said the first four for a long time and converted WebP along with
+BMP and TIFF, which was wrong twice over: WebP needed nothing doing to it, and
+the conversion that was not needed lost frames. BMP and TIFF do render on some
+devices and not others, and those are still converted rather than trusted.
+
+Whatever is converted is converted losslessly or not at all. A single decode
+followed by a single save silently keeps frame one of an animation, and a
+transformation that quietly drops most of a picture is worse than the
+incompatibility it was avoiding.
 """
 
 from __future__ import annotations
@@ -115,6 +122,23 @@ class ImageStage(Stage):
     def _transcode(self, ctx: Context, resource) -> None:
         try:
             with Image.open(io.BytesIO(resource.data)) as image:
+                # A moving picture cannot be converted to a still one and called
+                # converted. `Image.save` without `save_all` writes frame one
+                # and drops the rest without a word, which is how a two-frame
+                # animation became a photograph. Nothing here is worth that:
+                # the format is kept as it came in and the finding says why.
+                if getattr(image, "n_frames", 1) > 1:
+                    self.note(
+                        ctx,
+                        Level.PRESERVED,
+                        "image.animation-kept",
+                        values={
+                            "media_type": resource.media_type,
+                            "frames": image.n_frames,
+                        },
+                        location=resource.path,
+                    )
+                    return
                 has_alpha = image.mode in ("RGBA", "LA", "P") and "transparency" in image.info
                 target_mode = "RGBA" if has_alpha or image.mode in ("RGBA", "LA") else "RGB"
                 converted = image.convert(target_mode)

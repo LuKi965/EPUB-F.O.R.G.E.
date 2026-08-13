@@ -99,17 +99,27 @@ class MetadataStage(Stage):
             metadata.titles = ["Untitled"]
             self.note(ctx, Level.WARN, "metadata.title-missing")
         elif len(metadata.titles) > 1:
-            # A package may carry several titles, but only the first is the
-            # main one; the rest become subtitles rather than being dropped.
+            # A package may carry several titles, but only the first is the main
+            # one. The second becomes the subtitle, which is the ordinary shape
+            # of a book with a colon in its name.
+            #
+            # The rest are kept. They were dropped — `titles = titles[:1]` after
+            # taking `extra[0]`, so a book with three `dc:title` elements came
+            # out with two and the finding said "3 collapsed", which reads like
+            # an accounting of where they went. Nothing needs them gone: EPUB 3
+            # allows as many `dc:title` as the publisher wrote, and the one this
+            # threw away is the kind a distributor put there — a collection
+            # title, a short title, an edition.
             extra = metadata.titles[1:]
-            metadata.titles = metadata.titles[:1]
             if not metadata.subtitle and extra:
                 metadata.subtitle = extra[0]
+                extra = extra[1:]
+            metadata.titles = metadata.titles[:1] + extra
             self.note(
                 ctx,
                 Level.FIX,
                 "metadata.titles-collapsed",
-                values={"count": len(extra) + 1},
+                values={"count": len(metadata.titles) + (1 if metadata.subtitle else 0)},
             )
 
     def _language(self, ctx: Context) -> None:

@@ -20,6 +20,19 @@ def webp_bytes(size=(40, 40), color=(10, 120, 200)) -> bytes:
     return buffer.getvalue()
 
 
+def bmp_bytes(size=(40, 40), color=(200, 120, 10)) -> bytes:
+    """A format EPUB 3 really does not require, for the transcode path.
+
+    WebP used to be this fixture's foreign image and is a core media type, so it
+    stopped exercising the code it was here for. Losing that coverage silently
+    is how the transcoder came to flatten an animation without anybody noticing;
+    BMP takes the job over.
+    """
+    buffer = io.BytesIO()
+    Image.new("RGB", size, color).save(buffer, format="BMP")
+    return buffer.getvalue()
+
+
 def write_zip(path: str, entries: dict[str, bytes], *, mimetype: bool = True) -> str:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         if mimetype:
@@ -46,6 +59,7 @@ LEGACY_OPF = """<?xml version="1.0" encoding="utf-8"?>
   <manifest>
     <item id="cover-img" href="Images/ok%C5%82adka.png" media-type="image/png"/>
     <item id="deco" href="Images/deco.webp" media-type="image/webp"/>
+    <item id="stara" href="Images/stara.bmp" media-type="image/bmp"/>
     <item id="ch1" href="Text/chapter 1.html" media-type="application/xhtml+xml"/>
     <item id="ch2" href="Text/chapter2.xhtml" media-type="text/html"/>
     <item id="style" href="Styles/main.css" media-type="text/css"/>
@@ -97,6 +111,7 @@ CHAPTER_TWO = """<?xml version="1.0" encoding="utf-8"?>
 <p style="text-align: left"><img src="../Images/deco.webp" alt="ozdoba"/></p>
 <p class="ilustracja"><img src="../Images/deco.webp" alt="wybor wydawcy"/></p>
 <p><img src="../Images/deco.webp" alt="procent" width="10%"/></p>
+<p><img src="../Images/stara.bmp" alt="stara"/></p>
 <h1 id="naglowek"><a href="chapter2.xhtml"><span class="numer">III</span><br/>Tytu&#322;</a></h1>
 <p><a href="https://example.test/strona">link zewn&#281;trzny</a></p>
 <p style="font-size:0.9em">Drobny druk wydawcy, kt&#243;ry ma pozosta&#263; widoczny.</p>
@@ -115,6 +130,7 @@ h1 {
   -epub-hyphenate: auto;
 }
 .deco { background-image: url('../Images/deco.webp'); }
+.stara { background-image: url('../Images/stara.bmp'); }
 /* Publisher mistakes seen in shipped books: out-of-flow content in a
    reflowable title page, and a font-style value that does not exist. */
 div.dol { position: absolute; bottom: 0; width: 100%; }
@@ -173,6 +189,7 @@ def make_legacy_epub(path: str, *, font: bytes | None = None, encryption: str | 
         "OEBPS/Styles/main.css": STYLESHEET.encode(),
         "OEBPS/Images/okładka.png": png_bytes(),
         "OEBPS/Images/deco.webp": webp_bytes(),
+        "OEBPS/Images/stara.bmp": bmp_bytes(),
         "OEBPS/toc.ncx": NCX.encode(),
         # Neither is referenced by anything.
         "OEBPS/Images/nieuzywany.png": png_bytes(color=(0, 255, 0)),

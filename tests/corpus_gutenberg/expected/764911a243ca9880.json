@@ -1,6 +1,6 @@
 {
   "source": "sha256:764911a243ca988002c728941817e643fcca685d33dc13022e5e0245e6069e9a",
-  "version": "0.2.16",
+  "version": "0.2.19",
   "minimal": {
     "written": true,
     "report": {
@@ -38,7 +38,7 @@
     "report": {
       "info": 14,
       "fix": 9,
-      "preserved": 3,
+      "preserved": 6,
       "warn": 4
     },
     "rules": {
@@ -60,11 +60,12 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-fitted": 4,
+      "xhtml.document-language-kept": 3,
       "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:84905cbe8b8368091544b423809bd4e11ac56d2fdeb9f9b73edc923ba1e4afa2",
+    "output": "sha256:c876dfaf532c2e0196e52a25f13c076d6b9a28622e8ba2a7365c4de5d3d5d342",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -75,7 +76,7 @@
     "report": {
       "info": 9,
       "fix": 14,
-      "preserved": 3,
+      "preserved": 6,
       "warn": 4
     },
     "rules": {
@@ -97,11 +98,12 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "xhtml.cover-fitted": 4,
+      "xhtml.document-language-kept": 3,
       "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:4cfdb7d4ae491104a7726ca572bf920def2aec81d93326f02baf740cd0a7ef91",
+    "output": "sha256:d9d3068436600063cc9d84cb1a77a30d3ab4098cc8059d3fa3a3e67b9aac9760",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,

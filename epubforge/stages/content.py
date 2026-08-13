@@ -16,7 +16,7 @@ import cssutils
 from lxml import etree
 
 from .. import cascade as css_cascade
-from .. import fonts_meta, paths, stylesheet, watermark, xhtml
+from .. import fonts_meta, paths, stylesheet, typography, watermark, xhtml
 from ..report import Level
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
@@ -121,6 +121,30 @@ _DIRECTION_RE = re.compile(
 #: default is the whole of the observed defect: Word and Sigil write
 #: `direction: ltr` into a boilerplate sheet for every book they touch.
 _DIRECTION_DEFAULT = {"direction": "ltr", "unicode-bidi": "normal"}
+
+#: Characters of a document's own text below which a language rate is
+#: arithmetic rather than evidence. The same floor `MetadataStage` uses for the
+#: same question one level up, and for the same reason: a page of prose is about
+#: two thousand characters, and a nav entry is eight.
+ENOUGH_TEXT = 500
+
+
+def _contradicted_by_text(declared: str, root) -> bool:
+    """Whether this document's own text plainly refutes the language it claims.
+
+    Only Polish, and that asymmetry is honest rather than provisional: the test
+    is the frequency of letters that exist in one alphabet and not the other,
+    measured at 69 per 1 000 in Polish prose against 4.4 in an English novel
+    carrying one Polish quotation. There is no equivalent test for French
+    against English, so a document claiming `fr` is believed — which is the
+    right outcome anyway, because a wrong `fr` costs a reader far less than a
+    wrong `en` on Polish text costs a listener.
+    """
+    if declared.split("-")[0].lower() == "pl":
+        return False
+    text = " ".join(root.itertext())
+    return len(text) >= ENOUGH_TEXT and typography.looks_polish(text)
+
 
 _FONT_FACE_RE = re.compile(r"@font-face\s*\{[^}]*\}", re.IGNORECASE)
 _FONT_FAMILY_RE = re.compile(r"font-family\s*:\s*([^;}]+)", re.IGNORECASE)
@@ -679,9 +703,59 @@ class ContentStage(Stage):
 
     def _skeleton(self, ctx: Context, root, resource) -> None:
         """Guarantee html/head/title/body with the right namespace and language."""
+        # The publication's language is a *default*, not an instruction to make
+        # every document agree with it. A document that states its own is
+        # stating a fact about itself: measured, a chapter declaring `lang="fr"`
+        # in a book whose package says `en` came out saying `en`, and with it
+        # went the hyphenation, the speech synthesiser's accent and the
+        # dictionary. A bilingual edition is not an error to be tidied.
+        #
+        # This is K11 read the other way round. The source's declaration is not
+        # a fact — but the argument for correcting one is evidence about the
+        # text, which is what `metadata` weighs for the package as a whole. Here
+        # there is no evidence at all, only a difference, and a difference
+        # between a document and its book is the ordinary shape of a book with
+        # two languages in it.
         language = ctx.book.metadata.language or ctx.policy.default_language
-        root.set("lang", language)
-        root.set(XML_LANG, language)
+        stated = (root.get("lang") or root.get(XML_LANG) or "").strip()
+        # Both spellings, and they must agree: EPUB 3 requires it, and a
+        # document saying `lang="fr" xml:lang="en"` is one a reading system
+        # resolves by picking, differently in each one.
+        settled = stated or language
+        if not stated:
+            pass
+        elif _contradicted_by_text(stated, root):
+            # And this is why "believe the document" is not the rule either.
+            # The public corpus answered it within the hour: three Polish
+            # Project Gutenberg books wrap Polish text in `<html lang="en">`,
+            # because the boilerplate says `en` and nobody edits it. Believing
+            # that hands the text-to-speech engine an English voice for
+            # *Pan Tadeusz*.
+            #
+            # So the rule is the one this program already applies to the
+            # package's own declaration, applied a level down: the text decides.
+            # K11 — the source's declaration is not a fact — and its converse,
+            # that a difference is not a defect either. Narrow in exactly the
+            # same way: only a language whose letters are their own proof, only
+            # over enough of them to be evidence.
+            settled = "pl"
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.document-language-corrected",
+                values={"was": stated, "now": settled},
+                location=resource.path,
+            )
+        elif stated != language:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "xhtml.document-language-kept",
+                values={"document": stated, "publication": language},
+                location=resource.path,
+            )
+        root.set("lang", settled)
+        root.set(XML_LANG, settled)
 
         head = root.find(xhtml.qname("head"))
         if head is None:

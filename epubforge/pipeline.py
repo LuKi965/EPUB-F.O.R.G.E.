@@ -69,13 +69,65 @@ def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
     directory, _, name = book.source_opf_path.rpartition("/")
     if directory == policy.content_dir.strip("/") and name == policy.package_name:
         return policy
+    try:
+        kept = replace(policy, content_dir=directory, package_name=name)
+    except ValueError as exc:
+        # The source's own layout is somebody else's file, and keeping it means
+        # writing its directory name into archive member names and into the XML
+        # of `container.xml`. A name `Policy` refuses is a name this must not
+        # copy: the book still rebuilds, under the layout this program chooses.
+        report.add(
+            "package",
+            Level.WARN,
+            "package.layout-unusable",
+            values={"path": book.source_opf_path, "reason": str(exc)},
+        )
+        return policy
     report.add(
         "package",
         Level.INFO,
         "package.layout-kept",
         values={"path": book.source_opf_path},
     )
-    return replace(policy, content_dir=directory, package_name=name)
+    return kept
+
+
+#: Findings that mean a member of the source archive never reached the model.
+#:
+#: Not "something went wrong" — specifically *an entry of the input is missing
+#: from what we are about to rebuild from*. The reader raised each of these and
+#: then carried on, on the reasoning that one monstrous entry is skipped and the
+#: rest of the book is still worth reading. That reasoning is written into the
+#: reader beside the archive-wide limit, where it reaches the opposite
+#: conclusion: *for a tool whose first rule is that no character is lost, half a
+#: book is a worse outcome than a refusal.* Both cannot be right, and the
+#: archive-wide one is.
+#:
+#: Measured, on 0.2.19: an EPUB whose only chapter exceeded the per-entry limit
+#: produced `status = succeeded-with-problems`, a file on disk, and **no
+#: chapter**. That is the failure this project exists to make impossible, sold
+#: as a success.
+#: `reader.name-dropped` is deliberately **not** here, and the first draft of
+#: this set had it. An entry whose name has no usable form — `../outside.bin`,
+#: an absolute path, a `__MACOSX` shadow — is not a publication resource that
+#: went missing; it is an entry no manifest can name and no document can link
+#: to. Refusing a book because its archive carries one would refuse books that
+#: rebuild perfectly today, which is the failure mode this whole change is
+#: against, pointed the other way. The suite caught it within the hour.
+LOSES_INPUT = frozenset({
+    "reader.entry-too-large",
+    "reader.entry-unreadable",
+    "reader.manifest-id-duplicated",
+})
+
+
+def _input_lost(report: Report) -> set[str]:
+    """Which entries of the source did not survive being read."""
+    return {
+        finding.location or finding.rule
+        for finding in report.findings
+        if finding.rule in LOSES_INPUT
+    }
 
 
 def rebuild(
@@ -105,6 +157,23 @@ def rebuild(
             values={"error": str(exc)},
         )
         return Result(report, None, None, Status.FAILED)
+
+    lost = _input_lost(report)
+    if lost and not policy.allow_incomplete:
+        report.add(
+            "reader",
+            Level.ERROR,
+            "package.input-incomplete",
+            values={"count": len(lost), "names": ", ".join(sorted(lost)[:3])},
+        )
+        return Result(report, book, None, Status.BLOCKED)
+    if lost:
+        report.add(
+            "reader",
+            Level.WARN,
+            "package.input-incomplete-allowed",
+            values={"count": len(lost), "names": ", ".join(sorted(lost)[:3])},
+        )
 
     # The version change is the single largest thing the rebuild does, so it is
     # stated outright rather than left for the reader to infer from the output.
