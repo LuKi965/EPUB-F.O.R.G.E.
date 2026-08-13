@@ -367,6 +367,109 @@ def _read_archive(source: str, report: Report, budget: Budget | None = None) -> 
     return _RawArchive(entries, mimetype_ok)
 
 
+@dataclass
+class Rendition:
+    """One package document a container offers, and what it says about itself.
+
+    EPUB 3 allows a container to list several `rootfile` elements: the same
+    work as a fixed-layout edition and a reflowable one, in two languages, or
+    with and without audio. Every one of them is a complete publication with its
+    own manifest, spine and metadata.
+
+    This program read the first one and said nothing about the rest, so a book
+    with two renditions came out as one — the other rendition's files carried
+    through the archive as unmanifested strays and the output declared a
+    publication the source did not have. The owner's decision on 2026-08-13 was
+    to **rebuild each of them separately**, which is what `pipeline.rebuild_all`
+    does; this type is how the container's offer is carried to it.
+    """
+
+    #: Container path of the package document.
+    path: str
+    #: The `rootfile` element's other attributes — `rendition:layout`,
+    #: `rendition:language`, `rendition:label` and so on. Carried whole because
+    #: the vocabulary is open and a label is written by a person.
+    attributes: dict[str, str] = None
+
+    def __post_init__(self) -> None:
+        if self.attributes is None:
+            self.attributes = {}
+
+    @property
+    def label(self) -> str:
+        """A name for this rendition, in the publisher's words where there are any."""
+        for key, value in self.attributes.items():
+            if key.rpartition("}")[2].rpartition(":")[2] == "label" and value.strip():
+                return value.strip()
+        parts = [
+            value.strip()
+            for key, value in sorted(self.attributes.items())
+            if key.rpartition("}")[2].rpartition(":")[2]
+            in ("layout", "language", "media", "accessmode", "spread")
+            and value.strip()
+        ]
+        return " ".join(parts)
+
+
+def rootfiles(entries: dict[str, bytes]) -> list[Rendition]:
+    """Every package document the container offers, in the order it offers them.
+
+    Only the ones the archive actually holds: a `rootfile` naming a missing file
+    is not a rendition, it is a broken container, and `_locate_opf` reports it
+    as one.
+    """
+    container = entries.get("META-INF/container.xml")
+    if not container:
+        return []
+    root = etree.fromstring(container, _XML_PARSER)
+    if root is None:
+        return []
+    found: list[Rendition] = []
+    for rootfile in descendants(root, "rootfile"):
+        full_path = rootfile.get("full-path")
+        if not full_path:
+            continue
+        candidate = full_path.replace("\\", "/").lstrip("/")
+        if candidate in entries and not any(r.path == candidate for r in found):
+            found.append(
+                Rendition(
+                    candidate,
+                    {
+                        key: value
+                        for key, value in rootfile.attrib.items()
+                        if isinstance(key, str) and key != "full-path"
+                    },
+                )
+            )
+    return found
+
+
+def manifest_paths(entries: dict[str, bytes], opf_path: str) -> set[str]:
+    """Container paths one package document claims, plus the document itself.
+
+    Used to tell one rendition's files from another's. Deliberately shallow: it
+    reads hrefs and does not follow what those files reference in turn, because
+    a picture used by both renditions is claimed by both manifests and that is
+    the answer wanted here.
+    """
+    data = entries.get(opf_path)
+    if not data:
+        return set()
+    package = etree.fromstring(data, _XML_PARSER)
+    if package is None:
+        return set()
+    directory = posixpath.dirname(opf_path)
+    claimed = {opf_path}
+    for item in descendants(package, "item"):
+        href = item.get("href")
+        if not href or paths.is_remote(href):
+            continue
+        resolved = paths.resolve(posixpath.join(directory, "_") if directory else "_", href)
+        if resolved:
+            claimed.add(resolved)
+    return claimed
+
+
 def _locate_opf(entries: dict[str, bytes], report: Report) -> str:
     container = entries.get("META-INF/container.xml")
     if container:
@@ -1180,15 +1283,58 @@ def _detect_cover(package, by_id: dict[str, Resource], book: Book) -> str | None
     return None
 
 
-def read_epub(source: str, report: Report, budget: Budget | None = None) -> Book:
-    """Load *source* into a :class:`Book`, recovering from structural damage."""
+def read_epub(
+    source: str,
+    report: Report,
+    budget: Budget | None = None,
+    *,
+    rendition: str | None = None,
+) -> Book:
+    """Load *source* into a :class:`Book`, recovering from structural damage.
+
+    *rendition* names which package document to read, for a container that
+    offers several. `None` means the first, which is what a reading system that
+    understands one rendition does. Every rendition the container offers is
+    recorded on the book either way — see `Book.renditions` — so a caller that
+    wants them all can ask for each in turn.
+    """
     budget = budget or Budget()
     archive = _read_archive(source, report, budget)
     entries = archive.entries
     if not archive.mimetype_ok:
         report.add("reader", Level.FIX, "reader.mimetype-invalid")
 
-    opf_path = _locate_opf(entries, report)
+    offered = rootfiles(entries)
+    if rendition and rendition in entries:
+        opf_path = rendition
+        # Asked for one rendition of several, which means somebody is producing
+        # the whole set — `pipeline.rebuild_all` is the only caller that does
+        # this. The other renditions' own files are then left to their own
+        # output rather than copied into this one, so each file is a publication
+        # instead of a publication plus somebody else's chapters.
+        #
+        # Only on this path. A plain `rebuild` of a multi-rendition book still
+        # carries everything, because there no sibling file is being written and
+        # dropping them would be a deletion with nowhere for them to go.
+        mine = manifest_paths(entries, opf_path)
+        foreign = {
+            path
+            for other in offered
+            if other.path != opf_path
+            for path in manifest_paths(entries, other.path)
+        } - mine
+        if foreign:
+            for path in foreign:
+                entries.pop(path, None)
+            report.add(
+                "reader",
+                Level.INFO,
+                "reader.other-rendition-skipped",
+                values={"count": len(foreign)},
+                location=opf_path,
+            )
+    else:
+        opf_path = _locate_opf(entries, report)
     opf_dir = posixpath.dirname(opf_path)
     package = etree.fromstring(entries[opf_path], _XML_PARSER)
     if package is None:
@@ -1196,6 +1342,22 @@ def read_epub(source: str, report: Report, budget: Budget | None = None) -> Book
 
     book = Book()
     book.source_opf_path = opf_path
+    book.renditions = offered
+    if len(offered) > 1:
+        # Said out loud at ERROR-adjacent volume rather than in passing: a
+        # container offering several renditions is offering several *books*, and
+        # a rebuild that quietly kept one of them published a publication the
+        # source does not have. `pipeline.rebuild_all` is what acts on this.
+        report.add(
+            "reader",
+            Level.WARN,
+            "reader.renditions-offered",
+            values={
+                "count": len(offered),
+                "names": ", ".join(r.label or r.path for r in offered),
+            },
+            location=opf_path,
+        )
     book.source_version = (package.get("version") or "unknown").strip()
     book.metadata = _parse_metadata(package, report)
 

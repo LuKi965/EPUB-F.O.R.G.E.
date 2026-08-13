@@ -472,6 +472,12 @@ class Book:
     nav_path: str | None = None
     ncx_path: str | None = None
 
+    #: Every package document the container offered, as
+    #: :class:`epubforge.reader.Rendition`. One entry for an ordinary book; more
+    #: when the container lists several `rootfile` elements, each of which is a
+    #: complete publication. `source_opf_path` says which of them this `Book` is.
+    renditions: list = field(default_factory=list)
+
     #: Diagnostics carried over from the reader.
     source_version: str = "unknown"
     source_opf_path: str | None = None

@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import resources, version_string, watermark
-from ..pipeline import Status, rebuild
+from ..pipeline import Status, rebuild_all
 from ..policy import Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_to_json
@@ -99,13 +99,35 @@ class Worker(QObject):
                 break
             self.progress.emit(index, os.path.basename(source))
             try:
-                result = rebuild(source, destination, self._policy, resolver=self._resolver)
-                if self._run_check and result.output_path:
-                    self.validating.emit(index, os.path.basename(source))
-                    validate(
-                        result.output_path,
-                        result.report,
-                        content_untouched=not self._policy.rewrite_content,
+                # Every rendition, each into its own file. For a book with one
+                # — which is every book but a handful — this is exactly what
+                # `rebuild` did, and the list has one entry.
+                produced = rebuild_all(
+                    source, destination, self._policy, resolver=self._resolver
+                )
+                result = produced[0]
+                if self._run_check:
+                    for one in produced:
+                        if one.output_path:
+                            self.validating.emit(index, os.path.basename(source))
+                            validate(
+                                one.output_path,
+                                one.report,
+                                content_untouched=not self._policy.rewrite_content,
+                            )
+                if len(produced) > 1:
+                    # The window shows one row per source, so the siblings would
+                    # otherwise be written and never mentioned.
+                    result.report.add(
+                        "package",
+                        Level.INFO,
+                        "package.renditions-written",
+                        values={
+                            "count": len(produced),
+                            "names": ", ".join(
+                                os.path.basename(one.output_path or "—") for one in produced
+                            ),
+                        },
                     )
             except Exception as exc:  # noqa: BLE001 - surfaced in the UI
                 report = Report(source=source, output=destination)

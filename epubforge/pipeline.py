@@ -133,6 +133,96 @@ def _input_lost(report: Report) -> set[str]:
     }
 
 
+def rebuild_all(
+    source: str,
+    destination: str,
+    policy: Policy | None = None,
+    *,
+    resolver: "Resolver | None" = None,
+) -> list[Result]:
+    """Rebuild every rendition the container offers, each into its own file.
+
+    The audit's F-025 and the owner's decision on 2026-08-13: *rebuild each
+    version separately.* A container may list several `rootfile` elements — the
+    same work as a fixed-layout edition and a reflowable one, in two languages,
+    with and without narration — and each is a complete publication with its own
+    manifest, spine and metadata. This program read the first and said nothing,
+    so a two-rendition book came out as one, with the other rendition's files
+    carried along as unmanifested strays: an output declaring a publication the
+    source does not have.
+
+    Refusing was the other option and the owner did not take it. Merging was
+    never one — two renditions are two books, and a reading system chooses
+    between them; a rebuild that flattened them would be deciding on the
+    reader's behalf which edition they get.
+
+    The first rendition goes to *destination* exactly as `rebuild` would put it,
+    so nothing changes for the overwhelming majority of books. The others go
+    beside it, named after what the container calls them.
+    """
+    offered = _renditions_of(source)
+    if len(offered) < 2:
+        return [rebuild(source, destination, policy, resolver=resolver)]
+
+    stem, extension = os.path.splitext(destination)
+    results: list[Result] = []
+    used: set[str] = set()
+    for index, rendition in enumerate(offered):
+        if index == 0:
+            target = destination
+        else:
+            suffix = _rendition_suffix(rendition, index)
+            target = f"{stem}.{suffix}{extension}"
+            while target in used:  # pragma: no cover - two labels folding to one
+                suffix = f"{suffix}-{index}"
+                target = f"{stem}.{suffix}{extension}"
+        used.add(target)
+        results.append(
+            rebuild(source, target, policy, resolver=resolver, rendition=rendition.path)
+        )
+    return results
+
+
+def _renditions_of(source: str) -> list:
+    """What the container offers, read without committing to a rebuild.
+
+    A cheap look at one small file. Failing to answer is not an error here: a
+    source this cannot open is a source `rebuild` will report on properly, and
+    guessing "one rendition" sends it there.
+    """
+    import zipfile
+
+    from .reader import rootfiles
+
+    try:
+        with zipfile.ZipFile(source) as archive:
+            names = {
+                name: b"" if name != "META-INF/container.xml" else archive.read(name)
+                for name in archive.namelist()
+            }
+    except Exception:  # noqa: BLE001 — `rebuild` reports what is wrong with it
+        return []
+    return rootfiles(names)
+
+
+def _rendition_suffix(rendition, index: int) -> str:
+    """A filename fragment naming one rendition, from what the container said.
+
+    The publisher's own `rendition:label` when there is one, folded to something
+    a filesystem will take; failing that the properties they did declare —
+    `pre-paginated`, a language — because "rendition-2" tells the person holding
+    two files nothing about which is which.
+    """
+    from . import paths
+
+    label = rendition.label
+    if label:
+        slug = paths.ascii_slug(label, fallback="").rstrip(".")
+        if slug:
+            return slug
+    return f"rendition-{index + 1}"
+
+
 def rebuild(
     source: str,
     destination: str,
@@ -140,6 +230,7 @@ def rebuild(
     stages: "tuple[type, ...] | list[type] | None" = None,
     *,
     resolver: "Resolver | None" = None,
+    rendition: str | None = None,
 ) -> Result:
     """Rebuild *source* into a conforming EPUB 3.3 at *destination*.
 
@@ -148,6 +239,9 @@ def rebuild(
     answer is a rebuild with it and a rebuild without it, compared byte for
     byte, and there is no way to get the second without being able to say which
     stages ran. Nothing in the application passes it.
+
+    *rendition* names which package document to rebuild from, for a container
+    that offers several — see `rebuild_all`, which is what calls it with one.
 
     *resolver* is somebody to ask when the rebuild reaches a question it cannot
     answer — today, a reference whose anchor does not exist. `None` means nobody
@@ -162,7 +256,7 @@ def rebuild(
     budget = Budget()
 
     try:
-        book = read_epub(source, report, budget)
+        book = read_epub(source, report, budget, rendition=rendition)
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose
         # message does not say what it was is a limit nobody can act on.

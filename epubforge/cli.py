@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import compat, version_string, watermark
-from .pipeline import Status, rebuild
+from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, plan_batch
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -288,12 +288,26 @@ def command_build(args: argparse.Namespace) -> int:
         source, destination = job.source, job.destination
 
         console.rule(f"[bold]{os.path.basename(source)}")
-        result = rebuild(
-            source,
-            destination,
-            policy,
-            resolver=TerminalAsk(console) if args.ask else None,
+        resolver = TerminalAsk(console) if args.ask else None
+        # `rebuild_all` is `rebuild` for a book with one rendition, which is
+        # every book but a handful; where a container offers several it writes
+        # each into its own file, which is the owner's decision on F-025.
+        produced = (
+            [rebuild(source, destination, policy, resolver=resolver)]
+            if args.first_rendition_only
+            else rebuild_all(source, destination, policy, resolver=resolver)
         )
+        if len(produced) > 1:
+            console.print(
+                f"  [cyan]{len(produced)} renditions[/] — each rebuilt into its own file"
+            )
+        result = produced[0]
+        for extra in produced[1:]:
+            if extra.status.wrote_a_file:
+                console.print(f"  [bold green]written[/] {extra.output_path}")
+            else:
+                console.print(f"  [bold red]not written[/] {extra.output_path}")
+                exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
         if args.check and result.output_path:
             validate(
@@ -746,6 +760,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
+    build.add_argument(
+        "--first-rendition-only",
+        action="store_true",
+        help=(
+            "for a container offering several renditions, rebuild only the "
+            "first into one file. By default each rendition is rebuilt into a "
+            "file of its own, because each of them is a separate publication"
+        ),
+    )
     build.add_argument(
         "--reproducible",
         action="store_true",
