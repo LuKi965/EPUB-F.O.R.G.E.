@@ -77,18 +77,41 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
+          # Every pip call goes through here, because PowerShell does not stop
+          # for a native command that failed. 0.2.22 built with no PyInstaller
+          # installed at all: `pip install --require-hashes -r pyinstaller.lock`
+          # exited 1 on a missing pin, the step went green, and the failure
+          # surfaced four steps later as something else entirely. An install
+          # step that can report success while installing nothing is worse than
+          # no install step, because the log says it worked.
+          function pip-or-stop {
+            pip @args
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::pip $($args -join ' ') exited $LASTEXITCODE"
+              exit $LASTEXITCODE
+            }
+          }
           python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (Test-Path requirements.lock) {
             Write-Host "installing from requirements.lock with hash checking"
-            pip install --require-hashes -r requirements.lock
+            pip-or-stop install --require-hashes -r requirements.lock
             if (Test-Path pyinstaller.lock) {
-              pip install --require-hashes -r pyinstaller.lock
+              pip-or-stop install --require-hashes -r pyinstaller.lock
             }
-            pip install -e . --no-deps
+            pip-or-stop install -e . --no-deps
           } else {
             Write-Host "no requirements.lock -- resolving from the ranges in pyproject.toml"
-            pip install -e ".[gui,dev]"
-            pip install pyinstaller
+            pip-or-stop install -e ".[gui,dev]"
+            pip-or-stop install pyinstaller
+          }
+          # And the thing the manifest could not tell anyone: is the packager
+          # actually here. Asked now, next to the install, rather than by the
+          # build step failing with an unrelated-looking message.
+          python -c "import PyInstaller; print('pyinstaller', PyInstaller.__version__)"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::PyInstaller is not installed -- the lock did not deliver it"
+            exit 1
           }
 
       # Which versions actually built this. The dependency declarations carry

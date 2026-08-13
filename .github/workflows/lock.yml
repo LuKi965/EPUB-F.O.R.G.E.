@@ -80,7 +80,14 @@ jobs:
           # as a dependency, so it has to be resolved alongside or the lock
           # covers everything except the thing that does the packaging.
           "pyinstaller" | Out-File -Encoding utf8 pyinstaller.in
-          pip-compile --generate-hashes --output-file pyinstaller.lock pyinstaller.in
+          # --allow-unsafe, and it is the opposite of unsafe here. Without it
+          # pip-compile leaves setuptools out of the lock and writes a comment
+          # saying so; PyInstaller depends on setuptools, so the resulting lock
+          # is one --require-hashes install can never satisfy. That is what
+          # happened to 0.2.22: the install failed on the missing pin, the step
+          # reported success anyway, and the build ran with no PyInstaller.
+          pip-compile --generate-hashes --allow-unsafe `
+            --output-file pyinstaller.lock pyinstaller.in
           Get-Content requirements.lock -TotalCount 20
 
       # Absolute paths: artifact globs resolve against the workspace, which is

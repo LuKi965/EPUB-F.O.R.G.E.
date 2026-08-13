@@ -188,6 +188,58 @@ class TestTheLockItself:
         does the packaging covers everything except the interesting part."""
         assert "pyinstaller" in self.pinned("pyinstaller.lock")
 
+    def test_the_lock_does_not_carry_a_note_saying_it_cannot_be_installed(self):
+        """**Measured on 0.2.22.** `pyinstaller.lock` ended with pip-compile's
+        own warning — *"the following packages were not pinned, but pip requires
+        them to be pinned"* — followed by `# setuptools`. The tool wrote down,
+        in the file, that the file could not be installed with `--require-hashes`,
+        and nothing read it. The Windows build then did exactly what the note
+        said: pip exited 1, the step went green anyway, and the release was
+        packaged by a PyInstaller that was never installed.
+
+        The fix at the source is `--allow-unsafe` in `lock.yml`; this is the
+        part that notices if it comes back.
+        """
+        for name in ("requirements.lock", "pyinstaller.lock"):
+            text = self.lock(name).lower()
+            assert "were not pinned" not in text, (
+                f"{name} contains pip-compile's unpinned-packages warning. That "
+                f"file cannot be installed with --require-hashes. Regenerate it "
+                f"with --allow-unsafe."
+            )
+
+    def test_everything_a_locked_package_needs_is_locked_beside_it(self):
+        """The general form of the same defect, and the one that does not
+        depend on pip-compile phrasing its warning the same way next year: a
+        lock is a closure. If `A` is in the file and needs `B`, `B` is in the
+        file — otherwise pip resolves `B` fresh, has no hash for it, and refuses
+        the whole install."""
+        import importlib.metadata
+
+        from packaging.requirements import Requirement
+
+        for name in ("requirements.lock", "pyinstaller.lock"):
+            pinned = self.pinned(name)
+            if name == "pyinstaller.lock":
+                pinned = {**self.pinned(), **pinned}
+            for package in list(pinned):
+                try:
+                    metadata = importlib.metadata.metadata(package)
+                except importlib.metadata.PackageNotFoundError:
+                    continue  # not installed here; the lock is still checked above
+                for raw in metadata.get_all("Requires-Dist") or []:
+                    requirement = Requirement(raw)
+                    if requirement.marker and not requirement.marker.evaluate():
+                        continue
+                    if requirement.extras:
+                        continue
+                    needed = requirement.name.lower().replace("_", "-")
+                    assert needed in pinned, (
+                        f"{name} pins {package}, which needs {needed}, and "
+                        f"{needed} is pinned nowhere. --require-hashes will "
+                        f"refuse the install."
+                    )
+
     def test_the_two_locks_do_not_contradict_each_other(self):
         """They are resolved separately and installed one after the other, so a
         package appearing in both at different versions means the second install

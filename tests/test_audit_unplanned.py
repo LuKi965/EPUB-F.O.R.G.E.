@@ -266,8 +266,22 @@ class TestF026OneBadDestinationIsNotTheEndOfABatch:
         assert blocked.output_path is None
 
     def test_the_report_says_what_the_filesystem_said(self, blocked):
+        """What is asserted is that the *filesystem's own answer* reached the
+        report — its exception and its path — not one platform's spelling of it.
+
+        The first version demanded the literal string `NotADirectoryError`, and
+        that is what Linux says. Windows says `FileNotFoundError: [WinError 3]`
+        for the same situation, so the test failed there while the program was
+        doing exactly what the test was written to check. A test that names one
+        platform's word for a fact tests the platform, not the program.
+        """
+        import builtins
+
         finding = next(f for f in blocked.report.findings if f.rule == "package.not-written")
-        assert "NotADirectoryError" in finding.values["error"]
+        reported = finding.values["error"]
+        kind = getattr(builtins, reported.split(":", 1)[0], None)
+        assert kind is not None and issubclass(kind, OSError), reported
+        assert "plik" in reported, reported
 
     def test_the_next_book_still_runs(self, tmp_path):
         """The whole point. One bad destination, then an ordinary one."""

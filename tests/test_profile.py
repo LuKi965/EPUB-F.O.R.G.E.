@@ -96,11 +96,17 @@ class TestTheStageOnlyMeasures:
             ),
             css=".para { text-indent: 1.5em; } .martwa { color: red; }",
         )
-        with_stage = rebuild(source, str(tmp_path / "a.epub"), Policy.preset("preserve"))
+        # `reproducible`, because otherwise this test is a coin toss with a very
+        # long tail. `dcterms:modified` is stamped to the second from the wall
+        # clock, so two rebuilds either side of a second boundary differ by one
+        # byte-range that has nothing to do with the profile stage — and this
+        # test did fail that way, once, in a full run. A comparison of "the same
+        # bytes" has to exclude the one field the program is *documented* to
+        # move between runs, or it is asserting something nobody promised.
+        policy = Policy.preset("preserve", reproducible=True)
+        with_stage = rebuild(source, str(tmp_path / "a.epub"), policy)
         without = [s for s in DEFAULT_STAGES if s is not ProfileStage]
-        no_stage = rebuild(
-            source, str(tmp_path / "b.epub"), Policy.preset("preserve"), stages=without
-        )
+        no_stage = rebuild(source, str(tmp_path / "b.epub"), policy, stages=without)
         assert self.contents(with_stage.output_path) == self.contents(
             no_stage.output_path
         )

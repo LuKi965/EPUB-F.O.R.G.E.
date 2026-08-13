@@ -40,6 +40,48 @@ written; only the current version was reset.
 
 ## 0.2.22 — alpha — 2026-08-13
 
+### The build that reported success while installing nothing
+
+Found on the first Windows run of this release, and it is the worst kind of
+defect in a build: the step was green.
+
+`pip install --require-hashes -r pyinstaller.lock` exited 1, because the lock
+did not pin `setuptools` and PyInstaller needs it. PowerShell does not stop for
+a native command that failed, so the step passed, the manifest printed a `pip
+freeze` with no PyInstaller in it, and the failure would have surfaced four
+steps later as the packaging step dying of something that looked unrelated.
+
+The lock said so itself. `pip-compile` had written *"the following packages were
+not pinned, but pip requires them to be pinned"* into the file, and nothing read
+it — including the test file whose whole subject is that lock.
+
+Fixed in three places, because one would have been the symptom: `--allow-unsafe`
+in `lock.yml` so the lock is generated complete, an explicit exit-code check on
+every `pip` call plus an `import PyInstaller` next to the install so the step
+fails where the failure is, and a test that refuses a lock carrying that
+warning.
+
+### Two tests that were measuring the platform
+
+Both passed on Linux and failed on Windows, and in both cases the program was
+doing exactly what the test was written to check.
+
+- A destination whose parent is a file: Linux calls that `NotADirectoryError`,
+  Windows calls it `FileNotFoundError: [WinError 3]`. The test asserted the
+  Linux spelling. What it should assert — and now does — is that the
+  filesystem's own answer reached the report at all.
+- A budget of zero seconds was expected to be over budget immediately. Windows'
+  monotonic clock ticks about every 16 ms, so no time had passed yet. The test
+  now backdates the budget's start, which is the thing its name claims to
+  measure and measures it the same everywhere.
+
+A third, on Linux, failed once in two full runs and passed alone: two rebuilds
+compared byte for byte, either side of a `dcterms:modified` second boundary. The
+comparison now runs under `reproducible`, because a test asserting identical
+bytes must exclude the one field this program is documented to move.
+
+### The audit
+
 The release that closes the 0.2.19 engineering audit. Thirty findings, every one
 with a command that decides whether it is done — and, in the last stretch, the
 rest of the audit: the compliance grades, the fidelity model, the security

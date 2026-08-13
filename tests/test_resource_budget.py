@@ -21,6 +21,7 @@ half, because a budget that refuses real books is not a safety feature.
 from __future__ import annotations
 
 import io
+import time
 import zipfile
 
 import pytest
@@ -82,9 +83,24 @@ class TestTheLimitsThemselves:
             Budget(pixels=1000).image(10, 10, 11)
 
     def test_the_clock_runs_from_when_the_budget_was_made(self):
-        budget = Budget(seconds=0.0)
+        """A budget made five seconds ago has spent five seconds, whoever asks.
+
+        The first version wrote `Budget(seconds=0.0)` and expected the very next
+        call to refuse — which works only where the clock has already moved by
+        the time it is read. Windows' `time.monotonic()` ticks about every 16 ms,
+        so `spent` came back an exact `0.0`, and `0.0 > 0.0` is false. The test
+        was measuring the granularity of the platform clock while claiming to
+        measure where the deadline starts. Backdating `started` measures the
+        thing in the name of the test, and measures it the same everywhere.
+        """
+        budget = Budget(seconds=0.5, started=time.monotonic() - 5)
         with pytest.raises(BudgetExceeded, match="wall clock"):
             budget.deadline("content")
+
+    def test_and_the_same_allowance_fresh_is_fine(self):
+        """The other half: the refusal above came from the start time and not
+        from the allowance being small."""
+        Budget(seconds=0.5).deadline("content")
 
     def test_an_ordinary_book_spends_none_of_it(self):
         budget = Budget()
