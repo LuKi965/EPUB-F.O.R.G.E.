@@ -311,6 +311,33 @@ class PageTarget:
 
 
 @dataclass
+class NavSection:
+    """A navigation list that is neither the contents, the landmarks nor the pages.
+
+    EPUB 3 puts no limit on what a navigation document may contain: `lot` for a
+    list of tables, `loi` for illustrations, `lov` for video, and anything at all
+    under a vendor's own `epub:type`. They are ordinary `nav` elements with an
+    `ol` inside, and each entry has a label a person wrote.
+
+    The audit's F-018. Until this existed the reader parsed three kinds of `nav`
+    and the regenerator wrote three kinds of `nav`, so a book with a list of
+    illustrations came out without one — the entries were not moved, not
+    reported, and not recoverable from the output. For a tool whose first rule
+    is that no character of the book's text is lost, "we did not model that
+    section" is not a reason for its contents to disappear.
+    """
+
+    #: The `epub:type` exactly as the source wrote it — the whole point.
+    epub_type: str
+    #: The section's own heading, when it had one. Publishers write these in
+    #: their own language and this program has no business inventing them.
+    heading: str = ""
+    entries: list[NavPoint] = field(default_factory=list)
+    #: Whether the source kept it out of the rendered page.
+    hidden: bool = False
+
+
+@dataclass
 class Creator:
     name: str
     #: MARC relator code, e.g. ``aut``, ``trl``, ``ill``.
@@ -432,6 +459,11 @@ class Book:
     toc: list[NavPoint] = field(default_factory=list)
     landmarks: list[Landmark] = field(default_factory=list)
     page_list: list[PageTarget] = field(default_factory=list)
+    #: Navigation sections this program does not model by name — see
+    #: :class:`NavSection`. Carried rather than understood, which is the honest
+    #: position: their entries are labels and targets like any other, and their
+    #: `epub:type` is the publisher's word for what they are.
+    extra_navs: list[NavSection] = field(default_factory=list)
     cover_path: str | None = None
     nav_path: str | None = None
     ncx_path: str | None = None
@@ -559,3 +591,14 @@ class Book:
             landmark.target = retarget(landmark.target) or landmark.target
         for page in self.page_list:
             page.target = retarget(page.target) or page.target
+        # The sections carried rather than modelled — a list of illustrations,
+        # a list of tables. This is the third time a new pointer has had to be
+        # added to this method after being forgotten once (media durations, then
+        # the encryption register), and the failure is always the same shape: a
+        # collection of paths that a move does not carry looks fine until
+        # something downstream asks whether the path exists, and then the entries
+        # are silently dropped rather than reported wrong.
+        for section in self.extra_navs:
+            for root in section.entries:
+                for node in root.walk():
+                    node.target = retarget(node.target)

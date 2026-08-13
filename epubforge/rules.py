@@ -79,6 +79,8 @@ CATALOGUE: dict[str, str] = {
     "nav.generated": "the book had no navigation document and one was generated, with {count} entries",
     "nav.contents-page-kept": "the publisher's contents page was kept and the navigation put beside it",
     "nav.repointed": "{count} reference(s) to the replaced navigation document were repointed",
+    "nav.sections-carried": "{count} navigation section(s) this program does not model by name ({names}) were carried into the regenerated navigation with their entries and their epub:type intact",
+    "reader.nav-sections-found": "the navigation document holds {count} section(s) beyond the contents, the landmarks and the page list ({names})",
     "nav.fragment-carried": "{count} reference(s) into the replaced navigation document kept their anchor, because the section it named has a counterpart in the regenerated one",
     "nav.kept-in-spine": "the navigation document stayed in the reading order, where the source had it",
     "nav.entry-dropped": "{count} table-of-contents entry/entries pointed at something that is not there",
@@ -301,6 +303,8 @@ CATALOGUE_PL: dict[str, str] = {
     'nav.generated': 'książka nie miała dokumentu nawigacyjnego i został utworzony, z {count} {count:pozycją|pozycjami|pozycjami}',
     'nav.contents-page-kept': 'zachowano stronę spisu treści wydawcy, a wygenerowaną nawigację umieszczono obok',
     'nav.repointed': 'przepięto {count} {count:odwołanie|odwołania|odwołań} do zastąpionego dokumentu nawigacyjnego',
+    'nav.sections-carried': '{count} {count:sekcję nawigacji, której|sekcje nawigacji, których|sekcji nawigacji, których} ten program nie modeluje z nazwy ({names}), przeniesiono do wygenerowanej nawigacji razem z wpisami i z ich epub:type',
+    'reader.nav-sections-found': 'dokument nawigacyjny zawiera {count} {count:sekcję|sekcje|sekcji} poza spisem treści, punktami orientacyjnymi i listą stron ({names})',
     'nav.fragment-carried': '{count} {count:odwołanie do zastąpionego dokumentu nawigacyjnego zachowało|odwołania do zastąpionego dokumentu nawigacyjnego zachowały|odwołań do zastąpionego dokumentu nawigacyjnego zachowało} swoją kotwicę, bo sekcja, którą wskazywała, ma odpowiednik w dokumencie wygenerowanym',
     'nav.kept-in-spine': 'dokument nawigacyjny został w kolejności czytania, tam gdzie miało go źródło',
     'nav.entry-dropped': '{count} {count:pozycja spisu treści wskazywała|pozycje spisu treści wskazywały|pozycji spisu treści wskazywało} na coś, czego nie ma',
@@ -582,6 +586,8 @@ DETAILS: dict[str, str] = {
         "The file each link names is present; the anchor inside it is not. The link now lands at the top of that document. This is the only route from a missing anchor to no anchor, and it runs through a person who looked at the book: the program will not take it on its own, because a link that quietly arrives somewhere plausible cannot be told apart from one that works.",
     "xhtml.fragment-unresolved":
         "The target document exists and the anchor in it does not, so where the link was meant to lead is not knowable from the file. It is a defect inherited from the source, and it is reported rather than repaired: removing the fragment would silence the validator by sending the reader to the top of the document — for a footnote marker, to the wrong footnote — and nothing here can tell that apart from a repair. Strict mode refuses to publish a book carrying these; in the window each one can be answered by hand.",
+    "nav.sections-carried":
+        "A list of tables, of illustrations, of anything the publisher named. This program regenerates the document they lived in, so not writing them back would delete them — and it has no rule for reading them, which is a reason to carry them unchanged rather than a reason to drop them.",
     "xhtml.fragment-repointed":
         "A person chose the anchor, which is evidence this program does not have. Counted separately from anything it worked out for itself.",
     "package.unresolved-references":
@@ -749,6 +755,8 @@ DETAILS_PL: dict[str, str] = {
         "Plik, który wskazuje każdy z tych odnośników, jest na miejscu; kotwicy w nim nie ma. Odnośnik prowadzi teraz na początek tego dokumentu. To jedyna droga od brakującej kotwicy do jej braku i prowadzi przez człowieka, który zajrzał do książki: program sam tego nie zrobi, bo odnośnika, który po cichu trafia w miejsce prawdopodobne, nie da się odróżnić od działającego.",
     "xhtml.fragment-unresolved":
         "Dokument docelowy istnieje, kotwicy w nim nie ma — więc z samego pliku nie da się odczytać, dokąd odnośnik miał prowadzić. To defekt odziedziczony ze źródła i jest zgłaszany, a nie naprawiany: usunięcie fragmentu uciszyłoby walidator, wysyłając czytelnika na początek dokumentu, a przy znaczniku przypisu — do niewłaściwego przypisu, i nic tutaj nie odróżni tego od naprawy. Tryb ścisły nie wyda książki, która je niesie; w oknie aplikacji można odpowiedzieć na każde z osobna.",
+    "nav.sections-carried":
+        "Spis tabel, spis ilustracji, spis czegokolwiek, co wydawca nazwał po swojemu. Ten program regeneruje dokument, w którym mieszkały, więc niezapisanie ich z powrotem byłoby ich skasowaniem — a to, że nie ma reguły, jak je czytać, jest powodem, żeby przenieść je bez zmian, a nie powodem, żeby je wyrzucić.",
     "xhtml.fragment-repointed":
         "Kotwicę wskazał człowiek, czyli dowód, którego program nie ma. Liczone osobno od wszystkiego, co ustalił sam.",
     "package.unresolved-references":

@@ -68,6 +68,18 @@ NAV_HEADINGS: dict[str, dict[str, str]] = {
 }
 
 
+#: ARIA roles for the navigation kinds that have one. A `nav` whose kind has no
+#: role gets none: inventing one states something about the section that the
+#: publisher did not.
+_ARIA_ROLES = {
+    "toc": "doc-toc",
+    "page-list": "doc-pagelist",
+    "index": "doc-index",
+    "glossary": "doc-glossary",
+    "bibliography": "doc-bibliography",
+}
+
+
 def heading(language: str, section: str) -> str:
     """One navigation heading, in the book's language where we have it."""
     tag = (language or "en").replace("_", "-").split("-")[0].lower()
@@ -147,6 +159,14 @@ class NavigationStage(Stage):
             landmark.target = ctx.remap_fragment(landmark.target) or landmark.target
         for page in book.page_list:
             page.target = ctx.remap_fragment(page.target) or page.target
+        # The sections this program carries rather than models get the same
+        # treatment as the contents: their targets are ordinary targets, and a
+        # list of illustrations pointing at a renamed id is as broken as a
+        # chapter entry pointing at one.
+        for section in book.extra_navs:
+            for root in section.entries:
+                for node in root.walk():
+                    node.target = ctx.remap_fragment(node.target)
 
         def fragment_exists(target: str | None) -> bool:
             if not target or "#" not in target:
@@ -200,6 +220,8 @@ class NavigationStage(Stage):
             return kept
 
         book.toc = prune(book.toc)
+        for section in book.extra_navs:
+            section.entries = prune(section.entries)
 
         for landmark in book.landmarks:
             if not fragment_exists(landmark.target):
@@ -253,7 +275,8 @@ class NavigationStage(Stage):
         # Navigation order, which is the order a reader meets these in.
         wanted: list[str] = []
         ordered: list[str] = []
-        for root in book.toc:
+        roots = list(book.toc) + [root for s in book.extra_navs for root in s.entries]
+        for root in roots:
             for node in root.walk():
                 path = node.target_path
                 if not path:
@@ -620,7 +643,9 @@ class NavigationStage(Stage):
             sections.append("    </nav>")
 
         if book.page_list:
-            sections.append('    <nav epub:type="page-list" id="page-list" hidden="hidden">')
+            sections.append(
+                '    <nav epub:type="page-list" id="page-list" role="doc-pagelist" hidden="hidden">'
+            )
             sections.append(f"      <h1>{_escape(heading(language, 'page-list'))}</h1>")
             sections.append("      <ol>")
             for page in book.page_list:
@@ -631,6 +656,41 @@ class NavigationStage(Stage):
                 sections.append(f'        <li><a href="{href}">{_escape(page.label)}</a></li>')
             sections.append("      </ol>")
             sections.append("    </nav>")
+
+        # Everything else the source's navigation held: a list of tables, of
+        # illustrations, of anything the publisher named. F-018. This program
+        # does not model them and does not need to — an entry is a label and a
+        # target — but it regenerates the document they lived in, so not writing
+        # them back is deleting them. `epub:type` is carried verbatim: it is the
+        # publisher's word for what the section is, and there is nothing to
+        # translate it into.
+        carried = 0
+        for index, section in enumerate(book.extra_navs):
+            entries = [node for node in section.entries if node.target or node.children]
+            if not entries:
+                continue
+            carried += 1
+            attributes = f' epub:type="{_escape(section.epub_type)}"' if section.epub_type else ""
+            role = f' role="{_ARIA_ROLES[section.epub_type]}"' if section.epub_type in _ARIA_ROLES else ""
+            hidden = ' hidden="hidden"' if section.hidden else ""
+            sections.append(f'    <nav{attributes} id="nav-{index + 1}"{role}{hidden}>')
+            if section.heading:
+                sections.append(f"      <h1>{_escape(section.heading)}</h1>")
+            sections.append(self._render_nav_list(entries, nav_path, "      "))
+            sections.append("    </nav>")
+        if carried:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "nav.sections-carried",
+                values={
+                    "count": carried,
+                    "names": ", ".join(
+                        section.epub_type or "?" for section in book.extra_navs
+                    ),
+                },
+                location=nav_path,
+            )
 
         body = "\n".join(sections)
         markup = f"""<?xml version="1.0" encoding="utf-8"?>

@@ -28,6 +28,7 @@ from .model import (
     Landmark,
     Metadata,
     NavPoint,
+    NavSection,
     PageTarget,
     RemoteResource,
     Resource,
@@ -35,6 +36,9 @@ from .model import (
     guess_media_type,
 )
 from .report import Level, Report
+
+#: Heading elements a `nav` may carry, per the EPUB 3 content model.
+_HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6", "hgroup"}
 
 DC_NS = "http://purl.org/dc/elements/1.1/"
 OPF_NS = "http://www.idpf.org/2007/opf"
@@ -821,11 +825,19 @@ def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoin
 
 
 def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
-    """Extract toc / landmarks / page-list from an EPUB 3 navigation document."""
+    """Extract every navigation list an EPUB 3 navigation document holds.
+
+    Three of them have names this program knows — the contents, the landmarks
+    and the page list. The rest are returned as they were found: a list of
+    tables, of illustrations, of video, or anything under a publisher's own
+    `epub:type`. Nothing here understands those, and nothing here needs to: an
+    entry is a label and a target either way, and the alternative to carrying
+    them is deleting somebody's list of illustrations for want of a rule.
+    """
     root = etree.fromstring(data, _XML_PARSER)
     if root is None:
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
-        return [], [], []
+        return [], [], [], []
 
     def parse_list(ol) -> list[NavPoint]:
         result: list[NavPoint] = []
@@ -849,6 +861,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     toc: list[NavPoint] = []
     landmarks: list[Landmark] = []
     page_list: list[PageTarget] = []
+    extra: list[NavSection] = []
     for nav in descendants(root, "nav"):
         nav_type = (attr(nav, "type", EPUB_NS) or "").strip().lower()
         lists = children(nav, "ol")
@@ -876,13 +889,28 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
             for node in parse_list(lists[0]):
                 if node.target:
                     page_list.append(PageTarget(node.label, node.target))
-        elif nav_type == "toc" or not toc:
-            parsed = parse_list(lists[0])
-            if nav_type == "toc":
-                toc = parsed
-            elif not toc:
-                toc = parsed
-    return toc, landmarks, page_list
+        elif nav_type == "toc":
+            toc = parse_list(lists[0])
+        elif not nav_type and not toc:
+            # A `nav` with no `epub:type` at all, and nothing has claimed the
+            # contents yet. EPUB 2 conversions produce these.
+            toc = parse_list(lists[0])
+        else:
+            heading = next(
+                (text_of(child) for child in nav if lname(child).lower() in _HEADINGS),
+                "",
+            )
+            entries = parse_list(lists[0])
+            if entries:
+                extra.append(
+                    NavSection(
+                        epub_type=nav_type,
+                        heading=heading,
+                        entries=entries,
+                        hidden=nav.get("hidden") is not None,
+                    )
+                )
+    return toc, landmarks, page_list, extra
 
 
 def _parse_guide(package, opf_path: str) -> list[Landmark]:
@@ -1139,11 +1167,25 @@ def read_epub(source: str, report: Report, budget: Budget | None = None) -> Book
             break
 
     if book.nav_path:
-        toc, landmarks, page_list = _parse_nav_doc(book.resources[book.nav_path].data, book.nav_path, report)
+        toc, landmarks, page_list, extra = _parse_nav_doc(
+            book.resources[book.nav_path].data, book.nav_path, report
+        )
         book.toc = toc
         if landmarks:
             book.landmarks = landmarks
         book.page_list = page_list
+        book.extra_navs = extra
+        if extra:
+            report.add(
+                "reader",
+                Level.INFO,
+                "reader.nav-sections-found",
+                values={
+                    "count": len(extra),
+                    "names": ", ".join(section.epub_type or "?" for section in extra),
+                },
+                location=book.nav_path,
+            )
 
     if not book.toc and book.ncx_path and book.ncx_path in book.resources:
         toc, page_list = _parse_ncx(book.resources[book.ncx_path].data, book.ncx_path, report)
