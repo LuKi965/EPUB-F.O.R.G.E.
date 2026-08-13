@@ -6,7 +6,7 @@ no separate EPUBCheck install on the target machine.
 
     python packaging/build.py                  # full bundle
     python packaging/build.py --skip-java      # smaller, no validation
-    python packaging/build.py --epubcheck-zip epubcheck-5.2.1.zip
+    python packaging/build.py --epubcheck-zip epubcheck-5.3.0.zip
 """
 
 from __future__ import annotations
@@ -28,7 +28,18 @@ PROJECT_ROOT = PACKAGING_DIR.parent
 BUNDLE_DIR = PACKAGING_DIR / "_bundle"
 DIST_DIR = PROJECT_ROOT / "dist"
 
-EPUBCHECK_VERSION = "5.2.1"
+#: The validator this program ships, pinned rather than "latest".
+#:
+#: A validator version is part of the product's semantics: the same book gets
+#: the same verdict only if the thing giving verdicts is the same. The corpus
+#: ledger records `checker` per book for exactly this reason, and a run whose
+#: checker changed is not comparable with the one before it.
+#:
+#: Moved 5.2.1 → 5.3.0 in 0.2.21, on evidence rather than on the release being
+#: newer: both versions were run over every book of the public corpus in two
+#: modes and agreed on every message — zero errors either side, no code present
+#: in one and not the other.
+EPUBCHECK_VERSION = "5.3.0"
 EPUBCHECK_URL = (
     f"https://github.com/w3c/epubcheck/releases/download/v{EPUBCHECK_VERSION}/"
     f"epubcheck-{EPUBCHECK_VERSION}.zip"

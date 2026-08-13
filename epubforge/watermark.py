@@ -59,7 +59,8 @@ MODES = ("keep", "consolidate", "gather", "remove")
 
 #: Where a gathered token goes. A metadata name of our own rather than one of
 #: the registered ones, so nothing else can mistake it for a claim about the
-#: document; EPUBCheck 5.2.1 accepts it, which was checked before it shipped.
+#: document; EPUBCheck accepts it, which was checked before it shipped (on 5.2.1,
+#: and again on 5.3.0 when the bundled validator moved).
 META_NAME = "epubforge-watermark"
 
 #: Class added to every normalised marker so the styling lives in one rule.

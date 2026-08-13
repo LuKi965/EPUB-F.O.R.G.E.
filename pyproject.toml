@@ -11,16 +11,26 @@ requires-python = ">=3.10"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 
+# Upper bounds, and they are not decoration. A parser's version is part of
+# this product's semantics: `lxml` decides how a recovered document comes out,
+# `cssutils` decides how a stylesheet is serialised, and `Pillow` decides what
+# a transcoded image is. Lower bounds alone mean two builds of the same release
+# can produce different files, which makes an incident impossible to reproduce.
+#
+# This is not a lockfile and does not pretend to be one — see the build manifest
+# the release workflow attaches to every build, which records the exact versions
+# that produced it. What these bounds buy is that a new *major* cannot land in a
+# release without somebody choosing it.
 dependencies = [
-    "lxml>=5.0",
-    "cssutils>=2.9",
-    "Pillow>=10.0",
-    "rich>=13.0",
+    "lxml>=5.0,<7",
+    "cssutils>=2.9,<3",
+    "Pillow>=10.0,<13",
+    "rich>=13.0,<16",
 ]
 
 [project.optional-dependencies]
-gui = ["PySide6>=6.6"]
-dev = ["pytest>=8.0"]
+gui = ["PySide6>=6.6,<7"]
+dev = ["pytest>=8.0,<10"]
 
 [project.scripts]
 epubforge = "epubforge.cli:main"

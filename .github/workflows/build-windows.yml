@@ -76,6 +76,23 @@ jobs:
           pip install -e ".[gui,dev]"
           pip install pyinstaller
 
+      # Which versions actually built this. The dependency declarations carry
+      # bounds rather than a lock, so the only honest record of what produced a
+      # given binary is taken at the moment it is produced — and an incident
+      # nobody can reproduce is an incident nobody can fix.
+      - name: Record the build manifest
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          "EPUB F.O.R.G.E. build manifest" | Out-File -Encoding utf8 dist/build-manifest.txt
+          "date: $(Get-Date -Format o)" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "commit: $env:GITHUB_SHA" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "python: $(python -V)" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "epubcheck: $(python -c "import sys; sys.path.insert(0,'packaging'); import build; print(build.EPUBCHECK_VERSION)")" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          pip freeze | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          Get-Content dist/build-manifest.txt
+
       - name: Run tests
         run: pytest -q
 
@@ -142,6 +159,7 @@ jobs:
           path: |
             D:\forge\dist\installer\*.exe
             D:\forge\dist\*-portable.zip
+            D:\forge\dist\build-manifest.txt
           retention-days: 30
 
       # Two ways in. A tag push is the ordinary one. The `release_tag` input
@@ -170,3 +188,4 @@ jobs:
           files: |
             D:\forge\dist\installer\*.exe
             D:\forge\dist\*-portable.zip
+            D:\forge\dist\build-manifest.txt
