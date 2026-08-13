@@ -151,6 +151,24 @@ def _fingerprint(book: Book) -> tuple:
     )
 
 
+def _reread(destination: str) -> str:
+    """What is wrong with the file this program just wrote, read as an input.
+
+    Returns an empty string when it reads back cleanly. Only errors count: a
+    rebuilt book legitimately carries the source's own defects as warnings, and
+    a check that refused those would be refusing the book for being the book.
+    """
+    check = Report(source=destination)
+    try:
+        again = read_epub(destination, check)
+    except Exception as exc:  # noqa: BLE001 — an unreadable output is the finding
+        return f"{type(exc).__name__}: {exc}"
+    problems = [f.rule or f.message for f in check.findings if f.level is Level.ERROR]
+    if not again.spine:
+        problems.append("the reading order came back empty")
+    return "; ".join(problems[:3])
+
+
 def _input_lost(report: Report) -> set[str]:
     """Which entries of the source did not survive being read."""
     return {
@@ -503,5 +521,28 @@ def rebuild(
     # parsed after a tag-soup recovery: what came out of that is a
     # reconstruction, and this program cannot show it means what went in.
     clean = report.ok and not ctx.unresolved and not ctx.recovered
+    # The audit's K.2 invariant 11: *the result can be read again by the same
+    # strict reader, without recovery and without an error.* Nothing checked it,
+    # and it is the cheapest end-to-end statement this program can make about
+    # its own output — the writer's verifier asks whether the ZIP survived the
+    # trip to disk, the invariant gate asks whether the model made sense, and
+    # neither asks whether what was written can be read back as a book.
+    #
+    # A warning rather than a refusal: the file exists, it may well open in a
+    # reading system, and refusing to hand it over on the strength of this
+    # program's own second opinion would be the fail-open reasoning of 0.2.19
+    # pointed the other way. But it is said, and it takes the flat "succeeded"
+    # away.
+    reread = _reread(destination)
+    if reread:
+        report.add(
+            "writer",
+            Level.WARN,
+            "package.not-readable-again",
+            values={"detail": reread},
+            location=destination,
+        )
+        clean = False
+
     status = Status.SUCCEEDED if clean else Status.SUCCEEDED_WITH_PROBLEMS
     return Result(report, book, destination, status)

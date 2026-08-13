@@ -42,6 +42,19 @@ from .report import Level, Report
 #: Heading elements a `nav` may carry, per the EPUB 3 content model.
 _HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6", "hgroup"}
 
+#: Refinement properties this model reads into fields of its own. Everything
+#: else is carried verbatim — see `Metadata.extra_refinements`.
+_REFINEMENTS_HANDLED = {
+    "title-type",
+    "file-as",
+    "role",
+    "alternate-script",
+    "collection-type",
+    "group-position",
+    "identifier-type",
+    "media:duration",
+}
+
 DC_NS = "http://purl.org/dc/elements/1.1/"
 OPF_NS = "http://www.idpf.org/2007/opf"
 EPUB_NS = "http://www.idpf.org/2007/ops"
@@ -576,6 +589,7 @@ def _parse_metadata(package, report: Report) -> Metadata:
             continue
         value = text_of(child)
         if tag == "title" and value:
+            metadata.title_ids.append((child.get("id") or "").strip())
             title_type = refinement(child, "title-type")
             if title_type == "subtitle":
                 metadata.subtitle = value
@@ -602,6 +616,7 @@ def _parse_metadata(package, report: Report) -> Metadata:
                     language=language_of(child),
                     direction=(child.get("dir") or "").strip().lower() or None,
                     alternate_scripts=alternate_scripts(child),
+                    source_id=(child.get("id") or "").strip() or None,
                 )
             )
         elif tag == "identifier" and value:
@@ -630,6 +645,16 @@ def _parse_metadata(package, report: Report) -> Metadata:
             metadata.source = metadata.source or value
         elif tag in ("type", "coverage", "relation") and value:
             metadata.dublin_core_extra.append((tag, value))
+        elif tag == "link":
+            # A pointer the publication makes at something about itself: a
+            # catalogue record, an ONIX file, a rights statement. Nothing here
+            # reads it and there is nothing to read — it is carried whole or it
+            # is lost, and it was being lost.
+            attributes = {
+                key: val for key, val in child.attrib.items() if isinstance(key, str)
+            }
+            if attributes.get("href"):
+                metadata.links.append(attributes)
         elif tag == "meta":
             name = child.get("name")
             content = child.get("content")
@@ -644,6 +669,25 @@ def _parse_metadata(package, report: Report) -> Metadata:
                     # The target is an id at this point; the manifest is parsed
                     # afterwards, so `read_epub` re-keys these by path.
                     metadata.media_durations[child.get("refines")] = value
+                elif prop and value and prop not in _REFINEMENTS_HANDLED:
+                    # F-011: everything else that refines something used to stop
+                    # here, at a bare `continue`. `display-seq` says which title
+                    # comes second; `collection-type` and `group-position` are
+                    # read elsewhere; a vendor may write anything at all. Carried
+                    # with the id it refines, and re-pointed by the writer at
+                    # whatever id that node ends up with.
+                    metadata.extra_refinements.append(
+                        (
+                            (child.get("refines") or "").lstrip("#"),
+                            prop,
+                            value,
+                            {
+                                key: val
+                                for key, val in child.attrib.items()
+                                if isinstance(key, str) and key not in ("refines", "property")
+                            },
+                        )
+                    )
                 continue
             if prop == "dcterms:modified" and value:
                 metadata.modified = value

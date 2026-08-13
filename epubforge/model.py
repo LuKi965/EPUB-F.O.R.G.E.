@@ -354,6 +354,14 @@ class Creator:
     #: catalogue indexes by. Dropping these loses the only machine-readable
     #: link between 夏目漱石 and "Natsume Sōseki".
     alternate_scripts: list[tuple[str, str]] = field(default_factory=list)
+    #: The `id` this creator carried in the source, when it had one. Only used
+    #: to re-point carried refinements — see `Metadata.extra_refinements`.
+    #:
+    #: Last in the list on purpose: every construction of this class in the
+    #: reader is positional, so a field inserted after `name` would silently
+    #: become the role. Caught while writing it; worth a line so the next
+    #: addition goes at the end too.
+    source_id: str | None = None
 
 
 @dataclass
@@ -391,6 +399,28 @@ class Metadata:
     #: the gap: it appeared on eleven of thirty-two real books and vanished
     #: from all of them, because only the EPUB 2 spelling was being carried.
     extra_properties: list[tuple[str, str, dict[str, str]]] = field(default_factory=list)
+    #: Refinements this model has no field for, as
+    #: ``(source id refined, property, value, other attributes)``.
+    #:
+    #: The audit's F-011, last two lines of it. A `<meta refines="#t2"
+    #: property="display-seq">2</meta>` says which title comes second, and it
+    #: was dropped on the floor: the reader consumed the refinements it knew and
+    #: `continue`d past the rest. Carried rather than understood — the same
+    #: answer as the navigation sections nobody here models — and re-pointed at
+    #: the id the writer gives that node, because a refinement whose target does
+    #: not exist is not a preserved statement, it is an invalid one.
+    extra_refinements: list[tuple[str, str, str, dict[str, str]]] = field(default_factory=list)
+
+    #: `<link>` elements inside `<metadata>`, as attribute maps. A record in a
+    #: library catalogue, an ONIX file, a rights statement: the publication
+    #: pointing at something about itself. Never read here, and there is nothing
+    #: to read — it is a pointer, and a pointer is carried or it is lost.
+    links: list[dict[str, str]] = field(default_factory=list)
+
+    #: Source ids of the titles, in the order the titles are held, so a carried
+    #: refinement can be re-pointed at whichever title the writer emits.
+    title_ids: list[str] = field(default_factory=list)
+
     #: `package/@prefix` from the source, as prefix → URI. Kept so a carried
     #: property can bring its declaration with it; without one it is not a
     #: property but an error.

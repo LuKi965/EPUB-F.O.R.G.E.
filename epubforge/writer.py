@@ -120,9 +120,18 @@ def _entry(path: str, compression: int = zipfile.ZIP_DEFLATED) -> zipfile.ZipInf
 
 
 def _prefixes_used(metadata) -> set[str]:
-    """Prefixes the carried-through properties actually need declared."""
+    """Prefixes the carried-through properties actually need declared.
+
+    Both kinds are asked, and the second was missed when carried refinements
+    were added: a vendor property written `x:whatever` with no declaration of
+    `x` is not a carried statement, it is an invalid document. Found by pointing
+    EPUBCheck at the output of the very change that introduced it, which is the
+    argument for validating a fixture rather than reading it.
+    """
     used = set()
-    for prop, _, _ in metadata.extra_properties:
+    properties = [prop for prop, _, _ in metadata.extra_properties]
+    properties += [prop for _, prop, _, _ in metadata.extra_refinements]
+    for prop in properties:
         if prop in _GENERATED_PROPERTIES or prop.startswith(("schema:", "rendition:", "media:")):
             continue
         prefix, separator, _ = prop.partition(":")
@@ -302,6 +311,25 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for index, extra in enumerate(i for i in metadata.identifiers if not i.primary):
         lines.append(f"    {_element('dc:identifier', extra.value, id=f'id-{index}')}")
 
+    # Source id → the id this document gives that node, so a refinement the
+    # model does not understand can be carried and still refine the right
+    # thing. F-011: a refinement whose target does not exist is not a preserved
+    # statement, it is an invalid one.
+    renamed_ids: dict[str, str] = {}
+    for index, identifier in enumerate(metadata.identifiers):
+        source_id = getattr(identifier, "source_id", None)
+        if source_id:
+            renamed_ids[source_id] = "pub-id" if identifier.primary else f"id-{index}"
+    for position, source_id in enumerate(metadata.title_ids):
+        if not source_id:
+            continue
+        if position == 0:
+            renamed_ids[source_id] = "title"
+        elif metadata.subtitle and metadata.titles[position:position + 1] == []:
+            renamed_ids[source_id] = "subtitle"
+        else:
+            renamed_ids[source_id] = f"title-{position - 1}"
+
     title_attributes = {"id": "title"}
     if metadata.title_language:
         title_attributes["xml:lang"] = metadata.title_language
@@ -332,6 +360,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for index, creator in enumerate(metadata.creators):
         tag = "dc:creator" if creator.role == "aut" else "dc:contributor"
         creator_id = f"creator-{index}"
+        if creator.source_id:
+            renamed_ids[creator.source_id] = creator_id
         creator_attributes = {"id": creator_id}
         if creator.language:
             creator_attributes["xml:lang"] = creator.language
@@ -442,6 +472,64 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             if not key.startswith("{")
         )
         lines.append(f'    <meta property={quoteattr(prop)}{rendered}>{escape(value)}</meta>')
+
+    # Refinements this model has no field for, re-pointed at the ids this
+    # document actually gives those nodes. One whose target did not survive is
+    # dropped rather than written dangling: `refines` naming nothing is an
+    # error in the output, and a statement about a node that is gone says
+    # nothing anyway. Both outcomes are counted so the report can tell them
+    # apart from silence.
+    carried_refinements = 0
+    lost_refinements = 0
+    for target, prop, value, attributes in metadata.extra_refinements:
+        emitted = renamed_ids.get(target)
+        if not emitted:
+            lost_refinements += 1
+            continue
+        rendered = "".join(
+            f" {key}={quoteattr(attribute_value)}"
+            for key, attribute_value in sorted(attributes.items())
+            if not key.startswith("{") and key != "id"
+        )
+        lines.append(
+            f'    <meta refines="#{emitted}" property={quoteattr(prop)}{rendered}>'
+            f"{escape(value)}</meta>"
+        )
+        carried_refinements += 1
+    if carried_refinements:
+        report.add(
+            "package",
+            Level.INFO,
+            "package.refinements-carried",
+            values={"count": carried_refinements},
+        )
+    if lost_refinements:
+        report.add(
+            "package",
+            Level.WARN,
+            "package.refinements-unanchored",
+            values={"count": lost_refinements},
+        )
+
+    # `<link>` inside `<metadata>`: the publication pointing at something about
+    # itself — a catalogue record, an ONIX file, a rights statement. Carried
+    # whole; a local href follows the file it names.
+    for attributes in metadata.links:
+        rendered = []
+        for key, attribute_value in sorted(attributes.items()):
+            if key.startswith("{") or key == "id":
+                continue
+            if key == "href" and not attribute_value.lower().startswith(
+                ("http:", "https:", "urn:", "mailto:", "data:")
+            ):
+                moved = book.get(attribute_value)
+                if moved is None:
+                    for resource in book.resources.values():
+                        if (resource.original_path or resource.path) == attribute_value:
+                            attribute_value = resource.path
+                            break
+            rendered.append(f" {key}={quoteattr(attribute_value)}")
+        lines.append(f'    <link{"".join(rendered)}/>')
 
     for comment in metadata.metadata_comments:
         # `--` cannot appear inside an XML comment and there is no escape for

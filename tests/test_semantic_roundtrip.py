@@ -43,11 +43,6 @@ BY_DECISION: dict[str, str] = {
     "dc:format": "always application/epub+zip for the output, so restating it is noise",
     "meta[calibre:timestamp]": "EPUB 2 bookkeeping from another tool, deliberately not carried over",
     "meta[cover]": "EPUB 2 cover convention; regenerated from the model when a profile asks",
-    "display-seq": "not modelled; title ordering is the model's own",
-    "link[record]": (
-        "an external metadata record is not read into the model, so re-emitting it "
-        "would mean copying a reference this tool cannot verify"
-    ),
     "properties='scripted'": (
         "removed because it was not true. The fixture declares `scripted` on a "
         "document containing no script, and EPUBCheck calls that an error on the "
