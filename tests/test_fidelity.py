@@ -254,3 +254,114 @@ class TestItIsReachable:
         parsed = build_parser().parse_args(["fidelity", "x.epub"])
         assert parsed.func.__name__ == "command_fidelity"
         assert parsed.mode == "preserve"
+
+
+class TestF017TheCascadeCheck:
+    """F-017 on its own, because it is not F-028 with the same file name.
+
+    The finding: *the CSS is modified on an approximate model of the cascade,
+    and nothing checks that the modification preserved the rendering.* Sharing a
+    test file with F-028 made the status tool report it done the moment the file
+    existed — which is the same "counted its own list" failure that put this
+    harness on the schedule in the first place.
+
+    The model is still approximate. What makes the comparison meaningful is that
+    the *same* approximation is applied to both sides: a difference is then a
+    real change in which declarations reach an element, not an artefact.
+    """
+
+    @staticmethod
+    def styled(path, *, rule: str = "p { text-align: justify }") -> str:
+        chapter = CHAPTER.format(title="Rozdział", body="Akapit tekstu.").replace(
+            "</head>", '<link rel="stylesheet" type="text/css" href="styl.css"/></head>'
+        )
+        return write_zip(
+            str(path),
+            {
+                "META-INF/container.xml": CONTAINER.encode(),
+                "OEBPS/package.opf": MODERN_OPF.format(title="T", extra_metadata="").encode(),
+                "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+                "OEBPS/chapter.xhtml": chapter.encode(),
+                "OEBPS/styl.css": rule.encode(),
+                "OEBPS/picture.png": png_bytes(),
+            },
+        )
+
+    def test_a_declaration_that_changed_is_caught(self, tmp_path):
+        original = self.styled(tmp_path / "k.epub")
+        restyled = damaged(
+            original,
+            str(tmp_path / "l.epub"),
+            **{"OEBPS/styl.css": b"p { text-align: center }"},
+        )
+        check = fidelity.style_survives(original, restyled)
+        assert not check.ok
+        assert "text-align" in check.detail
+
+    def test_a_declaration_that_disappeared_is_caught(self, tmp_path):
+        original = self.styled(tmp_path / "m.epub")
+        stripped = damaged(original, str(tmp_path / "n.epub"), **{"OEBPS/styl.css": b""})
+        check = fidelity.style_survives(original, stripped)
+        assert not check.ok
+        assert "text-align" in check.detail
+
+    def test_an_inline_style_counts_too(self, tmp_path):
+        """Half of what this program rewrites is inline, so a cascade check that
+        ignored `style=` would be blind to the busiest half of the work."""
+        chapter = CHAPTER.format(title="R", body="Tekst.").replace(
+            "<p>Tekst.</p>", '<p style="text-indent: 2em">Tekst.</p>'
+        )
+        original = write_zip(
+            str(tmp_path / "o.epub"),
+            {
+                "META-INF/container.xml": CONTAINER.encode(),
+                "OEBPS/package.opf": MODERN_OPF.format(title="T", extra_metadata="").encode(),
+                "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+                "OEBPS/chapter.xhtml": chapter.encode(),
+                "OEBPS/picture.png": png_bytes(),
+            },
+        )
+        without = damaged(
+            original,
+            str(tmp_path / "p.epub"),
+            **{"OEBPS/chapter.xhtml": CHAPTER.format(title="R", body="Tekst.").encode()},
+        )
+        assert not fidelity.style_survives(original, without).ok
+
+    def test_a_real_rebuild_does_not_change_what_applies(self, tmp_path):
+        original = self.styled(tmp_path / "q.epub")
+        destination = str(tmp_path / "r.epub")
+        rebuild(original, destination, Policy.preset("preserve"))
+        check = fidelity.style_survives(original, destination)
+        assert check.ok, check.detail
+
+    def test_and_neither_does_strict(self, tmp_path):
+        """The mode that is allowed to change appearance is the one worth
+        measuring: `strict` removes declarations on purpose, and the promise is
+        that what it removes was doing nothing."""
+        original = self.styled(tmp_path / "s.epub")
+        destination = str(tmp_path / "t.epub")
+        rebuild(original, destination, Policy.preset("strict"))
+        check = fidelity.style_survives(original, destination)
+        assert check.ok, check.detail
+
+    def test_a_rule_that_depends_on_an_ancestor_is_left_out_rather_than_guessed(self, tmp_path):
+        """The limit of the model, asserted so nobody re-derives it from a bug.
+
+        `epubforge.cascade` reads the rightmost compound of a selector, so
+        `.centred table` looks to it like `table`. On the public corpus that
+        turned one correctly-removed dead rule into four false alarms. A harness
+        that cries wolf teaches people to skip its output, so a rule this model
+        cannot decide is not answered with a guess — it is left out, and what it
+        does to the page still shows in the text and structure checks.
+        """
+        original = self.styled(tmp_path / "u.epub", rule=".brak p { text-align: center }")
+        stripped = damaged(original, str(tmp_path / "v.epub"), **{"OEBPS/styl.css": b""})
+        assert fidelity.style_survives(original, stripped).ok
+
+    def test_but_a_plain_selector_is_still_decided(self, tmp_path):
+        """The guard on the guard: if the filter dropped everything, the check
+        above would pass for the wrong reason and so would every other."""
+        original = self.styled(tmp_path / "w.epub", rule="p { text-align: center }")
+        stripped = damaged(original, str(tmp_path / "x.epub"), **{"OEBPS/styl.css": b""})
+        assert not fidelity.style_survives(original, stripped).ok

@@ -260,9 +260,159 @@ def reading_order_survives(source: str, rebuilt: str) -> Check:
     )
 
 
+#: The properties that decide what a page looks like, and the only ones asked
+#: about. A complete comparison of every declaration would report differences
+#: nobody can see — a shorthand rewritten as its parts, a colour in a different
+#: notation — and drown the ones anybody can.
+_VISIBLE_PROPERTIES = (
+    "display", "float", "text-align", "text-indent", "font-size", "font-weight",
+    "font-style", "font-family", "color", "background-color", "margin-left",
+    "margin-right", "margin-top", "margin-bottom", "line-height", "width",
+    "page-break-before", "page-break-after", "list-style-type", "vertical-align",
+)
+
+
+def _without_ancestors(text: str) -> str:
+    """The rules whose applicability this program's cascade model can decide.
+
+    `epubforge.cascade` reads the *rightmost* compound of a selector and ignores
+    what precedes it, which is the right approximation for the question that
+    module asks and the wrong one for this one. Measured, on the public corpus:
+    `.xhtml_center table { display: table }` was reported as applying to every
+    table in the book, so a rule correctly removed as dead — no element in the
+    book carries that class — came out as four false alarms in `strict`.
+
+    A harness that cries wolf is worse than no harness, because it teaches
+    people to skip the output. So a rule whose selector depends on an ancestor
+    is outside what this check can answer and is left out of it entirely, rather
+    than answered with a guess. What such a rule does to a document still shows
+    up in the text and structure checks, which read the finished markup.
+    """
+    import cssutils
+
+    try:
+        sheet = cssutils.parseString(text, validate=False)
+    except Exception:  # noqa: BLE001
+        return ""
+    kept: list[str] = []
+    for rule in sheet:
+        if rule.type != rule.STYLE_RULE:
+            continue
+        simple = [
+            selector.strip()
+            for selector in rule.selectorText.split(",")
+            if selector.strip() and not re.search(r"[\s>+~]", selector.strip())
+        ]
+        if simple:
+            kept.append(f"{','.join(simple)} {{ {rule.style.cssText} }}")
+    return "\n".join(kept)
+
+
+def _styles(path: str) -> dict[tuple[str, str], dict[str, str]]:
+    """`{(tag, opening words): {property: value}}` for one book.
+
+    Keyed by what the element *is* and what it *says*, because everything else
+    about it moves: the file is renamed, the document may be split, and in
+    `strict` an element may be unwrapped. Two elements with the same tag and the
+    same opening words are the same element for this purpose, and where they are
+    not, the check reports a difference that a person can look at — which is the
+    right way round for a harness.
+    """
+    from . import cascade as css_cascade
+
+    report = Report(source=path)
+    book = read_epub(path, report)
+    found: dict[tuple[str, str], dict[str, str]] = {}
+    for resource in book.content_docs():
+        try:
+            root = xhtml.parse_document(resource.data).root
+        except Exception:  # noqa: BLE001
+            continue
+        sources: list[str] = []
+        for link in root.iter(xhtml.qname("link")):
+            href = (link.get("href") or "").split("#")[0]
+            target = None
+            if href:
+                from . import paths as _paths
+
+                target = _paths.resolve(resource.path, href)
+            sheet = book.resources.get(target) if target else None
+            if sheet is not None and sheet.is_style:
+                sources.append(_without_ancestors(sheet.data.decode("utf-8", "replace")))
+        for style in root.iter(xhtml.qname("style")):
+            if style.text:
+                sources.append(_without_ancestors(style.text))
+        cascade = css_cascade.Cascade.parse(sources)
+        for element in root.iter():
+            if not isinstance(element.tag, str):
+                continue
+            tag = xhtml.local_name(element).lower()
+            if tag in _NOT_PROSE or tag in ("html", "body"):
+                continue
+            words = re.sub(r"\s+", " ", "".join(element.itertext())).strip()[:40]
+            if not words:
+                continue
+            classes = frozenset((element.get("class") or "").split())
+            applied = {}
+            for prop in _VISIBLE_PROPERTIES:
+                value, _targeted = cascade.lookup(prop, tag, classes, element.get("id"))
+                if value:
+                    applied[prop] = value.strip().lower()
+            inline = element.get("style") or ""
+            for declaration in inline.split(";"):
+                name, _, value = declaration.partition(":")
+                if name.strip().lower() in _VISIBLE_PROPERTIES and value.strip():
+                    applied[name.strip().lower()] = value.strip().lower()
+            found[(tag, words)] = applied
+    return found
+
+
+def style_survives(source: str, rebuilt: str) -> Check:
+    """The declarations that reach each element are the ones that reached it.
+
+    F-017: *the CSS is modified on an approximate model of the cascade, and
+    nothing checks that the modification preserved the rendering.* The model is
+    still approximate — but it is applied to **both** sides here, so a difference
+    is a real change in what applies to an element rather than an artefact of
+    the approximation.
+
+    Only elements present in both books are compared. One that is missing
+    entirely is a different defect and `text_survives` is the check that says so;
+    reporting it here as well would be one fault counted twice.
+    """
+    before, after = _styles(source), _styles(rebuilt)
+    changed: list[str] = []
+    for key, declarations in before.items():
+        other = after.get(key)
+        if other is None:
+            continue
+        for prop, value in declarations.items():
+            # `other.get(prop, value)` was the first version of this line and it
+            # made the check blind to the commonest failure it exists for: a
+            # declaration that is simply *gone* compared equal to itself. Two
+            # of this file's own tests caught it, which is the argument for
+            # testing that a harness can fail rather than that it passes.
+            if other.get(prop) != value:
+                changed.append(f"{key[0]} „{key[1][:24]}”: {prop} {value} → {other.get(prop)}")
+    unique = list(dict.fromkeys(changed))
+    return Check(
+        "style",
+        not unique,
+        "" if not unique else f"{len(unique)} zmian(a) w tym, co dotyczy elementu: "
+        + "; ".join(unique[:4]),
+        {"compared": len(set(before) & set(after)), "changed": len(unique)},
+    )
+
+
 #: Every check this stage of the harness runs. A list rather than a hard-coded
 #: sequence so the rendering comparison of stage two is an entry here.
-CHECKS = (text_survives, shape_survives, media_survives, reading_order_survives)
+CHECKS = (
+    text_survives,
+    shape_survives,
+    media_survives,
+    reading_order_survives,
+    style_survives,
+)
 
 
 def compare(source: str, rebuilt: str) -> Fidelity:
