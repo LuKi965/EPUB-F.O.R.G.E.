@@ -17,14 +17,27 @@ from ..report import Level
 from .base import Context, Stage
 
 #: Deliberately loose — this drives reachability analysis, not rewriting.
+#:
+#: `textref` is here because a Media Overlay names the document it narrates with
+#: it, and nothing else does; without it a SMIL points at a chapter that the
+#: graph believes nothing points at.
 _REFERENCE_RE = re.compile(
     rb"""(?:
-        (?:href|src|poster|data|xlink:href)\s*=\s*["']([^"'>]+)["']
+        (?:href|src|poster|data|xlink:href|textref|epub:textref)\s*=\s*["']([^"'>]+)["']
         | url\(\s*["']?([^"')]+?)["']?\s*\)
         | @import\s+["']([^"']+)["']
     )""",
     re.VERBOSE | re.IGNORECASE,
 )
+
+#: `srcset`, which is a list and therefore cannot be read by the rule above.
+#:
+#: `srcset="cover.jpg 1x, cover@2x.jpg 2x"` matches `src=` in nothing and names
+#: two real files. It is how a responsive image is written and how `<picture>`
+#: offers alternatives, and until this existed every one of those files looked
+#: unreferenced — which is a deletion, on the one setting whose whole promise is
+#: that it only deletes what nothing uses.
+_SRCSET_RE = re.compile(rb"""\bsrcset\s*=\s*["']([^"'>]+)["']""", re.IGNORECASE)
 
 #: `src="…"` and friends, in the shape SMIL uses them. Deliberately narrow: this
 #: rewrites bytes it does not otherwise understand, so it touches attributes it
@@ -76,17 +89,27 @@ JUNK_PATHS = re.compile(
 def scan_references(data: bytes) -> list[str]:
     """Every relative reference that looks like a link to another packaged file."""
     found: list[str] = []
-    for match in _REFERENCE_RE.finditer(data):
-        raw = next((group for group in match.groups() if group), None)
-        if not raw:
-            continue
+
+    def keep(raw: bytes) -> None:
         try:
             href = raw.decode("utf-8")
         except UnicodeDecodeError:
-            continue
+            return
         href = href.strip()
         if href and not paths.is_remote(href) and not href.startswith("#"):
             found.append(href)
+
+    for match in _REFERENCE_RE.finditer(data):
+        raw = next((group for group in match.groups() if group), None)
+        if raw:
+            keep(raw)
+    for match in _SRCSET_RE.finditer(data):
+        for candidate in match.group(1).split(b","):
+            # `url descriptor`, where the descriptor is optional: take the URL
+            # and ignore whatever follows it.
+            url = candidate.strip().split()[:1]
+            if url:
+                keep(url[0])
     return found
 
 
@@ -188,10 +211,61 @@ class StructureStage(Stage):
                 )
 
     def _drop_junk(self, ctx: Context) -> None:
-        for path in list(ctx.book.resources):
-            if JUNK_PATHS.search(path):
-                ctx.book.remove(path)
-                self.note(ctx, Level.FIX, "structure.junk-removed", location=path)
+        """Remove what the archive picked up on the way, and nothing else.
+
+        The audit's F-016, second half. This used to delete by *name*: anything
+        matching `JUNK_PATHS` went, unconditionally and with no switch. Most of
+        those names are safe — nobody links to `.DS_Store` — and one is not.
+        `.bak` is a name a publisher can give a file the book actually uses, and
+        `chapter.bak` in the manifest, referenced from the navigation, was
+        deleted on the strength of its extension. Deletion by name is a guess
+        about content, and this program is not allowed those.
+
+        So a file is removed only when the book does not reach it, on the same
+        graph that decides orphans — plus a wider test, because "reachable from
+        the spine" is not the same question as "referenced by anything": a file
+        used only by a document that is itself unreachable is still a file
+        somebody linked to on purpose, and this is not the pass that decides
+        what to do about that.
+
+        And it is a switch, because the owner's standing rule is that whatever
+        this program deletes must be optional to untick.
+        """
+        if not ctx.policy.remove_junk:
+            return
+        named = [path for path in ctx.book.resources if JUNK_PATHS.search(path)]
+        if not named:
+            return
+        spoken_for = self._reachable(ctx) | self._referenced_anywhere(ctx)
+        for path in named:
+            if path in spoken_for:
+                self.note(ctx, Level.PRESERVED, "structure.junk-kept", location=path)
+                continue
+            ctx.book.remove(path)
+            self.note(ctx, Level.FIX, "structure.junk-removed", location=path)
+
+    def _referenced_anywhere(self, ctx: Context) -> set[str]:
+        """Every packaged file that any other packaged file points at.
+
+        Wider than `_reachable` on purpose and used only to *keep* things. The
+        two answer different questions — "can a reader get here" and "did
+        anybody mean this" — and for deciding whether to delete something, the
+        second is the one that matters.
+        """
+        book = ctx.book
+        pointed: set[str] = set()
+        for path, resource in book.resources.items():
+            if resource.is_font or (resource.is_image and resource.media_type != "image/svg+xml"):
+                continue
+            source_path = resource.original_path or resource.path
+            for href in scan_references(resource.data):
+                target = paths.resolve(source_path, href.partition("#")[0])
+                if target is None:
+                    continue
+                mapped = ctx.path_map.get(target, target)
+                if mapped in book.resources and mapped != path:
+                    pointed.add(mapped)
+        return pointed
 
     def _reachable(self, ctx: Context) -> set[str]:
         """Transitive closure of references starting from the spine and the cover."""
@@ -216,7 +290,13 @@ class StructureStage(Stage):
                 continue
             reachable.add(current)
             resource = book.get(current)
-            if resource is None or resource.is_image or resource.is_font:
+            if resource is None or resource.is_font:
+                continue
+            if resource.is_image and resource.media_type != "image/svg+xml":
+                # An SVG is the one image that can hold a link, and skipping it
+                # here is the audit's "references made from inside an SVG are
+                # invisible to the graph" — a picture used only by an SVG looked
+                # like an orphan and was deleted, leaving the SVG drawing a hole.
                 continue
             source_path = resource.original_path or resource.path
             for href in scan_references(resource.data):

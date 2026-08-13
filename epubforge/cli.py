@@ -75,6 +75,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.drop_orphans = True
     if args.keep_layout:
         policy.reorganize_files = False
+    if args.keep_junk:
+        policy.remove_junk = False
     if args.keep_watermark_markup:
         policy.watermarks = "keep"
     if args.watermarks:
@@ -705,6 +707,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")
+    build.add_argument(
+        "--keep-junk",
+        action="store_true",
+        help=(
+            "keep .DS_Store, Thumbs.db, __MACOSX/, .bak and the rest of what "
+            "the archive picked up on the way. They are removed only where the "
+            "book does not refer to them; this keeps them regardless"
+        ),
+    )
     build.add_argument(
         "--ask",
         action="store_true",

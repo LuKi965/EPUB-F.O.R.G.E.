@@ -95,10 +95,11 @@ PL: dict[str, str] = {
     "policy.orphans.tip": (
         "Domyślnie WYŁĄCZONE i lepiej tak zostawić.\n\n"
         "Kasuje zasoby, których nie widzi żaden rozdział, arkusz stylów ani spis "
-        "treści. Problem w tym, że narzędzie jeszcze nie widzi wszystkich "
-        "odwołań: nie zna „srcset”, elementu <picture> ani odsyłaczy zrobionych "
-        "wewnątrz pliku SVG. Plik używany przez którekolwiek z nich wygląda tu "
-        "jak nieużywany — i zostałby skasowany.\n\n"
+        "treści. Trzy dziury, przez które to kasowało używane pliki — „srcset”, "
+        "element <picture> i odsyłacze robione wewnątrz SVG — są już zamknięte. "
+        "Graf jest **lepszy, ale nie kompletny**: skrypt sklejający nazwę pliku "
+        "z dwóch napisów, arkusz osiągalny tylko przez zapytanie medialne, "
+        "odwołanie w formacie, którego nic tutaj nie modeluje.\n\n"
         "Zysk to kilka kilobajtów. Ryzyko to dziura w miejscu obrazka."
     ),
     "policy.layout": "Uporządkuj pliki w folderach wg typu",
@@ -193,6 +194,18 @@ PL: dict[str, str] = {
         "To pole jest wyjściem awaryjnym dla człowieka, który trzyma tę książkę "
         "i wie, co robi. Zaznaczone: plik powstanie mimo wszystko, a raport "
         "powie, czego w nim nie ma. Nie sprawia, że strata staje się cicha."
+    ),
+    "policy.junk": "Usuwaj pozostałości po pakowaniu",
+    "policy.junk.tip": (
+        "`.DS_Store`, `Thumbs.db`, `__MACOSX/`, cienie `._`, "
+        "`iTunesMetadata.plist`, `calibre_bookmarks.txt`, `.bak` — rzeczy, "
+        "które archiwum zebrało po drodze z czyjegoś komputera i których w "
+        "publikacji nie ma po co trzymać.\n\n"
+        "Usuwane **tylko wtedy, gdy książka się do nich nie odwołuje**. Nazwa "
+        "nie jest dowodem o treści: `rozdzial.bak` to nazwa, jaką wydawca może "
+        "dać plikowi, który jest w manifeście i do którego prowadzi spis "
+        "treści. Plik, do którego coś prowadzi, zostaje i raport to mówi.\n\n"
+        "Odznaczone: nie usuwa nic, cokolwiek by się nazywało."
     ),
     "policy.ask": "Pytaj mnie o odnośniki, których nie da się rozwiązać",
     "policy.ask.tip": (
@@ -589,10 +602,12 @@ EN: dict[str, str] = {
     "policy.orphans": "Remove files nothing references",
     "policy.orphans.tip": (
         "OFF by default, and best left that way.\n\n"
-        "Deletes resources no chapter, stylesheet or table of contents points at. "
-        "The catch is that the tool cannot yet see every reference: it does not "
-        "follow srcset, <picture>, or links made from inside an SVG. A file used "
-        "by any of those looks unused here and would be deleted.\n\n"
+        "Deletes resources no chapter, stylesheet or table of contents points "
+        "at. The three holes that made it delete files in use — srcset, "
+        "<picture>, and links made from inside an SVG — are closed. The graph is "
+        "**better and not complete**: a script that builds a filename from two "
+        "strings, a stylesheet reached only through a media query nothing here "
+        "evaluates, a reference in a format nothing here models.\n\n"
         "The saving is a few kilobytes. The risk is a hole where a picture was."
     ),
     "policy.layout": "Reorganise files into typed folders",
@@ -686,6 +701,18 @@ EN: dict[str, str] = {
         "This box is the way through for a person holding that book who knows "
         "what they are doing. Ticked: the file is written anyway and the report "
         "says what is not in it. It does not make the loss quiet."
+    ),
+    "policy.junk": "Remove packaging leftovers",
+    "policy.junk.tip": (
+        "`.DS_Store`, `Thumbs.db`, `__MACOSX/`, `._` shadows, "
+        "`iTunesMetadata.plist`, `calibre_bookmarks.txt`, `.bak` — what the "
+        "archive picked up on its way out of somebody's machine, and what has "
+        "no business in a publication.\n\n"
+        "Removed **only where the book does not refer to them**. A name is not "
+        "evidence about content: `chapter.bak` is a name a publisher can give a "
+        "file that is in the manifest with the navigation pointing at it. "
+        "Anything the book reaches is kept, and the report says so.\n\n"
+        "Unticked: nothing is removed, whatever it is called."
     ),
     "policy.ask": "Ask me about references that cannot be resolved",
     "policy.ask.tip": (

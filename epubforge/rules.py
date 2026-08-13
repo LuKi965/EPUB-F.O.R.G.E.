@@ -71,6 +71,7 @@ CATALOGUE: dict[str, str] = {
     # -- structure: where files ended up ------------------------------------
     "structure.relaid-out": "{count} file(s) were regrouped into a typed {directory}/ layout with portable names",
     "structure.junk-removed": "packaging leftovers were removed",
+    "structure.junk-kept": "this file has the name of a packaging leftover and the book links to it, so it was kept: a name is not evidence about content, and `.bak` is a name a publisher can give a chapter",
     "structure.orphan-removed": "a file nothing in the book references was removed",
     "structure.carried-xml-repointed": "{count} reference(s) inside a file carried as-is were repointed",
     # -- navigation ---------------------------------------------------------
@@ -293,6 +294,7 @@ CATALOGUE_PL: dict[str, str] = {
     'reader.spine-rebuilt': 'kolejność czytania była pusta i odtworzono ją z {count} {count:dokumentu treści|dokumentów treści|dokumentów treści}',
     'structure.relaid-out': '{count} {count:plik przegrupowano|pliki przegrupowano|plików przegrupowano} w układ według typów w {directory}/, z przenośnymi nazwami',
     'structure.junk-removed': 'usunięto pozostałości po pakowaniu',
+    'structure.junk-kept': 'ten plik nazywa się jak pozostałość po pakowaniu, ale książka się do niego odwołuje, więc został: nazwa nie jest dowodem o treści, a `.bak` to nazwa, jaką wydawca może dać rozdziałowi',
     'structure.orphan-removed': 'usunięto plik, do którego nic w książce się nie odwołuje',
     'structure.carried-xml-repointed': 'przepięto {count} {count:odwołanie|odwołania|odwołań} wewnątrz pliku przenoszonego bez zmian',
     'nav.regenerated': 'dokument nawigacyjny wygenerowano od nowa, z {count} {count:pozycją|pozycjami|pozycjami}',

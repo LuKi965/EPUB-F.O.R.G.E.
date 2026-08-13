@@ -357,6 +357,10 @@ class MainWindow(QMainWindow):
 
         self.ncx_check = self._checkbox(layout, "policy.ncx", checked=True)
         self.orphans_check = self._checkbox(layout, "policy.orphans", checked=False)
+        # The last thing in the program that deleted a file by name. It now
+        # proves the book does not use it first — and it is a tick all the
+        # same, because the standing rule has no exception for obvious cases.
+        self.junk_check = self._checkbox(layout, "policy.junk", checked=True)
         self.layout_check = self._checkbox(layout, "policy.layout", checked=True)
         self.scripts_check = self._checkbox(layout, "policy.scripts", checked=False)
         # Ticked by "force the standard" and untickable there all the same.
@@ -594,6 +598,7 @@ class MainWindow(QMainWindow):
         )
         if self.mode_combo.currentData() != "minimal":
             policy.drop_orphans = self.orphans_check.isChecked()
+            policy.remove_junk = self.junk_check.isChecked()
             policy.reorganize_files = self.layout_check.isChecked()
             policy.strip_scripts = self.scripts_check.isChecked()
             policy.remove_dead = self.dead_check.isChecked()

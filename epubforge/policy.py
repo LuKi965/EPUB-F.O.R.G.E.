@@ -134,15 +134,29 @@ class Policy:
 
     #: Remove files present in the archive but referenced by nothing.
     #:
-    #: Off by default since 0.1.7, and it stays off until the dependency graph
-    #: can prove a file is unused. Today it cannot: references reached only
-    #: through ``img@srcset``, ``<picture><source srcset>`` or from inside an
-    #: SVG are invisible to it, so the file goes and the markup that needs it
-    #: stays. The output validates and renders a hole.
-    #:
-    #: The saving was never the point — a handful of kilobytes against deleting
-    #: a picture somebody is still looking at.
+    #: Off by default since 0.1.7. The three gaps that kept it off — `srcset`,
+    #: `<picture><source srcset>` and references made from inside an SVG — are
+    #: closed, and it stays off anyway. The graph is *better* and it is not
+    #: complete: a script that builds a filename from two strings, a stylesheet
+    #: reached only through a media query this program does not evaluate, a
+    #: reference in a file type nobody here models. Every one of those is a
+    #: picture somebody is still looking at, against a saving of a few kilobytes
+    #: — and the trade has never been close.
     drop_orphans: bool = False
+
+    #: Delete what the archive picked up on the way out of somebody's machine:
+    #: `.DS_Store`, `Thumbs.db`, `__MACOSX/`, AppleDouble `._` shadows,
+    #: `iTunesMetadata.plist`, `calibre_bookmarks.txt`, `.bak`.
+    #:
+    #: On, because none of it belongs in a publication and a reading system that
+    #: opens the book has to skip it too. A switch all the same, and one that had
+    #: to be argued for rather than assumed: this was the last thing in the
+    #: program that deleted a file by *name*, with no test of whether the book
+    #: used it, and `.bak` is a name a publisher can give a chapter. The removal
+    #: now proves the file is unreferenced first; the switch is the owner's
+    #: standing rule, which does not have exceptions for things that look
+    #: obvious.
+    remove_junk: bool = True
 
     #: Rebuild from a source the reader could not read all of.
     #:
