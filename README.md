@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.21` · alpha · 1544 testy · Windows / Linux / macOS
+`0.2.21` · alpha · 1544 testy · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -84,6 +84,18 @@ pip install -e .
 
 Wymaga Pythona 3.10+. EPUBCheck (opcjonalny, do walidacji) potrzebuje Javy 11+
 i pobiera się sam przy pierwszym użyciu.
+
+### O innych systemach, uczciwie
+
+**Wydawany jest tylko Windows.** Kod nie robi niczego, co by go do Windowsa
+przywiązywało, testy przechodzą na Linuksie i tam powstaje większość tego
+programu — ale **nikt nie sprawdza wyniku na Linuksie ani na macOS-ie na
+prawdziwych książkach i prawdziwym czytniku**, a to jest jedyny rodzaj
+sprawdzenia, który tutaj cokolwiek znaczy.
+
+Do 0.2.21 w tym miejscu stało „Windows / Linux / macOS". To było nieprawdą tego
+rodzaju, którą łatwo napisać i trudno zauważyć: z faktu, że coś się uruchamia,
+zrobiła obietnicę, że jest sprawdzone.
 
 ## Użycie
 

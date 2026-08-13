@@ -145,6 +145,55 @@ PL: dict[str, str] = {
         "Jedyna opcja, która coś traci — i dlatego trzeba ją wybrać ręcznie. "
         "Nie włącza jej żaden tryb."
     ),
+    # --- diagnostics panel ----------------------------------------------
+    "tab.diagnostics": "Diagnostyka",
+    "diagnostics.intro": (
+        "Dwa pytania o pliki, na które nie trzeba niczego przebudowywać: co jest "
+        "w środku i czy walidator to przyjmuje. Nic tutaj nie zmienia żadnego pliku."
+    ),
+    "diagnostics.files": "Plik lub folder:",
+    "diagnostics.mode": "Pytanie:",
+    "diagnostics.inspect": "Co jest w tym pliku",
+    "diagnostics.inspect.tip": (
+        "Czyta książkę i wypisuje, co w niej znalazł: wersję, metadane, liczbę "
+        "zasobów, kolejność czytania, okładkę, nawigację, zaciemnione fonty i DRM.\n\n"
+        "To jest widok *przed* przebudową — pokazuje, z czym narzędzie ma do "
+        "czynienia, a nie co z tego zrobi."
+    ),
+    "diagnostics.validate": "Czy EPUBCheck to przyjmuje",
+    "diagnostics.validate.tip": (
+        "Puszcza walidator na plik taki, jaki jest — bez przebudowy.\n\n"
+        "Przydaje się do dwóch rzeczy: sprawdzenia, czy książka była zepsuta "
+        "*zanim* jej dotknęliśmy, i sprawdzenia gotowego wyniku."
+    ),
+    "diagnostics.empty": "Wskaż plik albo folder z książkami i naciśnij „Uruchom”.",
+    "policy.fonts": "Odszyfruj zaciemnione fonty",
+    "policy.fonts.tip": (
+        "Część księgarń „zaciemnia\u201d osadzone fonty — miesza pierwsze bajty "
+        "pliku, żeby nie dało się go po prostu wyjąć i zainstalować. Czytnik to "
+        "odkręca w locie, więc na ekranie nie widać różnicy.\n\n"
+        "Włączone: font wychodzi zwyczajny, a deklaracja szyfrowania znika. "
+        "Wyłączone: zostaje tak, jak było. Nie ma to wpływu na wygląd książki — "
+        "ma na to, czy plik fontu da się otworzyć czymkolwiek innym."
+    ),
+    "policy.images": "Przekoduj obrazy w formatach spoza standardu",
+    "policy.images.tip": (
+        "BMP i TIFF renderują się w części czytników i nie w innych, więc są "
+        "zamieniane na PNG. WebP **nie** — to jest format podstawowy w EPUB 3.3 "
+        "i nic mu nie trzeba robić.\n\n"
+        "Obraz wieloklatkowy nie jest przekodowywany nigdy, cokolwiek tu stoi: "
+        "konwersja zachowałaby pierwszą klatkę i po cichu wyrzuciła resztę."
+    ),
+    "policy.incomplete": "Przebuduj mimo nieodczytanego fragmentu źródła",
+    "policy.incomplete.tip": (
+        "Zwykle, kiedy któregoś wpisu archiwum nie da się odczytać — bo jest "
+        "monstrualny albo strumień jest uszkodzony — przebudowa **zatrzymuje "
+        "się i nic nie zapisuje**. Książka, której nie widać w całości, nie może "
+        "dostać obietnicy, że nic z niej nie zginęło.\n\n"
+        "To pole jest wyjściem awaryjnym dla człowieka, który trzyma tę książkę "
+        "i wie, co robi. Zaznaczone: plik powstanie mimo wszystko, a raport "
+        "powie, czego w nim nie ma. Nie sprawia, że strata staje się cicha."
+    ),
     "policy.typography": "Popraw typografię tekstu",
     "policy.typography.tip": (
         "Jedyne miejsce, w którym narzędzie zmienia sam tekst, a nie znaczniki "
@@ -536,6 +585,56 @@ EN: dict[str, str] = {
         "buyer.\n\n"
         "The only option that loses anything, which is why you have to pick it "
         "yourself. No mode turns it on."
+    ),
+    # --- diagnostics panel ----------------------------------------------
+    "tab.diagnostics": "Diagnostics",
+    "diagnostics.intro": (
+        "Two questions about files that need nothing rebuilt to answer: what is "
+        "inside, and whether a validator accepts it. Nothing here changes a file."
+    ),
+    "diagnostics.files": "File or folder:",
+    "diagnostics.mode": "Question:",
+    "diagnostics.inspect": "What is in this file",
+    "diagnostics.inspect.tip": (
+        "Reads the book and prints what it found: version, metadata, resource "
+        "count, reading order, cover, navigation, obfuscated fonts and DRM.\n\n"
+        "This is the view *before* a rebuild — what the tool is dealing with, "
+        "not what it would make of it."
+    ),
+    "diagnostics.validate": "Does EPUBCheck accept it",
+    "diagnostics.validate.tip": (
+        "Runs the validator against the file as it is, with no rebuild.\n\n"
+        "Useful for two things: finding out whether a book was broken *before* "
+        "anything touched it, and checking a finished result."
+    ),
+    "diagnostics.empty": "Pick a file or a folder of books and press Run.",
+    "policy.fonts": "Undo font obfuscation",
+    "policy.fonts.tip": (
+        "Some shops \u201cobfuscate\u201d embedded fonts — they scramble the "
+        "first bytes of the file so it cannot simply be lifted out and "
+        "installed. A reading system undoes it on the fly, so nothing on screen "
+        "changes either way.\n\n"
+        "On: the font comes out ordinary and the encryption declaration goes. "
+        "Off: it stays as it was. This does not affect how the book looks — it "
+        "affects whether the font file opens in anything else."
+    ),
+    "policy.images": "Transcode images in formats outside the standard",
+    "policy.images.tip": (
+        "BMP and TIFF render on some reading systems and not others, so they "
+        "become PNG. WebP does **not** — it is a core media type in EPUB 3.3 "
+        "and needs nothing doing to it.\n\n"
+        "A multi-frame image is never transcoded whatever this says: converting "
+        "it would keep the first frame and silently drop the rest."
+    ),
+    "policy.incomplete": "Rebuild even when part of the source could not be read",
+    "policy.incomplete.tip": (
+        "Normally, when an archive entry cannot be read — because it is "
+        "monstrous, or its stream is damaged — the rebuild **stops and writes "
+        "nothing**. A book this program cannot see all of cannot be given the "
+        "promise that none of it was lost.\n\n"
+        "This box is the way through for a person holding that book who knows "
+        "what they are doing. Ticked: the file is written anyway and the report "
+        "says what is not in it. It does not make the loss quiet."
     ),
     "policy.typography": "Repair the text's typography",
     "policy.typography.tip": (

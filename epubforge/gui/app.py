@@ -40,7 +40,7 @@ from .. import rules
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog
-from .tabs import CorpusPanel, LibraryPanel
+from .tabs import CorpusPanel, DiagnosticsPanel, LibraryPanel
 from .strings import LANGUAGES, language, set_language, tr
 
 LEVEL_KEYS = {
@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._build_rebuild_tab(), tr("tab.rebuild"))
         self.tabs.addTab(LibraryPanel(self.palette_colors), tr("tab.library"))
         self.tabs.addTab(CorpusPanel(self.palette_colors), tr("tab.corpus"))
+        self.tabs.addTab(DiagnosticsPanel(self.palette_colors), tr("tab.diagnostics"))
         self.tabs.currentChanged.connect(self._tab_changed)
         self.setCentralWidget(self.tabs)
         self._tab_changed(0)
@@ -372,11 +373,29 @@ class MainWindow(QMainWindow):
         self.watermark_combo.setCurrentIndex(watermark.MODES.index(Policy().watermarks))
         layout.addWidget(self.watermark_combo)
 
+        # Two more things this program changes about a book, and the owner's
+        # standing rule says a person gets the last word on each: fonts whose
+        # obfuscation is undone, and images converted out of a format EPUB 3
+        # does not require. Both were on and neither was reachable from here,
+        # which for somebody who runs the Windows build means they were not
+        # switches at all.
+        self.fonts_check = self._checkbox(layout, "policy.fonts", checked=True)
+        self.images_check = self._checkbox(layout, "policy.images", checked=True)
+
         self.validate_check = self._checkbox(
             layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
         )
         if not self._epubcheck:
             self.validate_check.setToolTip(tr("policy.validate.missing"))
+
+        # The escape hatch for the gate added in 0.2.20. A source that cannot be
+        # read in full now stops the rebuild, which is right — and until this
+        # box existed the only way past it was a command-line flag, on a program
+        # whose owner uses the window. A refusal with no visible way through is
+        # not a decision offered to anybody.
+        self.incomplete_check = self._checkbox(
+            layout, "policy.incomplete", checked=False
+        )
 
         self._mode_changed()
         return box
@@ -562,6 +581,9 @@ class MainWindow(QMainWindow):
             policy.remove_dead = self.dead_check.isChecked()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()
+            policy.transcode_images = self.images_check.isChecked()
+        policy.deobfuscate_fonts = self.fonts_check.isChecked()
+        policy.allow_incomplete = self.incomplete_check.isChecked()
         for key, edit in (
             ("title", self.title_edit),
             ("author", self.author_edit),

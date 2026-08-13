@@ -340,6 +340,140 @@ class LibraryPanel(Panel):
         return "\n".join(lines)
 
 
+class DiagnosticsPanel(Panel):
+    """`inspect` and `check`, which lived only in the command line.
+
+    The owner's point on 2026-08-13, and it applies to the diagnostics as much
+    as to the switches: *everything, the debugging things included, has to be in
+    the window.* He runs the Windows build. A command that answers "what is
+    actually inside this file" and one that answers "does a validator accept
+    it" are exactly what a person reaches for when a book comes out wrong, and
+    both were reachable only from a terminal he does not use.
+
+    Neither changes a file. That is why they share a panel and why nothing here
+    asks about policy: these are questions, and the rebuild tab is the answer.
+    """
+
+    def __init__(self, palette: theme.Palette) -> None:
+        super().__init__(palette)
+        self.add_intro(tr("diagnostics.intro"))
+        self.folder = self.add_folder_row(tr("diagnostics.files"))
+
+        mode = QLabel(tr("diagnostics.mode"))
+        mode.setObjectName("sectionLabel")
+        self.layout_.addWidget(mode)
+
+        self.inspect_choice = QRadioButton(tr("diagnostics.inspect"))
+        self.inspect_choice.setToolTip(tr("diagnostics.inspect.tip"))
+        self.inspect_choice.setChecked(True)
+        self.layout_.addWidget(self.inspect_choice)
+
+        self.validate_choice = QRadioButton(tr("diagnostics.validate"))
+        self.validate_choice.setToolTip(tr("diagnostics.validate.tip"))
+        self.layout_.addWidget(self.validate_choice)
+
+        for widget in (self.inspect_choice, self.validate_choice):
+            widget.toggled.connect(lambda _checked: self.invalidate())
+        self.folder.textChanged.connect(lambda _text: self.invalidate())
+
+        buttons = QWidget()
+        row = QHBoxLayout(buttons)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        self.run_button = QPushButton(tr("common.run"))
+        self.run_button.setObjectName("primary")
+        self.run_button.clicked.connect(self._run)
+        row.addWidget(self.run_button)
+        self.save_button = QPushButton(tr("common.save"))
+        self.save_button.setEnabled(False)
+        self.save_button.clicked.connect(lambda: self.save_payload("diagnostyka.txt"))
+        row.addWidget(self.save_button)
+        row.addStretch(1)
+        self.layout_.addWidget(buttons)
+
+        self.add_output(tr("diagnostics.empty"))
+
+    def _books(self) -> list[str]:
+        import pathlib as _pathlib
+
+        from ..corpus import books_in
+
+        folder = self.folder.text().strip()
+        if not folder:
+            return []
+        path = _pathlib.Path(folder)
+        if path.is_file():
+            return [str(path)]
+        return [str(book) for book in books_in(path)]
+
+    def _run(self) -> None:
+        books = self._books()
+        if not books:
+            QMessageBox.information(self, tr("common.pickfolder"), tr("common.nofolder"))
+            return
+        inspecting = self.inspect_choice.isChecked()
+
+        def work(emit):
+            lines: list[str] = []
+            for index, book in enumerate(books):
+                emit(index, len(books), os.path.basename(book))
+                lines.append(f"--- {os.path.basename(book)}")
+                lines.extend(
+                    self._describe(book) if inspecting else self._validate(book)
+                )
+                lines.append("")
+            return "\n".join(lines)
+
+        self.start(work, [self.run_button])
+
+    @staticmethod
+    def _describe(book: str) -> list[str]:
+        """What is actually in the file, before anything touches it."""
+        from ..reader import EpubReadError, read_epub
+        from ..report import Report
+
+        report = Report(source=book)
+        try:
+            parsed = read_epub(book, report)
+        except EpubReadError as exc:
+            return [f"  nie da się odczytać: {exc}"]
+        metadata = parsed.metadata
+        identifier = metadata.primary_identifier
+        rows = [
+            ("wersja", parsed.source_version),
+            ("tytuł", metadata.title or "—"),
+            ("autorzy", ", ".join(c.name for c in metadata.creators) or "—"),
+            ("język", metadata.language or "BRAK"),
+            ("identyfikator", identifier.value if identifier else "BRAK"),
+            ("zasoby", str(len(parsed.resources))),
+            ("kolejność czytania", str(len(parsed.spine))),
+            ("wpisy spisu treści", str(sum(1 for root in parsed.toc for _ in root.walk()))),
+            ("okładka", parsed.cover_path or "nie wykryto"),
+            ("nawigacja", parsed.nav_path or "brak (styl EPUB 2)"),
+            ("zaciemnione fonty", str(len(parsed.encrypted)) if parsed.encrypted else "nie"),
+            ("DRM", "TAK" if parsed.has_drm else "nie"),
+        ]
+        return [f"  {name:<20} {value}" for name, value in rows]
+
+    @staticmethod
+    def _validate(book: str) -> list[str]:
+        from ..report import Report
+        from ..validate import validate
+
+        result = validate(book, Report(source=book))
+        if not result.available:
+            return ["  EPUBCheck nie jest dostępny"]
+        if result.clean:
+            return [f"  poprawny — ostrzeżeń: {result.warnings}"]
+        return [
+            f"  NIEPOPRAWNY — błędów krytycznych: {result.fatal}, błędów: {result.errors}",
+            *(f"    {message}" for message in result.messages[:40]),
+        ]
+
+    def handle(self, result) -> None:
+        self.output.setPlainText(result or tr("diagnostics.empty"))
+
+
 class CorpusPanel(Panel):
     """A library keeping the tool honest, without anybody handing it over."""
 

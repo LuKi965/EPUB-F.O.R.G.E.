@@ -36,9 +36,13 @@ def window(qt_app):
 
 
 class TestStructure:
-    def test_all_three_features_have_a_tab(self, window):
+    def test_every_feature_has_a_tab(self, window):
+        """Counted rather than named, and the count is a ratchet: a feature that
+        arrives without a tab is a feature that does not exist for somebody who
+        runs the Windows build. Diagnostics — `inspect` and `check` — lived only
+        in the command line until 0.2.22 for exactly that reason."""
         labels = [window.tabs.tabText(i) for i in range(window.tabs.count())]
-        assert len(labels) == 3
+        assert len(labels) == 4
         assert all(labels)
 
     def test_the_title_names_the_application_once(self, window):
