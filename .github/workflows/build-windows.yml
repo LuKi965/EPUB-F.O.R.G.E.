@@ -131,6 +131,30 @@ jobs:
           pip freeze | Out-File -Append -Encoding utf8 dist/build-manifest.txt
           Get-Content dist/build-manifest.txt
 
+      # Staged before the tests rather than only as part of the bundle, and it
+      # changes what the test run means. Until 0.2.23 the validator arrived
+      # four steps later, so on the one platform this project releases for, 17
+      # tests skipped themselves with "EPUBCheck is not installed here" — the
+      # EPUBCheck-dependent half of the suite never ran on Windows at all.
+      #
+      # It is also load-bearing now. Strict mode asks the validator before
+      # publishing and refuses when it cannot, on the argument that a gate
+      # passing what it could not check is not a gate. A runner with no
+      # validator is a runner where strict refuses every book, which is the
+      # program being right and the CI being wrong.
+      - name: Stage EPUBCheck for the test run
+        shell: pwsh
+        run: |
+          python -c "import sys; sys.path.insert(0,'packaging'); import build; build.stage_epubcheck(None)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $jar = Join-Path (Get-Location) "packaging\_bundle\epubcheck\epubcheck.jar"
+          if (-not (Test-Path $jar)) {
+            Write-Host "::error::epubcheck.jar was not staged at $jar"
+            exit 1
+          }
+          "EPUBCHECK_JAR=$jar" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "EPUBCHECK_JAR=$jar"
+
       - name: Run tests
         run: pytest -q
 
