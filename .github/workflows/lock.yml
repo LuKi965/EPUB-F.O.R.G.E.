@@ -10,25 +10,57 @@
 # *artifact*, and artifacts are per platform and per Python version: `lxml` for
 # CPython 3.12 on Windows is a different wheel with a different hash from the
 # one on Linux. This project's release build is Windows, so the lock has to be
-# resolved on Windows or it locks the wrong files. Generating it on the machine
-# that develops here would produce something that either fails the build or, if
-# forced, pins artifacts nobody verified — worse than no lock, because it would
-# look like one.
+# resolved on Windows or it locks the wrong files.
 #
 # Run it by hand, download the artifact, commit it. Nothing is committed from
 # CI on purpose: a workflow with write access to its own repository is a
 # supply-chain hole in a job whose entire purpose is closing one.
+#
+# ---------------------------------------------------------------------------
+# The repository is named "EPUB-F.O.R.G.E." — with a trailing dot — and Windows
+# cannot hold a directory whose name ends in one. That makes the runner's own
+# workspace, D:\a\<repo>\<repo>, a path that cannot exist:
+#
+#   ##[error]Directory 'D:\a\EPUB-F.O.R.G.E.\EPUB-F.O.R.G.E.' does not exist
+#
+# `actions/checkout` raises that while validating GITHUB_WORKSPACE, before it
+# reads its own inputs, so its `path:` option cannot rescue it — and every
+# `run:` step defaults to that same directory. `build-windows.yml` has carried
+# the workaround and the explanation since it was written; the first version of
+# *this* file used a plain `actions/checkout@v4` and failed on its first run
+# with exactly the error quoted above, which is what comes of copying a
+# workflow's shape without reading the comment at the top of the one beside it.
+# ---------------------------------------------------------------------------
 
 name: Generate the dependency lock
 
 on:
   workflow_dispatch:
 
+defaults:
+  run:
+    # Literal, not an expression: the `env` context is not available here.
+    working-directory: D:\forge
+
 jobs:
   lock:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      # Stands in for actions/checkout, for the reason at the top of this file.
+      # Runs from D:\, which exists, because D:\forge is what it is creating.
+      - name: Check out into a path Windows can represent
+        working-directory: D:\
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $ref = "${{ github.ref_name }}"
+          if (Test-Path D:\forge) { Remove-Item D:\forge -Recurse -Force }
+          git clone --depth 1 --branch $ref `
+            "https://x-access-token:$env:GH_TOKEN@github.com/$repo.git" D:\forge
+          git -C D:\forge remote set-url origin "https://github.com/$repo.git"
+          git -C D:\forge log --oneline -1
 
       # The version the release build uses. A lock resolved under a different
       # interpreter pins different wheels.
@@ -51,10 +83,12 @@ jobs:
           pip-compile --generate-hashes --output-file pyinstaller.lock pyinstaller.in
           Get-Content requirements.lock -TotalCount 20
 
+      # Absolute paths: artifact globs resolve against the workspace, which is
+      # the directory this whole job exists to avoid.
       - uses: actions/upload-artifact@v4
         with:
           name: dependency-lock
           path: |
-            requirements.lock
-            pyinstaller.lock
+            D:\forge\requirements.lock
+            D:\forge\pyinstaller.lock
           retention-days: 90
