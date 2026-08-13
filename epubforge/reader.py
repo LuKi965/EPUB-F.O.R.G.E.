@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import posixpath
 import re
+import unicodedata
 import zipfile
 from dataclasses import dataclass
+from urllib.parse import unquote
 
 from lxml import etree
 
@@ -617,11 +619,21 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
         if path is None:
             continue
         if path not in entries:
-            resolved = _find_case_insensitive(path, entries)
-            if resolved is None:
+            found = _find_by_spelling(path, entries)
+            if found is None:
                 report.add("reader", Level.WARN, "reader.manifest-file-missing", location=path)
                 continue
-            report.add("reader", Level.FIX, "reader.manifest-case-matched", location=path)
+            resolved, how = found
+            if how == "letter case":
+                report.add("reader", Level.FIX, "reader.manifest-case-matched", location=path)
+            else:
+                report.add(
+                    "reader",
+                    Level.FIX,
+                    "reader.manifest-spelling-matched",
+                    values={"how": how, "found": resolved},
+                    location=path,
+                )
             path = resolved
         declared = (item.get("media-type") or "").strip()
         media_type = guess_media_type(path, declared)
@@ -744,6 +756,36 @@ def _find_case_insensitive(path: str, entries: dict[str, bytes]) -> str | None:
         if name.lower() == lowered:
             return name
     return None
+
+
+def _find_by_spelling(path: str, entries: dict[str, bytes]) -> tuple[str, str] | None:
+    """A file this reference could have meant, and what differed. Or nothing.
+
+    F-002's other half. Container paths are no longer percent-decoded, which is
+    right — the entry name is the name — and it leaves the books whose entry
+    names really *are* percent-encoded, plus the ones written on a filesystem
+    that stores `ł` decomposed while the document spells it composed. Neither is
+    a rare accident: one is a habit of two well-known tools, the other is macOS.
+
+    So the reference is looked up under the other spellings, and one is accepted
+    **only because the archive holds a file under it**. That is evidence, not a
+    convention: nothing here decides that `a%23b` and `a#b` are the same file —
+    it decides that this book contains exactly one of them and the reference
+    plainly meant that one.
+    """
+    if path in entries:
+        return path, "exact"
+    for candidate in ocf.spellings(path):
+        if candidate in entries:
+            if unquote(candidate) == unquote(path) and candidate != path:
+                how = "percent-encoding"
+            elif unicodedata.normalize("NFC", candidate) == unicodedata.normalize("NFC", path):
+                how = "Unicode normalisation"
+            else:  # pragma: no cover - `spellings` produces no other kind today
+                how = "spelling"
+            return candidate, how
+    found = _find_case_insensitive(path, entries)
+    return (found, "letter case") if found else None
 
 
 def _parse_spine(

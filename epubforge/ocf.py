@@ -25,7 +25,7 @@ from __future__ import annotations
 import posixpath
 import unicodedata
 from dataclasses import dataclass, field
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 
 @dataclass(frozen=True)
@@ -71,11 +71,25 @@ def canonical(raw: str) -> Name:
         name = name[2:].lstrip("/")
         changes.append("drive letter")
 
-    if "%" in name:
-        decoded = unquote(name)
-        if decoded != name:
-            name = decoded
-            changes.append("percent-encoding")
+    # Deliberately *not* percent-decoded, and this is the audit's F-002.
+    #
+    # A ZIP entry name is a name. An `href` is a URL, and the two are different
+    # kinds of string that this program held in the same `str`. Decoding the
+    # entry name changed the identity of the file:
+    #
+    #     a%23b.xhtml   ->  a#b.xhtml      two different files, one path
+    #     a%2Fb.xhtml   ->  a/b.xhtml      a file moved into a directory
+    #
+    # Both sides were decoding, which is why it looked like it worked: the href
+    # side decodes correctly — `a%2523b.xhtml` is how a URL says `a%23b.xhtml` —
+    # and the two wrongs cancelled for the common case and collided for the rest.
+    # Measured before the fix: a correctly encoded href to a file genuinely named
+    # `a%23b.xhtml` resolved to `a#b.xhtml` and found nothing.
+    #
+    # Archives whose entry names really are percent-encoded do exist, and they
+    # are not abandoned: `spellings()` below offers the alternatives, and the
+    # reader accepts one only when the archive actually holds a file under it.
+    # That is a lookup against evidence rather than a decoding on principle.
 
     segments = [segment for segment in name.split("/") if segment not in ("", ".")]
     if len(segments) != len([s for s in name.split("/") if s != ""]):
@@ -107,6 +121,33 @@ def canonical(raw: str) -> Name:
         changes.append("parent-directory segments")
 
     return Name(raw=raw, path=posixpath.join(*resolved), changes=tuple(changes))
+
+
+def spellings(path: str) -> list[str]:
+    """Other ways the same file could be written, most likely first.
+
+    For *lookup only*. A reference that does not match any entry may still have
+    meant one of these — an archive that percent-encoded its own entry names, a
+    book written on a Mac where the filesystem stores `ł` decomposed and the
+    document spells it composed. Each candidate is offered to the caller, which
+    accepts one only if the archive holds a file under it; nothing here decides
+    that two names *are* the same file, only that they might be, and the archive
+    settles it.
+    """
+    candidates = [
+        unquote(path),
+        quote(path, safe="/"),
+        unicodedata.normalize("NFC", path),
+        unicodedata.normalize("NFD", path),
+        unquote(unicodedata.normalize("NFC", path)),
+    ]
+    seen = {path}
+    ordered: list[str] = []
+    for candidate in candidates:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            ordered.append(candidate)
+    return ordered
 
 
 @dataclass

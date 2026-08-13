@@ -101,7 +101,11 @@ class TestCanonicalNames:
             ("C:/OEBPS/a.xhtml", "OEBPS/a.xhtml", "drive letter"),
             ("OEBPS/./a.xhtml", "OEBPS/a.xhtml", "current-directory"),
             ("OEBPS/sub/../a.xhtml", "OEBPS/a.xhtml", "parent-directory"),
-            ("OEBPS/a%20b.xhtml", "OEBPS/a b.xhtml", "percent-encoding"),
+            # Not decoded, and this line is F-002: a ZIP entry name is a name,
+            # an href is a URL, and folding the first into the second changed
+            # which file a path meant. The matrix lives in
+            # `tests/test_typed_paths.py`.
+            ("OEBPS/a%20b.xhtml", "OEBPS/a%20b.xhtml", None),
             ("OEBPS/a.xhtml\0.exe", "OEBPS/a.xhtml", "null byte"),
         ],
     )
