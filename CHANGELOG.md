@@ -38,6 +38,113 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.21 — alpha — 2026-08-13
+
+Four more of the audit's findings, and a plan in the private notes with a clause
+that makes it checkable rather than remembered: every item names a command whose
+output decides whether it is done, and `tools/audyt-status.py` runs the lot. A
+position with no such command is open by definition, however much code was
+written for it. That rule exists because this project once announced a release
+that had not happened.
+
+### A moved file takes its references with it, or it is not moved
+
+**F-003.** A standalone `diagram.svg` referring to `../assets/pic.png` was moved
+to `images/` along with the picture and came out still saying
+`../assets/pic.png`. An `<image>` that does not load, inside a file EPUBCheck has
+no reason to open.
+
+Adding SVG to the carried-XML rewriter — both `href` spellings, plus `url()`
+inside the SVG's own `<style>` — closes the type somebody thought of. The rule
+underneath closes the ones nobody has: **a file whose references cannot be
+rewritten is not moved at all.** It stays where the publisher put it, which costs
+a tidy directory listing and keeps a book that works.
+
+Two corrections while writing it, both from the tests rather than from thinking.
+The loose reference scanner is *markup*-shaped — it knows `href`, `src`, `url()`,
+`@import` — so `fetch("../data/quiz.json")` matched nothing and a rule against
+moving files blind was blind to the commonest case of it; a second, cruder test
+asks whether a file's text contains another packaged file's name. And pinning the
+script was useless while the JSON it named still moved: what cannot be rewritten
+has to keep **both** sides of the sentence true.
+
+### A commit gate, so a book that makes no sense cannot become a file
+
+**F-006, second half.** 0.2.20 closed the read side. The write side had nothing:
+the archive verifier reads entry order, mimetype and CRCs — properties of a
+*ZIP* — and had no opinion about whether the book made sense. A spine entry
+naming a document a stage removed produced a technically perfect archive,
+published atomically. The writer even noticed that case and carried on, which is
+the same fail-open shape as the reader's skipped entry.
+
+`epubforge/invariants.py` checks what this program is responsible for: the
+reading order resolves and holds no document twice, the generated navigation and
+landmarks lead somewhere, fallback chains end and do not cycle, the cover exists.
+A violation blocks before `os.replace`.
+
+The scope is deliberately narrower than *everything must resolve*, and a test
+pins the line: a dead link inside a content document is usually the source's own,
+`preserve` keeps it on purpose and says so by name. Making that fatal would
+refuse a large fraction of real books for a defect they arrived with — the first
+draft of the read-side gate's mistake, repeated.
+
+The rule catalogue corrected the first design inside a minute. Nine invariant ids
+passed as a *variable* is exactly what `test_no_call_site_computes_its_identifier`
+forbids — it exists because a tagging pass once spliced one into a concatenation
+and two releases went out reporting `compat.appliedapple, kindle` — and their
+Polish translation was a copy of the English `{detail}`. Nine ids with one
+sentence between them were not nine rules; they were one rule with nine shapes,
+and the shapes belong in the values.
+
+### EPUBCheck 5.3.0, on evidence rather than on being newer
+
+**F-027.** Both versions were run over every book of the public corpus in two
+modes and returned the same messages — zero errors either side, no code present
+in one and absent in the other. A validator version is part of this product's
+semantics, which is why the corpus ledger records it per book.
+
+Dependencies gain upper bounds: `lxml` decides how a recovered document comes
+out, `cssutils` how a stylesheet is serialised, `Pillow` what a transcoded image
+is. These are **not** a lockfile and the comment beside them says so — what they
+buy is that a new major cannot land in a release without somebody choosing it.
+The honest record of what built a binary is taken when it is built, so the
+release workflow writes `build-manifest.txt` with the commit, the Python version,
+the EPUBCheck version and `pip freeze`, and attaches it beside the installer. An
+incident nobody can reproduce is an incident nobody can fix. A real lock with
+hashes has to be generated on the runner and is still open.
+
+### Every reserved `META-INF` file gets a decision instead of a skip
+
+**F-012.** One `startswith("META-INF/")` skipped the lot, and skipped is not a
+decision — it is the absence of one. A book carrying rights metadata or an
+organisation's signature came back without them and without a finding.
+
+`rights.xml` and `metadata.xml` are carried byte for byte: they say things about
+the publication this rebuild does not change and has no business editing.
+`container.xml` and `encryption.xml` are ours to write. A file nobody here
+recognises is carried rather than judged — the one thing worse than keeping it is
+deciding on its behalf that it did not matter.
+
+**Signatures are removed, and said out loud.** The owner's decision, taken after
+asking what the thing actually is. A signature is computed over exact bytes, and
+this program rewrites the package document even in the mode that leaves content
+byte for byte, so none can survive a rebuild and none can be re-made without the
+signer's private key. Keeping it is the one genuinely bad option: a tool that
+checks the signature reports not "unsigned" but *the signature does not match* —
+true, and reading as an accusation of tampering where there was a repair.
+`META-INF/manifest.xml` goes the same way, because ours would be wrong the moment
+anything is renamed and a stale inventory is worse than none.
+
+### Still open, and named
+
+F-019/F-020 (a resource budget: entry counts, XML depth, pixels × frames, a
+deadline), F-002 (ZIP names, OCF paths and URLs are all `str`), F-004 (HTML
+recovery lowercases `linearGradient` and drops a processing instruction), and
+F-017/F-028 (the fidelity harness — the beta condition, and the one thing 1544
+tests do not prove). Two owner decisions are recorded: multiple renditions get
+rebuilt individually rather than refused, and the fidelity harness comes in
+stages with screenshots second.
+
 ## 0.2.20 — alpha — 2026-08-11
 
 ### An outside audit, and nine of nine
