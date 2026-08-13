@@ -13,6 +13,7 @@ import posixpath
 import re
 import unicodedata
 import zipfile
+import zlib
 from dataclasses import dataclass
 from urllib.parse import unquote
 
@@ -72,6 +73,23 @@ _XML_PARSER = etree.XMLParser(recover=True, resolve_entities=False, huge_tree=Tr
 
 class EpubReadError(Exception):
     """Raised only when the archive cannot be opened at all."""
+
+
+def parse_xml(data: bytes | None):
+    """Parse *data*, or answer `None`. Never raises.
+
+    `recover=True` recovers from damage and not from absence: `fromstring(b"")`
+    raises `XMLSyntaxError` while every caller here was written against a `None`
+    return, so an empty entry escaped as an exception from `read_epub` and took
+    the batch with it. Found by the fuzz suite, in two different places, which
+    is why this is a function rather than a `try` at each of them.
+    """
+    if not data:
+        return None
+    try:
+        return etree.fromstring(data, _XML_PARSER)
+    except etree.XMLSyntaxError:
+        return None
 
 
 def lname(element) -> str:
@@ -297,8 +315,29 @@ def _read_archive(source: str, report: Report, budget: Budget | None = None) -> 
 
             try:
                 data = _read_bounded(archive, info)
-            except (RuntimeError, zipfile.BadZipFile, NotImplementedError, EOFError) as exc:
+            except (
+                RuntimeError,
+                zipfile.BadZipFile,
+                NotImplementedError,
+                EOFError,
+                zlib.error,
+                OSError,
+                ValueError,
+            ) as exc:
                 # Encrypted or unsupported-compression member; keep going.
+                #
+                # `zlib.error` was missing, and the fuzz suite found it in its
+                # first minute: one flipped bit inside a deflate stream and
+                # `rebuild` raised `Error -3 while decompressing data` at the
+                # caller. In a batch that is not one damaged book, it is the end
+                # of the batch — the same shape as F-026 on the writer side,
+                # which had a test and a rule id, while this side had neither.
+                #
+                # `OSError` and `ValueError` join it for the same reason rather
+                # than a different one: a truncated central directory and a
+                # nonsense header both arrive as one of those, and the whole
+                # point of this handler is that a damaged member is a finding
+                # and not an exception.
                 report.add(
                     "reader",
                     Level.ERROR,
@@ -434,7 +473,7 @@ def rootfiles(entries: dict[str, bytes]) -> list[Rendition]:
     container = entries.get("META-INF/container.xml")
     if not container:
         return []
-    root = etree.fromstring(container, _XML_PARSER)
+    root = parse_xml(container)
     if root is None:
         return []
     found: list[Rendition] = []
@@ -468,7 +507,7 @@ def manifest_paths(entries: dict[str, bytes], opf_path: str) -> set[str]:
     data = entries.get(opf_path)
     if not data:
         return set()
-    package = etree.fromstring(data, _XML_PARSER)
+    package = parse_xml(data)
     if package is None:
         return set()
     directory = posixpath.dirname(opf_path)
@@ -486,7 +525,7 @@ def manifest_paths(entries: dict[str, bytes], opf_path: str) -> set[str]:
 def _locate_opf(entries: dict[str, bytes], report: Report) -> str:
     container = entries.get("META-INF/container.xml")
     if container:
-        root = etree.fromstring(container, _XML_PARSER)
+        root = parse_xml(container)
         if root is not None:
             for rootfile in descendants(root, "rootfile"):
                 full_path = rootfile.get("full-path")
@@ -971,7 +1010,7 @@ def _parse_spine(
 
 
 def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoint], list[PageTarget]]:
-    root = etree.fromstring(data, _XML_PARSER)
+    root = parse_xml(data)
     if root is None:
         report.add("reader", Level.WARN, "reader.ncx-unparseable", location=ncx_path)
         return [], []
@@ -1023,7 +1062,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     entry is a label and a target either way, and the alternative to carrying
     them is deleting somebody's list of illustrations for want of a rule.
     """
-    root = etree.fromstring(data, _XML_PARSER)
+    root = parse_xml(data)
     if root is None:
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
         return [], [], [], []
@@ -1284,7 +1323,7 @@ def _parse_encryption(entries: dict[str, bytes], book: Book, report: Report) -> 
     data = entries.get("META-INF/encryption.xml")
     if not data:
         return
-    root = etree.fromstring(data, _XML_PARSER)
+    root = parse_xml(data)
     if root is None:
         report.add("reader", Level.WARN, "reader.encryption-unparseable")
         return
@@ -1380,7 +1419,7 @@ def read_epub(
     else:
         opf_path = _locate_opf(entries, report)
     opf_dir = posixpath.dirname(opf_path)
-    package = etree.fromstring(entries[opf_path], _XML_PARSER)
+    package = parse_xml(entries[opf_path])
     if package is None:
         raise EpubReadError(f"package document at {opf_path} is unparseable")
 
