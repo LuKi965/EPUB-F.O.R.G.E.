@@ -825,6 +825,7 @@ class ContentStage(Stage):
         source_path = resource.original_path or resource.path
         broken = 0
         lost_fragments = 0
+        kept_fragments = 0
         dangling: list[tuple[object, str]] = []
 
         def resolves(path: str, fragment: str) -> bool:
@@ -873,11 +874,29 @@ class ContentStage(Stage):
                     if not resolves(new_target, fragment):
                         # The file is there and the anchor is not — what a PDF
                         # conversion leaves behind when it writes a page-number
-                        # strip and only half the pages get an id. Keeping the
-                        # link and dropping the fragment lands the reader in the
-                        # right file instead of nowhere at all.
-                        fragment = ""
-                        lost_fragments += 1
+                        # strip and only half the pages get an id.
+                        #
+                        # Dropping the fragment was the answer here for a long
+                        # time, on the reasoning that the right file beats
+                        # nowhere at all. For a footnote it is not: measured, a
+                        # `noteref` to `przypisy.xhtml#fn-17` came out pointing
+                        # at `przypisy.xhtml`, so tapping footnote seventeen
+                        # lands on footnote one. That is not a broken link a
+                        # reader can see; it is a working link to the wrong
+                        # place, which is worse, and this tool called it a
+                        # repair.
+                        #
+                        # So the modes part company, as they do everywhere else.
+                        # `preserve` keeps what the source said: the fragment is
+                        # a statement about meaning and this program does not
+                        # know what it meant. `strict` is chosen by somebody who
+                        # wants the file to conform, and there the fragment
+                        # goes — reported either way, and never silently.
+                        if not ctx.policy.strict:
+                            kept_fragments += 1
+                        else:
+                            fragment = ""
+                            lost_fragments += 1
                 href = paths.relative(resource.path, new_target)
                 element.set(attribute, f"{href}#{fragment}" if fragment else href)
 
@@ -895,6 +914,14 @@ class ContentStage(Stage):
                 text = self._rewrite_css_urls(ctx, text, source_path, resource.path)
             style_element.text = text
 
+        if kept_fragments:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "xhtml.dead-fragment-kept",
+                values={"count": kept_fragments},
+                location=resource.path,
+            )
         if lost_fragments:
             self.note(
                 ctx,

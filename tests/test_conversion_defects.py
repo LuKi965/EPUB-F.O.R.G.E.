@@ -99,23 +99,60 @@ class TestAListItemIsOnlyNumberedInsideAnOrderedList:
 class TestALinkToAnAnchorNobodyDefines:
     """A PDF reflow writes a page-number strip and gives only some pages an id.
 
-    The file each link names is there; the anchor inside it is not. EPUBCheck
-    calls that an error, and it is one the reader cannot act on — so the
-    fragment goes and the link lands at the top of the right document.
+    The file each link names is there; the anchor inside it is not. This class
+    used to say the fragment simply goes, on the argument that the right file
+    beats nowhere at all — and the audit's F-010 overturned it with a case that
+    argument does not survive. A `noteref` to `przypisy.xhtml#fn-17` whose
+    fragment is dropped points at `przypisy.xhtml`, so tapping footnote
+    seventeen lands on footnote one: not a broken link a reader can see, but a
+    *working* link to the wrong place, produced by this tool and called a
+    repair.
+
+    So the modes part company, as they do everywhere else in this program.
+    `preserve` keeps what the publisher wrote, because a fragment is a
+    statement about meaning and nothing here knows what it meant. `strict` is
+    chosen by somebody who wants the file to conform, and there it goes. Both
+    say so in the report.
     """
 
-    def test_the_fragment_is_dropped_and_the_link_survives(self, tmp_path):
-        source = book(
-            tmp_path / "frag.epub",
-            body='<p><a href="nav.xhtml#nie-ma-takiej">strona 258</a></p>',
-        )
-        result = built(source, tmp_path)
+    @staticmethod
+    def two_documents(path) -> str:
+        """A chapter linking a footnote marker into a notes file that has other
+        notes but not this one — the shape the whole argument is about.
+
+        Deliberately not a link into the navigation: that document is
+        regenerated, so the source's fragment genuinely stops meaning anything
+        and dropping it there is right. Pointing this test at the nav is how its
+        first version passed while testing something else.
+        """
+        notes = PAGE.format(body='<aside id="fn-1">jeden</aside>', head="")
+        package = MODERN_OPF.format(title="Test", extra_metadata="").replace(
+            "</manifest>",
+            '<item id="notes" href="przypisy.xhtml" media-type="application/xhtml+xml"/></manifest>',
+        ).replace("</spine>", '<itemref idref="notes"/></spine>')
+        return write_zip(str(path), {
+            "META-INF/container.xml": CONTAINER.encode(),
+            "OEBPS/package.opf": package.encode(),
+            "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+            "OEBPS/chapter.xhtml": PAGE.format(
+                body='<p>Tekst<a href="przypisy.xhtml#fn-17" epub:type="noteref">17</a></p>',
+                head="",
+            ).encode(),
+            "OEBPS/przypisy.xhtml": notes.encode(),
+            "OEBPS/picture.png": png_bytes(),
+        })
+
+    def test_preserve_keeps_the_reference_the_publisher_wrote(self, tmp_path):
+        result = built(self.two_documents(tmp_path / "frag.epub"), tmp_path)
         chapter = chapter_of(result)
-        assert "#nie-ma-takiej" not in chapter
-        # The rebuild moves the navigation, so the path is repointed as usual;
-        # what matters is that a link still goes to it, without a fragment.
-        assert 'href="../nav.xhtml"' in chapter
-        assert "strona 258" in chapter
+        assert "#fn-17" in chapter, "footnote seventeen must not become footnote one"
+        assert "xhtml.dead-fragment-kept" in rules_of(result)
+
+    def test_strict_drops_it_and_the_link_still_reaches_the_file(self, tmp_path):
+        result = built(self.two_documents(tmp_path / "frag.epub"), tmp_path, mode="strict")
+        chapter = chapter_of(result)
+        assert "#fn-17" not in chapter
+        assert "przypisy.xhtml" in chapter
         assert "xhtml.dead-fragment-dropped" in rules_of(result)
 
     def test_an_anchor_that_exists_is_left_alone(self, tmp_path):

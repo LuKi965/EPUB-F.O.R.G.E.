@@ -105,8 +105,8 @@ class FontStage(Stage):
             self.note(ctx, Level.ERROR, "font.obfuscation-unkeyed")
             return
 
-        recovered = 0
-        for path, algorithm in book.encrypted.items():
+        recovered: list[str] = []
+        for path, algorithm in list(book.encrypted.items()):
             resource = book.get(path)
             if resource is None:
                 continue
@@ -125,10 +125,26 @@ class FontStage(Stage):
                 self.note(ctx, Level.ERROR, "font.deobfuscation-failed", location=path)
                 continue
             resource.data = plain
-            recovered += 1
+            recovered.append(path)
 
+        for path in recovered:
+            # Only what was actually recovered. This used to be
+            # `book.encrypted.clear()` on any success at all, and the audit
+            # found what that does to a book with two fonts and one bad key:
+            # the second stayed obfuscated, its declaration was wiped with the
+            # first's, and the output shipped scrambled bytes labelled
+            # `font/ttf`. Reproduced before it was fixed — the reader gets a
+            # font that loads and draws nothing.
+            book.encrypted.pop(path, None)
         if recovered:
-            # encryption.xml is never carried into the output, so the fonts must
-            # be plain by the time the writer runs.
-            book.encrypted.clear()
-            self.note(ctx, Level.FIX, "font.deobfuscated", values={"count": recovered})
+            self.note(ctx, Level.FIX, "font.deobfuscated", values={"count": len(recovered)})
+        if book.encrypted:
+            # Whatever is left is still scrambled, and the container has to say
+            # so or the book lies about itself. The writer rebuilds
+            # `encryption.xml` from this register.
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "font.obfuscation-declared",
+                values={"count": len(book.encrypted)},
+            )

@@ -529,6 +529,14 @@ class Book:
         if old_path in self.metadata.media_durations:
             self.metadata.media_durations[new_path] = self.metadata.media_durations.pop(old_path)
 
+        # The register of what is still encrypted is keyed by path like
+        # everything else here, and was the one map a move did not carry. It
+        # did not show while the register was always emptied — a stale key in a
+        # dictionary nothing reads is invisible. It shows the moment the
+        # register survives a rebuild, which is what F-007 makes it do.
+        if old_path in self.encrypted:
+            self.encrypted[new_path] = self.encrypted.pop(old_path)
+
         # Both are stored as paths precisely so that a move keeps them valid.
         for other in self.resources.values():
             if other.fallback == old_path:

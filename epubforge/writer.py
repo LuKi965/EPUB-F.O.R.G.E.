@@ -600,6 +600,37 @@ class ArchiveVerificationError(OSError):
     """
 
 
+
+def _encryption_xml(book: Book) -> str:
+    """Declare the resources this rebuild could not turn back into plain files.
+
+    Until 0.2.22 there was nothing to write here, because the font stage cleared
+    its whole register the moment *any* font was recovered. A book with two
+    fonts and one bad key came out with the second still scrambled, its
+    declaration gone with the first's, and `font/ttf` on the label — a font that
+    loads and draws nothing, in a container that says everything is fine.
+
+    Nothing is re-encrypted here and nothing could be. This says what is true of
+    the bytes as they stand.
+    """
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"',
+        '            xmlns:enc="http://www.w3.org/2001/04/xmlenc#">',
+    ]
+    for path in sorted(book.encrypted):
+        lines += [
+            "  <enc:EncryptedData>",
+            f'    <enc:EncryptionMethod Algorithm={quoteattr(book.encrypted[path])}/>',
+            "    <enc:CipherData>",
+            f"      <enc:CipherReference URI={quoteattr(path)}/>",
+            "    </enc:CipherData>",
+            "  </enc:EncryptedData>",
+        ]
+    lines.append("</encryption>")
+    return "\n".join(lines) + "\n"
+
+
 def _verify_container(path: str) -> None:
     """Read back what was just written and check it is an EPUB at all.
 
@@ -726,6 +757,15 @@ def _write_archive(book: Book, destination: str, opf_path: str, opf: str) -> Non
             _entry("META-INF/container.xml"),
             CONTAINER_XML.format(opf_path=escape(opf_path, {'"': "&quot;"})),
         )
+        # Whatever is still obfuscated has to be declared, or the book lies
+        # about itself: bytes that no reading system can use, wearing the media
+        # type of a font that works. Written from the model rather than carried,
+        # because the paths in it have been through a relayout.
+        if book.encrypted:
+            archive.writestr(
+                _entry("META-INF/encryption.xml"), _encryption_xml(book).encode("utf-8")
+            )
+
         # Reader-specific container entries, added only by a compatibility
         # profile. Written next to container.xml because that is where the
         # readers that look for them look.
