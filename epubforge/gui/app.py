@@ -544,12 +544,24 @@ class MainWindow(QMainWindow):
         preset = Policy.preset(self.mode_combo.currentData())
         self.gate_combo.setCurrentIndex(GATES.index(preset.validate_before_publish))
 
+    def _merge_copies(self) -> None:
+        """One good book out of two damaged in different places.
+
+        In the File menu rather than beside the rebuild, because it is not a
+        rebuild: it produces a source, and a source is what this program then
+        refuses or accepts on its own terms.
+        """
+        from .merge import MergeDialog
+
+        MergeDialog(self, self.palette_colors).exec()
+
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu(tr("menu.file"))
         for label, slot, shortcut in (
             (tr("toolbar.add"), self._choose_files, "Ctrl+O"),
             (tr("action.save"), self._save_report, "Ctrl+S"),
             (tr("action.save.batch"), self._save_batch_report, "Ctrl+Shift+S"),
+            (tr("menu.merge"), self._merge_copies, "Ctrl+M"),
             (tr("menu.quit"), self.close, "Ctrl+Q"),
         ):
             action = QAction(label, self)

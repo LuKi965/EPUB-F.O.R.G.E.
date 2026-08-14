@@ -177,6 +177,46 @@ PL: dict[str, str] = {
         "Gdy cokolwiek pójdzie nie tak, program i tak wraca do osobnego procesu "
         "i mówi w raporcie dlaczego."
     ),
+    "merge.title": "Scal dwie uszkodzone kopie",
+    "merge.intro": (
+        "Dwie kopie tej samej książki, każda zepsuta w innym miejscu — jedna "
+        "cała z nich. Każdy plik jest brany w całości, bajt w bajt, z tej "
+        "kopii, która oddaje go bez błędu. Nic nie jest rekonstruowane ani "
+        "uśredniane.\n\n"
+        "Pierwsza na liście jest tą naprawianą; reszta to dawcy. Nic nie zostanie "
+        "zapisane, dopóki nie zobaczysz planu i nie klikniesz „Zapisz”."
+    ),
+    "merge.add": "Dodaj kopie…",
+    "merge.remove": "Usuń z listy",
+    "merge.examine": "Zbadaj i pokaż plan",
+    "merge.output": "Zapisz jako:",
+    "merge.write": "Zapisz scaloną",
+    "merge.empty": "Dodaj co najmniej dwie kopie i kliknij „Zbadaj i pokaż plan”.",
+    "merge.needs.two": "Scalenie potrzebuje co najmniej dwóch kopii.",
+    "merge.refused": "Nie da się scalić: {reason}",
+    "merge.plan.header": "Plan — {count} wpisów, książka naprawiana: {first}",
+    "merge.plan.nothing": "(pierwsza kopia ma wszystko — nie ma czego naprawiać)",
+    "merge.plan.missing": "nie ma go w żadnej kopii",
+    "merge.plan.conflict": "kopie różnią się i obie są całe — nie wybieram za Ciebie",
+    "merge.plan.ready": "Gotowe do zapisania. Odzyskanych z innej kopii: {count}.",
+    "merge.plan.unusable": (
+        "Nic nie zostanie zapisane. Scalenie ma sens tylko wtedy, gdy każdy wpis "
+        "da się wziąć w całości z którejś kopii."
+    ),
+    "merge.plan.needs.output": "Wskaż jeszcze, gdzie zapisać wynik.",
+    "merge.written": "Zapisano {path} — {count} wpisów.",
+    "menu.merge": "Scal uszkodzone kopie…",
+    "diagnostics.health": "Czy te pliki są całe",
+    "diagnostics.health.tip": (
+        "Rozpakowuje każdy plik wewnątrz książki i mówi, których archiwum nie "
+        "oddaje. To jedyny sposób, żeby się tego dowiedzieć: spis zawartości "
+        "ZIP-a leży na końcu pliku i przerwane pobranie potrafi zostawić go "
+        "nienaruszonym, więc książka wygląda na kompletną, dopóki ktoś nie "
+        "spróbuje jej rozpakować.\n\n"
+        "Warto uruchomić w dniu zakupu. Uszkodzony plik naprawia się pobraniem "
+        "go ponownie — a to jest łatwe dzisiaj i bywa niemożliwe za dwa lata, "
+        "gdy tytuł zniknie ze sprzedaży."
+    ),
     "diagnostics.files": "Plik lub folder:",
     "diagnostics.mode": "Pytanie:",
     "diagnostics.inspect": "Co jest w tym pliku",
@@ -758,6 +798,46 @@ EN: dict[str, str] = {
         "Uncheck it to compare against the behaviour from before this change. "
         "If anything goes wrong the program falls back to a separate process "
         "anyway, and says in the report why."
+    ),
+    "merge.title": "Merge two damaged copies",
+    "merge.intro": (
+        "Two copies of one book, each broken somewhere the other is not, and "
+        "one whole book out of them. Every file is taken entire, byte for byte, "
+        "from a copy that gives it up cleanly. Nothing is reconstructed and "
+        "nothing is averaged.\n\n"
+        "The first in the list is the one being repaired; the rest are donors. "
+        "Nothing is written until you have seen the plan and pressed Write."
+    ),
+    "merge.add": "Add copies…",
+    "merge.remove": "Remove from list",
+    "merge.examine": "Examine and show the plan",
+    "merge.output": "Write to:",
+    "merge.write": "Write the merged book",
+    "merge.empty": "Add at least two copies and press \"Examine and show the plan\".",
+    "merge.needs.two": "A merge needs at least two copies.",
+    "merge.refused": "Cannot merge: {reason}",
+    "merge.plan.header": "Plan — {count} entries, repairing: {first}",
+    "merge.plan.nothing": "(the first copy has everything — nothing to repair)",
+    "merge.plan.missing": "no copy has it",
+    "merge.plan.conflict": "the copies differ and both are intact — not choosing for you",
+    "merge.plan.ready": "Ready to write. Recovered from another copy: {count}.",
+    "merge.plan.unusable": (
+        "Nothing will be written. A merge only makes sense when every entry can "
+        "be taken whole from one of the copies."
+    ),
+    "merge.plan.needs.output": "Say where to write the result.",
+    "merge.written": "Wrote {path} — {count} entries.",
+    "menu.merge": "Merge damaged copies…",
+    "diagnostics.health": "Are these files whole",
+    "diagnostics.health.tip": (
+        "Unpacks every file inside the book and says which ones the archive "
+        "will not give up. It is the only way to find out: a ZIP's table of "
+        "contents sits at the end of the file, and an interrupted download can "
+        "leave it perfectly intact — so the book looks complete until somebody "
+        "tries to unpack it.\n\n"
+        "Worth running on the day the books arrive. A damaged file is repaired "
+        "by downloading it again, which is easy today and sometimes impossible "
+        "in two years, when the title has left the shop."
     ),
     "diagnostics.files": "File or folder:",
     "diagnostics.mode": "Question:",

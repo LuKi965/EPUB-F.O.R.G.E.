@@ -380,6 +380,14 @@ class DiagnosticsPanel(Panel):
         self.fidelity_choice.setToolTip(tr("diagnostics.fidelity.tip"))
         self.layout_.addWidget(self.fidelity_choice)
 
+        # The fourth question, and the one that has to be asked before the
+        # others are worth asking: is the file even whole. A source this program
+        # cannot read in full stops the rebuild outright — so "why did it
+        # refuse" needs an answer that is not another refusal.
+        self.health_choice = QRadioButton(tr("diagnostics.health"))
+        self.health_choice.setToolTip(tr("diagnostics.health.tip"))
+        self.layout_.addWidget(self.health_choice)
+
         # Reachable from the window, because everything in this program is —
         # including the switch that turns an optimisation off. "Is it the new
         # fast path?" is the first question worth asking about a verdict that
@@ -390,7 +398,8 @@ class DiagnosticsPanel(Panel):
         self.shared_validator.setChecked(True)
         self.layout_.addWidget(self.shared_validator)
 
-        for widget in (self.inspect_choice, self.validate_choice, self.fidelity_choice):
+        for widget in (self.inspect_choice, self.validate_choice, self.fidelity_choice,
+                       self.health_choice):
             widget.toggled.connect(lambda _checked: self.invalidate())
         self.folder.textChanged.connect(lambda _text: self.invalidate())
 
@@ -442,6 +451,8 @@ class DiagnosticsPanel(Panel):
             answer = self._describe
         elif self.validate_choice.isChecked():
             answer = self._validate
+        elif self.health_choice.isChecked():
+            answer = self._health
         else:
             answer = self._fidelity
 
@@ -506,6 +517,27 @@ class DiagnosticsPanel(Panel):
                 return ["  nie udało się przebudować, więc nie ma czego porównać"]
             measured = fidelity.compare(book, destination)
             return [f"  {check}" for check in measured.checks]
+
+    @staticmethod
+    def _health(book: str) -> list[str]:
+        """Every entry, actually decompressed. See `epubforge.repair`."""
+        from .. import repair
+
+        health = repair.inspect(book)
+        if health.unreadable:
+            return [f"  nie da się otworzyć jako archiwum: {health.unreadable}"]
+        if not health.damaged:
+            return [f"  całe — {len(health.entries)} plików w środku, wszystkie czytelne"]
+        lines = [
+            f"  USZKODZONE — {len(health.damaged)} z {len(health.entries)} plików "
+            f"nie da się rozpakować:"
+        ]
+        lines.extend(f"    {entry.name} — {entry.reason}" for entry in health.damaged)
+        lines.append(
+            "    Naprawa: pobierz książkę ponownie. Jeżeli masz drugą, inaczej "
+            "uszkodzoną kopię, scal je: epubforge merge kopia-a.epub kopia-b.epub -o cala.epub"
+        )
+        return lines
 
     @staticmethod
     def _validate(book: str) -> list[str]:

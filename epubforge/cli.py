@@ -424,6 +424,104 @@ def command_check(args: argparse.Namespace) -> int:
     return exit_code
 
 
+
+def command_health(args: argparse.Namespace) -> int:
+    """Is this file whole — asked of the bytes, not of the archive's own claims.
+
+    A ZIP's central directory sits at the end of the file and lists what the
+    archive says it holds. A truncated download can leave that list perfectly
+    intact, so the only way to learn that an entry is gone is to decompress it.
+    That is what this does, which is why it costs about what reading the book
+    costs and why it is worth running on the day the books arrive rather than
+    two years later.
+    """
+    from . import repair
+
+    console = Console()
+    worst = EXIT_OK
+    for path in collect_inputs(args.inputs):
+        health = repair.inspect(path)
+        if health.healthy:
+            console.print(f"  [green]całe[/] {health.summary()}")
+            continue
+        worst = _worse(worst, EXIT_NOT_WRITTEN)
+        console.print(f"  [bold red]uszkodzone[/] {health.summary()}")
+        if health.unreadable:
+            console.print(f"      {health.unreadable}")
+        for entry in health.damaged:
+            console.print(f"      {entry.name} — {entry.reason}")
+    if worst != EXIT_OK:
+        console.print(
+            "\n[dim]Uszkodzony plik naprawia się pobraniem go ponownie. "
+            "Jeżeli masz dwie różne kopie, spróbuj `epubforge merge`.[/dim]"
+        )
+    return worst
+
+
+def command_merge(args: argparse.Namespace) -> int:
+    """One good book out of two damaged in different places.
+
+    The only operation in this program that recovers anything rather than
+    lowering a standard. Every entry is taken whole, byte for byte, from a copy
+    that has it whole; nothing is reconstructed, nothing is averaged, and where
+    two intact copies disagree it refuses rather than choosing.
+    """
+    from . import repair
+
+    console = Console()
+    plan = repair.plan_merge(args.inputs)
+    if plan.refused:
+        console.print(f"[bold red]nie da się scalić[/]: {plan.refused}")
+        return EXIT_NOT_WRITTEN
+
+    console.print(f"  wpisów do wzięcia: {len(plan.take)}")
+    from_others = {
+        name: source for name, source in plan.take.items() if source != plan.first
+    }
+    for name, source in sorted(from_others.items()):
+        console.print(f"    [green]{name}[/] ← {os.path.basename(source)}")
+    for name in plan.still_missing:
+        console.print(f"    [bold red]{name}[/] — nie ma go w żadnej kopii")
+    for name in plan.conflicts:
+        console.print(f"    [yellow]{name}[/] — kopie różnią się i obie są całe")
+
+    if not plan.usable:
+        console.print(
+            "\n[bold red]nic nie zapisano.[/] Scalenie ma sens tylko wtedy, gdy "
+            "każdy wpis da się wziąć w całości z którejś kopii."
+        )
+        return EXIT_NOT_WRITTEN
+    if not plan.repairs:
+        console.print("\n[dim]pierwsza kopia ma wszystko — nie ma czego naprawiać[/dim]")
+
+    # The person sees the plan before anything is written. `--yes` is for a
+    # script that has already seen one; there is no default that writes without
+    # somebody having looked.
+    if not args.yes and not _confirmed(console):
+        console.print("przerwane")
+        return EXIT_NOT_WRITTEN
+
+    result = repair.merge(args.inputs, args.output, plan)
+    if not result.output_path:
+        console.print(f"[bold red]nie zapisano[/]: {plan.refused or 'plan nie do użycia'}")
+        return EXIT_NOT_WRITTEN
+    console.print(
+        f"  [bold green]zapisano[/] {result.output_path} "
+        f"({result.written} wpisów, {plan.repairs} z drugiej kopii)"
+    )
+    return EXIT_OK
+
+
+def _confirmed(console: Console) -> bool:
+    """Ask, unless nobody is there to answer."""
+    if not sys.stdin.isatty():
+        return False
+    try:
+        return input("zapisać scaloną książkę? [t/N] ").strip().lower() in ("t", "tak", "y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        return False
+
+
 def command_fidelity(args: argparse.Namespace) -> int:
     """Did the rebuild keep the book — asked of real files, not of a fixture.
 
@@ -912,6 +1010,22 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("inputs", nargs="+")
     inspect.add_argument("-v", "--verbose", action="store_true")
     inspect.set_defaults(func=command_inspect)
+
+    health = subparsers.add_parser(
+        "health",
+        help="check whether books are whole, by reading every entry",
+    )
+    health.add_argument("inputs", nargs="+", help="EPUB files or directories")
+    health.set_defaults(func=command_health)
+
+    merge_parser = subparsers.add_parser(
+        "merge",
+        help="one good book out of two copies damaged in different places",
+    )
+    merge_parser.add_argument("inputs", nargs="+", help="two or more copies; the first is the one being repaired")
+    merge_parser.add_argument("-o", "--output", required=True, help="where to write the merged book")
+    merge_parser.add_argument("--yes", action="store_true", help="skip the confirmation, for a script that has already seen the plan")
+    merge_parser.set_defaults(func=command_merge)
 
     check = subparsers.add_parser("check", help="run EPUBCheck against existing files")
     check.add_argument("inputs", nargs="+")
