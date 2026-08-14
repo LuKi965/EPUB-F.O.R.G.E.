@@ -207,6 +207,20 @@ PL: dict[str, str] = {
     "merge.plan.needs.output": "Wskaż jeszcze, gdzie zapisać wynik.",
     "merge.written": "Zapisano {path} — {count} wpisów.",
     "menu.merge": "Scal uszkodzone kopie…",
+    "diagnostics.render": "Czy po przebudowie wygląda tak samo",
+    "diagnostics.render.tip": (
+        "Rysuje strony książki przed i po przebudowie i porównuje obrazy. To "
+        "jedyna kontrola w tym programie, która patrzy na *wygląd* — wszystkie "
+        "pozostałe czytają plik.\n\n"
+        "Za usterkę uznawana jest tylko **strata**: strona, która wyszła pusta, "
+        "albo taka, na której treści jest wyraźnie mniej niż w źródle. Zmiana, "
+        "po której treści jest tyle samo albo więcej, jest wypisana i nie liczy "
+        "się jako błąd — przebudowa, która dopasowuje za dużą okładkę do strony, "
+        "zmienia jedną piątą pikseli i naprawia książkę.\n\n"
+        "Potrzebuje przeglądarki opartej na Chromium. Nie jest instalowana razem "
+        "z programem, bo przebudowa książki niczego nie rysuje; jeśli jej nie ma, "
+        "ta kontrola powie, czego szuka i jak ją wskazać."
+    ),
     "diagnostics.health": "Czy te pliki są całe",
     "diagnostics.health.tip": (
         "Rozpakowuje każdy plik wewnątrz książki i mówi, których archiwum nie "
@@ -911,6 +925,20 @@ EN: dict[str, str] = {
     "merge.plan.needs.output": "Say where to write the result.",
     "merge.written": "Wrote {path} — {count} entries.",
     "menu.merge": "Merge damaged copies…",
+    "diagnostics.render": "Does it still look the same after rebuilding",
+    "diagnostics.render.tip": (
+        "Draws the book's pages before and after the rebuild and compares the "
+        "images. It is the only check in this program that looks at how a page "
+        "*looks* — every other one reads the file.\n\n"
+        "Only **loss** counts as a defect: a page that came out blank, or one "
+        "with materially less on it than the source had. A change that leaves as "
+        "much or more is listed and held against nobody — a rebuild that fits an "
+        "oversized cover to the page changes a fifth of the pixels and repairs "
+        "the book.\n\n"
+        "Needs a Chromium-based browser. It is not installed with the program, "
+        "because rebuilding a book draws nothing; if there is none, this check "
+        "says what it looked for and how to point it at one."
+    ),
     "diagnostics.health": "Are these files whole",
     "diagnostics.health.tip": (
         "Unpacks every file inside the book and says which ones the archive "

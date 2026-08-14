@@ -712,6 +712,48 @@ def command_corpus(args: argparse.Namespace) -> int:
     return 0 if all(r.ok for r in results) else 2
 
 
+def command_render_check(args: argparse.Namespace) -> int:
+    """F-028: does the rebuilt book still look like the one that went in?
+
+    The only check in this program that draws a page. It needs a browser the
+    program does not ship, and when there is none it says which browsers count
+    and how to point at one — a tool that answers "no" without saying what would
+    make it "yes" is a tool somebody has to go and read the source of.
+    """
+    import tempfile
+
+    from . import render, render_fidelity
+    from .pipeline import rebuild
+    from .policy import Policy
+
+    console = Console()
+    if render.find_renderer() is None:
+        console.print(f"[yellow]{render.why_not()}[/]")
+        return 3
+
+    worst = 0
+    for book in args.inputs:
+        console.print(f"[bold]{os.path.basename(book)}[/]")
+        with tempfile.TemporaryDirectory() as room:
+            destination = os.path.join(room, os.path.basename(book))
+            result = rebuild(book, destination, Policy.preset("preserve"))
+            if not result.status.wrote_a_file:
+                console.print("  [red]nie udało się przebudować[/]")
+                worst = max(worst, 2)
+                continue
+            sample = render_fidelity.SAMPLE if args.sample is None else args.sample
+            measured = render_fidelity.compare(book, destination, sample=sample)
+        console.print(f"  {measured.summary()}")
+        for page in measured.pages:
+            if page.problems:
+                console.print(f"  [red]![/] {page}")
+            elif page.notes:
+                console.print(f"  [dim]·[/] {page}")
+        if not measured.ok:
+            worst = max(worst, 2)
+    return worst
+
+
 def command_fixtures(args: argparse.Namespace) -> int:
     """Say which real books the suite is waiting for, and take one when offered.
 
@@ -1136,6 +1178,20 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="run EPUBCheck against existing files")
     check.add_argument("inputs", nargs="+")
     check.set_defaults(func=command_check)
+
+    render_command = subparsers.add_parser(
+        "render-check",
+        help="rebuild a book and compare the two as pictures, page by page",
+    )
+    render_command.add_argument("inputs", nargs="+", help="EPUB files")
+    render_command.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        metavar="N",
+        help="how many spine documents to draw (0 = all; default: 12)",
+    )
+    render_command.set_defaults(func=command_render_check)
 
     fidelity_command = subparsers.add_parser(
         "fidelity",

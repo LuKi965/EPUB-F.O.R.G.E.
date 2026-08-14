@@ -389,6 +389,14 @@ class DiagnosticsPanel(Panel):
         self.health_choice.setToolTip(tr("diagnostics.health.tip"))
         self.layout_.addWidget(self.health_choice)
 
+        # F-028, and the one question here that needs something the program does
+        # not ship. It renders both books and compares the pictures; without a
+        # browser it says so in sentences rather than being a greyed-out button
+        # nobody can find out the meaning of.
+        self.render_choice = QRadioButton(tr("diagnostics.render"))
+        self.render_choice.setToolTip(tr("diagnostics.render.tip"))
+        self.layout_.addWidget(self.render_choice)
+
         # Reachable from the window, because everything in this program is —
         # including the switch that turns an optimisation off. "Is it the new
         # fast path?" is the first question worth asking about a verdict that
@@ -400,7 +408,7 @@ class DiagnosticsPanel(Panel):
         self.layout_.addWidget(self.shared_validator)
 
         for widget in (self.inspect_choice, self.validate_choice, self.fidelity_choice,
-                       self.health_choice):
+                       self.health_choice, self.render_choice):
             widget.toggled.connect(lambda _checked: self.invalidate())
         self.folder.textChanged.connect(lambda _text: self.invalidate())
 
@@ -454,6 +462,8 @@ class DiagnosticsPanel(Panel):
             answer = self._validate
         elif self.health_choice.isChecked():
             answer = self._health
+        elif self.render_choice.isChecked():
+            answer = self._render
         else:
             answer = self._fidelity
 
@@ -501,6 +511,35 @@ class DiagnosticsPanel(Panel):
             ("pamięć", str(memory.check(book))),
         ]
         return [f"  {name:<20} {value}" for name, value in rows]
+
+    @staticmethod
+    def _render(book: str) -> list[str]:
+        """Rebuild it and compare the two books as *pictures*.
+
+        F-028. Everything else in this panel reads the file; this one draws it.
+        The answer when no browser is installed is a paragraph saying which
+        browsers count and how to point at one, because "this needs something
+        you do not have" is an answer and a disabled control is not.
+        """
+        import tempfile
+
+        from .. import render, render_fidelity
+        from ..pipeline import rebuild
+        from ..policy import Policy
+
+        if render.find_renderer() is None:
+            return ["  " + line for line in render.why_not().splitlines()]
+        with tempfile.TemporaryDirectory() as room:
+            destination = os.path.join(room, os.path.basename(book))
+            result = rebuild(book, destination, Policy.preset("preserve"))
+            if not result.status.wrote_a_file:
+                return ["  nie udało się przebudować, więc nie ma czego porównać"]
+            measured = render_fidelity.compare(book, destination)
+            lines = [f"  {measured.summary()}"]
+            for page in measured.pages:
+                mark = "!!" if page.problems else ("··" if page.notes else "ok")
+                lines.append(f"  {mark} {page}")
+            return lines
 
     @staticmethod
     def _fidelity(book: str) -> list[str]:

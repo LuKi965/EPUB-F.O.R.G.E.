@@ -246,6 +246,41 @@ class TestTheEdgeCasesAreReachableFromTheWindow:
         assert not panel.busy
 
 
+class TestTheRenderCheckIsInTheWindow:
+    """F-028. The one check that needs something the program does not ship, and
+    therefore the one most likely to become a control nobody can explain."""
+
+    def panel(self, window):
+        from epubforge.gui.tabs import DiagnosticsPanel
+
+        for index in range(window.tabs.count()):
+            if isinstance(window.tabs.widget(index), DiagnosticsPanel):
+                return window.tabs.widget(index)
+        raise AssertionError("no diagnostics panel")
+
+    def test_the_choice_is_there_and_explains_itself(self, window):
+        panel = self.panel(window)
+        assert panel.render_choice.text()
+        assert len(panel.render_choice.toolTip()) > 200
+
+    def test_the_tooltip_says_what_counts_as_a_defect(self, window):
+        """The rule the real books forced: only loss counts. Somebody reading
+        this control needs to know that before they run it on a book whose cover
+        this program is about to repair."""
+        tip = self.panel(window).render_choice.toolTip()
+        assert "strata" in tip.lower() or "loss" in tip.lower()
+
+    def test_with_no_browser_it_says_what_is_missing(self, window, tmp_path, monkeypatch):
+        from epubforge import render
+        from epubforge.gui.tabs import DiagnosticsPanel
+
+        monkeypatch.setattr(render, "find_renderer", lambda: None)
+        lines = DiagnosticsPanel._render(str(tmp_path / "nie-ma.epub"))
+        said = " ".join(lines)
+        assert render.ENV_BROWSER in said
+        assert "Chromium" in said
+
+
 class TestTheMemoryGuardIsInTheWindow:
     """EF-020. The build most likely to meet a machine that runs out is this
     one: a batch of books, in a window, on a laptop, on Windows — where the
