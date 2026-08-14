@@ -882,8 +882,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "delete files nothing appears to reference. Off by default: the "
-            "reference graph does not yet see srcset, <picture> or references "
-            "made from inside an SVG, so a file still in use can be deleted"
+            "reference graph is better than it was and it is not complete — a "
+            "filename a script builds from two strings, a sheet reached only "
+            "through a media query — so a file still in use can be deleted"
         ),
     )
     build.add_argument("--keep-layout", action="store_true", help="keep original filenames and folders")

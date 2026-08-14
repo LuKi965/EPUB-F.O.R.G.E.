@@ -31,6 +31,18 @@ XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
 #: Attributes whose values are references to other packaged resources.
 REFERENCE_ATTRS = ("href", "src", "poster", "data", f"{{{XLINK_NS}}}href")
 
+#: Attributes holding a *list* of references, which the rule above cannot read.
+#:
+#: `srcset="a.png 1x, a2x.png 2x"` matches none of `REFERENCE_ATTRS`, so the
+#: reference rewriting never touched it: the relayout moved the files, `src` was
+#: repointed at the new path and `srcset` was left naming the old one. Every
+#: high-resolution image in every book with a `srcset` came out of this program
+#: pointing at nothing — silently, in all three modes, and reported as a clean
+#: rebuild. Found while asking why strict could not publish the gallery fixture
+#: after misdirected references stopped being treated as dead ones: the two
+#: errors it had left were both `srcset`, and neither was new.
+REFERENCE_LISTS = ("srcset",)
+
 #: Elements removed outright — they carry no content and no EPUB 3 equivalent.
 DEAD_ELEMENTS = {"basefont", "applet", "blink", "marquee", "nobr", "spacer", "layer", "bgsound"}
 
@@ -263,6 +275,70 @@ def _rules_naming(css_text: str, classes: set[str]) -> list[str]:
 def _normal_selector(selector: str) -> str:
     return re.sub(r"\s*,\s*", ",", " ".join(selector.split()))
 
+
+
+
+def _one_candidate_named(ctx, wanted: str) -> str | None:
+    """The rebuilt path of the only resource whose file name matches *wanted*.
+
+    `None` when there is none and when there are several, and those two answers
+    are the same for a reason: this exists to turn a misdirected reference into
+    a derivation, and a derivation with two answers is a guess. A book with
+    `images/logo.png` and `chapters/logo.png` gets no repair from here.
+
+    Compared case-insensitively, because the converters that produce this defect
+    are the same ones that change a file's case on the way. The comparison is
+    only ever used to *find* a candidate; the path written back is the real one.
+    """
+    import posixpath
+
+    base = posixpath.basename(wanted).lower()
+    if not base:
+        return None
+    matches = {
+        new
+        for old, new in ctx.path_map.items()
+        if posixpath.basename(old).lower() == base
+    }
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
+def _split_srcset(value: str) -> list[tuple[str, str]]:
+    """Split a `srcset` into its `(url, descriptor)` candidates.
+
+    Follows HTML's own algorithm rather than `split(",")`, because a URL is
+    allowed to contain a comma and the naive split cuts one reference in half:
+    `a,b.png 2x` is one candidate. HTML resolves the ambiguity by position — a
+    comma ends a candidate only after the URL has ended, and a URL ends at the
+    first space — so this reads the same way: take the run of non-space as the
+    URL, then whatever runs to the next comma as the descriptor.
+    """
+    items: list[tuple[str, str]] = []
+    index, end = 0, len(value)
+    while index < end:
+        while index < end and (value[index].isspace() or value[index] == ","):
+            index += 1
+        if index >= end:
+            break
+        start = index
+        while index < end and not value[index].isspace():
+            index += 1
+        url = value[start:index]
+        if url.endswith(","):
+            # A comma glued to the URL ends the candidate and leaves no
+            # descriptor. `a.png,b.png 2x` is two candidates, the first bare.
+            items.append((url.rstrip(","), ""))
+            continue
+        descriptor_start = index
+        while index < end and value[index] != ",":
+            index += 1
+        items.append((url, value[descriptor_start:index].strip()))
+        index += 1
+    return items
+
+
+def _join_srcset(items: list[tuple[str, str]]) -> str:
+    return ", ".join(url if not descriptor else f"{url} {descriptor}" for url, descriptor in items)
 
 
 def _split_top_level(value: str) -> list[str]:
@@ -974,10 +1050,15 @@ class ContentStage(Stage):
         """Repoint every href/src at the resource's new location."""
         source_path = resource.original_path or resource.path
         broken = 0
+        misdirected = 0
         unresolved = 0
         repointed = 0
         sent_to_document = 0
-        dangling: list[tuple[object, str]] = []
+        #: `(element, attribute, dead)`. `dead` is empty for a scalar attribute,
+        #: where the whole value is the dead reference; for a list attribute it
+        #: names the candidates that are dead, since the rest of the list may be
+        #: perfectly good and must survive.
+        dangling: list[tuple[object, str, tuple[str, ...]]] = []
         examples: list[str] = []
 
         def resolves(path: str, fragment: str) -> bool:
@@ -1061,8 +1142,35 @@ class ContentStage(Stage):
                     continue
                 new_target = ctx.path_map.get(target)
                 if new_target is None:
+                    # Before this counts as dead: is the thing it names actually
+                    # in the book, under another path?
+                    #
+                    # The owner asked how this program knows a reference is dead
+                    # rather than merely misdirected, "and the content is
+                    # physically in the document". It did not know. It asked one
+                    # question — does this path resolve to a resource — and a
+                    # path miss is not evidence that the target is absent. A
+                    # link written `images/a.png` from a document in `text/`,
+                    # where the picture sits at `images/a.png` from the *root*,
+                    # is one missing `../` and a picture the reader can see.
+                    #
+                    # Measured before writing this, over twenty books of both
+                    # corpora and the owner's shelf: three dangling references
+                    # in total, and **all three** had a file of that name
+                    # elsewhere in the same book. Strict was unlinking pictures
+                    # that were right there.
+                    #
+                    # Repointed only where there is exactly one candidate, which
+                    # makes it a derivation rather than a guess. Two candidates
+                    # is a question, and a question this cannot answer is left
+                    # as it was — the same rule F-010 settled for fragments.
+                    relocated = _one_candidate_named(ctx, target)
+                    if relocated is not None:
+                        element.set(attribute, paths.relative(resource.path, relocated))
+                        misdirected += 1
+                        continue
                     broken += 1
-                    dangling.append((element, attribute))
+                    dangling.append((element, attribute, ()))
                     continue
                 fragment = value.partition("#")[2]
                 if fragment:
@@ -1103,6 +1211,40 @@ class ContentStage(Stage):
                             sent_to_document += 1
                 href = paths.relative(resource.path, new_target)
                 element.set(attribute, f"{href}#{fragment}" if fragment else href)
+
+            for attribute in REFERENCE_LISTS:
+                value = element.get(attribute)
+                if not value or not value.strip():
+                    continue
+                rewritten: list[tuple[str, str]] = []
+                dead: list[str] = []
+                for candidate, descriptor in _split_srcset(value):
+                    if paths.is_remote(candidate) or candidate.startswith("#"):
+                        rewritten.append((candidate, descriptor))
+                        continue
+                    target = paths.resolve(source_path, candidate)
+                    if target is None:
+                        rewritten.append((candidate, descriptor))
+                        continue
+                    new_target = ctx.path_map.get(target)
+                    if new_target is None:
+                        relocated = _one_candidate_named(ctx, target)
+                        if relocated is None:
+                            # Kept in the list for now. Whether it survives is
+                            # the mode's decision, taken below with every other
+                            # dead reference, not this loop's.
+                            rewritten.append((candidate, descriptor))
+                            dead.append(candidate)
+                            continue
+                        new_target = relocated
+                        misdirected += 1
+                    rewritten.append((paths.relative(resource.path, new_target), descriptor))
+                new_value = _join_srcset(rewritten)
+                if new_value != value:
+                    element.set(attribute, new_value)
+                if dead:
+                    broken += len(dead)
+                    dangling.append((element, attribute, tuple(dead)))
 
             style = element.get("style")
             if style and "url(" in style:
@@ -1163,6 +1305,25 @@ class ContentStage(Stage):
                 location=resource.path,
             )
 
+        if misdirected:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.reference-relocated",
+                values={"count": misdirected},
+                location=resource.path,
+            )
+            self.changed(
+                ctx,
+                Action.REPLACED,
+                resource.path,
+                before=f"{misdirected} reference(s) whose path named nothing",
+                after="the one resource of that name the book does contain",
+                risk=Risk.NONE,
+                reversible=True,
+                rule="xhtml.reference-relocated",
+            )
+
         if not broken:
             return
         if not ctx.policy.strict:
@@ -1179,8 +1340,33 @@ class ContentStage(Stage):
     def _neutralise(self, ctx: Context, dangling: list, resource) -> None:
         """Strict mode: make references to absent files stop being errors."""
         unlinked = removed = 0
-        for element, attribute in dangling:
+        for element, attribute, dead in dangling:
             tag = xhtml.local_name(element).lower()
+            if dead:
+                # A list attribute, and only some of the list is dead. A srcset
+                # candidate is the same picture at another resolution, so what
+                # goes here is a duplicate of something the reader still gets
+                # from `src` — dropping it costs the book nothing, where taking
+                # the whole `<img>` away would cost it the illustration.
+                kept = [
+                    (url, descriptor)
+                    for url, descriptor in _split_srcset(element.get(attribute) or "")
+                    if url not in dead
+                ]
+                if kept:
+                    element.set(attribute, _join_srcset(kept))
+                    unlinked += len(dead)
+                    continue
+                element.attrib.pop(attribute, None)
+                unlinked += len(dead)
+                if tag == "source":
+                    # `<source>` exists only to carry the list. Emptied, it is a
+                    # `<source>` with no `srcset`, which is invalid — and the
+                    # `<img>` beside it in the `<picture>` is what displays.
+                    parent = element.getparent()
+                    if parent is not None:
+                        self._unwrap(element, keep_children=False)
+                continue
             if tag == "a" and attribute == "href":
                 # Dropping href keeps the text and any styling; the link is inert.
                 element.attrib.pop(attribute, None)
