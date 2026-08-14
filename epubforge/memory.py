@@ -9,18 +9,34 @@ different question than the one anybody thought it answered.
 Measured — four purchased books and two synthetic ones, peak RSS of a whole
 rebuild in its own process:
 
-    tekst MB   binaria MB   szczyt RSS      ponad interpreter
-       1.0          0.5        52 MB              18 MB
-       1.3         11.6        78 MB              44 MB
-       0.2         14.9        75 MB              41 MB
-       0.2         23.3        88 MB              54 MB
-      25.4          0.0       339 MB             306 MB
-     152.1          0.0      1861 MB            1828 MB
+    tekst MB   binaria MB   szczyt RSS
+       1.0          0.5        52 MB
+       1.3         11.6        78 MB
+       0.2         14.9        75 MB
+       0.2         23.3        87 MB
+      25.4          0.0       340 MB
+     152.1          0.0      2042 MB
 
-The last two are the law: 306/25.4 and 1828/152.1 are both 12.0. Text costs
-twelve times its own size, because an XHTML document does not stay a string —
-it becomes an element tree, and a tree of small elements is mostly pointers.
-Binaries cost about 2.4×: they are held as bytes and copied when written.
+The last two are the law: text costs about fourteen times its own size, because
+an XHTML document does not stay a string — it becomes an element tree, and a
+tree of small elements is mostly pointers. Binaries cost about 2.4×.
+
+**The multiplier is a property of this program and moves with it.** It was 12.0
+when first fitted and 14.0 a day later, because a stage was added that reads
+every content document — the same book went from 1861 MB to 2042. That is not a
+detail: the constants below are a *safety* estimate, and an estimate that drifts
+low turns "this will not fit" into a process the kernel kills. So the number is
+re-measured when the pipeline gains work, and the test at the bottom of
+`test_memory.py` pins every row of the table above against it.
+
+A note on what this does *not* say. These are peaks of a whole rebuild, not a
+breakdown of where the memory sits. Measured separately: the model holding a
+book's bytes costs about 1× those bytes, and parsing all 601 documents of the
+synthetic book into trees costs 281 MiB more. The remaining gap to 2042 MB is
+transient allocation during the rebuild itself. Anybody optimising this should
+start there and not with the bytes — and specifically not with lazy binaries,
+which would save about 1× the binary bytes on a book that was never at risk and
+nothing at all on the one that is.
 
 So the ceiling of 2 GiB of *content* is a promise that the process may reach
 **twenty-four gigabytes of memory**. It is not a memory bound at all; it is a
@@ -46,19 +62,20 @@ from dataclasses import dataclass
 #: Suffixes parsed into element trees. The multiplier below belongs to these.
 TEXT_SUFFIXES = (".xhtml", ".html", ".htm", ".xml", ".opf", ".ncx", ".css", ".svg")
 
-#: Measured, not assumed. See the table above.
-TEXT_MULTIPLIER = 12.0
+#: Measured, not assumed. See the table above — and re-measure when a stage is
+#: added, because this is what the pipeline costs and not what text costs.
+TEXT_MULTIPLIER = 14.0
 BINARY_MULTIPLIER = 2.4
 
 #: The interpreter with lxml, Pillow and the package imported, before a book is
 #: opened. Measured at 33–35 MiB across the runs above.
 BASELINE_BYTES = 35 * 1024**2
 
-#: The model built from the six books above lands within five per cent, and on
-#: three of them it lands *under*, by up to 8.3%. Under is the wrong direction
-#: for a guard: an estimate that is a little low turns "this will not fit" into
-#: a process the kernel kills. 1.15 covers every measured point with room, and
-#: the cost of it being too careful is one switch.
+#: On top of the multipliers, because they are a fit and a fit has residuals.
+#: Under is the wrong direction for a guard: an estimate that is a little low
+#: turns "this will not fit" into a process the kernel kills. With the
+#: multipliers above, 1.15 leaves between 10% and 26% of margin across the six
+#: measured books, and the cost of it being too careful is one switch.
 SAFETY = 1.15
 
 #: How much of what the operating system reports as available this will plan to

@@ -10,16 +10,23 @@ Peak RSS of a whole rebuild, in its own process, four purchased books and two
 synthetic ones:
 
     tekst MB   binaria MB   szczyt RSS      ponad interpreter
-       1.0          0.5        52 MB              18 MB
-       1.3         11.6        78 MB              44 MB
-       0.2         14.9        75 MB              41 MB
-       0.2         23.3        88 MB              54 MB
-      25.4          0.0       339 MB             306 MB
-     152.1          0.0      1861 MB            1828 MB
+       1.0          0.5        52 MB
+       1.3         11.6        78 MB
+       0.2         14.9        75 MB
+       0.2         23.3        87 MB
+      25.4          0.0       340 MB
+     152.1          0.0      2042 MB
 
-306/25.4 and 1828/152.1 are both 12.0. So 2 GiB of content permits a process of
-twenty-four gigabytes, and between the two numbers the outcome is not a refusal
-but a kill: no report, no diagnosis, no output.
+Text costs about fourteen times its own size, so 2 GiB of content permits a
+process of nearly thirty gigabytes, and between the two numbers the outcome is
+not a refusal but a kill: no report, no diagnosis, no output.
+
+The multiplier moved from 12.0 to 14.0 within a day of being fitted, because a
+stage was added that reads every content document and the big synthetic book
+went from 1861 MB to 2042. The row above is the *current* measurement and the
+test that pins it is the reason a drift like that cannot go unnoticed: the
+constants are a safety estimate, and a safety estimate that quietly goes stale
+fails in the one direction that matters.
 """
 
 from __future__ import annotations
@@ -83,7 +90,7 @@ class TestWhatABookIsExpectedToCost:
         """
         for text_mb, binary_mb, peak_mb in (
             (1.0, 0.5, 52), (1.3, 11.6, 78), (0.2, 14.9, 75),
-            (0.2, 23.3, 88), (25.4, 0.0, 339), (152.1, 0.0, 1861),
+            (0.2, 23.3, 87), (25.4, 0.0, 340), (152.1, 0.0, 2042),
         ):
             estimate = memory.Estimate(
                 text_bytes=int(text_mb * 1e6), binary_bytes=int(binary_mb * 1e6)
