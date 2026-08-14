@@ -46,6 +46,10 @@ ROUNDS = 60
 #: Fixed, so a failure names the seed that produced it and can be re-run.
 SEED = 20260813
 
+#: What every mutated archive is stamped with. The generator's output has to be
+#: a function of the seed and of nothing else — see `_mutations`.
+FROZEN_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
+
 
 def _mutations(data: bytes, rng: random.Random) -> bytes:
     """One damaged archive, by one of the ways archives are damaged.
@@ -107,7 +111,17 @@ def _mutations(data: bytes, rng: random.Random) -> bytes:
         warnings.simplefilter("ignore", UserWarning)
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             for name, payload in entries:
-                archive.writestr(name, payload)
+                # A fixed timestamp, because a test below compares whole
+                # archives byte for byte and calls the generator repeatable.
+                # `writestr` with a bare name stamps each entry with the clock,
+                # so "the same seed produces the same bytes" was true only while
+                # both runs fell inside one two-second DOS tick — the archive
+                # format's resolution. It passed nearly always, which is the bad
+                # kind of nearly: a real loss of repeatability would have looked
+                # exactly like the flake everyone had learned to re-run.
+                entry = zipfile.ZipInfo(name, date_time=FROZEN_TIMESTAMP)
+                entry.compress_type = zipfile.ZIP_DEFLATED
+                archive.writestr(entry, payload)
     return buffer.getvalue()
 
 
@@ -194,6 +208,27 @@ class TestTheGeneratorItself:
         first = [_mutations(seed_book, random.Random(SEED)) for _ in range(3)]
         second = [_mutations(seed_book, random.Random(SEED)) for _ in range(3)]
         assert first == second
+
+    def test_repeatable_across_a_clock_tick_and_not_only_within_one(self, seed_book):
+        """The claim above, asked properly.
+
+        It compared two runs a microsecond apart, and the archive timestamp has
+        a two-second resolution — so it agreed for the same reason a stopped
+        clock agrees with itself. Both halves of a real failure, an entry
+        stamped from the wall clock and a run straddling a tick, fell in the gap
+        between the assertion and what it meant to assert.
+        """
+        import time
+
+        first = _mutations(seed_book, random.Random(SEED))
+        time.sleep(2.1)
+        assert _mutations(seed_book, random.Random(SEED)) == first
+
+    def test_nothing_in_a_mutated_archive_is_stamped_from_the_clock(self, seed_book):
+        produced = _mutations(seed_book, random.Random(SEED))
+        with zipfile.ZipFile(io.BytesIO(produced)) as archive:
+            stamps = {entry.date_time for entry in archive.infolist()}
+        assert stamps <= {FROZEN_TIMESTAMP}, stamps
 
     def test_some_mutations_still_rebuild(self, tmp_path, seed_book):
         """Both halves matter. A generator that only produces garbage tests the

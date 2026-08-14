@@ -55,6 +55,86 @@ class TestItReadsTheFontRatherThanTheName:
         assert fonts_meta.classify(data) == "sans-serif"
 
 
+def sfnt(*, panose: "tuple[int, ...]", family_class: int = 0) -> bytes:
+    """A minimal sfnt carrying one OS/2 table and the two fields read from it.
+
+    The tests above are the ones worth having and the ones that cannot be
+    relied on: they need a font the machine may not have, and on a machine
+    without it they skip. Measured on the audit's own container, that is every
+    case in this file except three — so `classify` shipped with the branch
+    coverage of a comment.
+
+    A synthetic font is not a substitute for a real one and is not offered as
+    one; the real fonts stay. It is the difference between "this ran nowhere"
+    and "this ran everywhere, and on real Lato as well where Lato exists".
+    """
+    import struct
+
+    table = bytearray(96)
+    struct.pack_into(">h", table, 30, family_class << 8)
+    table[32:32 + len(panose)] = bytes(panose)
+    offset = 12 + 16
+    header = struct.pack(">4sHHHH", b"\x00\x01\x00\x00", 1, 16, 0, 0)
+    # tag, checksum, offset, length — the sixteen bytes of a table record.
+    record = struct.pack(">4sIII", b"OS/2", 0, offset, len(table))
+    return header + record + bytes(table)
+
+
+#: PANOSE for a Latin text font, with the serif style left to the caller.
+def text_panose(serif_style: int, proportion: int = 4) -> "tuple[int, ...]":
+    return (2, serif_style, 5, proportion, 0, 0, 0, 0, 0, 0)
+
+
+class TestItClassifiesWithoutAskingTheMachineForFonts:
+    """Every branch of `classify`, on fonts this file builds.
+
+    BA-2026-004: two tests depended on host state. This is the font half. The
+    finding said the test picks a system Lato and assumes its metadata; the
+    sharper version is that on a host with no Lato it asserts nothing at all and
+    reports a pass, which is how a classifier keeps its coverage while losing
+    it.
+    """
+
+    @pytest.mark.parametrize(
+        "serif_style, expected",
+        [(11, "sans-serif"), (12, "sans-serif"), (13, "sans-serif"),
+         (2, "serif"), (5, "serif"), (10, "serif")],
+    )
+    def test_the_panose_serif_style_decides(self, serif_style, expected):
+        assert fonts_meta.classify(sfnt(panose=text_panose(serif_style))) == expected
+
+    @pytest.mark.parametrize("serif_style", [14, 15])
+    def test_flared_and_rounded_fall_through_to_the_family_class(self, serif_style):
+        """The defect this module was written around, now testable without
+        owning Lato. 14 and 15 describe how a stem ends, not whether there is a
+        serif, and a sans-serif family may declare either."""
+        font = sfnt(panose=text_panose(serif_style), family_class=8)
+        assert fonts_meta.classify(font) == "sans-serif"
+        assert fonts_meta.classify(sfnt(panose=text_panose(serif_style), family_class=3)) == "serif"
+
+    def test_monospaced_beats_the_serifs(self):
+        """Proportion 9 with a serif style set: a monospaced font is monospaced
+        whatever its serifs are doing."""
+        assert fonts_meta.classify(sfnt(panose=text_panose(2, proportion=9))) == "monospace"
+
+    def test_hand_written_is_cursive(self):
+        assert fonts_meta.classify(sfnt(panose=(3, 0, 0, 0, 0, 0, 0, 0, 0, 0))) == "cursive"
+
+    @pytest.mark.parametrize(
+        "family_class, expected",
+        [(8, "sans-serif"), (1, "serif"), (7, "serif"), (10, "cursive")],
+    )
+    def test_the_family_class_answers_when_panose_says_nothing(self, family_class, expected):
+        font = sfnt(panose=(0,) * 10, family_class=family_class)
+        assert fonts_meta.classify(font) == expected
+
+    def test_a_font_that_declares_nothing_gets_no_family_invented_for_it(self):
+        assert fonts_meta.classify(sfnt(panose=(0,) * 10, family_class=0)) is None
+
+    def test_a_decorative_face_is_read_the_same_way_as_a_text_face(self):
+        assert fonts_meta.classify(sfnt(panose=(4, 11, 5, 4, 0, 0, 0, 0, 0, 0))) == "sans-serif"
+
+
 class TestItDeclinesToAnswerRatherThanGuess:
     def test_something_that_is_not_a_font(self):
         assert fonts_meta.classify(b"nie jest czcionka") is None
