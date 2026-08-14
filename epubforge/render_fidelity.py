@@ -164,6 +164,59 @@ def _spine_of(root: pathlib.Path) -> "list[pathlib.Path]":
     return order
 
 
+#: The numeric prefix this program puts on rebuilt documents, so a stem can be
+#: compared with the source's.
+_PREFIX = re.compile(r"^\d+-")
+
+
+def _stem(path: pathlib.Path) -> str:
+    return _PREFIX.sub("", path.stem).lower()
+
+
+def _pair(before: "list[pathlib.Path]", after: "list[pathlib.Path]"):
+    """Match the two reading orders to each other, allowing for insertions.
+
+    Pairing by position was the first version and it is wrong on any book where
+    the rebuild adds or drops a spine entry. Measured on a real one: 70
+    documents in, 71 out, because the rebuild generated a cover document the
+    source did not have — so every page after the first was compared with its
+    neighbour, and two of the three "losses" the gate reported across a
+    thirty-two book shelf were that, not damage.
+
+    A gate that compares the wrong pages and then refuses the book is worse than
+    no gate at all, which is why this is an alignment and not an index.
+    `difflib` over the file stems handles insertion and deletion the way a diff
+    does, and needs no assumption beyond the rebuild mostly keeping names —
+    which it does, under a numeric prefix that `_stem` removes.
+
+    Returns `(pairs, added, dropped)`.
+    """
+    import difflib
+
+    before_stems = [_stem(path) for path in before]
+    after_stems = [_stem(path) for path in after]
+    matcher = difflib.SequenceMatcher(None, before_stems, after_stems, autojunk=False)
+    pairs: list[tuple[pathlib.Path, pathlib.Path]] = []
+    added: list[pathlib.Path] = []
+    dropped: list[pathlib.Path] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            pairs.extend(zip(before[i1:i2], after[j1:j2]))
+        elif tag == "replace":
+            # Same position, different name. Compared anyway as far as they
+            # pair up: a renamed document is still that document, and the
+            # remainder on either side is an addition or a loss.
+            shared = min(i2 - i1, j2 - j1)
+            pairs.extend(zip(before[i1:i1 + shared], after[j1:j1 + shared]))
+            dropped.extend(before[i1 + shared:i2])
+            added.extend(after[j1 + shared:j2])
+        elif tag == "delete":
+            dropped.extend(before[i1:i2])
+        elif tag == "insert":
+            added.extend(after[j1:j2])
+    return pairs, added, dropped
+
+
 def _sample(count: int, wanted: int) -> "list[int]":
     """Which documents to render: the first three, then spread out.
 
@@ -195,6 +248,52 @@ def _extract(book: "str | pathlib.Path", into: pathlib.Path) -> pathlib.Path:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(archive.read(entry))
     return into
+
+
+#: How much earlier the drawn area has to start before it counts as content
+#: appearing rather than moving. Two per cent of the viewport — a reflow shifts
+#: a line by less, a refitted picture by far more.
+_APPEARED = 0.02
+
+
+#: How much of the drawn *area* has to go with the ink. Five per cent: a reflow
+#: nudges the box, a lost paragraph collapses it.
+_SHRANK = 0.05
+
+
+def _shrank(before: "render.Ink", after: "render.Ink") -> bool:
+    """Did the area the content occupies get smaller, and not only lighter?"""
+    was = before.width * before.height
+    now = after.width * after.height
+    if was <= 0:
+        return False
+    return (was - now) / was > _SHRANK
+
+
+def _refitted(before: "render.Ink", after: "render.Ink") -> bool:
+    """Did the output *show more of something*, rather than lose part of it?
+
+    The fourth attempt at reading direction out of pixels, and the first three
+    are in `_judge`'s docstring. This one is not a statistic but an argument:
+
+        content cannot appear above, or to the left of, anything that was drawn
+        before — unless it was there all along and could not be seen.
+
+    A page that merely lost part of itself keeps its top-left corner: the first
+    line is where it was, and the bottom pulls in. A picture drawn at natural
+    size on a smaller screen and then fitted does the opposite — the top-left of
+    the drawn area moves *up and out*, because the parts that were off the page
+    have come onto it.
+
+    Measured on a purchased book, the title page whose image is 1200×1800 at a
+    600×800 viewport: source ink `L0.28 T0.38 R1.00`, output `L0.21 T0.15
+    R0.81`. Coverage fell by 46% and the reader gained the whole picture. Every
+    coverage-based rule called that damage; this one does not.
+    """
+    return (
+        before.left - after.left > _APPEARED
+        or before.top - after.top > _APPEARED
+    )
 
 
 def _judge(check: PageCheck) -> None:
@@ -234,11 +333,28 @@ def _judge(check: PageCheck) -> None:
             check.notes.append("na stronie coś się pojawiło, a w źródle była pusta")
         return
 
-    # The direction, from the one quantity that carries it.
+    # The direction, from the one quantity that carries it — corrected once more
+    # by a real book. See `_refitted`.
     lost = before.coverage - after.coverage
-    materially_less = before.coverage > 0.001 and lost / before.coverage > LOST_INK
+    materially_less = (
+        before.coverage > 0.001
+        and lost / before.coverage > LOST_INK
+        and not _refitted(before, after)
+        # Content that is lost takes space with it. Measured on a purchased
+        # book: a page whose text, box and layout are identical came out 10%
+        # lighter because the rebuild settled a different font, and the drawn
+        # area was the same to the second decimal — `L0.01 T0.04 R0.99 B0.89`
+        # on both sides. Ink alone called that a loss; ink and area together
+        # do not, and a page that really lost a paragraph fails both.
+        and _shrank(before, after)
+    )
 
-    if materially_less:
+    if _refitted(before, after) and lost > 0:
+        check.notes.append(
+            f"treść jest teraz w całości na stronie, a w źródle wychodziła poza nią "
+            f"— stąd mniej tuszu ({before.coverage:.1%} → {after.coverage:.1%})"
+        )
+    elif materially_less:
         check.problems.append(
             f"na stronie jest mniej treści niż w źródle: {before.coverage:.1%} → "
             f"{after.coverage:.1%} powierzchni"
@@ -289,12 +405,25 @@ def compare(
             result.reason = "nie udało się odczytać kolejności czytania"
             return result
 
-        pairs = min(len(before_spine), len(after_spine))
-        indices = _sample(pairs, sample) if sample else list(range(pairs))
+        paired, added, dropped = _pair(before_spine, after_spine)
+        for path in dropped:
+            # A document in the reading order that is not in the output any more.
+            # No rendering needed and none possible: this is the loss the whole
+            # gate is for, in its plainest form.
+            check = PageCheck(document=path.name, viewport=viewports[0])
+            check.problems.append("dokument zniknął z kolejności czytania")
+            result.pages.append(check)
+        for path in added:
+            check = PageCheck(document=path.name, viewport=viewports[0])
+            check.notes.append("dokument doszedł, nie było go w źródle")
+            result.pages.append(check)
+
+        indices = _sample(len(paired), sample) if sample else list(range(len(paired)))
         shots = room_path / "obrazy"
         shots.mkdir()
         for number, index in enumerate(indices):
-            name = after_spine[index].name
+            source_page, output_page = paired[index]
+            name = output_page.name
             if on_page is not None:
                 on_page(number, len(indices), name)
             for viewport in viewports:
@@ -302,11 +431,11 @@ def compare(
                 tag = f"{index}-{viewport[0]}x{viewport[1]}"
                 try:
                     one = render.shoot(
-                        before_spine[index], shots / f"a{tag}.png",
+                        source_page, shots / f"a{tag}.png",
                         viewport=viewport, browser=browser,
                     )
                     two = render.shoot(
-                        after_spine[index], shots / f"b{tag}.png",
+                        output_page, shots / f"b{tag}.png",
                         viewport=viewport, browser=browser,
                     )
                 except render.RenderError as exc:
