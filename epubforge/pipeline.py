@@ -17,7 +17,7 @@ from .model import Book
 from .policy import Policy
 from .reader import EpubReadError, read_epub
 from .references import Resolver
-from .report import Level, Report
+from .report import Level, Report, Risk
 from .stages import DEFAULT_STAGES, Context
 from .writer import ArchiveVerificationError, PublicationRefused, write_epub
 
@@ -349,6 +349,74 @@ def _keep_evidence(source, candidate, destination, measured, report) -> str:
         return ""
     del shutil
     return folder
+
+
+def _ask_about_reconstructed(book, reconstructed, queue, report) -> None:
+    """Put each field that came out of a damaged package to whoever is there.
+
+    Deliberately one question per field rather than one for the book: a person
+    may know the title and have no idea what the identifier should be, and a
+    single question would force one answer onto both.
+
+    `KEEP` is what the reader produced, which is also what happens when nobody
+    is asked — so a batch run behaves exactly as it did before this existed.
+    """
+    from . import decisions
+
+    reading = {
+        "title": book.metadata.title,
+        "language": book.metadata.language,
+        "author": ", ".join(creator.name for creator in book.metadata.creators),
+    }
+    for label in reconstructed:
+        current = reading.get(label)
+        if not current:
+            continue
+        question = decisions.Question(
+            kind=decisions.METADATA,
+            where=book.source_opf_path or "",
+            summary=f"„{current}” — {label} odczytany z uszkodzonego pakietu",
+            detail=(
+                f"Pakiet tej książki dał się sparsować dopiero po odzysku, więc to "
+                f"pole jest odczytem parsera, a nie tym, co napisał wydawca. "
+                f"Wyszło: „{current}”."
+            ),
+            options=(
+                decisions.Option(
+                    decisions.KEEP,
+                    f"Zostaw „{current}”",
+                    "W książce zostanie to, co odczytał parser",
+                ),
+                decisions.Option(
+                    "write",
+                    "Wpisz poprawną wartość",
+                    "W książce będzie to, co wpiszesz",
+                    needs_value=True,
+                ),
+            ),
+            recommended=decisions.KEEP,
+            reversible=True,
+            risk=Risk.NONE,
+            group=f"metadata:{label}",
+            subject=f"{label}={current}",
+        )
+        answer = queue.ask(question)
+        if answer.option == "write" and answer.value:
+            if label == "title":
+                book.metadata.titles = [answer.value] + book.metadata.titles[1:]
+            elif label == "language":
+                book.metadata.language = answer.value
+            elif label == "author":
+                from .model import Creator
+
+                book.metadata.creators = [Creator(name=answer.value)]
+            report.add(
+                "package",
+                Level.FIX,
+                "package.metadata-corrected",
+                values={"field": label, "before": current, "after": answer.value},
+                location=book.source_opf_path or "",
+            )
 
 
 def _both_gates(source: str, policy: Policy, report: Report, destination: str):
@@ -706,6 +774,16 @@ def _rebuild_inside_budget(
         )
         return Result(report, None, None, Status.FAILED)
 
+    queue = decisions.Queue(asker=asker if asker is not None else _asker_from(resolver))
+    if policy.remember_decisions:
+        stored = decisions.Queue.load(
+            decisions.answers_path(source), source=source, asker=queue.asker
+        )
+        queue.stored = stored.stored
+        for failure in stored.failures:
+            report.add("decisions", Level.WARN, "decisions.store-unusable",
+                       values={"reason": failure})
+
     # **F-004.** A package document that only parsed after recovery is a parser's
     # reading of somebody's book, and the fields taken from it are that reading
     # rather than the book's own words. Reproduced: crossed tags turned the title
@@ -738,6 +816,14 @@ def _rebuild_inside_budget(
             values={"fields": ", ".join(reconstructed) or "nothing this model reads"},
             location=book.source_opf_path or "",
         )
+        # BA-2026-002's third class of question, and the one the API was built
+        # to carry: a metadata conflict. F-004 established that a field read out
+        # of a recovered package document is a parser's reading of somebody's
+        # book rather than the book's own word, and it has been *reported* since
+        # — which leaves the person holding a warning and no way to act on it in
+        # the same breath. Now it is a question, in the same shape as a broken
+        # link and a hard hyphen, with the same rule: unanswered changes nothing.
+        _ask_about_reconstructed(book, reconstructed, queue, report)
 
     lost = _input_lost(report)
     if lost:
@@ -771,15 +857,6 @@ def _rebuild_inside_budget(
     # store is refused outright if the book has changed since — replaying
     # somebody's judgement onto a page they have not seen is worse than asking
     # again.
-    queue = decisions.Queue(asker=asker if asker is not None else _asker_from(resolver))
-    if policy.remember_decisions:
-        stored = decisions.Queue.load(
-            decisions.answers_path(source), source=source, asker=queue.asker
-        )
-        queue.stored = stored.stored
-        for failure in stored.failures:
-            report.add("decisions", Level.WARN, "decisions.store-unusable",
-                       values={"reason": failure})
     ctx = Context(
         book=book, policy=policy, report=report, budget=budget,
         resolver=resolver, decisions=queue,
