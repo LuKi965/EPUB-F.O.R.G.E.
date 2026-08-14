@@ -32,13 +32,14 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 13,
+      "info": 14,
       "fix": 8,
       "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
       "css.unreachable-rules-found": 3,
+      "hyphens.detected": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
@@ -65,7 +66,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 11,
+      "info": 12,
       "fix": 11,
       "preserved": 1
     },
@@ -73,6 +74,7 @@
       "a11y.metadata-added": 1,
       "css.unreachable-rules-removed": 3,
       "epubcheck.clean": 1,
+      "hyphens.detected": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,

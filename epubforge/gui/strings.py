@@ -299,6 +299,38 @@ PL: dict[str, str] = {
         "Gdy walidatora nie ma, ta bramka **odmawia**. Twierdzenie, którego "
         "nikt nie sprawdził, nie jest twierdzeniem."
     ),
+    "decide.title": "Decyzja",
+    "decide.value": "wpisz własną formę",
+    "decide.irreversible": "Tego nie da się cofnąć z samego pliku wynikowego.",
+    "decide.all": "Tak samo dla wszystkich takich przypadków w tej książce",
+    "decide.all.tip": (
+        "Dotyczy tylko przypadków o tym samym stopniu pewności. Opcja, w której "
+        "wpisujesz własną formę, nigdy nie obejmuje grupy — to zdanie o jednym "
+        "słowie, nie o wszystkich."
+    ),
+    "policy.hyphens": "Szukaj łączników zostawionych w środku słów",
+    "policy.hyphens.tip": (
+        "Zła konwersja PDF-a zostawia w tekście łącznik z podziału wiersza: "
+        "„obo-jętna”, „ko-rytarz”, „Ce-laena”. Czytelnik to widzi i jest to błąd, "
+        "którego żadna reguła w tym programie wcześniej nie umiała zobaczyć.\n\n"
+        "Ten przełącznik włącza samo **wykrywanie**. Nic nie jest łączone bez "
+        "twojej odpowiedzi — nie ma ustawienia, które kazałoby temu działać "
+        "samodzielnie, i dlatego wykrywanie może być domyślnie włączone.\n\n"
+        "Pytania dostajesz tylko o te przypadki, gdzie dowód jest w samej "
+        "książce: ta sama książka pisze to słowo bez łącznika. Zmierzone na "
+        "32 książkach: 67 takich, wobec 189 podejrzeń bez dowodu, z których "
+        "prawie wszystkie to prawdziwe słowa — „marksizm-leninizm”, "
+        "„savoir-vivre”, „ping-pong”. O tamte nie pyta."
+    ),
+    "policy.remember": "Pamiętaj moje odpowiedzi o tej książce",
+    "policy.remember.tip": (
+        "Odpowiedzi zapisują się obok książki, w pliku „<nazwa>.decyzje.json”, "
+        "i przy kolejnej przebudowie program pyta tylko o to, czego jeszcze nie "
+        "wie.\n\n"
+        "Jeżeli plik książki się zmienił, zapis jest odrzucany w całości i "
+        "raport to mówi. Odtworzenie czyjejś decyzji na stronie, której ta osoba "
+        "nie widziała, jest gorsze niż zapytanie drugi raz."
+    ),
     "policy.memory": "Odmawiaj książek, na które ta maszyna nie ma pamięci",
     "policy.memory.limit.placeholder": "budżet pamięci, np. 4G — puste znaczy „zapytaj system”",
     "policy.memory.limit.tip": (
@@ -973,6 +1005,37 @@ EN: dict[str, str] = {
         "corpus that is three books out of twelve.\n\n"
         "With no validator present this gate **refuses**. A claim nobody "
         "checked is not a claim."
+    ),
+    "decide.title": "Decision",
+    "decide.value": "type your own form",
+    "decide.irreversible": "This cannot be undone from the output file alone.",
+    "decide.all": "The same for every case like this in this book",
+    "decide.all.tip": (
+        "Only cases carrying the same strength of evidence. The option where you "
+        "type your own form never covers a group — that is a statement about one "
+        "word, not about all of them."
+    ),
+    "policy.hyphens": "Look for hyphens left inside words",
+    "policy.hyphens.tip": (
+        "A bad PDF conversion leaves the line-break hyphen in the text: "
+        "„obo-jętna”, „ko-rytarz”, „Ce-laena”. The reader sees them, they are "
+        "wrong, and no rule in this program could previously see them at all.\n\n"
+        "This switch turns on **detection**. Nothing is joined without your "
+        "answer — there is no setting that makes this act on its own, which is "
+        "why detection can be on by default.\n\n"
+        "You are asked only where the evidence is in the book itself: the same "
+        "book spells that word without a hyphen. Measured across 32 books: 67 "
+        "of those against 189 suspicions with no evidence, nearly all of which "
+        "are real words — „marksizm-leninizm”, „savoir-vivre”, „ping-pong”. It "
+        "does not ask about those."
+    ),
+    "policy.remember": "Remember my answers about this book",
+    "policy.remember.tip": (
+        "Answers are saved beside the book, in „<name>.decyzje.json”, and the "
+        "next rebuild asks only what it does not already know.\n\n"
+        "If the book file has changed, the store is refused outright and the "
+        "report says so. Replaying somebody's decision onto a page they have not "
+        "seen is worse than asking a second time."
     ),
     "policy.memory": "Refuse books this machine has no memory for",
     "policy.memory.limit.placeholder": "memory budget, e.g. 4G — empty means \"ask the system\"",

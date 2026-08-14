@@ -136,6 +136,25 @@ class Policy:
     #: holding the book the last word.
     remove_dead: bool = False
 
+    #: Read back and write down the answers a person gave about this book.
+    #:
+    #: BA-2026-002's "save/replay/undo". Kept beside the book, so a library that
+    #: moves takes its judgements with it. On by default because the alternative
+    #: is being asked the same forty-six questions on every rebuild, which is how
+    #: a feature becomes something people switch off — and the store is refused
+    #: outright if the book has changed since, so a stale answer cannot be
+    #: replayed onto a page nobody has seen.
+    remember_decisions: bool = True
+
+    #: Look for hyphens a conversion left inside words, and count them.
+    #:
+    #: BA-2026-001. On by default because *detecting* changes nothing: the
+    #: report gains a line saying how many broken words this book has, and one
+    #: book on the owner's shelf has forty-six. Joining any of them takes an
+    #: answer from a person — there is no setting that makes this rule act on
+    #: its own, which is deliberate and is why the detector may be on.
+    detect_hyphens: bool = True
+
     #: Refuse a book this machine is not expected to have the memory for.
     #:
     #: EF-020, after the benchmark it asked for. The reader's ceiling of 2 GiB

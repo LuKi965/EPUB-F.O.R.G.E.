@@ -29,6 +29,7 @@ from .metadata import MetadataStage
 from .navigation import NavigationStage
 from .profile import ProfileStage
 from .structure import StructureStage
+from .hyphens import HyphenStage
 from .typography import TypographyStage
 
 DEFAULT_STAGES = (
@@ -40,6 +41,7 @@ DEFAULT_STAGES = (
     ContentStage,
     StyleStage,
     TypographyStage,
+    HyphenStage,
     NavigationStage,
     AccessibilityStage,
     CompatibilityStage,
@@ -57,6 +59,7 @@ __all__ = [
     "ContentStage",
     "StyleStage",
     "TypographyStage",
+    "HyphenStage",
     "NavigationStage",
     "AccessibilityStage",
     "CompatibilityStage",

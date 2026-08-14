@@ -33,15 +33,17 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 12,
+      "info": 13,
       "fix": 5,
-      "preserved": 1,
+      "preserved": 2,
       "warn": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
       "css.unreachable-rules-found": 3,
+      "hyphens.detected": 1,
+      "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
@@ -66,9 +68,9 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 10,
+      "info": 11,
       "fix": 8,
-      "preserved": 1,
+      "preserved": 2,
       "warn": 1
     },
     "rules": {
@@ -76,6 +78,8 @@
       "a11y.table-without-headers": 1,
       "css.unreachable-rules-removed": 3,
       "epubcheck.clean": 1,
+      "hyphens.detected": 1,
+      "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,

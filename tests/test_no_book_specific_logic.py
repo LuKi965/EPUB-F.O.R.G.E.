@@ -1,10 +1,10 @@
 """No rule in this program is about a particular book.
 
 The owner asked it directly, about the fixture roles added for WP-3: does this
-treat the Witcher book literally — *if it is this book, do X* — or as an example
-of a shape? The answer has to be the second one, because the first would make
-the program worthless: the point is that it repairs every book somebody adds,
-not that it has a list.
+treat `ksiazka-1` literally — *if it is this book, do X* — or as an example of a
+shape? The answer has to be the second one, because the first would make the
+program worthless: the point is that it repairs every book somebody adds, not
+that it has a list.
 
 Two things are true and only one of them is worth much. The first is that no
 book identity is in the code today — checked below by reading the package. The
@@ -156,7 +156,7 @@ class TestTheRebuildDecidesFromStructureAndNotFromIdentity:
     def rebuild_both(self, tmp_path):
         first = self.source(
             tmp_path, "a.epub",
-            title="Rozdroże Kruków", author="Andrzej Sapkowski",
+            title="Zimła Książka", author="Jan Kowalski",
             identifier="urn:uuid:11111111-1111-4111-8111-111111111111",
         )
         second = self.source(
@@ -190,7 +190,12 @@ class TestTheRebuildDecidesFromStructureAndNotFromIdentity:
         """
         from tests.factory import make_legacy_epub
 
-        first = tmp_path / "Wiedźmin - Rozdroże Kruków.epub"
+        # A name with the shape of a real book's — spaces, a dash, Polish
+        # diacritics — and not any actual title. Naming one here would put it in
+        # a public repository, which is the thing the fixture roles exist to
+        # avoid; the check in `tools/sprawdz-nazwy.py` caught the first draft of
+        # this very file doing it.
+        first = tmp_path / "Zimła Książka - Część Wtóra.epub"
         make_legacy_epub(str(first))
         second = tmp_path / "jakas-ksiazka.epub"
         second.write_bytes(first.read_bytes())
@@ -269,20 +274,50 @@ class TestTheRulesThemselvesNameConstructsAndNotWorks:
     opinion about somebody's book rather than about EPUB.
     """
 
-    def test_no_rule_text_names_a_specific_work(self):
+    #: Proper nouns a rule may legitimately contain: formats, specifications,
+    #: tools and the devices the compatibility profiles are named after. The
+    #: list is the test — anything capitalised mid-sentence that is not here is
+    #: a name this program has no business holding an opinion about.
+    ALLOWED_NAMES = frozenset({
+        "EPUB", "EPUBCheck", "XHTML", "HTML", "XML", "CSS", "NCX", "OPF", "SVG",
+        "MathML", "PNG", "JPEG", "GIF", "WebP", "TIFF", "ZIP", "OCF", "DRM",
+        "URL", "URI", "UUID", "ISBN", "ASCII", "Unicode", "UTF", "PANOSE",
+        "Calibre", "Kindle", "Kobo", "Apple", "Adobe", "Sigil", "InDesign",
+        "PDF", "JavaScript", "Java", "Python", "Windows", "Linux", "OS",
+        "Accessibility", "WCAG", "ARIA", "PLN", "MiB", "GiB", "KiB",
+        "W3C", "IDPF", "DAISY", "META", "INF", "MACOSX", "Thumbs",
+        "AppleDouble", "TAK", "BRAK", "NIE",
+        "BCP", "Books", "DOCTYPE", "DTD", "HTML5", "ISO", "MIME", "PATH",
+        "RMSDK", "Sigil", "InDesign",
+        # Language names, which a rule about a language rule may state.
+        "Polish",
+        # Polish `Twoje`, capitalised after a colon in one rule's second half.
+        "Twoje",
+    })
+
+    def test_no_rule_text_names_anything_this_program_should_not_know(self):
+        """Deliberately written without naming a single book.
+
+        The first version of this test listed the titles it was looking for —
+        in a regex, in a public repository, which is the leak it was written to
+        prevent. The naming check caught it within the minute. So it looks for
+        the *shape* instead: a capitalised word in the middle of a sentence
+        that is not a format, a specification or a device.
+        """
         from epubforge.rules import CATALOGUES, DETAILS, DETAILS_PL
 
-        # Words that would only appear if a rule were about a particular book.
-        suspicious = re.compile(
-            r"\b(wiedźmin|witcher|sapkowski|szklany tron|throne of glass|maas)\b",
-            re.IGNORECASE,
-        )
         catalogues = dict(CATALOGUES)
         catalogues["details-en"] = DETAILS
         catalogues["details-pl"] = DETAILS_PL
+        # Mid-sentence only: a capital after `. ` or at the start is grammar.
+        mid_sentence = re.compile(r"(?<=[a-ząćęłńóśźż,;:] )([A-ZĄĆĘŁŃÓŚŹŻ]\w+)")
+        offenders = []
         for label, catalogue in catalogues.items():
             for rule, text in catalogue.items():
-                assert not suspicious.search(text), f"{label} {rule}: {text}"
+                for name in mid_sentence.findall(text):
+                    if name not in self.ALLOWED_NAMES:
+                        offenders.append(f"{label} {rule}: {name}")
+        assert not offenders, offenders
 
     def test_there_are_enough_rules_for_that_to_mean_something(self):
         from epubforge.rules import CATALOGUES

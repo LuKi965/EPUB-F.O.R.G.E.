@@ -33,12 +33,13 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QRadioButton,
     QVBoxLayout,
 )
 
-from .. import references
+from .. import decisions, references
 from ..references import Decision, Unresolved
 from .strings import tr
 
@@ -133,6 +134,92 @@ class AskDialog(QDialog):
         return Decision(references.KEEP, apply_to_all=everywhere)
 
 
+class DecideDialog(QDialog):
+    """Any question at all, in the one shape they now share.
+
+    BA-2026-002 asked for broken links, hard hyphens and metadata conflicts on a
+    common API, and this is the front end half of it: a question carries its own
+    options, each with the sentence saying what it does to the book, so a new
+    class of question needs no new dialog. The list of anchors in `AskDialog`
+    above is the one thing that could not be generalised — it is a chooser over
+    the target document's ids, which no other question has — so that dialog
+    stays for references and this one serves everything else.
+    """
+
+    def __init__(self, question, parent=None):
+        super().__init__(parent)
+        self.question = question
+        self.setWindowTitle(tr("decide.title"))
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(9)
+
+        summary = QLabel(question.summary)
+        summary.setWordWrap(True)
+        summary.setObjectName("sectionLabel")
+        layout.addWidget(summary)
+
+        detail = QLabel(question.detail)
+        detail.setWordWrap(True)
+        detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(detail)
+
+        self.buttons_for = {}
+        self.value_edit = QLineEdit()
+        self.value_edit.setPlaceholderText(tr("decide.value"))
+        self.value_edit.setEnabled(False)
+        for option in question.options:
+            radio = QRadioButton(option.label)
+            # The consequence, on the control itself. A person choosing between
+            # "keep" and "join" needs to know what the page will say afterwards,
+            # and that sentence travels with the question rather than being
+            # written into the window.
+            radio.setToolTip(option.consequence)
+            radio.setChecked(option.id == question.recommended)
+            layout.addWidget(radio)
+            self.buttons_for[option.id] = radio
+            if option.needs_value:
+                radio.toggled.connect(self.value_edit.setEnabled)
+                layout.addWidget(self.value_edit)
+
+        # Said out loud rather than left to the tooltip: this is the field a
+        # person weighs against the recommendation.
+        if not question.reversible:
+            warning = QLabel(tr("decide.irreversible"))
+            warning.setWordWrap(True)
+            warning.setObjectName("sectionLabel")
+            layout.addWidget(warning)
+
+        self.all_check = QCheckBox(tr("decide.all"))
+        self.all_check.setToolTip(tr("decide.all.tip"))
+        self.all_check.setEnabled(bool(question.group))
+        layout.addWidget(self.all_check)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(buttons)
+        layout.addLayout(row)
+
+    def answer(self):
+        chosen = next(
+            (
+                option_id
+                for option_id, radio in self.buttons_for.items()
+                if radio.isChecked()
+            ),
+            decisions.KEEP,
+        )
+        return decisions.Answer(
+            option=chosen,
+            value=self.value_edit.text().strip(),
+            apply_to_group=self.all_check.isChecked(),
+        )
+
+
 class Ask(QObject):
     """The rebuild's `Resolver`, backed by the window.
 
@@ -145,10 +232,13 @@ class Ask(QObject):
     #: the answer to — a queued signal cannot return a value, and one-element
     #: lists are how Qt code has always got around that.
     asked = Signal(object, object)
+    #: The same arrangement for a question of any other kind.
+    decided = Signal(object, object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.asked.connect(self._show, Qt.BlockingQueuedConnection)
+        self.decided.connect(self._show_decision, Qt.BlockingQueuedConnection)
 
     def resolve(self, question: Unresolved) -> Decision | None:
         if QThread.currentThread() is self.thread():
@@ -164,6 +254,26 @@ class Ask(QObject):
     def _show(self, question: Unresolved, mailbox: list) -> None:
         mailbox.append(self._answer(question))
 
+    def ask(self, question):
+        """The generic half — `decisions.Asker`, same threading, same rules."""
+        if QThread.currentThread() is self.thread():
+            return self._decide(question)
+        mailbox: list = []
+        self.decided.emit(question, mailbox)
+        return mailbox[0] if mailbox else None
+
+    def _show_decision(self, question, mailbox: list) -> None:
+        mailbox.append(self._decide(question))
+
+    def _decide(self, question):
+        dialog = DecideDialog(question, self.parent())
+        if dialog.exec() != QDialog.Accepted:
+            # Closed rather than answered, and that is not the recommendation
+            # being accepted by default. A question this program recommends
+            # joining stays unjoined until somebody says so.
+            return None
+        return dialog.answer()
+
     def _answer(self, question: Unresolved) -> Decision:
         dialog = AskDialog(question, self.parent())
         if dialog.exec() != QDialog.Accepted:
@@ -174,4 +284,4 @@ class Ask(QObject):
         return dialog.decision()
 
 
-__all__ = ["Ask", "AskDialog"]
+__all__ = ["Ask", "AskDialog", "DecideDialog"]

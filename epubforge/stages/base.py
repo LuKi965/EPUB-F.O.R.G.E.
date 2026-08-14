@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..budget import Budget
+from ..decisions import Answer, Question
+from ..decisions import Queue as DecisionQueue
 from ..model import Book
 from ..policy import Policy
 from ..references import Answers, Decision, Resolver, Unresolved
@@ -98,6 +100,12 @@ class Context:
     #: What was asked and answered during this rebuild.
     answers: Answers = field(default_factory=Answers)
 
+    #: Every question this rebuild could not answer by itself, in the one shape
+    #: they all share — BA-2026-002. `answers` above is the reference-specific
+    #: view and stays, because a broken fragment has three verbs of its own; the
+    #: queue is what a *second* class of question needed and did not have.
+    decisions: DecisionQueue = field(default_factory=DecisionQueue)
+
     #: Parsed documents, keyed by the bytes they were parsed from — see
     #: :meth:`parsed`. Not part of the book; a working set that lives as long as
     #: one rebuild does.
@@ -165,6 +173,16 @@ class Context:
         comes back when nobody is there to ask, which is the default.
         """
         return self.answers.ask(self.resolver, question)
+
+    def decide(self, question: "Question") -> "Answer":
+        """Put one question of any kind, if there is anybody to put it to.
+
+        Always returns an answer, and the answer when nobody is there is to
+        change nothing. A recommendation on the question is this program's
+        opinion and is never applied on its own — the whole point of the queue
+        is that the difference between "recommended" and "done" is a person.
+        """
+        return self.decisions.ask(question)
 
     def remap_fragment(self, target: str | None) -> str | None:
         if not target or "#" not in target:

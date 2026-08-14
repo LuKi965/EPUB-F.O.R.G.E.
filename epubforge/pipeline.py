@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass, replace
 from enum import Enum
 
+from . import decisions
 from . import invariants
 from . import memory
 from . import budget as budget_module
@@ -47,6 +48,16 @@ class Result:
     book: Book | None
     output_path: str | None
     status: Status = Status.SUCCEEDED
+
+
+def _asker_from(resolver):
+    """The resolver, if it can also answer a generic question.
+
+    The window's `Ask` implements both: it is one dialog machinery serving two
+    shapes of question, and asking a caller to pass the same object twice would
+    be this program's plumbing leaking into its API.
+    """
+    return resolver if hasattr(resolver, "ask") else None
 
 
 def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
@@ -461,6 +472,7 @@ def rebuild(
     *,
     resolver: "Resolver | None" = None,
     rendition: str | None = None,
+    asker=None,
 ) -> Result:
     """Rebuild *source* into a conforming EPUB 3.3 at *destination*.
 
@@ -492,12 +504,13 @@ def rebuild(
     # this program should refuse before it opens it, not after.
     with budget_module.active(budget):
         return _rebuild_inside_budget(
-            source, destination, policy, report, budget, stages, resolver, rendition
+            source, destination, policy, report, budget, stages, resolver, rendition,
+            asker,
         )
 
 
 def _rebuild_inside_budget(
-    source, destination, policy, report, budget, stages, resolver, rendition
+    source, destination, policy, report, budget, stages, resolver, rendition, asker=None
 ) -> "Result":
     # EF-020, and the benchmark it asked for came first. `reader.py` has held a
     # ceiling of 2 GiB of content since early on, and the measurement turned it
@@ -609,7 +622,24 @@ def _rebuild_inside_budget(
         report.add("package", Level.WARN, "package.version-unusable")
 
     policy = _settle_layout(book, policy, report)
-    ctx = Context(book=book, policy=policy, report=report, budget=budget, resolver=resolver)
+    # BA-2026-002. Answers given about this book on a previous run are read back
+    # first, so a rebuild run twice asks only what it has not been told. The
+    # store is refused outright if the book has changed since — replaying
+    # somebody's judgement onto a page they have not seen is worse than asking
+    # again.
+    queue = decisions.Queue(asker=asker if asker is not None else _asker_from(resolver))
+    if policy.remember_decisions:
+        stored = decisions.Queue.load(
+            decisions.answers_path(source), source=source, asker=queue.asker
+        )
+        queue.stored = stored.stored
+        for failure in stored.failures:
+            report.add("decisions", Level.WARN, "decisions.store-unusable",
+                       values={"reason": failure})
+    ctx = Context(
+        book=book, policy=policy, report=report, budget=budget,
+        resolver=resolver, decisions=queue,
+    )
 
     for stage_class in (DEFAULT_STAGES if stages is None else stages):
         stage = stage_class()

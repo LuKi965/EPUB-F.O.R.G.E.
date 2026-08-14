@@ -447,6 +447,12 @@ class MainWindow(QMainWindow):
         # default is the process being killed halfway with nothing written and
         # nothing said — and this is the build most likely to meet that: a
         # batch of books in one window, on a laptop, on Windows.
+        # BA-2026-001 and BA-2026-002. Detection is on because detection changes
+        # nothing; the answers are remembered because being asked the same
+        # forty-six questions on every rebuild is how a feature becomes
+        # something people switch off.
+        self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
+        self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
         self.memory_check = self._checkbox(layout, "policy.memory", checked=True)
         # And the budget itself, because "everything is reachable from the
         # window" does not stop at the switch. Empty means "ask the machine
@@ -687,6 +693,8 @@ class MainWindow(QMainWindow):
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()
+        policy.detect_hyphens = self.hyphens_check.isChecked()
+        policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()
         typed = self.memory_limit_edit.text().strip()
         if typed:
