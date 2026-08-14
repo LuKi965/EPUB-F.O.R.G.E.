@@ -264,6 +264,9 @@ CATALOGUE: dict[str, str] = {
     "epubcheck.unavailable": "EPUBCheck is not installed, so the output was not validated",
     "epubcheck.failed": "EPUBCheck could not be run at all: {error}",
     # -- the gate before publication (K.2 invariant 12) ----------------------
+    "reader.xml-recovered": "this file is not well-formed XML and was read by a parser guessing at what it meant ({detail}); what came out is a reconstruction rather than what the file says",
+    "package.metadata-from-a-guess": "the package document had to be reconstructed, so the book's own description of itself is a guess: check {fields} and correct them if they are wrong",
+    "metadata.property-superseded": "{count} metadata statement(s) from the source are not repeated in the output because this rebuild states the same property itself",
     "package.input-lost-detail": "{name} — a {kind} the archive would not give up; the book's own manifest listed it: {declared}; documents pointing at it: {referenced_by}",
     "package.gate-refused": "EPUBCheck calls the rebuilt book invalid ({count} error(s): {detail}) and this mode does not publish an invalid file; nothing was written and whatever was at that name is untouched",
     "package.gate-refused-new": "this rebuild introduced {count} EPUBCheck error(s) the source (version {source_version}) did not have ({detail}); the book was not published, because carrying a book's own defects is one thing and adding to them is another",
@@ -494,6 +497,9 @@ CATALOGUE_PL: dict[str, str] = {
     'epubcheck.unavailable': 'EPUBCheck nie jest zainstalowany, więc wynik nie został zweryfikowany',
     'epubcheck.failed': 'EPUBCheck w ogóle nie dał się uruchomić: {error}',
     # -- the gate before publication (K.2 invariant 12) ----------------------
+    'reader.xml-recovered': 'ten plik nie jest poprawnym XML-em i został odczytany przez parser zgadujący, co autor miał na myśli ({detail}); to, co z niego wyszło, jest rekonstrukcją, a nie treścią pliku',
+    'package.metadata-from-a-guess': 'dokument pakietu trzeba było zrekonstruować, więc opis książki o samej sobie jest domysłem: sprawdź {fields} i popraw, jeżeli się nie zgadzają',
+    'metadata.property-superseded': '{count} {count:zdanie metadanych ze źródła nie zostało powtórzone|zdania metadanych ze źródła nie zostały powtórzone|zdań metadanych ze źródła nie zostało powtórzonych} w wyniku, bo ta przebudowa sama zapisuje tę własność',
     'package.input-lost-detail': '{name} — {kind}, którego archiwum nie oddało; spis książki go wymieniał: {declared}; dokumentów wskazujących na to: {referenced_by}',
     'package.gate-refused': 'EPUBCheck uznaje przebudowaną książkę za niepoprawną ({count} {count:błąd|błędy|błędów}: {detail}), a ten tryb nie wydaje niepoprawnego pliku; nic nie zapisano, a to, co leżało pod tą nazwą, jest nietknięte',
     'package.gate-refused-new': 'ta przebudowa dołożyła {count} {count:błąd EPUBCheck, którego|błędy EPUBCheck, których|błędów EPUBCheck, których} nie było w źródle (wersja {source_version}) ({detail}); książki nie wydano, bo przenieść cudzy defekt to jedno, a dołożyć własny to drugie',

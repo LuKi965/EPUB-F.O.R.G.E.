@@ -1,10 +1,10 @@
 {
   "source": "sha256:764911a243ca988002c728941817e643fcca685d33dc13022e5e0245e6069e9a",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "minimal": {
     "written": true,
     "report": {
-      "info": 11,
+      "info": 12,
       "fix": 2,
       "warn": 4
     },
@@ -14,6 +14,7 @@
       "a11y.missing-alt": 1,
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
+      "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -36,7 +37,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 14,
+      "info": 15,
       "fix": 9,
       "preserved": 6,
       "warn": 4
@@ -48,6 +49,7 @@
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
       "css.unreachable-rules-found": 5,
+      "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -74,7 +76,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 10,
+      "info": 11,
       "fix": 14,
       "preserved": 6,
       "warn": 4
@@ -87,6 +89,7 @@
       "a11y.table-without-headers": 1,
       "css.unreachable-rules-removed": 5,
       "epubcheck.clean": 1,
+      "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,

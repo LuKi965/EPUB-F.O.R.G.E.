@@ -55,6 +55,33 @@ _RESERVED_URIS = {
 #: Properties this writer produces from the model. A carried-through copy of
 #: one of these would be a duplicate, and the model's version is the one that
 #: has been through the pipeline.
+#: `property=` and `refines=` off a `<meta>` line this module wrote, in either
+#: attribute order. Reading them back is how the writer knows what it has
+#: already said without keeping a second list of what it says.
+_META_PROPERTY_RE = re.compile(r'property="([^"]*)"')
+_META_REFINES_RE = re.compile(r'refines="([^"]*)"')
+
+
+def _properties_written(lines: list[str]) -> set[tuple[str, str]]:
+    """`{(property, refines)}` for every `<meta>` already in *lines*.
+
+    The alternative — a constant naming everything the emitters produce — is
+    what F-011 was: it listed three prefixes, the emitters grew past them, and
+    the mismatch deleted a publisher's metadata for two years without a word.
+    Derived beats declared wherever the derivation is this cheap.
+    """
+    written: set[tuple[str, str]] = set()
+    for line in lines:
+        if "<meta " not in line:
+            continue
+        prop = _META_PROPERTY_RE.search(line)
+        if not prop:
+            continue
+        refines = _META_REFINES_RE.search(line)
+        written.add((prop.group(1), refines.group(1) if refines else ""))
+    return written
+
+
 _GENERATED_PROPERTIES = frozenset(
     {
         "dcterms:modified",
@@ -455,16 +482,39 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
                 f'property="media:duration">{escape(value)}</meta>'
             )
 
+    # `calibre:*` used to be dropped here, all of it, on one `startswith`. The
+    # two entries this model *does* understand — `calibre:series` and
+    # `calibre:series_index` — never reach this list; the reader consumes them
+    # into fields. So the filter removed only the ones nothing else carried:
+    # `calibre:custom-order`, `calibre:user_metadata`, `calibre:rating`, and
+    # whatever somebody's own workflow put there. Reproduced by the 2026-08-14
+    # baseline as metadata leaving the book with no finding to show for it.
     for name, content in metadata.extra_meta:
-        if name.startswith("calibre:"):
-            continue
         lines.append(f'    <meta name={quoteattr(name)} content={quoteattr(content)}/>')
 
-    # Properties with no field of their own, carried through. Anything this
-    # writer generates itself is skipped rather than repeated: the model's
-    # version is the one that has been through the pipeline.
+    # Properties with no field of their own, carried through — skipping only
+    # what this document *already says*.
+    #
+    # **F-011, and the filter that caused it.** The test was `prop in
+    # _GENERATED_PROPERTIES or prop.startswith(("schema:", "rendition:",
+    # "media:"))`, and the intent behind it was right: do not write
+    # `schema:accessMode` twice when the accessibility stage has just written
+    # it. What it actually did was delete every property in three whole
+    # vocabularies, whether or not this rebuild had anything to say about it —
+    # so `schema:accessibilityHazard`, `rendition:spread`, `media:narrator`,
+    # every one of them left the book silently.
+    #
+    # The dedupe key is now what was really written, read back off the lines
+    # this function has already appended. That is deliberate: a hand-kept list
+    # of "properties we generate" is a second copy of the emitters, and the
+    # copy is what drifted. Anything genuinely dropped is counted and reported
+    # below rather than vanishing.
+    already_said = _properties_written(lines)
+    superseded = 0
     for prop, value, attributes in metadata.extra_properties:
-        if prop in _GENERATED_PROPERTIES or prop.startswith(("schema:", "rendition:", "media:")):
+        refines = attributes.get("refines", "")
+        if (prop, refines) in already_said:
+            superseded += 1
             continue
         rendered = "".join(
             f" {key}={quoteattr(attribute_value)}"
@@ -472,6 +522,18 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             if not key.startswith("{")
         )
         lines.append(f'    <meta property={quoteattr(prop)}{rendered}>{escape(value)}</meta>')
+
+    # Said out loud, because "this rebuild already states that" is the only
+    # honest reason for a statement of the publisher's not to appear in the
+    # output, and an unstated reason is indistinguishable from the defect this
+    # replaces.
+    if superseded:
+        report.add(
+            "metadata",
+            Level.INFO,
+            "metadata.property-superseded",
+            values={"count": superseded},
+        )
 
     # Refinements this model has no field for, re-pointed at the ids this
     # document actually gives those nodes. One whose target did not survive is

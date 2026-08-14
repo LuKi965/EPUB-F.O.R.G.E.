@@ -69,13 +69,16 @@ ADOBE_OBFUSCATION = "http://ns.adobe.com/pdf/enc#RC"
 OBFUSCATION_ALGORITHMS = {IDPF_OBFUSCATION, ADOBE_OBFUSCATION}
 
 _XML_PARSER = etree.XMLParser(recover=True, resolve_entities=False, huge_tree=True)
+#: The same settings without the guessing. Used first, so that "this parsed"
+#: and "this was reconstructed" stop being the same answer.
+_STRICT_PARSER = etree.XMLParser(recover=False, resolve_entities=False, huge_tree=True)
 
 
 class EpubReadError(Exception):
     """Raised only when the archive cannot be opened at all."""
 
 
-def parse_xml(data: bytes | None, where: str = ""):
+def parse_xml(data: bytes | None, where: str = "", report: "Report | None" = None):
     """Parse *data*, or answer `None`. Raises only a budget refusal.
 
     `recover=True` recovers from damage and not from absence: `fromstring(b"")`
@@ -96,10 +99,33 @@ def parse_xml(data: bytes | None, where: str = ""):
     if not data:
         return None
     budget.bounded(data, where)
+    # Strict first, and the recovering parser only as a second answer that says
+    # so. **F-004.** `recover=True` on its own is a parser guessing, silently:
+    # a package document with crossed tags —
+    # `<dc:title>ORIGINAL<dc:language>pl</dc:title></dc:language>` — came back
+    # with the title "ORIGINALpl" and no language at all, and the book was
+    # published with no finding of any kind. That is not a repair; it is
+    # libxml2's opinion about somebody's book, promoted to a fact.
+    #
+    # The bytes are parsed the same way either way. What changes is that the
+    # caller now learns which of the two answers it got.
     try:
-        return etree.fromstring(data, _XML_PARSER)
+        return etree.fromstring(data, _STRICT_PARSER)
+    except etree.XMLSyntaxError as strict_failure:
+        complaint = str(strict_failure)
+    try:
+        recovered = etree.fromstring(data, _XML_PARSER)
     except etree.XMLSyntaxError:
         return None
+    if report is not None:
+        report.add(
+            "reader",
+            Level.WARN,
+            "reader.xml-recovered",
+            values={"detail": complaint},
+            location=where,
+        )
+    return recovered
 
 
 def lname(element) -> str:
@@ -1020,7 +1046,7 @@ def _parse_spine(
 
 
 def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoint], list[PageTarget]]:
-    root = parse_xml(data, ncx_path)
+    root = parse_xml(data, ncx_path, report)
     if root is None:
         report.add("reader", Level.WARN, "reader.ncx-unparseable", location=ncx_path)
         return [], []
@@ -1072,7 +1098,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     entry is a label and a target either way, and the alternative to carrying
     them is deleting somebody's list of illustrations for want of a rule.
     """
-    root = parse_xml(data, nav_path)
+    root = parse_xml(data, nav_path, report)
     if root is None:
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
         return [], [], [], []
@@ -1333,7 +1359,7 @@ def _parse_encryption(entries: dict[str, bytes], book: Book, report: Report) -> 
     data = entries.get("META-INF/encryption.xml")
     if not data:
         return
-    root = parse_xml(data, "META-INF/encryption.xml")
+    root = parse_xml(data, "META-INF/encryption.xml", report)
     if root is None:
         report.add("reader", Level.WARN, "reader.encryption-unparseable")
         return
@@ -1429,7 +1455,7 @@ def read_epub(
     else:
         opf_path = _locate_opf(entries, report)
     opf_dir = posixpath.dirname(opf_path)
-    package = parse_xml(entries[opf_path], opf_path)
+    package = parse_xml(entries[opf_path], opf_path, report)
     if package is None:
         raise EpubReadError(f"package document at {opf_path} is unparseable")
 

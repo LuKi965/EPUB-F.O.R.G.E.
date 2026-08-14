@@ -1,14 +1,15 @@
 {
   "source": "sha256:9471575bb3efb13650ee258ea57c473c4aaae2e8a18c8e845f7b604f45a7b83d",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "minimal": {
     "written": true,
     "report": {
-      "info": 11,
+      "info": 12,
       "fix": 2
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -31,13 +32,14 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 12,
+      "info": 13,
       "fix": 8,
       "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
       "css.unreachable-rules-found": 3,
+      "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
@@ -63,7 +65,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 10,
+      "info": 11,
       "fix": 11,
       "preserved": 1
     },
@@ -71,6 +73,7 @@
       "a11y.metadata-added": 1,
       "css.unreachable-rules-removed": 3,
       "epubcheck.clean": 1,
+      "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,

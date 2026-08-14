@@ -41,7 +41,12 @@ BY_DECISION: dict[str, str] = {
         "declarations forward would keep prefixes nothing references"
     ),
     "dc:format": "always application/epub+zip for the output, so restating it is noise",
-    "meta[calibre:timestamp]": "EPUB 2 bookkeeping from another tool, deliberately not carried over",
+    # `meta[calibre:timestamp]` stood here, described as "EPUB 2 bookkeeping
+    # from another tool, deliberately not carried over". It is carried now: the
+    # deliberate part was one `startswith("calibre:")` in the writer, and what
+    # it actually removed was every calibre entry this model does not consume —
+    # custom order, ratings, somebody's own workflow fields. The two it *does*
+    # consume, series and series index, never reached that line. F-011.
     "meta[cover]": "EPUB 2 cover convention; regenerated from the model when a profile asks",
     "properties='scripted'": (
         "removed because it was not true. The fixture declares `scripted` on a "

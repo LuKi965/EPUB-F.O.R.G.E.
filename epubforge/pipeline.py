@@ -520,6 +520,39 @@ def _rebuild_inside_budget(
         )
         return Result(report, None, None, Status.FAILED)
 
+    # **F-004.** A package document that only parsed after recovery is a parser's
+    # reading of somebody's book, and the fields taken from it are that reading
+    # rather than the book's own words. Reproduced: crossed tags turned the title
+    # into "ORIGINALpl" and lost the language, and the book was published with
+    # nothing said at all.
+    #
+    # The owner's decision was neither "refuse" nor "publish quietly": show the
+    # difference and let it be corrected. So the report names the fields that
+    # came out of the guess — they are the ones the window and the command line
+    # already let anybody override by hand — and the status stops being a clean
+    # success. What it deliberately does not do is invent the right answer.
+    if any(
+        finding.rule == "reader.xml-recovered" and (finding.location or "").endswith(".opf")
+        for finding in report.findings
+    ):
+        reconstructed = [
+            label
+            for label, value in (
+                ("title", book.metadata.title),
+                ("language", book.metadata.language),
+                ("identifier", book.metadata.primary_identifier),
+                ("author", ", ".join(c.name for c in book.metadata.creators)),
+            )
+            if value
+        ]
+        report.add(
+            "package",
+            Level.WARN,
+            "package.metadata-from-a-guess",
+            values={"fields": ", ".join(reconstructed) or "nothing this model reads"},
+            location=book.source_opf_path or "",
+        )
+
     lost = _input_lost(report)
     if lost:
         _diagnose_losses(book, report, lost)
@@ -743,6 +776,14 @@ def _rebuild_inside_budget(
     # parsed after a tag-soup recovery: what came out of that is a
     # reconstruction, and this program cannot show it means what went in.
     clean = report.ok and not ctx.unresolved and not ctx.recovered
+    # And a package document that had to be guessed at is the same argument one
+    # level up from a guessed-at chapter: what came out is a reconstruction, and
+    # a flat "succeeded" would be this program vouching for somebody else's
+    # parser. The file is still written — it may well be exactly right — but the
+    # status sends the person to the report, where the fields in question are
+    # named.
+    if any(finding.rule == "package.metadata-from-a-guess" for finding in report.findings):
+        clean = False
     # The audit's K.2 invariant 11: *the result can be read again by the same
     # strict reader, without recovery and without an error.* Nothing checked it,
     # and it is the cheapest end-to-end statement this program can make about
