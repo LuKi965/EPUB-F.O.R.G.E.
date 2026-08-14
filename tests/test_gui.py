@@ -246,6 +246,48 @@ class TestTheEdgeCasesAreReachableFromTheWindow:
         assert not panel.busy
 
 
+class TestTheMemoryGuardIsInTheWindow:
+    """EF-020. The build most likely to meet a machine that runs out is this
+    one: a batch of books, in a window, on a laptop, on Windows — where the
+    outcome without a guard is the process disappearing."""
+
+    def test_the_switch_is_there_and_on(self, window):
+        assert window.memory_check.isChecked()
+        assert len(window.memory_check.toolTip()) > len(window.memory_check.text())
+
+    def test_the_switch_reaches_the_policy(self, window):
+        window.memory_check.setChecked(False)
+        assert window._policy().check_memory is False
+        window.memory_check.setChecked(True)
+        assert window._policy().check_memory is True
+
+    def test_the_budget_can_be_typed_and_reaches_the_policy(self, window):
+        window.memory_limit_edit.setText("4G")
+        assert window._policy().memory_limit == 4 * 1024**3
+
+    def test_an_empty_budget_means_ask_the_machine(self, window):
+        window.memory_limit_edit.setText("")
+        assert window._policy().memory_limit is None
+
+    def test_a_mistyped_budget_falls_back_rather_than_refusing_everything(self, window):
+        """A limit of nonsense read as zero would refuse every book in the
+        batch, which is a worse answer to a typo than ignoring it."""
+        window.memory_limit_edit.setText("cztery gigabajty")
+        assert window._policy().memory_limit is None
+
+    def test_the_inspector_says_what_a_book_will_cost(self, window, tmp_path):
+        """Before the rebuild rather than during it. On a book big enough to
+        matter this is the difference between a line of text and a process the
+        system kills without a word."""
+        from epubforge.gui.tabs import DiagnosticsPanel
+        from tests.factory import make_modern_epub
+
+        book = tmp_path / "a.epub"
+        make_modern_epub(str(book), title="Miara")
+        lines = DiagnosticsPanel._describe(str(book))
+        assert any("pamięć" in line for line in lines), lines
+
+
 class TestTheFixtureBooksAreAskedForInTheWindow:
     """Which purchased books the suite is waiting for, in the window.
 

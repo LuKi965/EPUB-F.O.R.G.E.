@@ -443,6 +443,21 @@ class MainWindow(QMainWindow):
         # Two builds of one book, byte for byte the same. Off by default,
         # because the honest modification date of a file produced now is now.
         self.reproducible_check = self._checkbox(layout, "policy.reproducible", checked=False)
+        # EF-020, after the measurement. On by default, because the alternative
+        # default is the process being killed halfway with nothing written and
+        # nothing said — and this is the build most likely to meet that: a
+        # batch of books in one window, on a laptop, on Windows.
+        self.memory_check = self._checkbox(layout, "policy.memory", checked=True)
+        # And the budget itself, because "everything is reachable from the
+        # window" does not stop at the switch. Empty means "ask the machine
+        # what is free", which is the right default and not the only answer a
+        # person might want: somebody working while a batch runs may prefer a
+        # fixed ceiling that does not move with whatever else they open.
+        self.memory_limit_edit = QLineEdit()
+        self.memory_limit_edit.setPlaceholderText(tr("policy.memory.limit.placeholder"))
+        self.memory_limit_edit.setToolTip(tr("policy.memory.limit.tip"))
+        layout.addWidget(self.memory_limit_edit)
+        self.memory_check.toggled.connect(self.memory_limit_edit.setEnabled)
 
         # The audit's K.2 invariant 12, as a choice rather than a policy this
         # program makes on somebody's behalf. It follows the mode by default —
@@ -672,6 +687,19 @@ class MainWindow(QMainWindow):
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()
+        policy.check_memory = self.memory_check.isChecked()
+        typed = self.memory_limit_edit.text().strip()
+        if typed:
+            from ..cli import _bytes_from
+
+            try:
+                policy.memory_limit = _bytes_from(typed)
+            except ValueError:
+                # Something that is not a size. Ignored rather than refused:
+                # the field is a narrowing of a limit that already has a sane
+                # default, so falling back to the machine's own answer is the
+                # behaviour somebody who mistyped would have wanted anyway.
+                policy.memory_limit = None
         policy.validate_before_publish = self.gate_combo.currentData()
         for key, edit in (
             ("title", self.title_edit),

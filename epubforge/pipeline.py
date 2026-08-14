@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 
 from . import invariants
+from . import memory
 from . import budget as budget_module
 from .budget import Budget, BudgetExceeded
 from .model import Book
@@ -498,6 +499,34 @@ def rebuild(
 def _rebuild_inside_budget(
     source, destination, policy, report, budget, stages, resolver, rendition
 ) -> "Result":
+    # EF-020, and the benchmark it asked for came first. `reader.py` has held a
+    # ceiling of 2 GiB of content since early on, and the measurement turned it
+    # into a different fact than anybody had read into it: text costs twelve
+    # times its own size once it is an element tree, so 2 GiB of content is a
+    # promise the process may reach twenty-four gigabytes. A machine with 2 GiB
+    # free dies at around 160 MB of text — killed, with no report, no
+    # diagnosis, no output and on Windows nothing a person can act on.
+    #
+    # This is the same limit converted into the unit the machine actually has.
+    # It is read from the ZIP directory, so it costs milliseconds, and it
+    # refuses *before* the memory is asked for rather than during. Off by a
+    # switch, because the estimate is a model and the person in front of the
+    # machine knows things the model does not.
+    if policy.check_memory:
+        verdict = memory.check(source, limit=policy.memory_limit)
+        if not verdict.fits:
+            report.add(
+                "reader",
+                Level.ERROR,
+                "package.memory-refused",
+                values={
+                    "needed": memory.human(verdict.estimate.peak_bytes),
+                    "budget": memory.human(verdict.limit),
+                    "text": memory.human(verdict.estimate.text_bytes),
+                },
+            )
+            return Result(report, None, None, Status.BLOCKED)
+
     try:
         book = read_epub(source, report, budget, rendition=rendition)
     except BudgetExceeded as exc:

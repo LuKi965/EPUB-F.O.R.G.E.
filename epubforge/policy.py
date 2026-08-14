@@ -136,6 +136,28 @@ class Policy:
     #: holding the book the last word.
     remove_dead: bool = False
 
+    #: Refuse a book this machine is not expected to have the memory for.
+    #:
+    #: EF-020, after the benchmark it asked for. The reader's ceiling of 2 GiB
+    #: of content is not a memory bound: text costs about twelve times its own
+    #: size once it is an element tree, so that ceiling permits a process of
+    #: twenty-four gigabytes. Between the two numbers the outcome is not a
+    #: refusal but a kill — no report, no diagnosis, nothing to act on.
+    #:
+    #: On by default because the alternative default is that outcome. A switch
+    #: because the estimate is a model: it is built from six books, it is
+    #: deliberately 15% pessimistic, and the person in front of the machine
+    #: knows things it does not — that the batch is the only thing running, that
+    #: there is swap, that this book is unlike those six.
+    check_memory: bool = True
+
+    #: A fixed memory budget in bytes, instead of asking the machine.
+    #:
+    #: For somebody who wants the answer not to depend on what else happened to
+    #: be running that minute — and for the tests, which otherwise measure the
+    #: container rather than the program.
+    memory_limit: "int | None" = None
+
     #: Remove files present in the archive but referenced by nothing.
     #:
     #: Off by default since 0.1.7. The three gaps that kept it off — `srcset`,

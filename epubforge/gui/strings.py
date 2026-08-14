@@ -299,6 +299,32 @@ PL: dict[str, str] = {
         "Gdy walidatora nie ma, ta bramka **odmawia**. Twierdzenie, którego "
         "nikt nie sprawdził, nie jest twierdzeniem."
     ),
+    "policy.memory": "Odmawiaj książek, na które ta maszyna nie ma pamięci",
+    "policy.memory.limit.placeholder": "budżet pamięci, np. 4G — puste znaczy „zapytaj system”",
+    "policy.memory.limit.tip": (
+        "Stały budżet zamiast pytania, ile pamięci jest akurat wolnej. Przydaje "
+        "się, gdy pracujesz w czasie, gdy leci wsad: wolna pamięć zmienia się "
+        "wtedy z każdym otwartym oknem, a próg, który się rusza, odmawia raz tej "
+        "książki, raz innej.\n\n"
+        "Zapisuje się tak, jak się mówi: 4G, 512M, 1500000. Puste pole znaczy "
+        "„pytaj system i zostaw jedną piątą zapasu”."
+    ),
+    "policy.memory.tip": (
+        "Przed otwarciem książki szacowany jest jej koszt pamięciowy, a gdy "
+        "przekracza to, co system podaje jako wolne, przebudowa jest odmawiana z "
+        "raportem zamiast być zabita w połowie.\n\n"
+        "Skąd to się wzięło: czytnik od dawna ma sufit 2 GiB treści. Pomiar na "
+        "sześciu książkach pokazał, że tekst po sparsowaniu kosztuje dwanaście "
+        "razy swój rozmiar — dokument XHTML nie zostaje ciągiem znaków, staje "
+        "się drzewem elementów. Sufit 2 GiB treści jest więc obietnicą, że "
+        "proces może sięgnąć dwudziestu czterech gigabajtów. Maszyna z 2 GiB "
+        "wolnymi umiera przy jakichś 160 MB tekstu — i umiera przez zabicie: bez "
+        "raportu, bez rozpoznania, bez pliku i bez komunikatu, z którym da się "
+        "cokolwiek zrobić.\n\n"
+        "Szacunek jest modelem z sześciu książek i celowo 15% pesymistycznym. "
+        "Odznacz, jeżeli wiesz coś, czego model nie wie — że nic innego nie "
+        "działa, że jest swap, że ta książka jest inna niż tamtych sześć."
+    ),
     "policy.reproducible": "Buduj reprodukowalnie (te same bajty za każdym razem)",
     "policy.reproducible.tip": (
         "Dwie przebudowy tej samej książki dają plik bajt w bajt identyczny. "
@@ -947,6 +973,31 @@ EN: dict[str, str] = {
         "corpus that is three books out of twelve.\n\n"
         "With no validator present this gate **refuses**. A claim nobody "
         "checked is not a claim."
+    ),
+    "policy.memory": "Refuse books this machine has no memory for",
+    "policy.memory.limit.placeholder": "memory budget, e.g. 4G — empty means \"ask the system\"",
+    "policy.memory.limit.tip": (
+        "A fixed budget instead of asking how much memory happens to be free. "
+        "Useful when you are working while a batch runs: free memory then moves "
+        "with every window you open, and a threshold that moves refuses one book "
+        "and not the next for no reason you can see.\n\n"
+        "Written the way you would say it: 4G, 512M, 1500000. Empty means \"ask "
+        "the system and leave a fifth spare\"."
+    ),
+    "policy.memory.tip": (
+        "Before a book is opened its memory cost is estimated, and when it "
+        "exceeds what the system reports as free the rebuild is refused with a "
+        "report instead of being killed halfway.\n\n"
+        "Where this came from: the reader has held a 2 GiB content ceiling for a "
+        "long time. Measured across six books, text costs twelve times its own "
+        "size once parsed — an XHTML document does not stay a string, it becomes "
+        "an element tree. So a 2 GiB content ceiling is a promise the process may "
+        "reach twenty-four gigabytes. A machine with 2 GiB free dies at around "
+        "160 MB of text, and dies by being killed: no report, no diagnosis, no "
+        "file and nothing a person can act on.\n\n"
+        "The estimate is a model built from six books and is deliberately 15% "
+        "pessimistic. Untick it if you know something it does not — that nothing "
+        "else is running, that there is swap, that this book is unlike those six."
     ),
     "policy.reproducible": "Reproducible build (the same bytes every time)",
     "policy.reproducible.tip": (

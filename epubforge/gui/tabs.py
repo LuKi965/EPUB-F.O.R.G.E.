@@ -471,6 +471,7 @@ class DiagnosticsPanel(Panel):
     @staticmethod
     def _describe(book: str) -> list[str]:
         """What is actually in the file, before anything touches it."""
+        from .. import memory
         from ..reader import EpubReadError, read_epub
         from ..report import Report
 
@@ -494,6 +495,10 @@ class DiagnosticsPanel(Panel):
             ("nawigacja", parsed.nav_path or "brak (styl EPUB 2)"),
             ("zaciemnione fonty", str(len(parsed.encrypted)) if parsed.encrypted else "nie"),
             ("DRM", "TAK" if parsed.has_drm else "nie"),
+            # Asked before the rebuild rather than found out during it. On a
+            # book big enough to matter this is the difference between a line
+            # here and a process the system kills without a word.
+            ("pamięć", str(memory.check(book))),
         ]
         return [f"  {name:<20} {value}" for name, value in rows]
 

@@ -61,6 +61,15 @@ def _source_date_epoch() -> str | None:
     return dt.datetime.fromtimestamp(int(raw), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _bytes_from(raw: str) -> int:
+    """`2G`, `512M`, `1500000` — the sizes people actually type."""
+    text = str(raw).strip().upper().rstrip("B")
+    scale = {"K": 1024, "M": 1024**2, "G": 1024**3}
+    if text and text[-1] in scale:
+        return int(float(text[:-1]) * scale[text[-1]])
+    return int(float(text))
+
+
 def build_policy(args: argparse.Namespace) -> Policy:
     preset = "strict" if args.strict else ("minimal" if args.minimal else "preserve")
     policy = Policy.preset(preset)
@@ -80,6 +89,10 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.remove_junk = False
     if getattr(args, "reproducible", False):
         policy.reproducible = True
+    if getattr(args, "no_memory_check", False):
+        policy.check_memory = False
+    if getattr(args, "memory_limit", None):
+        policy.memory_limit = _bytes_from(args.memory_limit)
     # `None` means "whatever the mode says", which is not the same as "off" —
     # the preset already chose, and a default of "off" here would quietly
     # disarm strict's gate for everybody who never passes the flag.
@@ -925,6 +938,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--minimal",
         action="store_true",
         help="rebuild only the container; leave content files untouched",
+    )
+
+    build.add_argument(
+        "--no-memory-check",
+        action="store_true",
+        help=(
+            "rebuild even when this book is expected to need more memory than the "
+            "machine has. The estimate is a model built from six books and is "
+            "deliberately 15%% pessimistic; you may know better than it does"
+        ),
+    )
+    build.add_argument(
+        "--memory-limit",
+        metavar="SIZE",
+        help=(
+            "a fixed memory budget (2G, 512M) instead of asking the machine what "
+            "is free — so the answer does not depend on what else is running"
+        ),
     )
 
     build.add_argument("--no-ncx", action="store_true", help="omit the legacy NCX")
