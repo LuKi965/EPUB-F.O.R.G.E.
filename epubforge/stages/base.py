@@ -130,7 +130,7 @@ class Context:
         if tree is None:
             from .. import xhtml
 
-            tree = xhtml.parse_document(resource.data)
+            tree = xhtml.parse_document(resource.data, resource.path)
             self._trees[key] = tree
         return tree
 
@@ -155,7 +155,7 @@ class Context:
         if tree is None:
             from .. import xhtml
 
-            tree = xhtml.parse_document(resource.data)
+            tree = xhtml.parse_document(resource.data, resource.path)
         return tree
 
     def ask(self, question: Unresolved) -> Decision:

@@ -133,13 +133,35 @@ class TestF001AnUnreadableEntryStopsTheRebuild:
         )
         assert "chapter.xhtml" in finding.values["names"]
 
-    def test_the_person_holding_the_book_can_still_say_go_on(self, tiny_limit, source, tmp_path):
-        """The owner's standing rule, applied to a refusal instead of a
-        deletion. It does not make the loss quiet."""
-        policy = Policy.preset("preserve", allow_incomplete=True)
-        result = rebuild(source, str(tmp_path / "out.epub"), policy)
-        assert result.output_path is not None
-        assert "package.input-incomplete-allowed" in rules_of(result)
+    def test_there_is_no_longer_a_way_to_say_go_on(self, tiny_limit, source, tmp_path):
+        """This test used to assert the opposite, and the opposite was wrong.
+
+        `allow_incomplete=True` published a file called `book.epub` with the
+        chapter missing and a warning in the report, and the argument written
+        here was the owner's standing rule: the person holding the book gets the
+        last word. The 2026-08-14 baseline reproduced it as a `CRITICAL`, and the
+        owner's own answer settled it — a lost ornament is damage to the book as
+        surely as a lost chapter, and a program whose promise is that the book
+        still looks like itself does not get to publish either.
+
+        So the setting is gone rather than defaulted off. A `Policy` constructed
+        with it now refuses outright, which is the only version of "gone" that a
+        script written against the old behaviour cannot walk past.
+        """
+        with pytest.raises(TypeError):
+            Policy.preset("preserve", allow_incomplete=True)
+
+    def test_the_refusal_says_what_the_lost_entry_was(self, tiny_limit, source, tmp_path):
+        """What replaces the switch: a refusal worth reading. The real repair
+        for a damaged file is a clean copy of it, and that decision needs to
+        know whether a chapter went or a decoration did."""
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        detail = next(
+            f for f in result.report.findings if f.rule == "package.input-lost-detail"
+        )
+        assert detail.values["name"].endswith("chapter.xhtml")
+        assert detail.values["kind"] == "document"
+        assert detail.values["declared"] == "yes", "the book listed this chapter and the report should say so"
 
     def test_a_book_that_reads_completely_is_untouched_by_any_of_this(self, source, tmp_path):
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))

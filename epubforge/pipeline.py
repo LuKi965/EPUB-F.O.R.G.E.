@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 
 from . import invariants
+from . import budget as budget_module
 from .budget import Budget, BudgetExceeded
 from .model import Book
 from .policy import Policy
@@ -122,6 +123,74 @@ LOSES_INPUT = frozenset({
     "reader.entry-unreadable",
     "reader.manifest-id-duplicated",
 })
+
+
+#: What a lost archive entry was, from its name, in words a person reads.
+#:
+#: Deliberately coarse. The entry never reached the model — that is what "lost"
+#: means — so there is nothing to inspect but the name it had, and a confident
+#: claim about a file nobody could open would be an invention.
+_KIND_BY_SUFFIX = {
+    "xhtml": "document", "html": "document", "htm": "document", "xml": "document",
+    "css": "stylesheet",
+    "jpg": "image", "jpeg": "image", "png": "image", "gif": "image",
+    "webp": "image", "svg": "image", "bmp": "image", "tif": "image", "tiff": "image",
+    "ttf": "font", "otf": "font", "woff": "font", "woff2": "font",
+    "mp3": "audio", "m4a": "audio", "ogg": "audio", "wav": "audio",
+    "mp4": "video", "webm": "video",
+    "ncx": "navigation", "opf": "package",
+}
+
+
+def _diagnose_losses(book: Book, report: Report, lost: set[str]) -> None:
+    """Say what each unreadable entry was and what it would have cost.
+
+    The switch that used to publish anyway is gone, so a refusal is now the only
+    outcome — and a refusal is only as useful as what it says. "Could not read
+    one entry" tells somebody to go and look; this tells them whether the book
+    lost a chapter or a decoration, whether anything in the book pointed at it,
+    and therefore whether re-downloading is worth the trouble or urgent.
+
+    Everything here is read off the name and off what survived. Nothing is
+    guessed about the bytes, because there are none: that is the whole point.
+    """
+    # Not `book.spine`: an entry that never reached the model is not in the
+    # rebuilt reading order *by definition*, so asking there answers "no" every
+    # time and answers it about the wrong book. What the source said about the
+    # file is in the report, put there by the reader when it went looking for a
+    # manifest item and found nothing behind it.
+    declared = {
+        finding.location
+        for finding in report.findings
+        if finding.rule in ("reader.manifest-file-missing", "reader.spine-id-unknown")
+        and finding.location
+    }
+    for name in sorted(lost):
+        suffix = name.rpartition(".")[2].lower()
+        kind = _KIND_BY_SUFFIX.get(suffix, "unknown")
+        # Who pointed at it. A file nothing refers to is a different loss from
+        # one three chapters link to, and the report should not make somebody
+        # grep for the difference.
+        referring = sum(
+            1
+            for resource in book.resources.values()
+            if resource.media_type in ("application/xhtml+xml", "text/css", "image/svg+xml")
+            and name.rpartition("/")[2].encode("utf-8") in resource.data
+        )
+        report.add(
+            "reader",
+            Level.ERROR,
+            "package.input-lost-detail",
+            values={
+                "name": name,
+                "kind": kind,
+                # "the book said it had this" — the difference between a chapter
+                # the publisher listed and a stray file the archive picked up.
+                "declared": "yes" if any(name.endswith(d) or d.endswith(name) for d in declared) else "no",
+                "referenced_by": referring,
+            },
+            location=name,
+        )
 
 
 def _fingerprint(book: Book) -> tuple:
@@ -415,6 +484,20 @@ def rebuild(
     # that takes five minutes to *open* has already cost what the limit is for.
     budget = Budget()
 
+    # F-019. Every parse in this program charges the *active* budget rather
+    # than one handed down through call sites, because the call-site version is
+    # what produced a limit with a test file and no callers. Activated around
+    # the read as well as the rebuild: a document big enough to matter is one
+    # this program should refuse before it opens it, not after.
+    with budget_module.active(budget):
+        return _rebuild_inside_budget(
+            source, destination, policy, report, budget, stages, resolver, rendition
+        )
+
+
+def _rebuild_inside_budget(
+    source, destination, policy, report, budget, stages, resolver, rendition
+) -> "Result":
     try:
         book = read_epub(source, report, budget, rendition=rendition)
     except BudgetExceeded as exc:
@@ -438,7 +521,8 @@ def rebuild(
         return Result(report, None, None, Status.FAILED)
 
     lost = _input_lost(report)
-    if lost and not policy.allow_incomplete:
+    if lost:
+        _diagnose_losses(book, report, lost)
         report.add(
             "reader",
             Level.ERROR,
@@ -446,13 +530,6 @@ def rebuild(
             values={"count": len(lost), "names": ", ".join(sorted(lost)[:3])},
         )
         return Result(report, book, None, Status.BLOCKED)
-    if lost:
-        report.add(
-            "reader",
-            Level.WARN,
-            "package.input-incomplete-allowed",
-            values={"count": len(lost), "names": ", ".join(sorted(lost)[:3])},
-        )
 
     # The version change is the single largest thing the rebuild does, so it is
     # stated outright rather than left for the reader to infer from the output.
@@ -482,6 +559,14 @@ def rebuild(
         try:
             budget.deadline(stage.name)
             stage.run(ctx)
+            # **F-020.** Asked before the stage and not after, which measures
+            # everything except the thing that takes the time. Reproduced: a
+            # 0.05 s limit, a stage that sleeps 0.20 s, and a published book —
+            # because the only checkpoint was the one that ran while there was
+            # still time left. The last stage in the list never had a check
+            # after it at all, so a rebuild could pass the limit by any margin
+            # and still publish.
+            budget.deadline(stage.name)
         except BudgetExceeded as exc:
             report.add(
                 stage.name,
@@ -569,6 +654,22 @@ def rebuild(
     # person will open. The archive verifier inside `write_epub` asks whether
     # the ZIP survived the trip to disk; this asks whether the book makes sense
     # — a question nothing had been asking.
+    # The last checkpoint, and the one that decides whether a book that already
+    # cost more than it was allowed still gets published. Everything above may
+    # have finished inside the limit and then spent it on the invariant check
+    # or the write; nothing after this line is a good place to find out.
+    try:
+        budget.deadline("publication")
+    except BudgetExceeded as exc:
+        report.add(
+            "package",
+            Level.ERROR,
+            "package.budget-exceeded",
+            values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
+            location=exc.where,
+        )
+        return Result(report, book, None, Status.BLOCKED)
+
     broken = invariants.check(book)
     if broken:
         # One finding, not one per violation, and the catalogue's own tests

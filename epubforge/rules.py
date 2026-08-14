@@ -255,7 +255,6 @@ CATALOGUE: dict[str, str] = {
     "package.stage-broke-its-word": "the {stage} stage says it only measures the book and it changed it, so nothing was written: every other claim this run made rests on the same kind of promise",
     "package.stage-failed": "the {stage} stage raised, so nothing was written: {error}",
     "package.input-incomplete": "{count} entry(ies) of the source could not be read ({names}), so nothing was written; a rebuild that cannot see part of the book cannot promise to keep it",
-    "package.input-incomplete-allowed": "{count} entry(ies) of the source could not be read ({names}) and the rebuild went ahead anyway, because it was told to: what those entries held is not in the output",
     "package.layout-unusable": "the source keeps its package document at {path}, which is not a path this may write ({reason}), so the standard layout was used instead",
     "package.source-protected": "writing over the source file was refused",
     "package.spine-item-vanished": "a spine item was gone by the time the package was written",
@@ -265,6 +264,7 @@ CATALOGUE: dict[str, str] = {
     "epubcheck.unavailable": "EPUBCheck is not installed, so the output was not validated",
     "epubcheck.failed": "EPUBCheck could not be run at all: {error}",
     # -- the gate before publication (K.2 invariant 12) ----------------------
+    "package.input-lost-detail": "{name} — a {kind} the archive would not give up; the book's own manifest listed it: {declared}; documents pointing at it: {referenced_by}",
     "package.gate-refused": "EPUBCheck calls the rebuilt book invalid ({count} error(s): {detail}) and this mode does not publish an invalid file; nothing was written and whatever was at that name is untouched",
     "package.gate-refused-new": "this rebuild introduced {count} EPUBCheck error(s) the source (version {source_version}) did not have ({detail}); the book was not published, because carrying a book's own defects is one thing and adding to them is another",
     "package.errors-were-already-there": "EPUBCheck calls the book invalid in {count} place(s) and called the source invalid in the same places, so it was published as it arrived; the defects are the publisher's and they are listed in the report",
@@ -486,7 +486,6 @@ CATALOGUE_PL: dict[str, str] = {
     'package.stage-broke-its-word': 'etap {stage} twierdzi, że tylko mierzy książkę, a ją zmienił — nic nie zapisano: każde inne zapewnienie z tego przebiegu opiera się na obietnicy tego samego rodzaju',
     'package.stage-failed': 'etap {stage} zgłosił wyjątek, więc nic nie zostało zapisane: {error}',
     'package.input-incomplete': 'nie udało się odczytać {count} {count:wpisu|wpisów|wpisów} źródła ({names}), więc nic nie zapisano; przebudowa, która nie widzi części książki, nie może obiecać, że ją zachowa',
-    'package.input-incomplete-allowed': 'nie udało się odczytać {count} {count:wpisu|wpisów|wpisów} źródła ({names}), a przebudowa i tak poszła dalej, bo tak jej kazano: tego, co w nich było, nie ma w wyniku',
     'package.layout-unusable': 'źródło trzyma dokument pakietu w {path}, a to nie jest ścieżka, którą wolno tu zapisać ({reason}), więc użyto układu standardowego',
     'package.source-protected': 'odmówiono nadpisania pliku źródłowego',
     'package.spine-item-vanished': 'pozycja kolejności czytania zniknęła, zanim pakiet został zapisany',
@@ -495,6 +494,7 @@ CATALOGUE_PL: dict[str, str] = {
     'epubcheck.unavailable': 'EPUBCheck nie jest zainstalowany, więc wynik nie został zweryfikowany',
     'epubcheck.failed': 'EPUBCheck w ogóle nie dał się uruchomić: {error}',
     # -- the gate before publication (K.2 invariant 12) ----------------------
+    'package.input-lost-detail': '{name} — {kind}, którego archiwum nie oddało; spis książki go wymieniał: {declared}; dokumentów wskazujących na to: {referenced_by}',
     'package.gate-refused': 'EPUBCheck uznaje przebudowaną książkę za niepoprawną ({count} {count:błąd|błędy|błędów}: {detail}), a ten tryb nie wydaje niepoprawnego pliku; nic nie zapisano, a to, co leżało pod tą nazwą, jest nietknięte',
     'package.gate-refused-new': 'ta przebudowa dołożyła {count} {count:błąd EPUBCheck, którego|błędy EPUBCheck, których|błędów EPUBCheck, których} nie było w źródle (wersja {source_version}) ({detail}); książki nie wydano, bo przenieść cudzy defekt to jedno, a dołożyć własny to drugie',
     'package.errors-were-already-there': 'EPUBCheck uznaje książkę za niepoprawną w {count} {count:miejscu|miejscach|miejscach} i uznawał źródło za niepoprawne w tych samych miejscach, więc wydano ją taką, jaka przyszła; te defekty są wydawcy i są wypisane w raporcie',

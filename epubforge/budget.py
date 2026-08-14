@@ -32,8 +32,10 @@ built, which is the part that actually protects the C stack.
 
 from __future__ import annotations
 
+import contextvars
 import re
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 #: Entries in one archive. A real book runs to a few hundred; the largest on
@@ -62,8 +64,22 @@ MAX_PIXELS = 250_000_000
 MAX_SECONDS = 300.0
 
 
-class BudgetExceeded(Exception):
-    """One book asked for more than it is allowed. Carries both numbers."""
+class BudgetExceeded(BaseException):
+    """One book asked for more than it is allowed. Carries both numbers.
+
+    **`BaseException`, not `Exception`, and that is the point.** Wiring the
+    document limit into the parsers made it fire — and a stage caught it with an
+    `except Exception` two frames up, filed it as `xhtml.unparseable`, and
+    published the book. A limit that any local handler can swallow is not a
+    limit; it is a limit-shaped thing that reports a different defect. There are
+    a dozen broad handlers in this program and every one of them is right about
+    the case it was written for, which is exactly why this must not be in the
+    class they catch.
+
+    Same reasoning as `KeyboardInterrupt`: it is not an error some code failed
+    to anticipate, it is a decision to stop. Only `rebuild` catches it, and it
+    turns it into a blocked result with both numbers in the report.
+    """
 
     def __init__(self, limit: str, found: object, allowed: object, where: str = "") -> None:
         self.limit = limit
@@ -134,6 +150,73 @@ class Budget:
 #: An opening tag, a closing tag, or a self-closing one, in bytes. Deliberately
 #: not a parser: this runs before parsing, on data nothing has vouched for.
 _TAG = re.compile(rb"<(/?)([A-Za-z_][^\s/>]*)[^>]*?(/?)>", re.DOTALL)
+
+# --------------------------------------------------------------------------
+# The limit that was written and never wired in
+# --------------------------------------------------------------------------
+#
+# **F-019, reopened by the 2026-08-14 baseline, and it was right.** `document()`
+# above had a full test file to itself and **zero call sites in the program**. A
+# reproduction set the depth ceiling to 10, handed the rebuild an eighty-deep
+# document, and counted the calls: nought. The book was parsed, rebuilt and
+# published. The test proved the *limit* worked; nothing proved it was *used*,
+# and those are different claims — the same shape of error as a status tool that
+# counts its own list and reports it as the audit's.
+#
+# So the check does not live at call sites any more. A budget is made active for
+# the length of one rebuild and every parse in this program asks for it, which
+# means a new parse added next year is bounded without anybody remembering to
+# bound it. That is the only version of this fix that stays fixed.
+#
+# A `ContextVar` rather than a global because the window runs rebuilds on a
+# worker thread and the corpus runs several at once; each gets its own, and a
+# thread that was never given one gets `_UNBOUND` — the module defaults, which
+# still refuse a gigabyte — rather than no limit at all.
+
+_UNBOUND: "Budget | None" = None
+
+_ACTIVE: contextvars.ContextVar["Budget | None"] = contextvars.ContextVar(
+    "epubforge_budget", default=None
+)
+
+
+def current() -> "Budget":
+    """The budget this rebuild is spending, or a fresh one with the defaults.
+
+    Never `None`: a parse that happens outside any rebuild — diagnostics, the
+    fidelity harness, a test — is still bounded. Being asked from nowhere is not
+    a reason to allow anything.
+    """
+    global _UNBOUND
+    active = _ACTIVE.get()
+    if active is not None:
+        return active
+    if _UNBOUND is None:
+        _UNBOUND = Budget()
+    return _UNBOUND
+
+
+@contextmanager
+def active(budget: "Budget"):
+    """Make *budget* the one every parse inside this block is charged against."""
+    token = _ACTIVE.set(budget)
+    try:
+        yield budget
+    finally:
+        _ACTIVE.reset(token)
+
+
+def bounded(data: bytes | None, where: str = "") -> None:
+    """Refuse *data* before a parser sees it. Raises :class:`BudgetExceeded`.
+
+    The one function every parse in this program calls. It is deliberately not
+    optional and takes no "skip this" argument: the finding this exists for is
+    precisely that a check with an opt-out is a check nobody remembers to opt
+    into.
+    """
+    if data:
+        current().document(data, where)
+
 
 #: Elements that never nest and are frequently written unclosed in the wild.
 #: Counting `<br>` as an opening tag reports a flat document as deeply nested.

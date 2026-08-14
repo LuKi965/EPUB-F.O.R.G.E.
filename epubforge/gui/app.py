@@ -425,14 +425,14 @@ class MainWindow(QMainWindow):
         if not self._epubcheck:
             self.validate_check.setToolTip(tr("policy.validate.missing"))
 
-        # The escape hatch for the gate added in 0.2.20. A source that cannot be
-        # read in full now stops the rebuild, which is right — and until this
-        # box existed the only way past it was a command-line flag, on a program
-        # whose owner uses the window. A refusal with no visible way through is
-        # not a decision offered to anybody.
-        self.incomplete_check = self._checkbox(
-            layout, "policy.incomplete", checked=False
-        )
+        # There used to be a checkbox here — "rebuild even if part of the source
+        # cannot be read". It is gone with the setting behind it: a source this
+        # program could not read in full now stops the rebuild, with no way
+        # past, because a book quietly missing a chapter or an ornament is the
+        # outcome this whole program exists against. What replaces it is the
+        # damage report and, next to it, the two things worth doing about a
+        # damaged file: check a shelf for damage before it matters, and rebuild
+        # one good copy out of two broken ones.
 
         # F-010's other half. A reference whose anchor does not exist cannot be
         # repaired from the file, and the program refuses to invent an answer —
@@ -659,7 +659,6 @@ class MainWindow(QMainWindow):
             policy.typography = self.typography_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
-        policy.allow_incomplete = self.incomplete_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()
         policy.validate_before_publish = self.gate_combo.currentData()
         for key, edit in (

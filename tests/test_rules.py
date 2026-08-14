@@ -31,7 +31,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: wrong about, deleted along with the finding that reported it. What it may
 #: never do is fall because a `note()` lost its identifier, and every call site
 #: carrying one is what the two tests below actually check.
-TAGGED_TODAY = 222
+TAGGED_TODAY = 223
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -137,7 +137,12 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 
 #: How many catalogue entries are templates today — entries whose description
 #: states the specifics itself, so a translated report does not need the English
-#: sentence underneath it. Same ratchet as the tagging: may rise, may not fall.
+#: sentence underneath it. Same ratchet as the tagging: may rise, may not fall
+#: *while the catalogue holds the same rules*. Deleting a rule lowers it, and
+#: that is not the translation going backwards — `package.input-incomplete-allowed`
+#: went when the behaviour it described stopped being possible. A number that
+#: could only ever rise would make deleting a dead rule look like a regression,
+#: which is how dead rules survive.
 TEMPLATED_TODAY = 148
 
 

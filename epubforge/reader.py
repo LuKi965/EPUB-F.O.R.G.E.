@@ -19,7 +19,7 @@ from urllib.parse import unquote
 
 from lxml import etree
 
-from . import ocf, paths
+from . import budget, ocf, paths
 from .budget import Budget
 from .model import (
     Book,
@@ -75,17 +75,27 @@ class EpubReadError(Exception):
     """Raised only when the archive cannot be opened at all."""
 
 
-def parse_xml(data: bytes | None):
-    """Parse *data*, or answer `None`. Never raises.
+def parse_xml(data: bytes | None, where: str = ""):
+    """Parse *data*, or answer `None`. Raises only a budget refusal.
 
     `recover=True` recovers from damage and not from absence: `fromstring(b"")`
     raises `XMLSyntaxError` while every caller here was written against a `None`
     return, so an empty entry escaped as an exception from `read_epub` and took
     the batch with it. Found by the fuzz suite, in two different places, which
     is why this is a function rather than a `try` at each of them.
+
+    And because it is that function — the one thing every XML parse in the
+    reader goes through — it is where the document budget is charged. F-019 was
+    filed, tested and closed while `Budget.document` had no caller anywhere in
+    the program; the fix is not another call site to remember but this one,
+    which cannot be gone round. A `BudgetExceeded` is deliberately allowed out:
+    it is a refusal with both numbers in it, and `rebuild` turns it into a
+    blocked result. Swallowing it here would be the fail-open this exists
+    against.
     """
     if not data:
         return None
+    budget.bounded(data, where)
     try:
         return etree.fromstring(data, _XML_PARSER)
     except etree.XMLSyntaxError:
@@ -473,7 +483,7 @@ def rootfiles(entries: dict[str, bytes]) -> list[Rendition]:
     container = entries.get("META-INF/container.xml")
     if not container:
         return []
-    root = parse_xml(container)
+    root = parse_xml(container, "META-INF/container.xml")
     if root is None:
         return []
     found: list[Rendition] = []
@@ -507,7 +517,7 @@ def manifest_paths(entries: dict[str, bytes], opf_path: str) -> set[str]:
     data = entries.get(opf_path)
     if not data:
         return set()
-    package = parse_xml(data)
+    package = parse_xml(data, opf_path)
     if package is None:
         return set()
     directory = posixpath.dirname(opf_path)
@@ -525,7 +535,7 @@ def manifest_paths(entries: dict[str, bytes], opf_path: str) -> set[str]:
 def _locate_opf(entries: dict[str, bytes], report: Report) -> str:
     container = entries.get("META-INF/container.xml")
     if container:
-        root = parse_xml(container)
+        root = parse_xml(container, "META-INF/container.xml")
         if root is not None:
             for rootfile in descendants(root, "rootfile"):
                 full_path = rootfile.get("full-path")
@@ -1010,7 +1020,7 @@ def _parse_spine(
 
 
 def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoint], list[PageTarget]]:
-    root = parse_xml(data)
+    root = parse_xml(data, ncx_path)
     if root is None:
         report.add("reader", Level.WARN, "reader.ncx-unparseable", location=ncx_path)
         return [], []
@@ -1062,7 +1072,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     entry is a label and a target either way, and the alternative to carrying
     them is deleting somebody's list of illustrations for want of a rule.
     """
-    root = parse_xml(data)
+    root = parse_xml(data, nav_path)
     if root is None:
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
         return [], [], [], []
@@ -1323,7 +1333,7 @@ def _parse_encryption(entries: dict[str, bytes], book: Book, report: Report) -> 
     data = entries.get("META-INF/encryption.xml")
     if not data:
         return
-    root = parse_xml(data)
+    root = parse_xml(data, "META-INF/encryption.xml")
     if root is None:
         report.add("reader", Level.WARN, "reader.encryption-unparseable")
         return
@@ -1419,7 +1429,7 @@ def read_epub(
     else:
         opf_path = _locate_opf(entries, report)
     opf_dir = posixpath.dirname(opf_path)
-    package = parse_xml(entries[opf_path])
+    package = parse_xml(entries[opf_path], opf_path)
     if package is None:
         raise EpubReadError(f"package document at {opf_path} is unparseable")
 

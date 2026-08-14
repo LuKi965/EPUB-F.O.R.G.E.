@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 
 from . import watermark
 
@@ -162,23 +162,29 @@ class Policy:
     #: obvious.
     remove_junk: bool = True
 
-    #: Rebuild from a source the reader could not read all of.
-    #:
-    #: Off, and it is the only setting in this file whose default is chosen
-    #: against convenience rather than for it. When an entry of the archive
-    #: cannot be read — a monstrous member, a broken stream, a name with no
-    #: usable form — the reader says so and the rebuild now stops. Until 0.2.19
-    #: it did not: an EPUB whose only chapter exceeded the per-entry limit
-    #: produced a file on disk, `succeeded-with-problems`, and no chapter. K1
-    #: says no character of the book's text is lost; a rebuild that cannot see
-    #: the text cannot keep that promise, and a status nobody reads is not a
-    #: warning.
-    #:
-    #: Turning it on is the owner's standing rule applied to a refusal rather
-    #: than to a deletion: the person holding the book gets the last word. It
-    #: does not make the loss quiet — the finding stays, at WARN, naming what
-    #: went missing.
-    allow_incomplete: bool = False
+    # `allow_incomplete` used to live here: "rebuild from a source the reader
+    # could not read all of". It is gone, by the owner's decision of 2026-08-14,
+    # and the argument is worth keeping because it is the argument for the whole
+    # program.
+    #
+    # The 2026-08-14 baseline reproduced it: switch on, one chapter unreadable,
+    # and out came a file called `book.epub` with `succeeded-with-problems` and
+    # no chapter in it. The defence written here was that the switch is a
+    # deliberate one and the loss is in the report — which is the shape of
+    # argument this project does not accept anywhere else.
+    #
+    # The owner's reasoning went past mine. My first proposal was to keep the
+    # switch for losses that are "only" a font or a decorative image, on the
+    # grounds that the text survives. His answer: *"Utrata ozdobnika to również
+    # uszkodzenie książki i przeczy logice aplikacji, którą tworzymy."* He is
+    # right. A program whose one promise is that the book still looks like
+    # itself does not get to publish a book quietly missing its ornament.
+    #
+    # So: **any entry of the source that did not reach the model blocks the
+    # rebuild.** There is no setting. What replaces the switch is a report worth
+    # reading — see `_diagnose_losses` in `pipeline.py` — because the real fix
+    # for a damaged source is a clean copy of it, and this program's job is to
+    # say precisely what is damaged so somebody can go and get one.
 
     #: What to do with a publisher's opaque watermark marker — one of
     #: :data:`epubforge.watermark.MODES`.
@@ -339,6 +345,19 @@ class Policy:
             )
         else:
             raise ValueError(f"unknown policy preset: {name!r}")
+        # A name that is not a field is refused rather than set. `setattr` on a
+        # plain object takes anything, so `Policy.preset("preserve", strickt=True)`
+        # used to produce a policy that was not strict and said nothing — and
+        # after `allow_incomplete` was removed, every caller still passing it
+        # would have gone on believing the setting existed. A misspelt setting
+        # that silently means "the default" is the quietest way for a program to
+        # do something other than what it was told.
+        known = {field.name for field in fields(base)}
+        unknown = sorted(set(overrides) - known)
+        if unknown:
+            raise TypeError(
+                f"Policy has no setting called {', '.join(repr(name) for name in unknown)}"
+            )
         for key, value in overrides.items():
             setattr(base, key, value)
         # The overrides go on after construction, so they have not been checked

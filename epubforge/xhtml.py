@@ -15,6 +15,8 @@ from typing import NamedTuple
 
 from lxml import etree, html as lxml_html
 
+from . import budget
+
 XHTML_NS = "http://www.w3.org/1999/xhtml"
 EPUB_NS = "http://www.idpf.org/2007/ops"
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -390,7 +392,7 @@ def mend_encoding(data: bytes) -> tuple[bytes, str]:
     return data, ""
 
 
-def parse_document(data: bytes) -> ParseResult:
+def parse_document(data: bytes, where: str = "") -> ParseResult:
     """Parse an XHTML document and say what it cost.
 
     Most callers only want the tree; :func:`parse` is the two-value form for
@@ -421,6 +423,14 @@ def parse_document(data: bytes) -> ParseResult:
     # fail fatally on the file.
     normalized = _numeric_entities(_strip_internal_dtd(prepared))
     mode = "xml" if normalized == prepared else "xml-entities"
+
+    # The content-document half of F-019. Charged here rather than at the
+    # callers because this is the one function every content document in the
+    # program goes through, and the finding was precisely that a limit reachable
+    # only by remembering to call it is a limit nobody calls. Measured on the
+    # *normalised* bytes: those are what a parser is about to be handed, and an
+    # entity expansion that multiplies the document is the attack this counts.
+    budget.bounded(normalized, where)
 
     try:
         root = etree.fromstring(normalized, XML_PARSER)

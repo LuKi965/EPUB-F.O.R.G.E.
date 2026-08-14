@@ -99,9 +99,12 @@ class TestTheControlsThatWereMissing:
     """Named individually, because these are the three the rule caught and a
     parametrised test that goes green says nothing about which."""
 
-    @pytest.mark.parametrize(
-        "key", ["policy.incomplete", "policy.fonts", "policy.images"]
-    )
+    # `policy.incomplete` used to be here. The setting behind it is gone —
+    # a source this program could not read in full stops the rebuild, with no
+    # box to tick past it — so the control it demanded would now be a control
+    # for nothing. The rule below is the one that keeps this honest: an
+    # exemption, or a demand, that outlives its field is folklore.
+    @pytest.mark.parametrize("key", ["policy.fonts", "policy.images"])
     def test_it_has_a_control_and_a_label_and_a_tooltip(self, key):
         from epubforge.gui.strings import EN, PL
 
@@ -113,15 +116,21 @@ class TestTheControlsThatWereMissing:
         needs to know what it will do to their book."""
         from epubforge.gui.strings import PL
 
-        assert len(PL["policy.incomplete.tip"]) > 200
-        assert "zatrzymuje" in PL["policy.incomplete.tip"]
+        assert len(PL["policy.fonts.tip"]) > 200
 
-    def test_the_escape_hatch_reaches_the_policy(self):
+    def test_every_checkbox_reaches_the_policy(self):
         """A checkbox wired to nothing is worse than no checkbox."""
         source = (ROOT / "epubforge" / "gui" / "app.py").read_text(encoding="utf-8")
-        assert "policy.allow_incomplete = self.incomplete_check.isChecked()" in source
         assert "policy.deobfuscate_fonts = self.fonts_check.isChecked()" in source
         assert "policy.transcode_images = self.images_check.isChecked()" in source
+
+    def test_and_no_checkbox_survives_the_setting_it_set(self):
+        """The other direction, and the one this class needed after 2026-08-14:
+        `incomplete_check` set `policy.allow_incomplete`, that field is gone, and
+        a box still sitting in the window would set an attribute nothing reads."""
+        source = (ROOT / "epubforge" / "gui" / "app.py").read_text(encoding="utf-8")
+        assert "incomplete_check" not in source
+        assert "allow_incomplete" not in source
 
 
 class TestTheQuestionTheProgramCannotAnswerItself:

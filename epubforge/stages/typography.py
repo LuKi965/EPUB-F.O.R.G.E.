@@ -80,7 +80,7 @@ class TypographyStage(Stage):
             if resource.path == ctx.book.nav_path:
                 continue
             try:
-                documents.append((resource, xhtml.parse_document(resource.data).root))
+                documents.append((resource, xhtml.parse_document(resource.data, resource.path).root))
             except Exception:  # noqa: BLE001 — the content stage reports this
                 continue
 

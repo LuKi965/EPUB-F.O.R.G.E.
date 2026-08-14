@@ -122,7 +122,7 @@ def _shape(path: str) -> dict[str, int]:
     counts = dict.fromkeys(_SHAPE, 0)
     for resource in book.content_docs():
         try:
-            root = xhtml.parse_document(resource.data).root
+            root = xhtml.parse_document(resource.data, resource.path).root
         except Exception:  # noqa: BLE001
             continue
         for element in root.iter():
@@ -325,7 +325,7 @@ def _styles(path: str) -> dict[tuple[str, str], dict[str, str]]:
     found: dict[tuple[str, str], dict[str, str]] = {}
     for resource in book.content_docs():
         try:
-            root = xhtml.parse_document(resource.data).root
+            root = xhtml.parse_document(resource.data, resource.path).root
         except Exception:  # noqa: BLE001
             continue
         sources: list[str] = []
