@@ -1,0 +1,13 @@
+{
+  "role": "ksiazka-2",
+  "sha256": "1938cd2990a404e01c50e334bf7ad426d53a2fa31122860dff60955c0dbb9725",
+  "bytes": 2593996,
+  "profile": {
+    "package_version": "2.0",
+    "documents": 65,
+    "spine": 65,
+    "images": 3,
+    "fonts": 4,
+    "stylesheets": 1
+  }
+}

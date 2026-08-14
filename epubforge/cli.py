@@ -699,6 +699,68 @@ def command_corpus(args: argparse.Namespace) -> int:
     return 0 if all(r.ok for r in results) else 2
 
 
+def command_fixtures(args: argparse.Namespace) -> int:
+    """Say which real books the suite is waiting for, and take one when offered.
+
+    The audit lists two commercial books as mandatory fixtures and then reports
+    three findings as blocked for want of them. The owner's answer was that he
+    had no idea which files were meant — which is a defect in this program and
+    not in his reading: it asked for something and never said what, anywhere he
+    could see. This is where it says so.
+    """
+    import pathlib
+
+    from .fixtures import BY_ID, ROLES, explain, locate, record, shelves
+
+    console = Console()
+    if args.book:
+        role = args.role
+        if role not in BY_ID:
+            console.print(f"[red]Nie ma roli „{role}”.[/] Są: {', '.join(BY_ID)}")
+            return 2
+        book = pathlib.Path(args.book)
+        if not book.is_file():
+            console.print(f"[red]Nie ma pliku[/] {book}")
+            return 2
+        entry = record(role, book)
+        console.print(
+            f"  [green]{role}[/] ← {book.name}\n"
+            f"  sha256:{entry['sha256']}\n"
+            f"  {entry['bytes']} B, pakiet {entry['profile']['package_version']}, "
+            f"{entry['profile']['documents']} dokumentów"
+        )
+        return 0
+
+    where = [str(shelf) for shelf in shelves()]
+    console.print("[bold]Półki przeszukane[/]")
+    for shelf in where or ["  (żadna z nich nie istnieje)"]:
+        console.print(f"  {shelf}")
+    if not where:
+        console.print(
+            "  [dim]Ustaw EPUBFORGE_FIXTURES albo EPUBFORGE_CORPUS, "
+            "albo połóż książki w tests/corpus/.[/]"
+        )
+    console.print()
+
+    missing = 0
+    for role in ROLES:
+        found = locate(role.id)
+        console.print(explain(role))
+        if found.found:
+            console.print(f"  [green]jest[/] — {found.path}")
+        else:
+            missing += 1
+            console.print("  [yellow]brak na żadnej z przeszukanych półek[/]")
+            for candidate in found.candidates:
+                console.print(f"    [dim]podobna: {candidate}[/]")
+            console.print(
+                f"    [dim]gdy ją masz: epubforge fixtures --role {role.id} "
+                f"--book <ścieżka>[/]"
+            )
+        console.print()
+    return 0 if not missing else 1
+
+
 def _report_streak(console: "Console", signatures) -> None:
     """Say how many releases in a row came out clean, and what was passed over.
 
@@ -1109,6 +1171,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="how many books to measure at once (default: one per core, at most 8)",
     )
     corpus.set_defaults(func=command_corpus)
+
+    fixtures_command = subparsers.add_parser(
+        "fixtures",
+        help="which real books the test suite is waiting for, and whether they are reachable",
+    )
+    fixtures_command.add_argument(
+        "--role", metavar="ID", help="the role to fill, e.g. ksiazka-1"
+    )
+    fixtures_command.add_argument(
+        "--book",
+        metavar="FILE",
+        help=(
+            "record this file as the copy that fills --role. Nothing is copied and "
+            "nothing about it is committed beyond a digest and a few counts"
+        ),
+    )
+    fixtures_command.set_defaults(func=command_fixtures)
 
     inventory = subparsers.add_parser(
         "inventory",

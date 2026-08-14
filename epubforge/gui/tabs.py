@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -605,6 +606,18 @@ class CorpusPanel(Panel):
         self.edges_button.setToolTip(tr("corpus.edges.tip"))
         self.edges_button.clicked.connect(self._build_edges)
         row.addWidget(self.edges_button)
+        # The other family nobody can go and buy, and the one the audit stalled
+        # on. It named two purchased books "mandatory", blocked three findings
+        # for want of them, and never said which books — so the person who owns
+        # them could not have handed them over if he wanted to.
+        self.fixtures_button = QPushButton(tr("corpus.fixtures"))
+        self.fixtures_button.setToolTip(tr("corpus.fixtures.tip"))
+        self.fixtures_button.clicked.connect(self._show_fixtures)
+        row.addWidget(self.fixtures_button)
+        self.assign_button = QPushButton(tr("corpus.fixtures.assign"))
+        self.assign_button.setToolTip(tr("corpus.fixtures.assign.tip"))
+        self.assign_button.clicked.connect(self._assign_fixture)
+        row.addWidget(self.assign_button)
         row.addStretch(1)
         self.layout_.addWidget(buttons)
 
@@ -647,11 +660,74 @@ class CorpusPanel(Panel):
 
         self.start(work, [self.check_button, self.record_button, self.edges_button])
 
+    def _show_fixtures(self) -> None:
+        """Which of the two purchased books the suite still cannot see.
+
+        The chosen folder is searched as well as the configured shelves, so a
+        person who has just pointed this panel at their library gets the answer
+        for *that* library without setting an environment variable first.
+        """
+        books = self.books.text().strip()
+        extra = pathlib.Path(books) if books and os.path.isdir(books) else None
+
+        def work(emit):
+            from ..fixtures import ROLES, survey
+
+            emit(0, len(ROLES), tr("corpus.fixtures.working"))
+            return ("fixtures", survey(extra=extra))
+
+        self.start(work, [self.check_button, self.record_button, self.fixtures_button])
+
+    def _assign_fixture(self) -> None:
+        from ..fixtures import BY_ID, record
+
+        chosen, picked = QFileDialog.getOpenFileName(
+            self, tr("corpus.fixtures.assign"), "", "EPUB (*.epub)"
+        )
+        if not picked or not chosen:
+            return
+        roles = list(BY_ID)
+        role, confirmed = QInputDialog.getItem(
+            self, tr("corpus.fixtures.assign"), tr("corpus.fixtures.role"), roles, 0, False
+        )
+        if not confirmed:
+            return
+        entry = record(role, pathlib.Path(chosen))
+        self.output.setPlainText(
+            tr("corpus.fixtures.done", role=role, name=os.path.basename(chosen))
+            + f"\nsha256:{entry['sha256']}"
+        )
+
+    def _handle_fixtures(self, matches) -> None:
+        from ..fixtures import BY_ID, explain
+
+        lines: list[str] = []
+        for match in matches:
+            role = BY_ID[match.role]
+            lines.append(explain(role))
+            if match.found:
+                lines.append(f"  {tr('corpus.fixtures.present')} — {match.path}")
+            else:
+                lines.append(f"  {tr('corpus.fixtures.missing')}")
+                for candidate in match.candidates:
+                    lines.append(
+                        "    " + tr("corpus.fixtures.similar", name=str(candidate))
+                    )
+            lines.append("")
+        self.output.setPlainText("\n".join(lines))
+        absent = sum(1 for match in matches if not match.found)
+        self.window().statusBar().showMessage(
+            f"{len(matches) - absent}/{len(matches)} {tr('corpus.fixtures.present')}"
+        )
+
     def handle(self, results) -> None:
-        # Two jobs land here, so the result says which it was rather than being
+        # Three jobs land here, so the result says which it was rather than being
         # guessed at from its shape.
         if isinstance(results, tuple) and results and results[0] == "edges":
             self._handle_edges(results[1])
+            return
+        if isinstance(results, tuple) and results and results[0] == "fixtures":
+            self._handle_fixtures(results[1])
             return
         labels = {
             "unchanged": tr("corpus.status.unchanged"),

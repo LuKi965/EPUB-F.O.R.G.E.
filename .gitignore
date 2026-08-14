@@ -22,6 +22,14 @@ tests/corpus/*
 !tests/corpus/expected/
 !tests/corpus/runs.json
 
+# The two purchased books three findings are written against. Same rule, one
+# step stricter: `tests/fixtures/` holds only the recorded profiles — a digest,
+# a size and six counts each — and never a book. Nothing here names a title or
+# an author, because the roles are `ksiazka-1` and `ksiazka-2` and the mapping
+# to real books is in the private notes.
+tests/fixtures/*
+!tests/fixtures/*.json
+
 # The public corpora are generated and committed, so they are green by
 # construction and a log of their runs is evidence for nothing. Recording them
 # also drops a `runs.json` straight into `tests/`, beside the test modules,

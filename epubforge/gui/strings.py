@@ -515,6 +515,29 @@ PL: dict[str, str] = {
     ),
     "corpus.edges.done": "Dopisano {count} {count:plik brzegowy|pliki brzegowe|plików brzegowych}:",
     "corpus.edges.working": "buduję brzegi…",
+    "corpus.fixtures": "Książki testowe",
+    "corpus.fixtures.tip": (
+        "Trzy ustalenia audytu da się zamknąć tylko na dwóch konkretnych, kupionych "
+        "książkach — żaden plik syntetyczny ich nie zastąpi. Audyt nazwał je "
+        "„obowiązkowymi”, po czym zapisał wszystkie trzy jako zablokowane z powodu "
+        "braku plików, nie mówiąc nigdzie, o które pliki chodzi.\n\n"
+        "Ten przycisk mówi, o które. Sprawdza wybrany folder i wypisuje, czego "
+        "brakuje, wraz z tym, co ta książka ma zawierać. Nic nie jest kopiowane; do "
+        "repozytorium trafia odcisk i kilka liczb, nigdy tytuł ani znak tekstu."
+    ),
+    "corpus.fixtures.assign": "Przypisz książkę testową…",
+    "corpus.fixtures.assign.tip": (
+        "Wskaż plik, który ma wypełnić rolę. Potrzebne, gdy masz inne wydanie niż "
+        "zapisane: rola jest dopasowywana po odcisku i po niczym innym, bo "
+        "dopasowanie „po podobieństwie” podało kiedyś do roli zupełnie inną powieść."
+    ),
+    "corpus.fixtures.role": "Do której roli?",
+    "corpus.fixtures.done": "Przypisano {role} ← {name}",
+    "corpus.fixtures.present": "jest",
+    "corpus.fixtures.missing": "brak",
+    "corpus.fixtures.needed": "potrzebna do: {findings}",
+    "corpus.fixtures.similar": "podobna na półce: {name}",
+    "corpus.fixtures.working": "szukam książek testowych…",
     "corpus.streak": "Passa zielonych wydań: {count} ({releases}).",
     "corpus.streak.none": "Passa zielonych wydań: brak — ostatni przebieg nie był czysty.",
     "corpus.streak.widened": "Pominięte jako poszerzenie pomiaru: {releases}.",
@@ -1127,6 +1150,29 @@ EN: dict[str, str] = {
     ),
     "corpus.edges.done": "Wrote {count} edge case(s):",
     "corpus.edges.working": "building the edge cases…",
+    "corpus.fixtures": "Fixture books",
+    "corpus.fixtures.tip": (
+        "Three audit findings can only be closed against two particular purchased "
+        "books; no synthetic file stands in for them. The audit called them "
+        "mandatory, then recorded all three as blocked for want of the files — "
+        "without saying anywhere which files it meant.\n\n"
+        "This says which. It checks the chosen folder and lists what is missing "
+        "along with what that book has to contain. Nothing is copied; the "
+        "repository gets a digest and a few counts, never a title or a word of text."
+    ),
+    "corpus.fixtures.assign": "Assign a fixture book…",
+    "corpus.fixtures.assign.tip": (
+        "Point at the file that fills a role. Needed when your edition differs from "
+        "the recorded one: a role is matched by digest and by nothing else, because "
+        "matching on resemblance once handed a completely different novel to a role."
+    ),
+    "corpus.fixtures.role": "Which role?",
+    "corpus.fixtures.done": "Assigned {role} ← {name}",
+    "corpus.fixtures.present": "present",
+    "corpus.fixtures.missing": "missing",
+    "corpus.fixtures.needed": "needed for: {findings}",
+    "corpus.fixtures.similar": "similar on the shelf: {name}",
+    "corpus.fixtures.working": "looking for the fixture books…",
     "corpus.streak": "Green releases in a row: {count} ({releases}).",
     "corpus.streak.none": "Green releases in a row: none — the last run was not clean.",
     "corpus.streak.widened": "Passed over as a widening of the measurement: {releases}.",

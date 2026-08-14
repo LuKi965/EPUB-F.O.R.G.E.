@@ -29,7 +29,11 @@ EXPECTED = CORPUS / "expected"
 
 pytestmark = pytest.mark.skipif(
     not books_in(CORPUS),
-    reason=f"no private corpus in {CORPUS}; see docs/KORPUS.md",
+    # `docs/KORPUS.md` was named here for four releases after the documentation
+    # moved to the private notes, so the one line telling a person what to do
+    # pointed at a file this repository does not have.
+    reason=f"no private corpus in {CORPUS}; drop .epub files there, or run "
+    f"'epubforge corpus <folder>' against a library elsewhere",
 )
 
 

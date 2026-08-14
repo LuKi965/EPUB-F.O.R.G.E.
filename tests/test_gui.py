@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from epubforge.gui import theme  # noqa: E402
 from epubforge.gui.app import MainWindow  # noqa: E402
+from epubforge.gui.strings import tr  # noqa: E402
 
 import pathlib  # noqa: E402
 
@@ -243,6 +244,70 @@ class TestTheEdgeCasesAreReachableFromTheWindow:
         panel._build_edges()
         assert asked
         assert not panel.busy
+
+
+class TestTheFixtureBooksAreAskedForInTheWindow:
+    """Which purchased books the suite is waiting for, in the window.
+
+    The audit called two of them mandatory and blocked three findings on them,
+    and the owner's answer was that he had no idea which files were meant. He
+    runs the installer; a role catalogue reachable only through `pytest` on a
+    checkout would have left the question exactly as unanswered as the audit
+    left it.
+    """
+
+    def panel(self, window):
+        from epubforge.gui.tabs import CorpusPanel
+
+        for index in range(window.tabs.count()):
+            if isinstance(window.tabs.widget(index), CorpusPanel):
+                return window.tabs.widget(index)
+        raise AssertionError("no corpus panel")
+
+    def test_both_buttons_are_there_and_explain_themselves(self, window):
+        panel = self.panel(window)
+        for button in (panel.fixtures_button, panel.assign_button):
+            assert button.text()
+            assert len(button.toolTip()) > len(button.text())
+
+    def test_it_names_the_role_and_what_the_book_has_to_contain(self, window):
+        """Not "ksiazka-1: missing" — that is the audit's answer restated. The
+        panel prints what the book has to have in it, which is the only form of
+        the question the owner can act on."""
+        from epubforge.fixtures import ROLES, Match
+
+        panel = self.panel(window)
+        panel._handle_fixtures([Match(role.id) for role in ROLES])
+        text = panel.output.toPlainText()
+        for role in ROLES:
+            assert role.id in text
+            assert role.exercises[0] in text
+            for finding in role.findings:
+                assert finding in text
+
+    def test_a_book_that_is_there_is_named(self, window, tmp_path):
+        import pathlib
+
+        from epubforge.fixtures import Match
+
+        panel = self.panel(window)
+        panel._handle_fixtures([Match("ksiazka-1", pathlib.Path(tmp_path / "jest.epub"))])
+        assert "jest.epub" in panel.output.toPlainText()
+
+    def test_a_near_miss_is_offered_as_a_question_and_not_as_the_answer(self, window, tmp_path):
+        """A shortlist, labelled a shortlist. Matching by resemblance handed a
+        different novel to a role when it was allowed to decide by itself."""
+        import pathlib
+
+        from epubforge.fixtures import Match
+
+        panel = self.panel(window)
+        panel._handle_fixtures(
+            [Match("ksiazka-1", None, (pathlib.Path(tmp_path / "podobna.epub"),))]
+        )
+        text = panel.output.toPlainText()
+        assert "podobna.epub" in text
+        assert tr("corpus.fixtures.missing") in text
 
 
 class TestTheStreakIsVisibleFromTheWindow:
