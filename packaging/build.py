@@ -12,16 +12,18 @@ no separate EPUBCheck install on the target machine.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.client
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 PACKAGING_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = PACKAGING_DIR.parent
@@ -44,6 +46,36 @@ EPUBCHECK_URL = (
     f"https://github.com/w3c/epubcheck/releases/download/v{EPUBCHECK_VERSION}/"
     f"epubcheck-{EPUBCHECK_VERSION}.zip"
 )
+
+#: What the release archive must weigh and hash, or the build stops.
+#:
+#: **EF-017.** Until this existed the build fetched a 33 MB archive over the
+#: network and ran whatever came back — as the validator every release is
+#: measured against, and as the thing that decides whether a book is publishable.
+#: Every Python dependency has been pinned with a hash since 0.2.21; the one
+#: artifact with the most authority over the output had nothing.
+#:
+#: **Where these numbers come from, since a pin is only worth its provenance.**
+#: The archive was downloaded from the URL above on 2026-08-14 and these are its
+#: bytes. That much is trust-on-first-use, which detects tampering from now on
+#: and cannot detect it from before. So it was corroborated through a second,
+#: independent channel: `epubcheck.jar` inside this archive was compared entry
+#: by entry with `org.w3c:epubcheck:5.3.0` from Maven Central, which is
+#: GPG-signed and served by a different host. **All 746 entries matched byte for
+#: byte**, the manifest aside — the distribution jar differs from the library
+#: jar only in its `Class-Path`. The code this build ships is therefore the code
+#: in the signed artifact, checked rather than assumed.
+#:
+#: Maven's own digest for that library jar, recorded so the comparison can be
+#: repeated: `0e9e8bc2eb47a58c1254016d7f360646bfe04397b137cac2f4e53e361ed1415b`.
+EPUBCHECK_SHA256 = "6c07e68584b2e2ce2f89fe06e1246dfead3eb36b46b340e7d93524f29dcff6c5"
+EPUBCHECK_SIZE = 33_071_108
+
+#: And the jar once it is out of the archive, checked again after extraction.
+#: Two checks rather than one because they answer different questions: the first
+#: is about what arrived over the wire, the second about what came out of the
+#: unpacking — and the unpacking is the step this finding is also about.
+EPUBCHECK_JAR_SHA256 = "f7f96617c929371821609b88c8484d6dc9f24fe916499863c46094c5fb778a65"
 
 #: Derived with `jdeps --print-module-deps` over epubcheck.jar and its lib/, then
 #: widened to cover the reflective XML and logging lookups jdeps cannot see, and
@@ -122,6 +154,84 @@ def _download(url: str, target: Path, attempts: int = 4) -> None:
             time.sleep(pause)
 
 
+def digest_of(path: Path) -> str:
+    """SHA-256 of a file, read in pieces so a 33 MB archive costs a buffer."""
+    running = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            running.update(chunk)
+    return running.hexdigest()
+
+
+def verify_archive(path: Path) -> None:
+    """Refuse an EPUBCheck archive that is not the one this build was measured
+    against. Size first, because it is free and it names the likelier accident.
+    """
+    size = path.stat().st_size
+    if size != EPUBCHECK_SIZE:
+        raise SystemExit(
+            f"{path.name} is {size} bytes and should be {EPUBCHECK_SIZE}. "
+            f"Refusing to build against an EPUBCheck this release has not measured."
+        )
+    found = digest_of(path)
+    if found != EPUBCHECK_SHA256:
+        raise SystemExit(
+            f"{path.name} hashes to {found} and should hash to {EPUBCHECK_SHA256}. "
+            f"Refusing to build against an EPUBCheck this release has not measured."
+        )
+    log(f"{path.name} verified against the pinned digest")
+
+
+def safe_extract(archive: zipfile.ZipFile, target: Path) -> None:
+    """Unpack member by member, refusing anything that reaches outside *target*.
+
+    `extractall` was here, and `extractall` is the documented hazard: Python's
+    own manual warns that it never validates member names against the
+    destination. A member called `../../../../etc/cron.d/x` writes there. This
+    is a build step that runs on a release machine and unpacks bytes fetched
+    over a network, which is the exact shape the warning is about.
+
+    Refused rather than skipped, and that is the choice worth stating: an
+    archive containing a traversal is not an archive with one bad member, it is
+    an archive somebody tampered with. Quietly dropping the member and carrying
+    on would build a release out of it.
+    """
+    seen: set[str] = set()
+    root = target.resolve()
+    for info in archive.infolist():
+        name = info.filename
+        if name.endswith("/"):
+            continue
+
+        # `\\` because a ZIP written on Windows can carry them and `PurePosixPath`
+        # would read the whole thing as one long file name.
+        if "\\" in name or name.startswith("/") or (len(name) > 1 and name[1] == ":"):
+            raise SystemExit(f"refusing archive: member name is not relative: {name!r}")
+        if ".." in PurePosixPath(name).parts:
+            raise SystemExit(f"refusing archive: member escapes the directory: {name!r}")
+
+        # A symlink in a ZIP is a regular member whose contents are the target
+        # path, marked in the high bits of the external attributes. Following
+        # one on extraction writes wherever it points, which is traversal by
+        # another route — and nothing in an EPUBCheck distribution is a link.
+        if stat.S_ISLNK(info.external_attr >> 16):
+            raise SystemExit(f"refusing archive: member is a symbolic link: {name!r}")
+
+        if name in seen:
+            raise SystemExit(f"refusing archive: member appears twice: {name!r}")
+        seen.add(name)
+
+        destination = (target / name).resolve()
+        # The belt to the braces above: whatever the name looked like, the path
+        # it resolves to has to be inside the directory being written.
+        if not destination.is_relative_to(root):
+            raise SystemExit(f"refusing archive: member escapes the directory: {name!r}")
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with archive.open(info) as source, open(destination, "wb") as handle:
+            shutil.copyfileobj(source, handle)
+
+
 def stage_epubcheck(archive: Path | None) -> None:
     target = BUNDLE_DIR / "epubcheck"
     if target.exists():
@@ -132,13 +242,20 @@ def stage_epubcheck(archive: Path | None) -> None:
         archive = BUNDLE_DIR / f"epubcheck-{EPUBCHECK_VERSION}.zip"
         if not archive.is_file():
             _download(EPUBCHECK_URL, archive)
+    # Checked whether it was just downloaded or handed in with --epubcheck-zip.
+    # A local file is not more trustworthy than a fetched one; it is only more
+    # convenient, and a build that verifies one path and not the other verifies
+    # nothing an attacker cannot route around.
+    verify_archive(archive)
     log(f"extracting {archive.name}")
 
+    # A fresh directory per run, so a member left behind by an earlier build
+    # cannot be picked up by this one.
+    raw = Path(tempfile.mkdtemp(prefix="epubcheck-", dir=BUNDLE_DIR))
     with zipfile.ZipFile(archive) as handle:
-        handle.extractall(BUNDLE_DIR / "_epubcheck_raw")
+        safe_extract(handle, raw)
 
     # The release zip nests everything under epubcheck-<version>/.
-    raw = BUNDLE_DIR / "_epubcheck_raw"
     roots = [p for p in raw.iterdir() if p.is_dir()] or [raw]
     source = next((p for p in roots if (p / "epubcheck.jar").is_file()), None)
     if source is None:
@@ -150,6 +267,18 @@ def stage_epubcheck(archive: Path | None) -> None:
         else:
             shutil.copy2(item, destination)
     shutil.rmtree(raw)
+
+    # And once more on what actually came out. The archive's digest says the
+    # bytes were right; this says the unpacking produced the jar those bytes
+    # describe, which is the half of the finding that is about extraction.
+    staged_jar = target / "epubcheck.jar"
+    found = digest_of(staged_jar)
+    if found != EPUBCHECK_JAR_SHA256:
+        raise SystemExit(
+            f"epubcheck.jar hashes to {found} and should hash to "
+            f"{EPUBCHECK_JAR_SHA256} — the archive verified and the extraction "
+            f"did not produce the expected jar."
+        )
     log(f"epubcheck staged ({sum(f.stat().st_size for f in target.rglob('*') if f.is_file()) >> 20} MiB)")
     stage_validator_driver(target)
 
