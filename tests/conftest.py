@@ -43,3 +43,27 @@ def rebuilt_strict(legacy_epub, tmp_path):
 def archive(rebuilt):
     with zipfile.ZipFile(rebuilt.output_path) as handle:
         yield handle
+
+
+@pytest.fixture(autouse=True)
+def without_the_renderer(request, monkeypatch):
+    """No test draws a page unless it is a test about drawing pages.
+
+    F-028's gate defaults to `stop`, which is the owner's choice and the right
+    one for somebody's library — and it means every rebuild renders. Measured
+    the moment it became the default: the suite stopped finishing inside ten
+    minutes, because two thousand tests that rebuild a book were each paying for
+    a browser.
+
+    The same reasoning as `test_corpus_signatures.py` turning EPUBCheck off: a
+    suite nobody waits for is a suite nobody runs. What is deliberately *not*
+    done here is changing the default — `Policy().render_gate` is still `stop`
+    and `test_render_gate.py` asserts it. Only the discovery of a browser is
+    suppressed, which is exactly the state of a machine that has none, and the
+    files that are about rendering opt back in.
+    """
+    if request.node.get_closest_marker("renders"):
+        return
+    if "render" in str(getattr(request.node, "fspath", "")):
+        return
+    monkeypatch.setattr("epubforge.render.find_renderer", lambda: None)

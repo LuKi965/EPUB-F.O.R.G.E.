@@ -275,7 +275,16 @@ def _measure(
     # per mode, over a file that had not changed since the last one. With three
     # modes that is two thirds of the source work thrown away.
     source = source or _read_source(book)
-    policy = Policy.preset(mode, modified_override=FROZEN_MODIFIED)
+    # `render_gate="off"` for the same reason the signatures do not ask
+    # EPUBCheck by default: a signature has to be a function of the *book and
+    # this program*, and nothing else. With the render gate on, the answer would
+    # depend on whether the machine taking the measurement happens to have a
+    # browser — a shelf recorded on one laptop would come back "changed" on
+    # another, having changed in no way at all. It also costs about thirty-six
+    # seconds per book per mode, on a run that already measures three modes.
+    policy = Policy.preset(
+        mode, modified_override=FROZEN_MODIFIED, render_gate="off"
+    )
     result = rebuild(str(book), str(destination), policy)
 
     # Counters by level say a book gained three fixes. Counters by rule say

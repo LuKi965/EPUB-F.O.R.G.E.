@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import pathlib
+import tempfile
 from dataclasses import dataclass, replace
 from enum import Enum
 
@@ -230,6 +232,148 @@ def _fingerprint(book: Book) -> tuple:
         len(book.landmarks),
         len(book.page_list),
     )
+
+
+def _render_gate(source: str, policy: Policy, report: Report, destination: str):
+    """F-028's half of the commit point: does the rebuilt book still look like it?
+
+    Returns `None` when the policy asks for no rendering, and otherwise a
+    function the writer hands the finished archive before it becomes the
+    destination — the same hook the validator gate uses, and for the same
+    reason: the only honest place to refuse is before the file exists.
+
+    **Without a browser it does not refuse.** The owner's instruction was
+    explicit and is a standing rule rather than a preference about this feature:
+    tell the person the verification is required, and let them decline it
+    knowingly. Refusing every rebuild on a machine with no browser would not be
+    holding the line, it would be holding the person's book hostage to a
+    dependency this program deliberately does not ship. So the report says, at
+    warning level, that the check did not run, what it looks for, and both ways
+    out — install one, or turn the gate off on purpose.
+    """
+    if policy.render_gate == "off":
+        return None
+
+    from . import render, render_fidelity
+
+    def gate(candidate: str) -> str:
+        if render.find_renderer() is None:
+            report.add(
+                "render",
+                Level.WARN,
+                "render.cannot-run",
+                values={"variable": render.ENV_BROWSER},
+            )
+            return ""
+
+        measured = render_fidelity.compare(
+            source, candidate, sample=policy.render_sample
+        )
+        if not measured.available:
+            report.add(
+                "render", Level.WARN, "render.cannot-run",
+                values={"variable": render.ENV_BROWSER},
+            )
+            return ""
+
+        for page in measured.pages:
+            if page.problems:
+                report.add(
+                    "render", Level.ERROR, "render.page-lost-content",
+                    values={"detail": str(page)}, location=page.document,
+                )
+            elif page.notes:
+                report.add(
+                    "render", Level.INFO, "render.page-changed",
+                    values={"detail": str(page)}, location=page.document,
+                )
+        if measured.ok:
+            report.add(
+                "render", Level.INFO, "render.checked",
+                values={"count": len(measured.pages), "engine": measured.engine},
+            )
+            return ""
+
+        kept = _keep_evidence(source, candidate, destination, measured, report)
+        if policy.render_gate == "report":
+            return ""
+        return (
+            f"{len(measured.problems)} page(s) lost content"
+            + (f"; evidence in {kept}" if kept else "")
+        )
+
+    return gate
+
+
+def _keep_evidence(source, candidate, destination, measured, report) -> str:
+    """Save the before/after pictures for the pages that failed, beside the book.
+
+    The owner's decision, and the argument for it is his: without them the
+    sentence "this page has less on it than the source did" is something he
+    would have to take on trust. Only the failing pages, because a folder of
+    forty-eight identical-looking screenshots per book is not evidence, it is
+    litter.
+    """
+    import shutil
+
+    from . import render, render_fidelity
+
+    wanted = {page.document for page in measured.problems}
+    if not wanted:
+        return ""
+    folder = os.path.splitext(destination)[0] + ".zrzuty"
+    try:
+        os.makedirs(folder, exist_ok=True)
+        browser = render.find_renderer()
+        with tempfile.TemporaryDirectory() as room:
+            room_path = pathlib.Path(room)
+            before = render_fidelity._extract(source, room_path / "przed")
+            after = render_fidelity._extract(candidate, room_path / "po")
+            paired, _, _ = render_fidelity._pair(
+                render_fidelity._spine_of(before), render_fidelity._spine_of(after)
+            )
+            for source_page, output_page in paired:
+                if output_page.name not in wanted:
+                    continue
+                for label, page in (("przed", source_page), ("po", output_page)):
+                    target = pathlib.Path(folder) / f"{output_page.stem}-{label}.png"
+                    render.shoot(
+                        page, target,
+                        viewport=render_fidelity.VIEWPORTS[0], browser=browser,
+                    )
+    except (OSError, render.RenderError) as exc:
+        report.add(
+            "render", Level.WARN, "render.evidence-unwritten",
+            values={"error": f"{type(exc).__name__}: {exc}"},
+        )
+        return ""
+    del shutil
+    return folder
+
+
+def _both_gates(source: str, policy: Policy, report: Report, destination: str):
+    """The validator gate and the render gate, in that order, as one hook.
+
+    Order matters and is not arbitrary: EPUBCheck costs seconds and rendering
+    costs half a minute, so the cheap refusal goes first. A book the validator
+    turns away is never drawn.
+    """
+    checks = [
+        _publication_gate(source, policy, report),
+        _render_gate(source, policy, report, destination),
+    ]
+    checks = [check for check in checks if check is not None]
+    if not checks:
+        return None
+
+    def gate(candidate: str) -> str:
+        for check in checks:
+            refusal = check(candidate)
+            if refusal:
+                return refusal
+        return ""
+
+    return gate
 
 
 def _publication_gate(source: str, policy: Policy, report: Report):
@@ -803,7 +947,7 @@ def _rebuild_inside_budget(
             report,
             content_dir=policy.content_dir,
             package_name=policy.package_name,
-            before_publish=_publication_gate(source, policy, report),
+            before_publish=_both_gates(source, policy, report, destination),
         )
     except PublicationRefused:
         # Already reported by the gate itself, in more detail than an exception

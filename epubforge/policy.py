@@ -10,6 +10,9 @@ from . import watermark
 #: refusing, which is the order they are offered in every interface.
 GATES = ("off", "no-new-errors", "clean")
 
+#: What `Policy.render_gate` may say, in the same order: least to most refusing.
+RENDER_GATES = ("off", "report", "stop")
+
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 #:
 #: `image/webp` belongs here and was missing until 0.2.20. EPUB 3.3 lists it
@@ -135,6 +138,32 @@ class Policy:
     #: real book showed it was not. A switch costs one line and gives the person
     #: holding the book the last word.
     remove_dead: bool = False
+
+    #: What the render check does when it finds a page that lost content.
+    #:
+    #: F-028, and the owner chose `stop` as the default himself, knowing the
+    #: cost: the check adds about thirty-six seconds to a rebuild, and a book it
+    #: refuses is a book that has to be looked at.
+    #:
+    #: * `off` — do not render at all.
+    #: * `report` — render, put what it found in the report, publish anyway.
+    #: * `stop` — render, and where a page lost content, publish nothing; the
+    #:   file already at that name is left exactly as it was.
+    #:
+    #: Measured across the owner's thirty-two books before this became a
+    #: default: zero refusals. Measured with all forty-six of one book's hyphens
+    #: joined — the case he asked about, where the text genuinely reflows — 7 of
+    #: 130 page comparisons moved at all, the largest by 1.64% of pixels, and
+    #: nothing was called a loss. Reflow moves ink; it does not remove it.
+    render_gate: str = "stop"
+
+    #: How many spine documents the render check draws. `0` means all of them.
+    #:
+    #: Twelve by default and *his* choice of default, with the whole-book option
+    #: kept because he asked for it in those words: the person deciding whether
+    #: their book survived is entitled to look at all of it rather than at a
+    #: sample somebody else picked.
+    render_sample: int = 12
 
     #: Read back and write down the answers a person gave about this book.
     #:

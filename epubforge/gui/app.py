@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 
 from .. import resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
-from ..policy import GATES, Policy
+from ..policy import GATES, RENDER_GATES, Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_to_json
 from .. import rules
@@ -451,6 +451,26 @@ class MainWindow(QMainWindow):
         # nothing; the answers are remembered because being asked the same
         # forty-six questions on every rebuild is how a feature becomes
         # something people switch off.
+        # F-028, and the owner's own choice of default: "stop". He was shown the
+        # cost — about thirty-six seconds a book — and the measurement behind it,
+        # zero refusals across his thirty-two books, and chose the strong one.
+        render_label = QLabel(tr("policy.render.gate"))
+        render_label.setObjectName("sectionLabel")
+        render_label.setToolTip(tr("policy.render.tip"))
+        layout.addWidget(render_label)
+        self.render_combo = QComboBox()
+        self.render_combo.setToolTip(tr("policy.render.tip"))
+        for index, value in enumerate(RENDER_GATES):
+            key = f"policy.render.gate.{value}"
+            self.render_combo.addItem(tr(key), value)
+            self.render_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.render_combo.setCurrentIndex(RENDER_GATES.index(Policy().render_gate))
+        layout.addWidget(self.render_combo)
+        # He asked for this one in those words: there has to be an option to
+        # check the whole book. A sample is somebody else's choice about which
+        # pages of *his* book are worth looking at.
+        self.render_all_check = self._checkbox(layout, "policy.render.all", checked=False)
+
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
         self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
         self.memory_check = self._checkbox(layout, "policy.memory", checked=True)
@@ -693,6 +713,8 @@ class MainWindow(QMainWindow):
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()
+        policy.render_gate = self.render_combo.currentData()
+        policy.render_sample = 0 if self.render_all_check.isChecked() else 12
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()

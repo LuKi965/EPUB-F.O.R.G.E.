@@ -289,6 +289,8 @@ class TestTheRulesThemselvesNameConstructsAndNotWorks:
         "AppleDouble", "TAK", "BRAK", "NIE",
         "BCP", "Books", "DOCTYPE", "DTD", "HTML5", "ISO", "MIME", "PATH",
         "RMSDK", "Sigil", "InDesign",
+        # Browsers the appearance check looks for by name.
+        "Chromium", "Chrome", "Edge",
         # Language names, which a rule about a language rule may state.
         "Polish",
         # Polish `Twoje`, capitalised after a colon in one rule's second half.

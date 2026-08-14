@@ -13,7 +13,7 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, plan_batch
-from .policy import GATES, Policy
+from .policy import GATES, RENDER_GATES, Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -89,6 +89,10 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.remove_junk = False
     if getattr(args, "reproducible", False):
         policy.reproducible = True
+    if getattr(args, "render_gate", None) is not None:
+        policy.render_gate = args.render_gate
+    if getattr(args, "render_all", False):
+        policy.render_sample = 0
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -998,6 +1002,21 @@ def build_parser() -> argparse.ArgumentParser:
             "a fixed memory budget (2G, 512M) instead of asking the machine what "
             "is free — so the answer does not depend on what else is running"
         ),
+    )
+
+    build.add_argument(
+        "--render-gate",
+        choices=RENDER_GATES,
+        help=(
+            "what the appearance check does when a page loses content: 'off' does "
+            "not draw at all, 'report' writes the file and says so, 'stop' writes "
+            "nothing (default)"
+        ),
+    )
+    build.add_argument(
+        "--render-all",
+        action="store_true",
+        help="draw every page rather than a sample of twelve",
     )
 
     build.add_argument("--no-ncx", action="store_true", help="omit the legacy NCX")

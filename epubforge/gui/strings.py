@@ -322,6 +322,46 @@ PL: dict[str, str] = {
         "wpisujesz własną formę, nigdy nie obejmuje grupy — to zdanie o jednym "
         "słowie, nie o wszystkich."
     ),
+    "policy.render": "Sprawdzaj wygląd po przebudowie",
+    "policy.render.tip": (
+        "Rysuje strony książki przed i po przebudowie i porównuje obrazy. To "
+        "jedyna kontrola, która patrzy na *wygląd* — wszystkie inne czytają plik.\n\n"
+        "Pyta o trzy rzeczy i tylko o trzy: czy dokument zniknął z kolejności "
+        "czytania, czy strona wyszła pusta, i czy ubyło jednocześnie treści i "
+        "zajmowanego przez nią miejsca. Nie ma zdania o tym, czy czcionka jest "
+        "inna ani czy wiersze łamią się inaczej.\n\n"
+        "Przesunięcie tekstu jej nie rusza. Zmierzone: po złączeniu 46 łączników "
+        "w jednej książce 7 ze 130 porównań stron w ogóle drgnęło, największe o "
+        "1,64% pikseli, a treści nie ubyło nigdzie.\n\n"
+        "Potrzebuje przeglądarki opartej na Chromium. Nie jest instalowana razem "
+        "z programem; bez niej kontrola się nie wykona, a raport powie to wprost."
+    ),
+    "policy.render.gate": "Gdy strona straci treść:",
+    "policy.render.gate.off": "nie sprawdzaj wyglądu w ogóle",
+    "policy.render.gate.off.tip": (
+        "Kontrola nie działa przy przebudowie. Zostaje osobne pytanie w "
+        "Diagnostyce i polecenie „render-check”, uruchamiane ręcznie."
+    ),
+    "policy.render.gate.report": "zapisz plik i napisz o tym w raporcie",
+    "policy.render.gate.report.tip": (
+        "Strata trafia do raportu, obrazy przed/po lądują obok książki, a plik "
+        "powstaje. Decyzję, co z tym zrobić, podejmujesz po fakcie."
+    ),
+    "policy.render.gate.stop": "nie zapisuj pliku",
+    "policy.render.gate.stop.tip": (
+        "Przy wykrytej stracie nic nie zostaje zapisane, a plik, który był pod tą "
+        "nazwą, zostaje nietknięty. Obrazy przed/po są zapisywane obok, żeby dało "
+        "się zobaczyć, o co chodzi.\n\n"
+        "Zmierzone przed ustawieniem tego jako domyślne: 0 odmów na 32 książkach."
+    ),
+    "policy.render.all": "Rysuj wszystkie strony, nie próbkę",
+    "policy.render.all.tip": (
+        "Domyślnie rysowanych jest 12 stron: pierwsze trzy zawsze, bo okładka i "
+        "strony tytułowe to miejsce, gdzie obrazki się tną i gniotą, a reszta "
+        "rozłożona po książce. To około 36 sekund na książkę.\n\n"
+        "Zaznaczone — rysowane są wszystkie strony. Dla książki o 65 rozdziałach "
+        "to kilka minut, ale wtedy nic nie jest zgadywane z próbki."
+    ),
     "policy.hyphens": "Szukaj łączników zostawionych w środku słów",
     "policy.hyphens.tip": (
         "Zła konwersja PDF-a zostawia w tekście łącznik z podziału wiersza: "
@@ -1042,6 +1082,47 @@ EN: dict[str, str] = {
         "Only cases carrying the same strength of evidence. The option where you "
         "type your own form never covers a group — that is a statement about one "
         "word, not about all of them."
+    ),
+    "policy.render": "Check the appearance after rebuilding",
+    "policy.render.tip": (
+        "Draws the book's pages before and after the rebuild and compares the "
+        "images. It is the only check that looks at how a page *looks* — every "
+        "other one reads the file.\n\n"
+        "It asks three things and only three: did a document vanish from the "
+        "reading order, did a page come out blank, and did both the content and "
+        "the area it occupies shrink. It has no opinion about a different font "
+        "or about lines wrapping differently.\n\n"
+        "Reflow does not move it. Measured: after joining 46 hyphens in one "
+        "book, 7 of 130 page comparisons moved at all, the largest by 1.64% of "
+        "pixels, and nothing lost content.\n\n"
+        "Needs a Chromium-based browser. It is not installed with the program; "
+        "without one the check does not run and the report says so plainly."
+    ),
+    "policy.render.gate": "When a page loses content:",
+    "policy.render.gate.off": "do not check the appearance at all",
+    "policy.render.gate.off.tip": (
+        "The check does not run during a rebuild. The separate question in "
+        "Diagnostics and the `render-check` command remain, run by hand."
+    ),
+    "policy.render.gate.report": "write the file and say so in the report",
+    "policy.render.gate.report.tip": (
+        "The loss goes into the report, the before/after pictures land beside "
+        "the book, and the file is written. You decide afterwards."
+    ),
+    "policy.render.gate.stop": "do not write the file",
+    "policy.render.gate.stop.tip": (
+        "On a detected loss nothing is written, and whatever was at that name is "
+        "left untouched. The before/after pictures are saved beside it so you "
+        "can see what it means.\n\n"
+        "Measured before this became the default: 0 refusals across 32 books."
+    ),
+    "policy.render.all": "Draw every page, not a sample",
+    "policy.render.all.tip": (
+        "By default 12 pages are drawn: the first three always, because the "
+        "cover and title pages are where images crop and stretch, and the rest "
+        "spread across the book. About 36 seconds per book.\n\n"
+        "Ticked, every page is drawn. For a 65-chapter book that is several "
+        "minutes, but then nothing is inferred from a sample."
     ),
     "policy.hyphens": "Look for hyphens left inside words",
     "policy.hyphens.tip": (
