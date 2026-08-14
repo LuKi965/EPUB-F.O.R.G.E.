@@ -73,15 +73,16 @@ class TestTheTextInvariantMeansWhatItSays:
         record = signature(book, tmp_path)
         assert record["preserve"]["written"]
         assert record["preserve"]["text_invariant"], record["preserve"]
-        # Strict does not publish this fixture any more and there is no version
-        # of it to measure, which is the publication gate working rather than a
-        # regression: the stylesheet points at `Fonts/moja.ttf`, the source has
-        # no such file, and EPUB 3 calls that an error where EPUB 2 did not.
-        # Strict neutralises a dead reference in a document and does not yet do
-        # it in a stylesheet, so it cannot make this book conformant and says
-        # so. The question this test asks is about text, so it asks it of the
-        # mode that answers.
-        assert record["strict"]["written"] is False
+        # This assertion was suspended for one release. The publication gate
+        # arrived in 0.2.23 and strict stopped publishing this fixture: the
+        # stylesheet points at `Fonts/moja.ttf`, the source has no such file,
+        # and EPUB 3 calls that an error where EPUB 2 did not. Strict could
+        # neutralise a dead reference in a document and not in a stylesheet, so
+        # it could not make the book conformant. F-017 closed that, strict
+        # publishes it again, and the question this test was written to ask is
+        # answerable again.
+        assert record["strict"]["written"]
+        assert record["strict"]["text_invariant"]
         assert record["minimal"]["text_invariant"], record["minimal"]
 
     def test_the_recorded_count_is_the_reader_s_text(self, tmp_path):

@@ -264,6 +264,71 @@ def _normal_selector(selector: str) -> str:
     return re.sub(r"\s*,\s*", ",", " ".join(selector.split()))
 
 
+
+def _split_top_level(value: str) -> list[str]:
+    """Split a CSS value on commas that are not inside brackets or quotes.
+
+    `url(a,b.png), url(c.png)` is two candidates, not three: a naive `split(",")`
+    cuts inside the first `url()` and produces two halves of one reference.
+    """
+    parts: list[str] = []
+    depth = 0
+    quote = ""
+    current: list[str] = []
+    for character in value:
+        if quote:
+            current.append(character)
+            if character == quote:
+                quote = ""
+            continue
+        if character in "\"'":
+            quote = character
+            current.append(character)
+        elif character == "(":
+            depth += 1
+            current.append(character)
+        elif character == ")":
+            depth = max(0, depth - 1)
+            current.append(character)
+        elif character == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(character)
+    if current:
+        parts.append("".join(current))
+    return [part for part in parts if part.strip()]
+
+
+def _drop_declaration(css_text: str, start: int, end: int, prop: str) -> str:
+    """Remove one declaration, and the `@font-face` around it if it was `src`.
+
+    A face with no source can load nothing, so leaving the rule behind leaves a
+    `font-family` name that resolves to a font that does not exist — which is
+    the same defect one level along, and the one that makes a page fall back to
+    a system font without saying why.
+    """
+    if prop != "src":
+        return css_text[:start] + css_text[end:]
+
+    opening = css_text.rfind("{", 0, start)
+    at_rule = css_text.rfind("@", 0, opening) if opening != -1 else -1
+    if at_rule != -1 and css_text[at_rule:opening].strip().lower().startswith("@font-face"):
+        closing = css_text.find("}", end)
+        if closing != -1:
+            return css_text[:at_rule] + css_text[closing + 1 :]
+    return css_text[:start] + css_text[end:]
+
+
+def _parses_as_css(css_text: str) -> bool:
+    """Whether cssutils can still read this. The guard on any text surgery."""
+    try:
+        sheet = cssutils.parseString(css_text, validate=False)
+    except Exception:  # noqa: BLE001 — an unreadable sheet is the answer
+        return False
+    return sheet is not None
+
+
 def _rule_model(css_text: str) -> "Counter":
     """Every top-level style rule as (selector, declarations), counted.
 
@@ -2454,12 +2519,31 @@ class StyleStage(Stage):
             rewritten, unresolved = self._rewrite_urls(
                 ctx, rewritten, source_path, resource.path
             )
+            if unresolved and ctx.policy.remove_dead:
+                rewritten, neutralised = self._neutralise_dead_urls(
+                    ctx, rewritten, source_path, resource.path, resource
+                )
+                unresolved -= neutralised
             rewritten = self._strip_vendor_hacks(ctx, rewritten, resource)
             rewritten = self._repair(ctx, rewritten, resource)
             rewritten = self._vendor_properties(ctx, rewritten, resource)
             rewritten = self._unreachable_rules(ctx, rewritten, resource)
             rewritten = self._font_stacks(ctx, rewritten, resource)
             resource.data = rewritten.encode("utf-8")
+
+            # EPUB 3 wants `remote-resources` on the manifest item of *any*
+            # resource that reaches outside the container, and this program was
+            # computing it for documents only. A stylesheet with
+            # `background-image: url(https://…)` is exactly such a resource, and
+            # leaving the property off is an error EPUBCheck names — found by a
+            # fixture written for something else, which is the usual way.
+            if any(
+                paths.is_remote(match.group(2))
+                for match in re.finditer(
+                    r"url\(\s*(['\"]?)(.*?)\1\s*\)", rewritten, flags=re.IGNORECASE
+                )
+            ):
+                resource.properties.add("remote-resources")
 
             if unresolved:
                 self.note(
@@ -2508,6 +2592,140 @@ class StyleStage(Stage):
 
         rewritten = re.sub(r'@import\s+(["\'])(.*?)\1', replace_import, rewritten, flags=re.IGNORECASE)
         return rewritten, unresolved
+
+    #: Properties whose value is a comma-separated list where a `url()` is one
+    #: candidate among several. A dead entry is dropped *from the list*; the
+    #: keyword `none` would not be valid in either of them.
+    _URL_LISTS = frozenset({"src", "cursor"})
+
+    def _neutralise_dead_urls(
+        self, ctx: Context, css_text: str, source_path: str, current_path: str, resource
+    ) -> tuple[str, int]:
+        """Strict mode: make a stylesheet's references to absent files stop
+        being errors, the way the content stage already does for documents.
+
+        **F-017.** Strict neutralises a dead `href` in a document and left a
+        dead `url()` in a stylesheet exactly as it found it — so a book whose
+        `@font-face` names a font the archive does not contain could not be made
+        conformant, and after 0.2.23 put a publication gate in front of strict,
+        could not be published either. Two of the twelve public corpus books.
+
+        What "neutralise" means depends on the property, and the difference is
+        not cosmetic:
+
+        * `src` and `cursor` take a **list** of candidates. The dead one is
+          dropped and the rest are kept, which is the whole point of a fallback
+          list; `none` is not a value either property accepts. A declaration
+          left with an empty list goes, and an `@font-face` left with no `src`
+          goes with it — a face that can load nothing is not a face.
+        * everywhere else the value is a single image, and `none` is exactly
+          what "there is no image here" is spelled. `background-image: none`
+          renders what a broken url rendered, and says so.
+
+        The rewrite is checked by re-parsing: a sheet this cannot re-parse is
+        put back untouched, the same guard the dead-rule removal uses. A repair
+        that breaks the stylesheet is worse than the error it repaired.
+        """
+        before = css_text
+        neutralised = 0
+
+        def dead(raw: str) -> bool:
+            """Whether this reference reaches nothing, asked of *both* layouts.
+
+            `_rewrite_urls` has already run, so a live reference in this text is
+            relative to where the stylesheet has moved *to*, and a dead one is
+            still the publisher's original relative to where it came *from*.
+            Asking only the second question — which the first version of this
+            did — reports every successfully repointed url as dead, and takes a
+            whole `@font-face` away because its surviving source now looks
+            unreachable. Caught by the fallback-list fixture, which is why that
+            fixture exists.
+            """
+            raw = raw.strip()
+            if not raw or paths.is_remote(raw) or raw.startswith(("#", "data:")):
+                return False
+            repointed = paths.resolve(current_path, raw)
+            if repointed and repointed in ctx.book.resources:
+                return False
+            original = paths.resolve(source_path, raw)
+            return not original or original not in ctx.path_map
+
+        def declaration_bounds(text: str, at: int) -> tuple[int, int]:
+            start = max(text.rfind(";", 0, at), text.rfind("{", 0, at)) + 1
+            end = min(
+                (position for position in (text.find(";", at), text.find("}", at)) if position != -1),
+                default=len(text),
+            )
+            return start, end
+
+        while True:
+            found = None
+            for match in re.finditer(r"url\(\s*(['\"]?)(.*?)\1\s*\)", css_text, flags=re.IGNORECASE):
+                if dead(match.group(2)):
+                    found = match
+                    break
+            if found is None:
+                break
+
+            start, end = declaration_bounds(css_text, found.start())
+            declaration = css_text[start:end]
+            prop = declaration.split(":", 1)[0].strip().lower()
+
+            if prop in self._URL_LISTS:
+                # Drop this candidate, keep the others.
+                _, _, value = declaration.partition(":")
+                survivors = [
+                    part.strip()
+                    for part in _split_top_level(value)
+                    if not (
+                        (inner := re.search(r"url\(\s*(['\"]?)(.*?)\1\s*\)", part, re.IGNORECASE))
+                        and dead(inner.group(2))
+                    )
+                ]
+                if survivors:
+                    replacement = f"{prop}: {', '.join(survivors)}"
+                    css_text = css_text[:start] + replacement + css_text[end:]
+                else:
+                    css_text = _drop_declaration(css_text, start, end, prop)
+            else:
+                css_text = (
+                    css_text[: found.start()] + "none" + css_text[found.end() :]
+                )
+            neutralised += 1
+
+        if not neutralised:
+            return before, 0
+
+        # The guard, and the reason this is safe to do with a scanner rather
+        # than a full parse: whatever came out has to still be a stylesheet.
+        if not _parses_as_css(css_text):
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.dead-url-kept",
+                values={"count": neutralised},
+                location=resource.path,
+            )
+            return before, 0
+
+        self.note(
+            ctx,
+            Level.FIX,
+            "css.dead-url-neutralised",
+            values={"count": neutralised},
+            location=resource.path,
+        )
+        self.changed(
+            ctx,
+            Action.REPLACED,
+            resource.path,
+            before=f"{neutralised} url() pointing at files not in the book",
+            after="none, or dropped from the fallback list",
+            risk=Risk.APPEARANCE,
+            reversible=False,
+            rule="css.dead-url-neutralised",
+        )
+        return css_text, neutralised
 
     def _strip_vendor_hacks(self, ctx: Context, css_text: str, resource) -> str:
         """Remove reader-specific at-rules that no EPUB 3 renderer honours."""

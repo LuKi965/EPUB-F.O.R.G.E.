@@ -266,6 +266,8 @@ CATALOGUE: dict[str, str] = {
     # -- the gate before publication (K.2 invariant 12) ----------------------
     "reader.xml-recovered": "this file is not well-formed XML and was read by a parser guessing at what it meant ({detail}); what came out is a reconstruction rather than what the file says",
     "package.metadata-from-a-guess": "the package document had to be reconstructed, so the book's own description of itself is a guess: check {fields} and correct them if they are wrong",
+    "css.dead-url-neutralised": "{count} stylesheet reference(s) to files not in the book were neutralised — a single image becomes none, a fallback candidate is dropped from its list, and an @font-face left with no source goes with it",
+    "css.dead-url-kept": "{count} stylesheet reference(s) point at files not in the book and were left alone, because neutralising them produced a stylesheet that no longer parses",
     "metadata.property-superseded": "{count} metadata statement(s) from the source are not repeated in the output because this rebuild states the same property itself",
     "package.input-lost-detail": "{name} — a {kind} the archive would not give up; the book's own manifest listed it: {declared}; documents pointing at it: {referenced_by}",
     "package.gate-refused": "EPUBCheck calls the rebuilt book invalid ({count} error(s): {detail}) and this mode does not publish an invalid file; nothing was written and whatever was at that name is untouched",
@@ -499,6 +501,8 @@ CATALOGUE_PL: dict[str, str] = {
     # -- the gate before publication (K.2 invariant 12) ----------------------
     'reader.xml-recovered': 'ten plik nie jest poprawnym XML-em i został odczytany przez parser zgadujący, co autor miał na myśli ({detail}); to, co z niego wyszło, jest rekonstrukcją, a nie treścią pliku',
     'package.metadata-from-a-guess': 'dokument pakietu trzeba było zrekonstruować, więc opis książki o samej sobie jest domysłem: sprawdź {fields} i popraw, jeżeli się nie zgadzają',
+    'css.dead-url-neutralised': '{count} {count:odwołanie w arkuszu wskazywało|odwołania w arkuszu wskazywały|odwołań w arkuszu wskazywało} na pliki, których w książce nie ma — unieszkodliwione: pojedynczy obrazek staje się none, kandydat z listy zapasowej wypada z niej, a @font-face bez żadnego źródła znika razem z nim',
+    'css.dead-url-kept': '{count} {count:odwołanie w arkuszu wskazuje|odwołania w arkuszu wskazują|odwołań w arkuszu wskazuje} na pliki, których w książce nie ma, i zostało bez zmian — bo po unieszkodliwieniu arkusz przestawał się parsować',
     'metadata.property-superseded': '{count} {count:zdanie metadanych ze źródła nie zostało powtórzone|zdania metadanych ze źródła nie zostały powtórzone|zdań metadanych ze źródła nie zostało powtórzonych} w wyniku, bo ta przebudowa sama zapisuje tę własność',
     'package.input-lost-detail': '{name} — {kind}, którego archiwum nie oddało; spis książki go wymieniał: {declared}; dokumentów wskazujących na to: {referenced_by}',
     'package.gate-refused': 'EPUBCheck uznaje przebudowaną książkę za niepoprawną ({count} {count:błąd|błędy|błędów}: {detail}), a ten tryb nie wydaje niepoprawnego pliku; nic nie zapisano, a to, co leżało pod tą nazwą, jest nietknięte',
