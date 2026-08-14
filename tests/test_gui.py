@@ -20,6 +20,10 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from epubforge.gui import theme  # noqa: E402
 from epubforge.gui.app import MainWindow  # noqa: E402
 
+import pathlib  # noqa: E402
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
 
 @pytest.fixture(scope="module")
 def qt_app():
@@ -428,3 +432,62 @@ class TestAskingAboutAReferenceNothingCanResolve:
         )
         resolver = ask.Ask(window)
         assert resolver.resolve(TestAskingAboutAReferenceNothingCanResolve.question()) is not None
+
+class TestEveryFeatureIsActuallyInTheWindow:
+    """Not "the label exists" — the control exists, on the built window.
+
+    Written after the owner asked whether the two new features were reachable
+    from the window "or do I have to remind you again". They were, and nothing
+    was checking it: the tests around them asserted that the *strings* existed
+    and that the *command line* had the commands, which is precisely the shape
+    of error the 2026-08-14 baseline caught five times over — proving the parts
+    exist while nothing proves they are wired together.
+
+    So this constructs the window and asks it.
+    """
+
+    def test_diagnostics_asks_whether_the_file_is_whole(self, window):
+        panel = window.tabs.widget(3)
+        assert panel.health_choice.text().strip()
+
+    def test_and_that_question_is_wired_to_the_answer(self, window):
+        """A radio button connected to nothing looks identical to one that
+        works, right up until somebody presses it."""
+        panel = window.tabs.widget(3)
+        assert callable(panel._health)
+        source = (ROOT / "epubforge" / "gui" / "tabs.py").read_text(encoding="utf-8")
+        assert "elif self.health_choice.isChecked():" in source
+        assert "answer = self._health" in source
+
+    def test_merging_damaged_copies_is_in_the_menu(self, window):
+        entries = {
+            action.text()
+            for menu_action in window.menuBar().actions()
+            if menu_action.menu() is not None
+            for action in menu_action.menu().actions()
+        }
+        assert any("Scal" in text or "Merge" in text for text in entries), sorted(entries)
+
+    def test_and_the_dialog_opens_with_nothing_writable(self, window):
+        """The human-in-the-loop requirement, asserted on the real dialog: the
+        button that writes is disabled until a plan has been computed and
+        shown."""
+        from epubforge.gui.merge import MergeDialog
+
+        dialog = MergeDialog(window)
+        try:
+            assert not dialog.write_button.isEnabled()
+            dialog._examine()  # with no copies added
+            assert not dialog.write_button.isEnabled()
+        finally:
+            dialog.close()
+
+    def test_the_publication_gate_is_a_choice_somebody_can_make(self, window):
+        """0.2.23's invariant, same rule: a policy the window cannot set is a
+        policy the owner does not have."""
+        from epubforge.policy import GATES
+
+        assert window.gate_combo.count() == len(GATES)
+        assert [
+            window.gate_combo.itemData(index) for index in range(window.gate_combo.count())
+        ] == list(GATES)

@@ -847,6 +847,26 @@ class MainWindow(QMainWindow):
             detail = result.report.detail_for(finding, language())
             if detail:
                 self.report_view.append(f"{'':>{width + 2}}{detail}")
+        # BA-2026-003: the balance sheet, after the findings and before the
+        # cursor goes back to the top. Only what cannot be undone is listed —
+        # the rest is in the saved JSON, and a window that reprints every move
+        # is a window nobody scrolls to the end of.
+        undoable = result.report.irreversible()
+        if result.report.changes:
+            self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
+            self.report_view.append("")
+            self.report_view.append(
+                tr(
+                    "report.changes",
+                    total=len(result.report.changes),
+                    irreversible=len(undoable),
+                )
+            )
+            for change in undoable:
+                self.report_view.append(
+                    f"    {change.action.value}  {change.subject}"
+                    + (f"  ({change.before})" if change.before else "")
+                )
         self.report_view.setTextColor(default)
         self.report_view.moveCursor(QTextCursor.MoveOperation.Start)
 

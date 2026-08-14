@@ -177,6 +177,7 @@ PL: dict[str, str] = {
         "Gdy cokolwiek pójdzie nie tak, program i tak wraca do osobnego procesu "
         "i mówi w raporcie dlaczego."
     ),
+    "report.changes": "Bilans zmian: {total}, w tym nieodwracalnych: {irreversible}",
     "merge.title": "Scal dwie uszkodzone kopie",
     "merge.intro": (
         "Dwie kopie tej samej książki, każda zepsuta w innym miejscu — jedna "
@@ -799,6 +800,7 @@ EN: dict[str, str] = {
         "If anything goes wrong the program falls back to a separate process "
         "anyway, and says in the report why."
     ),
+    "report.changes": "Balance of changes: {total}, of which irreversible: {irreversible}",
     "merge.title": "Merge two damaged copies",
     "merge.intro": (
         "Two copies of one book, each broken somewhere the other is not, and "

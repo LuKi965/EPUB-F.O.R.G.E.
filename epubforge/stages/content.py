@@ -17,7 +17,7 @@ from lxml import etree
 
 from .. import cascade as css_cascade
 from .. import fonts_meta, paths, references, stylesheet, typography, watermark, xhtml
-from ..report import Level
+from ..report import Action, Level, Risk
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
 
@@ -1151,6 +1151,31 @@ class ContentStage(Stage):
             },
             location=resource.path,
         )
+        # Strict mode taking markup out of somebody's page. `unlinked` keeps the
+        # text and drops the href; `removed` takes the element away, and the
+        # output has nothing left to say what it was — which is exactly the
+        # distinction a balance sheet has to make and a count of 5 cannot.
+        if unlinked:
+            self.changed(
+                ctx,
+                Action.REPLACED,
+                resource.path,
+                before=f"{unlinked} link(s) to files not in the book",
+                after="the same text, no longer a link",
+                risk=Risk.APPEARANCE,
+                reversible=False,
+                rule="xhtml.dead-reference-neutralised",
+            )
+        if removed:
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                resource.path,
+                before=f"{removed} element(s) pointing at files not in the book",
+                risk=Risk.CONTENT,
+                reversible=False,
+                rule="xhtml.dead-reference-neutralised",
+            )
 
     def _rewrite_css_urls(self, ctx: Context, css_text: str, source_path: str, current_path: str) -> str:
         def replace(match: re.Match) -> str:

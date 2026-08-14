@@ -218,5 +218,41 @@ class Stage:
             self.name, level, rule, values=values, location=location, detail=detail
         )
 
+    def changed(
+        self,
+        ctx: Context,
+        action: "Action",
+        subject: str,
+        *,
+        before: str = "",
+        after: str = "",
+        automation: "Automation" = None,  # type: ignore[assignment]
+        risk: "Risk" = None,  # type: ignore[assignment]
+        reversible: bool = True,
+        rule: str = "",
+    ) -> None:
+        """Enter one high-risk transformation in the balance sheet.
+
+        Beside `note` rather than inside it, and that is the design: most of
+        what a stage records is an observation, and an observation is not a
+        change. BA-2026-003 asks for the changes to be addable — how many
+        removals, how many of them irreversible, how many decided by a
+        heuristic rather than derived — and a ledger that also holds every
+        "this book has no author" is a log again.
+        """
+        from ..report import Automation as _Automation, Risk as _Risk
+
+        ctx.report.changed(
+            self.name,
+            action,
+            subject,
+            before=before,
+            after=after,
+            automation=automation or _Automation.DETERMINISTIC,
+            risk=risk or _Risk.NONE,
+            reversible=reversible,
+            rule=rule,
+        )
+
 
 __all__ = ["Context", "Stage", "Level", "Policy", "Report", "Book"]

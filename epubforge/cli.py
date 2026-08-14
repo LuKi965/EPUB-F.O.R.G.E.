@@ -169,6 +169,18 @@ def summarize(console: Console, report: Report) -> None:
     ]
     console.print("  " + " · ".join(parts))
 
+    # BA-2026-003, in one line. The full balance sheet goes to the JSON report;
+    # what belongs on a terminal is the number somebody would want before
+    # overwriting their only copy — how much of this cannot be put back.
+    if report.changes:
+        undoable = len(report.irreversible())
+        line = f"  [dim]{len(report.changes)} zmian w bilansie"
+        if undoable:
+            line += f", [/][yellow]{undoable} nieodwracalnych[/]"
+        else:
+            line += ", wszystkie odwracalne[/]"
+        console.print(line)
+
     # Decoration, never a substitute for the counts above, and silent whenever
     # something went wrong.
     remark = quip_for(report, os.environ.get("EPUBFORGE_LANG", "pl")[:2])

@@ -23,13 +23,91 @@ _ORDER = {Level.ERROR: 0, Level.WARN: 1, Level.PRESERVED: 2, Level.FIX: 3, Level
 #: interface; stamping it costs one field and means a change can be announced
 #: instead of guessed at.
 #:
+#: **3** — two fields added: `changes`, the balance sheet of high-risk
+#: transformations (see :class:`Change`), and `change_summary` beside it.
+#: Nothing was removed and no existing field changed meaning.
+#:
 #: **2** — `message` is now rendered from the catalogue rather than written at
 #: the call site, so its English wording changed for most findings. `rule` did
 #: not change and is the field to match on; that is what it is for. Two fields
 #: were added: `description`, the finding in the language asked for, and
 #: `detail_description`, the same for the paragraph beneath it. Nothing was
 #: removed.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+
+
+class Action(str, Enum):
+    """What a transformation did to the thing it names. A closed vocabulary.
+
+    Closed on purpose: the 2026-08-14 baseline's BA-2026-003 is that the report
+    says a great deal about *why* and almost nothing about *what*, in any form
+    a machine can add up. "4 of 10 rules removed" is a sentence; a balance sheet
+    needs the verb as a value.
+    """
+
+    REMOVED = "removed"
+    REPLACED = "replaced"
+    MOVED = "moved"
+    ADDED = "added"
+    #: Kept exactly as found, deliberately, where a rule said otherwise.
+    CARRIED = "carried"
+    #: Read back out of damage — a parser's reading rather than the file's own.
+    RECONSTRUCTED = "reconstructed"
+
+
+class Automation(str, Enum):
+    """Who decided, which is the field that says how much to trust the change."""
+
+    #: One correct answer, derived from the book. Re-running gives the same one.
+    DETERMINISTIC = "deterministic"
+    #: A judgement this program made. Right on the corpus; not provable.
+    HEURISTIC = "heuristic"
+    #: A person answered. See `references.py` and the window's dialog.
+    ASKED = "asked"
+
+
+class Risk(str, Enum):
+    """What this could cost the reader if the decision behind it is wrong."""
+
+    #: Nothing a reader can see: an id renamed with every reference repointed.
+    NONE = "none"
+    #: The page could look different.
+    APPEARANCE = "appearance"
+    #: Something a reader would go looking for might not be there.
+    CONTENT = "content"
+
+
+@dataclass
+class Change:
+    """One thing this rebuild did, as data rather than as a sentence.
+
+    The audit asked for a machine-readable balance of every high-risk
+    transformation, and this is the smallest shape that answers it: what was
+    done, to what, from what to what, whether it can be undone from the output
+    alone, who decided, and what it risks.
+
+    Deliberately *not* every change. A ledger of all six thousand edits a rebuild
+    makes is a log, and a log is what the findings already are. This is the
+    subset the audit names — removal, reconstruction, relocation, text, the
+    navigation and cover — because those are the ones where being wrong costs a
+    reader something.
+    """
+
+    stage: str
+    action: Action
+    #: What was acted on: an archive path, a metadata property, an element.
+    subject: str
+    before: str = ""
+    after: str = ""
+    automation: Automation = Automation.DETERMINISTIC
+    risk: Risk = Risk.NONE
+    #: Whether the output alone carries what would be needed to put it back.
+    #: A renamed file is reversible — the map is in the report. A deleted
+    #: stylesheet rule is not.
+    reversible: bool = True
+    #: The finding that explains it, so the two are not two accounts of one
+    #: event that can drift apart.
+    rule: str = ""
 
 
 @dataclass
@@ -57,6 +135,10 @@ class Report:
     output: str = ""
     findings: list[Finding] = field(default_factory=list)
     stats: dict[str, object] = field(default_factory=dict)
+    #: The balance sheet — see :class:`Change`. Separate from `findings` because
+    #: they answer different questions: a finding says why somebody should look,
+    #: a change says what happened to the book.
+    changes: list[Change] = field(default_factory=list)
 
     def add(
         self,
@@ -94,6 +176,42 @@ class Report:
                 values,
             )
         )
+
+    def changed(
+        self,
+        stage: str,
+        action: Action,
+        subject: str,
+        *,
+        before: str = "",
+        after: str = "",
+        automation: Automation = Automation.DETERMINISTIC,
+        risk: Risk = Risk.NONE,
+        reversible: bool = True,
+        rule: str = "",
+    ) -> None:
+        """Record one high-risk transformation in the balance sheet."""
+        self.changes.append(
+            Change(
+                stage=stage,
+                action=action,
+                subject=subject,
+                before=before,
+                after=after,
+                automation=automation,
+                risk=risk,
+                reversible=reversible,
+                rule=rule,
+            )
+        )
+
+    def irreversible(self) -> list[Change]:
+        """Changes the output alone does not carry enough to undo.
+
+        The question somebody asks before overwriting their only copy, and the
+        one the report could not answer at all before this existed.
+        """
+        return [change for change in self.changes if not change.reversible]
 
     def count(self, level: Level) -> int:
         return sum(1 for f in self.findings if f.level is level)
@@ -134,6 +252,31 @@ class Report:
             "stats": self.stats,
             "summary": {level.value: self.count(level) for level in Level},
             "findings": findings,
+            # BA-2026-003. The findings say why; this says what, in a shape
+            # something other than a person can add up.
+            "changes": [
+                asdict(change)
+                | {
+                    "action": change.action.value,
+                    "automation": change.automation.value,
+                    "risk": change.risk.value,
+                }
+                for change in self.changes
+            ],
+            "change_summary": {
+                "total": len(self.changes),
+                "irreversible": len(self.irreversible()),
+                "by_action": {
+                    action.value: sum(1 for c in self.changes if c.action is action)
+                    for action in Action
+                    if any(c.action is action for c in self.changes)
+                },
+                "by_risk": {
+                    risk.value: sum(1 for c in self.changes if c.risk is risk)
+                    for risk in Risk
+                    if any(c.risk is risk for c in self.changes)
+                },
+            },
         }
 
     def to_json(self, language: str = "en") -> str:

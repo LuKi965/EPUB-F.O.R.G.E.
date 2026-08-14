@@ -13,7 +13,7 @@ import re
 
 from .. import paths
 from ..model import folder_for
-from ..report import Level
+from ..report import Action, Level, Risk
 from .base import Context, Stage
 
 #: Deliberately loose — this drives reachability analysis, not rewriting.
@@ -243,6 +243,16 @@ class StructureStage(Stage):
                 continue
             ctx.book.remove(path)
             self.note(ctx, Level.FIX, "structure.junk-removed", location=path)
+            # A deletion, and the output carries nothing that would put it back.
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                path,
+                before="present in the source archive",
+                risk=Risk.NONE,
+                reversible=False,
+                rule="structure.junk-removed",
+            )
 
     def _referenced_anywhere(self, ctx: Context) -> set[str]:
         """Every packaged file that any other packaged file points at.
@@ -446,3 +456,18 @@ class StructureStage(Stage):
                 "structure.relaid-out",
                 values={"count": len(moves), "directory": root, "renamed": renamed},
             )
+            # Reversible: every move is in the report with both names, which is
+            # what F-003/F-016 put there. Entered one by one rather than as a
+            # count, because "42 files moved" cannot answer "where did
+            # `okładka.jpg` go".
+            for old, new in moves:
+                self.changed(
+                    ctx,
+                    Action.MOVED,
+                    old,
+                    before=old,
+                    after=new,
+                    risk=Risk.NONE,
+                    reversible=True,
+                    rule="structure.relaid-out",
+                )
