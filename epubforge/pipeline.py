@@ -12,7 +12,7 @@ from . import decisions
 from . import invariants
 from . import memory
 from . import budget as budget_module
-from .budget import Budget, BudgetExceeded
+from .budget import Budget, BudgetExceeded, Cancelled
 from .model import Book
 from .policy import Policy
 from .reader import EpubReadError, read_epub
@@ -234,7 +234,105 @@ def _fingerprint(book: Book) -> tuple:
     )
 
 
-def _render_gate(source: str, policy: Policy, report: Report, destination: str):
+def _cannot_verify(policy: Policy, report: Report, queue) -> str:
+    """The check is required and could not run. Now what?
+
+    DELTA-2026-08-15-001, and it is the sharpest finding of that audit because
+    the defect was *this program answering a question on somebody's behalf and
+    recording it as though they had answered it.* The gate's default is `stop`,
+    the owner chose that word himself, and with no browser on the machine it
+    published — a warning in the report and the file on disk. A setting that
+    says stop and does not stop is worse than no setting, because it is a
+    promise somebody plans around.
+
+    Both of the owner's instructions are honoured here and they are only in
+    tension if the program is the one deciding:
+
+    * *the verification is mandatory and may be knowingly declined* — so this
+      asks, with the consequence of each answer spelled out, rather than
+      refusing outright;
+    * *a missing tool is not a reason to hold somebody's book hostage* — so
+      there is an answer that publishes, a policy field that consents in
+      advance for runs where nobody is watching, and `report` still means
+      report.
+
+    What is gone is the third thing, which nobody chose: *declining on the
+    person's behalf and not telling them it was a decision.* With nobody there
+    to ask, an unanswered question falls back to `KEEP`, `KEEP` here means "do
+    not write the file", and that is `stop` meaning stop. The report says what
+    was looked for, and the two ways forward.
+    """
+    if policy.accept_unverified_render:
+        report.add(
+            "render", Level.WARN, "render.unverified-accepted",
+            values={"variable": render_module().ENV_BROWSER},
+        )
+        return ""
+    if policy.render_gate == "report":
+        report.add(
+            "render", Level.WARN, "render.cannot-run",
+            values={"variable": render_module().ENV_BROWSER},
+        )
+        return ""
+
+    answer = queue.ask(
+        decisions.Question(
+            kind=decisions.VERIFICATION,
+            where="",
+            subject="render",
+            summary="Sprawdzenie wyglądu jest obowiązkowe i nie dało się go wykonać",
+            detail=(
+                "Program rysuje strony przed i po przebudowie i porównuje je, "
+                "żeby wykryć stronę, która straciła treść. Na tej maszynie nie "
+                "ma przeglądarki, którą mógłby do tego użyć, więc wynik nie "
+                "został sprawdzony.\n\n"
+                "Zainstaluj Chromium albo Chrome'a, albo wskaż własną "
+                f"przeglądarkę zmienną {render_module().ENV_BROWSER}, a "
+                "sprawdzenie wykona się samo. Możesz też świadomie z niego "
+                "zrezygnować — teraz, tą odpowiedzią, albo z góry dla całej "
+                "partii ustawieniem „przyjmij niesprawdzone”."
+            ),
+            options=(
+                decisions.Option(
+                    decisions.KEEP,
+                    "Nie zapisuj",
+                    "Plik nie powstanie, a ten, który leży pod tą nazwą, "
+                    "zostanie nietknięty. Nic nie tracisz i możesz wrócić po "
+                    "zainstalowaniu przeglądarki.",
+                ),
+                decisions.Option(
+                    "publish",
+                    "Zapisz mimo to",
+                    "Plik powstanie, a w raporcie stanie, że wygląd nie został "
+                    "sprawdzony. Świadoma rezygnacja z weryfikacji.",
+                ),
+            ),
+            recommended=decisions.KEEP,
+            reversible=True,
+            risk=Risk.APPEARANCE,
+            group="render-unverified",
+        )
+    )
+    if answer.option == "publish":
+        report.add(
+            "render", Level.WARN, "render.unverified-accepted",
+            values={"variable": render_module().ENV_BROWSER},
+        )
+        return ""
+    report.add(
+        "render", Level.ERROR, "render.cannot-run",
+        values={"variable": render_module().ENV_BROWSER},
+    )
+    return "the appearance check could not run and nobody waived it"
+
+
+def render_module():
+    from . import render
+
+    return render
+
+
+def _render_gate(source: str, policy: Policy, report: Report, destination: str, queue):
     """F-028's half of the commit point: does the rebuilt book still look like it?
 
     Returns `None` when the policy asks for no rendering, and otherwise a
@@ -242,14 +340,8 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str):
     destination — the same hook the validator gate uses, and for the same
     reason: the only honest place to refuse is before the file exists.
 
-    **Without a browser it does not refuse.** The owner's instruction was
-    explicit and is a standing rule rather than a preference about this feature:
-    tell the person the verification is required, and let them decline it
-    knowingly. Refusing every rebuild on a machine with no browser would not be
-    holding the line, it would be holding the person's book hostage to a
-    dependency this program deliberately does not ship. So the report says, at
-    warning level, that the check did not run, what it looks for, and both ways
-    out — install one, or turn the gate off on purpose.
+    What happens when there is no browser is in `_cannot_verify`, and it is the
+    part this got wrong for a release.
     """
     if policy.render_gate == "off":
         return None
@@ -258,23 +350,13 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str):
 
     def gate(candidate: str) -> str:
         if render.find_renderer() is None:
-            report.add(
-                "render",
-                Level.WARN,
-                "render.cannot-run",
-                values={"variable": render.ENV_BROWSER},
-            )
-            return ""
+            return _cannot_verify(policy, report, queue)
 
         measured = render_fidelity.compare(
             source, candidate, sample=policy.render_sample
         )
         if not measured.available:
-            report.add(
-                "render", Level.WARN, "render.cannot-run",
-                values={"variable": render.ENV_BROWSER},
-            )
-            return ""
+            return _cannot_verify(policy, report, queue)
 
         for page in measured.pages:
             if page.problems:
@@ -351,15 +433,18 @@ def _keep_evidence(source, candidate, destination, measured, report) -> str:
     return folder
 
 
-def _ask_about_reconstructed(book, reconstructed, queue, report) -> None:
+def _ask_about_reconstructed(book, reconstructed, queue, report) -> bool:
     """Put each field that came out of a damaged package to whoever is there.
 
     Deliberately one question per field rather than one for the book: a person
     may know the title and have no idea what the identifier should be, and a
     single question would force one answer onto both.
 
-    `KEEP` is what the reader produced, which is also what happens when nobody
-    is asked — so a batch run behaves exactly as it did before this existed.
+    Returns whether every field was actually settled by somebody. `KEEP` is a
+    settlement — a person looking at `ORIGINALpl` and deciding it is fine is a
+    decision, and this program does not get a vote on it. Silence is not: an
+    unanswered question means nobody has seen the value, and the caller refuses
+    to publish rather than treating the silence as approval.
     """
     from . import decisions
 
@@ -368,6 +453,7 @@ def _ask_about_reconstructed(book, reconstructed, queue, report) -> None:
         "language": book.metadata.language,
         "author": ", ".join(creator.name for creator in book.metadata.creators),
     }
+    unanswered = False
     for label in reconstructed:
         current = reading.get(label)
         if not current:
@@ -401,6 +487,8 @@ def _ask_about_reconstructed(book, reconstructed, queue, report) -> None:
             subject=f"{label}={current}",
         )
         answer = queue.ask(question)
+        if answer.source == "unanswered":
+            unanswered = True
         if answer.option == "write" and answer.value:
             if label == "title":
                 book.metadata.titles = [answer.value] + book.metadata.titles[1:]
@@ -417,9 +505,10 @@ def _ask_about_reconstructed(book, reconstructed, queue, report) -> None:
                 values={"field": label, "before": current, "after": answer.value},
                 location=book.source_opf_path or "",
             )
+    return not unanswered
 
 
-def _both_gates(source: str, policy: Policy, report: Report, destination: str):
+def _both_gates(source: str, policy: Policy, report: Report, destination: str, queue):
     """The validator gate and the render gate, in that order, as one hook.
 
     Order matters and is not arbitrary: EPUBCheck costs seconds and rendering
@@ -428,7 +517,7 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str):
     """
     checks = [
         _publication_gate(source, policy, report),
-        _render_gate(source, policy, report, destination),
+        _render_gate(source, policy, report, destination, queue),
     ]
     checks = [check for check in checks if check is not None]
     if not checks:
@@ -592,6 +681,7 @@ def rebuild_all(
     policy: Policy | None = None,
     *,
     resolver: "Resolver | None" = None,
+    cancelled=None,
 ) -> list[Result]:
     """Rebuild every rendition the container offers, each into its own file.
 
@@ -615,7 +705,9 @@ def rebuild_all(
     """
     offered = _renditions_of(source)
     if len(offered) < 2:
-        return [rebuild(source, destination, policy, resolver=resolver)]
+        return [
+            rebuild(source, destination, policy, resolver=resolver, cancelled=cancelled)
+        ]
 
     stem, extension = os.path.splitext(destination)
     results: list[Result] = []
@@ -631,7 +723,10 @@ def rebuild_all(
                 target = f"{stem}.{suffix}{extension}"
         used.add(target)
         results.append(
-            rebuild(source, target, policy, resolver=resolver, rendition=rendition.path)
+            rebuild(
+                source, target, policy, resolver=resolver,
+                rendition=rendition.path, cancelled=cancelled,
+            )
         )
     return results
 
@@ -642,6 +737,16 @@ def _renditions_of(source: str) -> list:
     A cheap look at one small file. Failing to answer is not an error here: a
     source this cannot open is a source `rebuild` will report on properly, and
     guessing "one rendition" sends it there.
+
+    `BudgetExceeded` is named alongside `Exception` and that is the whole point
+    of this line. It derives from `BaseException` — deliberately, so that no
+    local `except Exception` can swallow a limit — and the cost of that decision
+    is that every place which *means* "answer nothing and let the proper path
+    diagnose it" has to say so out loud. This one did not, so a container
+    nested past the depth limit came out of the public `rebuild_all` as an
+    uncaught traceback while the very same book came out of `rebuild` as a
+    controlled `BLOCKED`. A limit that turns one entry point into a crash and
+    another into a report is not one boundary, it is two.
     """
     import zipfile
 
@@ -653,9 +758,9 @@ def _renditions_of(source: str) -> list:
                 name: b"" if name != "META-INF/container.xml" else archive.read(name)
                 for name in archive.namelist()
             }
-    except Exception:  # noqa: BLE001 — `rebuild` reports what is wrong with it
+        return rootfiles(names)
+    except (Exception, BudgetExceeded):  # noqa: BLE001 — `rebuild` diagnoses it
         return []
-    return rootfiles(names)
 
 
 def _rendition_suffix(rendition, index: int) -> str:
@@ -685,8 +790,15 @@ def rebuild(
     resolver: "Resolver | None" = None,
     rendition: str | None = None,
     asker=None,
+    cancelled=None,
 ) -> Result:
     """Rebuild *source* into a conforming EPUB 3.3 at *destination*.
+
+    *cancelled* is asked, at every per-document checkpoint, whether the person
+    has changed their mind. `None` means nobody can — which is what a library
+    caller and the corpus both want, and what every caller got before
+    DELTA-2026-08-15-001, when the window could only stop *between* books and
+    "cancel" on a large one meant "finish this one first".
 
     *stages* exists for one question that cannot be asked any other way: does a
     stage that claims to only measure actually leave the output untouched? The
@@ -707,18 +819,45 @@ def rebuild(
     report = Report(source=source, output=destination)
     # Made here, so the deadline covers reading as well as rebuilding: a book
     # that takes five minutes to *open* has already cost what the limit is for.
-    budget = Budget()
+    budget = Budget(cancelled=cancelled)
 
     # F-019. Every parse in this program charges the *active* budget rather
     # than one handed down through call sites, because the call-site version is
     # what produced a limit with a test file and no callers. Activated around
     # the read as well as the rebuild: a document big enough to matter is one
     # this program should refuse before it opens it, not after.
-    with budget_module.active(budget):
+    try:
+        with budget_module.active(budget):
+            return _rebuild_inside_budget_or_cancelled(
+                source, destination, policy, report, budget, stages, resolver,
+                rendition, asker,
+            )
+    finally:
+        # A batch runs a shelf one book after another in the same process, and
+        # without this the second book starts against the first book's
+        # high-water mark — freed memory that glibc is holding in its arenas
+        # rather than live objects. Measured over six real books: 62 MiB
+        # resident at the end without it, 46 MiB with; on a 108 MB book, 319 MiB
+        # returned in one call. In a `finally` because a refused book has
+        # allocated just as much as a published one.
+        memory.release()
+
+
+def _rebuild_inside_budget_or_cancelled(
+    source, destination, policy, report, budget, stages, resolver, rendition, asker
+) -> "Result":
+    try:
         return _rebuild_inside_budget(
-            source, destination, policy, report, budget, stages, resolver, rendition,
-            asker,
+            source, destination, policy, report, budget, stages, resolver,
+            rendition, asker,
         )
+    except Cancelled:
+        # The writer unlinks its staging file on any `BaseException`, so by the
+        # time this is caught there is nothing half-written anywhere and
+        # whatever was already at the destination is untouched. What is left is
+        # to say so, rather than let a Cancel button look like a crash.
+        report.add("package", Level.WARN, "package.cancelled")
+        return Result(report, None, None, Status.BLOCKED)
 
 
 def _rebuild_inside_budget(
@@ -799,6 +938,12 @@ def _rebuild_inside_budget(
         finding.rule == "reader.xml-recovered" and (finding.location or "").endswith(".opf")
         for finding in report.findings
     ):
+        # A field the person has already written by hand is not a guess and
+        # must not be asked about or counted as unconfirmed: they are holding
+        # the book and they have told this program what the title is. Both
+        # front ends fill `metadata_overrides` from the same boxes, so this is
+        # the one place that has to know.
+        overridden = set(policy.metadata_overrides)
         reconstructed = [
             label
             for label, value in (
@@ -807,7 +952,7 @@ def _rebuild_inside_budget(
                 ("identifier", book.metadata.primary_identifier),
                 ("author", ", ".join(c.name for c in book.metadata.creators)),
             )
-            if value
+            if value and label not in overridden
         ]
         report.add(
             "package",
@@ -823,7 +968,29 @@ def _rebuild_inside_budget(
         # — which leaves the person holding a warning and no way to act on it in
         # the same breath. Now it is a question, in the same shape as a broken
         # link and a hard hyphen, with the same rule: unanswered changes nothing.
-        _ask_about_reconstructed(book, reconstructed, queue, report)
+        settled = _ask_about_reconstructed(book, reconstructed, queue, report)
+        # DELTA-2026-08-15-001, and it is the same finding as the render gate's
+        # wearing different clothes: *not answering is not consenting.* Leaving
+        # the guess in place is a change to somebody's library — the title in
+        # their reader becomes `ORIGINALpl`, a string no publisher wrote and
+        # this program's own parser invented — and "unanswered changes nothing"
+        # was true of the *book* and false of the *outcome*, because the outcome
+        # was publishing the invention.
+        #
+        # So the fields still are not guessed at. What changed is what happens
+        # when nobody settles them: the same three ways through as the render
+        # gate, because one program should have one rule about consent. Answer
+        # the question, consent in advance with a switch, or get no file and a
+        # report naming every field that came out of the parser.
+        if reconstructed and not settled and not policy.accept_reconstructed_metadata:
+            report.add(
+                "package",
+                Level.ERROR,
+                "package.metadata-unconfirmed",
+                values={"fields": ", ".join(reconstructed)},
+                location=book.source_opf_path or "",
+            )
+            return Result(report, book, None, Status.BLOCKED)
 
     lost = _input_lost(report)
     if lost:
@@ -1024,7 +1191,7 @@ def _rebuild_inside_budget(
             report,
             content_dir=policy.content_dir,
             package_name=policy.package_name,
-            before_publish=_both_gates(source, policy, report, destination),
+            before_publish=_both_gates(source, policy, report, destination, queue),
         )
     except PublicationRefused:
         # Already reported by the gate itself, in more detail than an exception

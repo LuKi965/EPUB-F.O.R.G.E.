@@ -64,6 +64,19 @@ MAX_PIXELS = 250_000_000
 MAX_SECONDS = 300.0
 
 
+class Cancelled(BaseException):
+    """Somebody asked for this rebuild to stop.
+
+    A `BaseException` for the same reason `BudgetExceeded` is one: it travels
+    through eleven stages of code that catch `Exception` to keep one bad
+    document from sinking a book, and a cancellation any of them can swallow is
+    a Cancel button that works when the program is idle.
+    """
+
+    def __str__(self) -> str:
+        return "przerwane na życzenie"
+
+
 class BudgetExceeded(BaseException):
     """One book asked for more than it is allowed. Carries both numbers.
 
@@ -110,6 +123,33 @@ class Budget:
     pixels: int = field(default_factory=lambda: MAX_PIXELS)
     seconds: float = field(default_factory=lambda: MAX_SECONDS)
     started: float = field(default_factory=time.monotonic)
+
+    #: Asked, at every checkpoint, whether the person changed their mind.
+    #:
+    #: A callable rather than a flag because the answer lives somewhere else —
+    #: in the window's worker thread, in a signal handler — and this side has no
+    #: business knowing where. `None` is "nobody can cancel this", which is what
+    #: a library caller and the corpus both want.
+    cancelled: "object | None" = None
+
+    def checkpoint(self, where: str = "") -> None:
+        """Both of the reasons to stop, asked together, cheaply enough to ask often.
+
+        DELTA-2026-08-15-001: the deadline was asked before and after every
+        stage, which bounds a rebuild made of eleven stages and does nothing for
+        a *stage* that walks six hundred documents. The clock could be four
+        minutes past a one-minute limit and the only checkpoint was the one at
+        the end of the stage that spent them.
+
+        Cancellation has the same shape and was worse: the window could only
+        stop *between books*, so "cancel" on a large book meant "finish this one
+        first". Both are one question asked in one place — the per-document
+        accessor every stage goes through — and both raise, so the writer's
+        cleanup removes the staging file and the destination is left alone.
+        """
+        if self.cancelled is not None and self.cancelled():
+            raise Cancelled()
+        self.deadline(where)
 
     def deadline(self, where: str = "") -> None:
         spent = time.monotonic() - self.started

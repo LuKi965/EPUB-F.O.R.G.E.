@@ -186,12 +186,63 @@ class TestF004AGuessIsNotAReading:
         )
         assert "title" in finding.values["fields"]
 
-    def test_it_is_not_a_clean_success(self, rebuilt):
-        """The owner's decision: publish, show the difference, let it be
-        corrected. A flat `succeeded` would be this program vouching for
-        libxml2's opinion about somebody's book."""
-        assert rebuilt.status is Status.SUCCEEDED_WITH_PROBLEMS
-        assert rebuilt.output_path, "publishing is still the outcome; the status is the warning"
+    def test_nobody_asked_means_nothing_written(self, rebuilt):
+        """DELTA-2026-08-15-001, and it corrects this very test.
+
+        The old assertion said "publishing is still the outcome; the status is
+        the warning", which was the owner's decision as far as it went — show
+        the difference, let it be corrected — and it quietly assumed somebody
+        was there to see the difference. With nobody there, the guess went into
+        the book: `ORIGINALpl` became the title in somebody's library, a string
+        no publisher ever wrote and this program's own parser assembled out of
+        two crossed elements.
+
+        "Unanswered changes nothing" was true of the book and false of the
+        outcome. Now it is true of both.
+        """
+        assert rebuilt.status is Status.BLOCKED
+        assert not rebuilt.output_path
+        assert "package.metadata-unconfirmed" in rules_of(rebuilt)
+
+    def test_keeping_the_guess_is_a_decision_and_publishes(self, tmp_path):
+        """The other half, and the reason this is a question rather than a
+        refusal: somebody who looks at `ORIGINALpl` and decides it is fine has
+        decided, and this program does not get a vote."""
+        from epubforge import decisions
+
+        class Keeps:
+            def ask(self, question):
+                return decisions.Answer(option=decisions.KEEP)
+
+        source = book(tmp_path / "malformed.epub", MALFORMED)
+        result = rebuild(
+            source, str(tmp_path / "out.epub"), Policy.preset("preserve"), asker=Keeps()
+        )
+        assert result.status is Status.SUCCEEDED_WITH_PROBLEMS
+        assert result.output_path
+
+    def test_consent_can_be_given_in_advance(self, tmp_path):
+        """For a batch nobody is watching. One field, set on purpose."""
+        source = book(tmp_path / "malformed.epub", MALFORMED)
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", accept_reconstructed_metadata=True),
+        )
+        assert result.status is Status.SUCCEEDED_WITH_PROBLEMS
+        assert result.output_path
+
+    def test_a_field_written_by_hand_is_not_a_guess(self, tmp_path):
+        """And therefore is not asked about and does not hold the book back.
+        Somebody typing the title has settled it more firmly than any answer
+        to a question about it could."""
+        source = book(tmp_path / "malformed.epub", MALFORMED)
+        policy = Policy.preset("preserve")
+        policy.metadata_overrides["title"] = "Tytuł prawdziwy"
+        policy.metadata_overrides["language"] = "pl"
+        policy.metadata_overrides["identifier"] = "urn:uuid:1"
+        result = rebuild(source, str(tmp_path / "out.epub"), policy)
+        assert result.output_path, result.report.to_text()
 
     def test_the_fields_can_be_corrected_on_the_spot(self, tmp_path):
         """"Let them be corrected" is only true if correcting them works. The
@@ -201,6 +252,7 @@ class TestF004AGuessIsNotAReading:
         policy = Policy.preset("preserve")
         policy.metadata_overrides["title"] = "Tytuł prawdziwy"
         policy.metadata_overrides["language"] = "pl"
+        policy.metadata_overrides["identifier"] = "urn:uuid:1"
         policy.default_language = "pl"
         result = rebuild(source, str(tmp_path / "out.epub"), policy)
         opf = opf_of(result)

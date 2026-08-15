@@ -28,15 +28,30 @@ and why `test_memory.py` pins every row of it — the constants are a *safety*
 estimate, and one that drifts low turns "this will not fit" into a process the
 kernel kills.
 
-Where the memory actually goes, measured per stage on the 152 MB book: reading
-it costs 148 MiB — about 1× the bytes — and the profile stage costs 518 MiB,
-which is the parse trees for 601 documents plus what measuring them needs.
-Everything else is now noise. The 1681 MiB the profile stage used to cost, and
-the 1345 MiB the hyphen stage used to cost, were both one mistake made twice:
-building the whole book's text as a single string. Anybody optimising further
-should start at the trees and not at the bytes — and specifically not with lazy
-binaries, which would save about 1× the binary bytes on a book that was never at
-risk and nothing at all on the one that is.
+Where the memory actually goes. The 1681 MiB the profile stage used to cost, and
+the 1345 MiB the hyphen stage used to cost, were one mistake made twice:
+building the whole book's text as a single string. That is fixed, and what this
+paragraph said next was wrong, so it is corrected here rather than quietly
+rewritten: *"anybody optimising further should start at the trees."*
+
+**It is not the trees, and three measurements say so.** On a 108 MB synthetic
+book of 601 documents, bounding the tree cache to 16 entries moved the peak from
+546 MiB to 547 — the same non-result as the first attempt, which had been
+dismissed as an artefact of the 1600 MiB of transient allocation it was measured
+against. On the two real books it was measured on, the whole process peaks at 47
+and 61 MiB. And 97–98% of documents in a real book are read *four* times, so the
+cache is doing precisely what F-030 built it for.
+
+What the resident set actually holds, measured at the end of that synthetic
+rebuild: 462 MiB, of which `gc.collect()` returns nothing at all and
+`malloc_trim` returns **319 MiB**. It is not live objects; it is freed memory
+the allocator is keeping in its arenas. Summing the size of the trees said
+281 MiB and that number was never recoverable RSS, which is why bounding the
+cache could not help and why the note above pointed a reader at the one place
+there was nothing to find. `release()` below is what came out of it instead.
+
+So: not lazy binaries either, which would save about 1× the binary bytes on a
+book that was never at risk and nothing at all on the one that is.
 
 So the ceiling of 2 GiB of *content* is a promise that the process may reach
 **twenty-four gigabytes of memory**. It is not a memory bound at all; it is a
@@ -238,3 +253,48 @@ def check(source: "str | pathlib.Path", *, limit: "int | None" = None) -> Verdic
     if available is None:
         return Verdict(measured, None, None)
     return Verdict(measured, available, int(available * HEADROOM))
+
+
+def release() -> int:
+    """Hand freed memory back to the operating system. Returns bytes released.
+
+    Python frees an object and glibc keeps the arena, so a process that has
+    finished with a book still looks — to the kernel, to `MemAvailable`, and to
+    the person watching the task manager — as though it were holding it.
+    Measured at the end of a 108 MB synthetic rebuild: 462 MiB resident, of
+    which `gc.collect()` returns nothing and this returns 319 MiB.
+
+    It matters for exactly the case `HEADROOM` above is nervous about. One book
+    in one process would be freed by the process ending; a batch runs a shelf
+    one book after another in the same process, and without this the second
+    book starts against the first book's high-water mark. Measured over six
+    real books in one process: 62 MiB resident at the end without, 46 MiB with.
+
+    glibc only, and silent everywhere else. `malloc_trim` is not portable, not
+    required for correctness, and a machine without it behaves exactly as this
+    program did before — which is why every failure here is swallowed rather
+    than reported. A memory hint that can break a rebuild is not a hint.
+    """
+    if not hasattr(os, "name") or os.name != "posix":
+        return 0
+    try:
+        import ctypes
+
+        before = _resident_bytes()
+        libc = ctypes.CDLL("libc.so.6")
+        if not hasattr(libc, "malloc_trim"):
+            return 0
+        libc.malloc_trim(0)
+        after = _resident_bytes()
+    except (OSError, AttributeError, ValueError):
+        return 0
+    return max(0, before - after)
+
+
+def _resident_bytes() -> int:
+    """What the kernel says this process is holding, or 0 if it will not say."""
+    try:
+        with open("/proc/self/statm", encoding="ascii") as handle:
+            return int(handle.read().split()[1]) * 4096
+    except (OSError, ValueError, IndexError):
+        return 0

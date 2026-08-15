@@ -227,3 +227,67 @@ class TestTheSizesPeopleType:
         from epubforge.cli import _bytes_from
 
         assert _bytes_from(typed) == expected
+
+
+class TestGivingItBackWhenTheBookIsDone:
+    """DELTA-2026-08-15-001 asked for a benchmark and got one that corrected a
+    conclusion in this module rather than confirming it.
+
+    The note here used to say the parse trees were where to optimise next: 281
+    MiB of the profile stage's 518. Three measurements say otherwise. Bounding
+    the tree cache to 16 entries on a 108 MB, 601-document book moved the peak
+    from 546 MiB to 547. Real books peak at 47 and 61 MiB for the whole process.
+    And 97–98% of a real book's documents are read four times, so the cache is
+    doing exactly what it was built for.
+
+    What the resident set actually holds, at the end of that synthetic rebuild:
+    462 MiB, of which `gc.collect()` returns nothing and `malloc_trim` returns
+    319. Freed memory in the allocator's arenas, not live objects — which is why
+    bounding the cache could not have helped, and why summing tree sizes gave a
+    number that was never recoverable.
+    """
+
+    def test_a_rebuild_hands_memory_back_when_it_finishes(self, tmp_path):
+        """Measured rather than asserted from the API: the call is made, and it
+        is made whatever the rebuild decided."""
+        calls = []
+        real = memory.release
+        try:
+            memory.release = lambda: calls.append(1) or 0
+            rebuild(
+                book_of(tmp_path / "a.epub", text_bytes=200_000),
+                str(tmp_path / "out.epub"),
+                Policy.preset("preserve", memory_limit=8 * 1024**3),
+            )
+            assert calls, "a finished rebuild kept the arenas"
+            calls.clear()
+            rebuild(
+                book_of(tmp_path / "b.epub", text_bytes=50_000_000),
+                str(tmp_path / "blocked.epub"),
+                Policy.preset("preserve", memory_limit=64 * 1024**2),
+            )
+            assert calls, "a refused book allocated just as much and kept it"
+        finally:
+            memory.release = real
+
+    def test_it_is_never_a_reason_for_a_rebuild_to_fail(self, tmp_path, monkeypatch):
+        """A memory hint that can break a rebuild is not a hint. Every failure
+        inside it is swallowed, including a machine with no `malloc_trim` and a
+        `ctypes` that will not load anything."""
+        import ctypes
+
+        def refuses(*_args, **_kwargs):
+            raise OSError("no libc here")
+
+        monkeypatch.setattr(ctypes, "CDLL", refuses)
+        assert memory.release() == 0
+        result = rebuild(
+            book_of(tmp_path / "a.epub"),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", memory_limit=8 * 1024**3),
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+
+    def test_it_reports_what_it_returned(self):
+        released = memory.release()
+        assert released >= 0

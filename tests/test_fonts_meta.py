@@ -27,6 +27,27 @@ def system_font(*names) -> bytes | None:
     return None
 
 
+def what_the_font_declares(data: bytes) -> "tuple[int, int, int] | None":
+    """`(panose family kind, panose serif style, sFamilyClass)` — the classifier's
+    whole input, read straight out of the font.
+
+    DELTA-2026-08-15-001 measured this file at 23 passed and **1 failed** on its
+    own container, while it was 23 passed and 1 skipped here. Both numbers are
+    the same defect: a test that reaches into `/usr/share/fonts` for "Lato" is
+    asserting something about whatever file the host happens to have under that
+    name. Absent, it asserted nothing and reported a pass; different, it failed
+    and looked like a defect in this program.
+
+    A test may not decide whether the case it is about is even present by
+    trusting a filename. It reads the two fields the classifier reads, and
+    asserts only when the host's font really is an example of the case.
+    """
+    table = fonts_meta._os2_table(data)
+    if table is None:
+        return None
+    return table[32], table[33], table[30]
+
+
 class TestItReadsTheFontRatherThanTheName:
     @pytest.mark.parametrize(
         "names, expected",
@@ -37,10 +58,19 @@ class TestItReadsTheFontRatherThanTheName:
         ],
     )
     def test_a_real_font_says_what_it_is(self, names, expected):
+        """Same reasoning as the Lato case below: the host supplies an example
+        or it does not, and a font that declares something other than the case
+        under test is not evidence about this program either way."""
         data = system_font(*names)
         if data is None:
             pytest.skip(f"none of {names} installed here")
-        assert fonts_meta.classify(data) == expected
+        declared = what_the_font_declares(data)
+        if declared is None:
+            pytest.skip(f"{names[0]} here carries no readable OS/2 table")
+        assert fonts_meta.classify(data) == expected, (
+            f"{names[0]} on this host declares PANOSE {declared[0]}/{declared[1]} "
+            f"and sFamilyClass {declared[2]}"
+        )
 
     def test_a_rounded_sans_is_not_a_serif(self):
         """The first thing this got wrong, on the first real font it met. PANOSE
@@ -48,10 +78,27 @@ class TestItReadsTheFontRatherThanTheName:
         not whether the letter has a serif, and sans-serif families use them —
         Lato is 15 and is as sans-serif as a font gets. They fall through to
         `sFamilyClass`, which says 8, and is right.
+
+        The rule itself is asserted on built bytes further down this file, where
+        it holds on every machine. What this adds is the only thing a real font
+        can add and a built one cannot: that the combination occurs *in the
+        wild*. So it checks that the host's font is genuinely an example before
+        asserting anything about it — a file called `Lato-Regular.ttf` that
+        declares something else is a different font, not a failure here.
         """
         data = system_font("Lato-Regular.ttf", "Lato-Light.ttf")
         if data is None:
-            pytest.skip("Lato not installed here")
+            pytest.skip("no Lato installed here; the rule is asserted on built bytes")
+        declared = what_the_font_declares(data)
+        if declared is None:
+            pytest.skip("the Lato installed here carries no readable OS/2 table")
+        kind, serif_style, family_class = declared
+        if not (kind in (2, 4) and serif_style in (14, 15) and family_class == 8):
+            pytest.skip(
+                "the Lato installed here is not an example of this case: it "
+                f"declares PANOSE {kind}/{serif_style} and sFamilyClass "
+                f"{family_class}"
+            )
         assert fonts_meta.classify(data) == "sans-serif"
 
 

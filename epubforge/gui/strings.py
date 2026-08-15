@@ -337,6 +337,26 @@ PL: dict[str, str] = {
         "z programem; bez niej kontrola się nie wykona, a raport powie to wprost."
     ),
     "policy.render.gate": "Gdy strona straci treść:",
+    "policy.render.unverified": "Zapisz nawet wtedy, gdy nie da się sprawdzić wyglądu",
+    "policy.metadata.reconstructed": "Przyjmuj metadane odczytane z uszkodzonego pakietu",
+    "policy.metadata.reconstructed.tip": (
+        "Kiedy pakiet książki daje się sparsować dopiero po odzysku, tytuł, autor "
+        "i język są odczytem parsera z cudzej książki, a nie tym, co napisał wydawca "
+        "— potrafi z tego wyjść „ORIGINALpl”, czyli zlepek, którego nikt nigdy nie "
+        "napisał.\n\n"
+        "Odznaczone: program zapyta o każde takie pole i bez odpowiedzi nie zapisze "
+        "nic. Zaznaczone: zapisze to, co odczytał, i napisze w raporcie, skąd to "
+        "pochodzi."
+    ),
+    "policy.render.unverified.tip": (
+        "To osobne pytanie niż powyższe. Powyższe mówi, co zrobić, gdy kontrola "
+        "wyglądu SIĘ WYKONA i znajdzie stronę ze stratą. To mówi, co zrobić, gdy "
+        "kontrola NIE MA JAK się wykonać — bo na tej maszynie nie ma przeglądarki.\n\n"
+        "Odznaczone: program zapyta, zanim cokolwiek zapisze, i bez odpowiedzi nie "
+        "zapisze nic. Zaznaczone: zapisze i napisze w raporcie, że wygląd nie został "
+        "sprawdzony — zgoda wydana z góry, na przykład dla partii, przy której nikt "
+        "nie siedzi."
+    ),
     "policy.render.gate.off": "nie sprawdzaj wyglądu w ogóle",
     "policy.render.gate.off.tip": (
         "Kontrola nie działa przy przebudowie. Zostaje osobne pytanie w "
@@ -1117,6 +1137,25 @@ EN: dict[str, str] = {
         "Measured before this became the default: 0 refusals across 32 books."
     ),
     "policy.render.all": "Draw every page, not a sample",
+    "policy.render.unverified": "Write the book even when the appearance check cannot run",
+    "policy.metadata.reconstructed": "Accept metadata read out of a damaged package",
+    "policy.metadata.reconstructed.tip": (
+        "When a book's package only parses after recovery, the title, author and "
+        "language are the parser's reading of somebody else's book rather than what "
+        "the publisher wrote — it can produce `ORIGINALpl`, a string nobody ever "
+        "typed.\n\n"
+        "Unticked: the rebuild asks about each such field and writes nothing without "
+        "an answer. Ticked: it writes what it read and the report says where it came "
+        "from."
+    ),
+    "policy.render.unverified.tip": (
+        "A different question from the one above. That one says what to do when the "
+        "appearance check RUNS and finds a page that lost content. This says what to "
+        "do when the check CANNOT RUN at all — because this machine has no browser.\n\n"
+        "Unticked: the rebuild asks before writing anything, and without an answer it "
+        "writes nothing. Ticked: it writes, and the report says the appearance was not "
+        "checked — consent given in advance, for a batch nobody is sitting in front of."
+    ),
     "policy.render.all.tip": (
         "By default 12 pages are drawn: the first three always, because the "
         "cover and title pages are where images crop and stretch, and the rest "

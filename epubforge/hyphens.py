@@ -46,6 +46,12 @@ from dataclasses import dataclass
 #: character of the text — a different repair with a different argument.
 _CANDIDATE = re.compile(r"(?<![\w-])(\w+)-(\w+)(?![\w-])", re.UNICODE)
 
+#: The two halves of a word cut by markup: a hyphen at the very end of one text
+#: node, and a word starting the next. Deliberately anchored — a hyphen with
+#: anything after it inside the same node is `_CANDIDATE`'s business.
+_CUT_AT_END = re.compile(r"(?<![\w-])(\w+)-$", re.UNICODE)
+_STARTS_A_WORD = re.compile(r"^(\w+)(?![-])", re.UNICODE)
+
 #: Words split by this, for the "does the joined form appear elsewhere" test.
 _WORD = re.compile(r"\w+(?:-\w+)*", re.UNICODE)
 
@@ -107,6 +113,23 @@ class Candidate:
 
     def __str__(self) -> str:
         return f"{self.where}: {self.word} → {self.joined} ({self.confidence})"
+
+
+@dataclass(frozen=True)
+class CrossCandidate(Candidate):
+    """A candidate whose halves are in two different text nodes.
+
+    Carries the nodes themselves, because the stage has to write into both, and
+    `joinable` — whether the element between the halves is a converter's bare
+    wrapper or something somebody chose. A candidate that is not joinable is
+    still worth showing: it is the one shape where the person can see that the
+    book is fine and the markup is odd.
+    """
+
+    first: tuple = ()
+    second: tuple = ()
+    joinable: bool = False
+    carrier: str = ""
 
 
 def _never_a_candidate(left: str, right: str) -> "str | None":
@@ -216,13 +239,38 @@ def _context(text: str, start: int, end: int, width: int = 40) -> str:
     return f"…{left.strip()}{text[start:end]}{right.strip()}…"
 
 
+#: Elements a word may be cut by without the cut meaning anything.
+#:
+#: Exactly one tag, and it must carry no attributes at all. The shape this
+#: exists for is a converter that wrapped every *line* of a PDF in a bare
+#: `<span>` and left the line-break hyphen inside it — machinery, not writing.
+#: An element with a `class`, a `style` or an `id` is presenting its half of the
+#: word differently from the other half, and an `<em>` or an `<a>` means
+#: something; joining across either of those does not fix a word, it moves text
+#: out of an element somebody chose.
+NEUTRAL_CARRIERS = ("span",)
+
+#: Where a flow of text ends. A word cannot be cut across two of these, so no
+#: candidate is ever built across one — `<p>koń-</p><p>ski</p>` is two
+#: paragraphs, not a broken word, and gluing them would invent a sentence.
+BLOCKS = frozenset({
+    "p", "div", "li", "td", "th", "dd", "dt", "blockquote", "section", "article",
+    "aside", "nav", "figure", "figcaption", "header", "footer", "main", "body",
+    "h1", "h2", "h3", "h4", "h5", "h6", "pre", "table", "tr", "ul", "ol", "dl",
+    "br",
+})
+
+
 def find(text: str, *, where: str, words: Counter) -> "list[Candidate]":
     """Candidates in one text node's worth of text.
 
-    Called per text node rather than per document, which is what makes this
-    DOM-aware: `<em>obo</em>-<em>jętna</em>` is markup that happens to contain a
-    hyphen, and joining across it would move text between elements — a
-    structural change dressed up as a spelling fix.
+    Per text node, which is what makes this DOM-aware, and `find_across` is the
+    other half. The note that used to be here said joining across markup would
+    move text between elements and left it at that — right about the danger and
+    wrong to conclude blindness from it. `<em>obo</em>-<em>jętna</em>` really is
+    markup containing a hyphen; `<span>obo-</span>jętna` is the very defect this
+    module exists for, produced by converters that wrap each line of a PDF.
+    Telling them apart is `find_across`'s job; not looking was this one's bug.
     """
     found: list[Candidate] = []
     for match in _CANDIDATE.finditer(text):
@@ -292,6 +340,37 @@ def question_for(candidate: Candidate):
     from .decisions import HYPHEN, KEEP, Option, Question
     from .report import Risk
 
+    # A word cut by markup somebody chose can be seen and kept and nothing more.
+    # Joining it would move text out of an element with a class or a meaning on
+    # it, and that is a structural change wearing a spelling fix's clothes — the
+    # thing the per-node rule was originally right to be afraid of.
+    if isinstance(candidate, CrossCandidate) and not candidate.joinable:
+        return Question(
+            kind=HYPHEN,
+            where=candidate.where,
+            summary=f"„{candidate.word}” — słowo przecięte znacznikiem <{candidate.carrier}>",
+            detail=(
+                f"{candidate.context}\n\n{candidate.reason}\n\n"
+                f"Nie proponuję złączenia: obie połowy siedzą w różnych "
+                f"elementach, a <{candidate.carrier}> niesie własne "
+                f"formatowanie albo znaczenie. Złączenie przeniosłoby tekst "
+                f"poza element, który ktoś wybrał — to zmiana struktury, a nie "
+                f"pisowni."
+            ),
+            options=(
+                Option(
+                    KEEP,
+                    "Zostaw jak jest",
+                    "Słowo zostaje przecięte dokładnie tak, jak w pliku źródłowym",
+                ),
+            ),
+            recommended=KEEP,
+            reversible=True,
+            risk=Risk.NONE,
+            group="hyphen:cut-by-markup",
+            subject=candidate.word,
+        )
+
     return Question(
         kind=HYPHEN,
         where=candidate.where,
@@ -323,12 +402,116 @@ def question_for(candidate: Candidate):
     )
 
 
+def _tag(element) -> str:
+    tag = element.tag
+    if not isinstance(tag, str):
+        return "?"
+    return tag.rpartition("}")[2].lower()
+
+
+def _is_neutral(element) -> bool:
+    """Can a word be joined across this element without moving anything?"""
+    return _tag(element) in NEUTRAL_CARRIERS and not element.attrib
+
+
+def _same_flow(one, other, root) -> bool:
+    """Are these two text nodes inside the same block of running text?
+
+    Walked from the root rather than with `getparent()` chains so that a tree
+    built by any parser answers the same way. Two nodes separated by a block
+    element are two flows, and a hyphen at the end of one is the end of a line
+    of prose rather than half a word.
+    """
+    seen_one = seen_other = False
+    for element in root.iter():
+        if element is one:
+            seen_one = True
+        if element is other:
+            seen_other = True
+            break
+        if seen_one and _tag(element) in BLOCKS:
+            return False
+    return seen_one and seen_other
+
+
+def find_across(nodes, *, root, where: str, words: Counter) -> "list[CrossCandidate]":
+    """Candidates whose two halves live in different text nodes.
+
+    DELTA-2026-08-15-001. `<span>obo-</span>jętna` produced nothing at all,
+    while the same word inside one node was `CONFIRMED` — so a book converted by
+    the one tool that makes this mistake hardest was the book this module could
+    not see.
+
+    Measured before writing it, on both mandatory fixtures and the six rebuilt
+    copies of them: **not one text node in any of the eight ends in a hyphen.**
+    The class is real and these two books are not in it, which is the honest
+    reason this detects and does not go hunting: it costs a walk that is already
+    happening, and it changes nothing without an answer.
+
+    Whether the join is *offered* is a second question and the answer is the
+    element in the middle. A bare `<span>` is a converter's line wrapper and
+    joining across it moves nothing anybody chose; anything with a class, a
+    style or a meaning of its own gets a candidate that can be seen and kept but
+    not silently joined.
+    """
+    found: list[CrossCandidate] = []
+    for index in range(len(nodes) - 1):
+        element, attribute = nodes[index]
+        text = getattr(element, attribute) or ""
+        cut = _CUT_AT_END.search(text)
+        if not cut:
+            continue
+        following, next_attribute = nodes[index + 1]
+        after = getattr(following, next_attribute) or ""
+        rest = _STARTS_A_WORD.match(after)
+        if not rest:
+            continue
+        if not _same_flow(element, following, root):
+            continue
+
+        left, right = cut.group(1), rest.group(1)
+        if _never_a_candidate(left, right) is not None:
+            continue
+        elsewhere = words.get(_fold(left + right), 0)
+        if not elsewhere:
+            # Cross-node needs the book's own word for it and nothing weaker.
+            # Inside one node a shape argument can carry a candidate to
+            # `LIKELY`; here the reader is also being asked about markup, and a
+            # maybe about two things at once is not a question worth putting.
+            continue
+
+        carrier = element if attribute == "text" else following
+        found.append(
+            CrossCandidate(
+                word=f"{left}-{right}",
+                left=left,
+                right=right,
+                where=where,
+                context=(text[-40:] + after[:40]).strip(),
+                confidence=CONFIRMED,
+                reason=(
+                    f"ta książka pisze „{left}{right}” bez łącznika {elsewhere}×, "
+                    f"a tutaj słowo jest przecięte znacznikiem "
+                    f"<{_tag(carrier)}>"
+                ),
+                joined_elsewhere=elsewhere,
+                first=(element, attribute),
+                second=(following, next_attribute),
+                joinable=_is_neutral(carrier),
+                carrier=_tag(carrier),
+            )
+        )
+    return found
+
+
 __all__ = [
     "CONFIRMED",
     "Candidate",
+    "CrossCandidate",
     "LIKELY",
     "UNCERTAIN",
     "find",
+    "find_across",
     "question_for",
     "vocabulary",
     "wanted_words",

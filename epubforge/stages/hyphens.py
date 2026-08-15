@@ -74,8 +74,10 @@ class HyphenStage(Stage):
 
         found: dict[str, int] = {}
         confirmed: list[tuple[object, hyphens.Candidate]] = []
+        across: list[tuple[object, hyphens.CrossCandidate]] = []
         for resource, root in documents:
-            for element, attribute in typography.text_nodes(root):
+            nodes = list(typography.text_nodes(root))
+            for element, attribute in nodes:
                 text = getattr(element, attribute)
                 if not text or "-" not in text:
                     continue
@@ -83,12 +85,22 @@ class HyphenStage(Stage):
                     found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
                     if candidate.confidence == hyphens.CONFIRMED:
                         confirmed.append((resource, candidate))
+            # The half a word that ends one text node and continues in the next.
+            # Same walk, so it costs nothing; a separate list, because applying
+            # it writes into two elements instead of one.
+            for candidate in hyphens.find_across(
+                nodes, root=root, where=resource.path, words=words
+            ):
+                found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
+                across.append((resource, candidate))
 
         if not found:
             return
         self._report_counts(ctx, found)
         if confirmed:
             self._ask_and_apply(ctx, confirmed)
+        if across:
+            self._ask_and_apply_across(ctx, across)
 
     def _report_counts(self, ctx: Context, found: dict) -> None:
         self.note(
@@ -180,6 +192,92 @@ class HyphenStage(Stage):
             "hyphens.left-alone",
             values={"count": asked},
         )
+
+    def _ask_and_apply_across(self, ctx: Context, across: list) -> None:
+        """The same rule for a word markup cut in two, and one extra caution.
+
+        Applying it means writing into two elements: the joined word goes where
+        the word *started*, and the characters it took are removed from the node
+        that continued it. That is a structural edit as well as a spelling one,
+        which is why it is only offered where the element between the halves is
+        a bare `<span>` — a converter's line wrapper, carrying nothing anybody
+        chose. Where it carries a class, a style or a meaning, the candidate is
+        still reported so a person can see it, and the only option is to keep
+        it: moving text out of an element somebody styled is not a repair this
+        program will offer to make.
+
+        The document-level guard is unchanged and does the same work it always
+        did. It compares the whole document's text before and after with the
+        agreed replacements applied — and because that text is `itertext()`,
+        which is exactly the concatenation these candidates were found in, a
+        cross-node join satisfies it without the guard needing to know that
+        anything crossed a node.
+        """
+        planned: dict[str, list] = {}
+        asked = 0
+        for resource, candidate in across:
+            answer = ctx.decide(hyphens.question_for(candidate))
+            asked += 1
+            if answer.option == KEEP:
+                continue
+            if not candidate.joinable:
+                # The question does not offer `join` in this case, so an answer
+                # of `join` can only come from a front end that invented it.
+                continue
+            replacement = (
+                candidate.joined if answer.option == "join" else answer.value
+            )
+            if not replacement:
+                continue
+            planned.setdefault(resource.path, []).append((candidate, replacement))
+
+        if not planned:
+            self._report_unanswered(ctx, asked)
+            return
+
+        joined = reverted = 0
+        for resource in ctx.book.content_docs():
+            agreed = planned.get(resource.path)
+            if not agreed:
+                continue
+            tree = ctx.take(resource)
+            root = tree.root
+            before = "".join(root.itertext())
+            expected = before
+            changed = 0
+            for candidate, replacement in agreed:
+                element, attribute = candidate.first
+                following, next_attribute = candidate.second
+                head = getattr(element, attribute) or ""
+                tail = getattr(following, next_attribute) or ""
+                if not head.endswith(f"{candidate.left}-") or not tail.startswith(
+                    candidate.right
+                ):
+                    # The tree moved under us — another stage edited this text
+                    # between the walk and here. Not an error and not something
+                    # to force through.
+                    continue
+                setattr(
+                    element, attribute,
+                    head[: -len(candidate.left) - 1] + replacement,
+                )
+                setattr(
+                    following, next_attribute, tail[len(candidate.right):]
+                )
+                expected = expected.replace(
+                    f"{candidate.left}-{candidate.right}", replacement, 1
+                )
+                changed += 1
+            if not changed:
+                continue
+            after = "".join(root.itertext())
+            if not typography.unchanged(expected, after):
+                reverted += 1
+                continue
+            resource.data = xhtml.serialize(root)
+            joined += changed
+
+        self._report_changes(ctx, joined, reverted)
 
     def _report_changes(self, ctx: Context, joined: int, reverted: int) -> None:
         if joined:

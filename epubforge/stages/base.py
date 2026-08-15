@@ -133,6 +133,15 @@ class Context:
         """
         import hashlib
 
+        from .. import budget as budget_module
+
+        # DELTA-2026-08-15-001. Every stage that walks documents comes through
+        # here, once per document, which makes it the one place where a clock
+        # limit and a Cancel button reach *inside* a stage rather than only
+        # between stages. A stage handling six hundred documents used to be
+        # uninterruptible from the moment it started.
+        budget_module.current().checkpoint(resource.path)
+
         key = hashlib.sha256(resource.data).digest()
         tree = self._trees.get(key)
         if tree is None:
@@ -157,6 +166,10 @@ class Context:
         second document, which is one document silently overwriting another.
         """
         import hashlib
+
+        from .. import budget as budget_module
+
+        budget_module.current().checkpoint(resource.path)
 
         key = hashlib.sha256(resource.data).digest()
         tree = self._trees.pop(key, None)

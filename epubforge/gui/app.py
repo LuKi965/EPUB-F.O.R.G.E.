@@ -103,7 +103,11 @@ class Worker(QObject):
                 # — which is every book but a handful — this is exactly what
                 # `rebuild` did, and the list has one entry.
                 produced = rebuild_all(
-                    source, destination, self._policy, resolver=self._resolver
+                    source, destination, self._policy, resolver=self._resolver,
+                    # DELTA-2026-08-15-001: the loop above only looked between
+                    # books, so Cancel on a large one meant "finish this one
+                    # first". Handed down, it is asked once per document.
+                    cancelled=lambda: self._cancelled,
                 )
                 result = produced[0]
                 if self._run_check:
@@ -470,6 +474,20 @@ class MainWindow(QMainWindow):
         # check the whole book. A sample is somebody else's choice about which
         # pages of *his* book are worth looking at.
         self.render_all_check = self._checkbox(layout, "policy.render.all", checked=False)
+        # DELTA-2026-08-15-001. Separate from the gate above and separate on
+        # purpose: that one says what to do when the check *runs* and finds a
+        # loss, this one says what to do when it cannot run at all. With the
+        # window open the rebuild asks; this is the same consent given in
+        # advance, for a batch nobody is sitting in front of.
+        self.unverified_check = self._checkbox(
+            layout, "policy.render.unverified", checked=False
+        )
+        # F-004's half of the same rule. A package that only parsed after
+        # recovery gives fields nobody wrote; with the window open the rebuild
+        # asks about each one, and this is the same consent in advance.
+        self.reconstructed_check = self._checkbox(
+            layout, "policy.metadata.reconstructed", checked=False
+        )
 
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
         self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
@@ -715,6 +733,8 @@ class MainWindow(QMainWindow):
         policy.reproducible = self.reproducible_check.isChecked()
         policy.render_gate = self.render_combo.currentData()
         policy.render_sample = 0 if self.render_all_check.isChecked() else 12
+        policy.accept_unverified_render = self.unverified_check.isChecked()
+        policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()

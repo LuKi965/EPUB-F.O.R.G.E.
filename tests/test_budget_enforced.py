@@ -33,13 +33,15 @@ from __future__ import annotations
 
 import os
 import time
+import zipfile
 
 import pytest
 
 from epubforge import budget as budget_module
 from epubforge.budget import Budget, BudgetExceeded
-from epubforge.pipeline import Status, rebuild
+from epubforge.pipeline import Status, rebuild, rebuild_all
 from epubforge.policy import Policy
+from epubforge.stages import DEFAULT_STAGES
 from epubforge.stages.base import Stage
 from tests.factory import make_modern_epub, write_zip
 
@@ -276,3 +278,178 @@ class TestTheBudgetIsActiveWhereverParsingHappens:
         with pytest.raises(BudgetExceeded):
             budget_module.bounded(b"<a>" * 50 + b"</a>" * 50, "nowhere.xhtml")
         budget_module._UNBOUND = None
+
+
+class TestEveryPublicWayInHasTheSameBoundary:
+    """DELTA-2026-08-15-001, and the finding is one line of `_renditions_of`.
+
+    `BudgetExceeded` derives from `BaseException` so that no local
+    `except Exception` can swallow a limit. That decision is right and it has a
+    price: every place which genuinely means "answer nothing and let the proper
+    path diagnose this" must now say so out loud. `_renditions_of` did not.
+
+    The reproduction is one book and two entry points: a container nested past
+    the depth limit came out of `rebuild` as a controlled `BLOCKED` with a
+    report, and out of the public `rebuild_all` as a traceback. A limit that
+    turns one entry point into a crash and another into a diagnosis is not one
+    boundary; it is two, and the crashing one is the one a batch runs through.
+    """
+
+    @staticmethod
+    def _with_deep_container(path, depth: int = 60) -> str:
+        source = make_modern_epub(str(path))
+        deep = "<c>" * depth + "</c>" * depth
+        container = (
+            '<?xml version="1.0"?><container version="1.0" '
+            'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/package.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles>'
+            f"{deep}</container>"
+        )
+        entries = {}
+        with zipfile.ZipFile(source) as archive:
+            for name in archive.namelist():
+                entries[name] = archive.read(name)
+        entries["META-INF/container.xml"] = container.encode()
+        with zipfile.ZipFile(source, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, data in entries.items():
+                archive.writestr(name, data)
+        return source
+
+    def test_rebuild_all_refuses_instead_of_raising(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(budget_module, "MAX_DEPTH", 5)
+        budget_module._UNBOUND = None
+        source = self._with_deep_container(tmp_path / "in.epub")
+        destination = tmp_path / "out.epub"
+        try:
+            results = rebuild_all(source, str(destination), Policy.preset("preserve"))
+        finally:
+            budget_module._UNBOUND = None
+        assert [result.status for result in results] == [Status.BLOCKED]
+        assert not destination.exists()
+
+    def test_both_entry_points_agree_about_the_same_book(self, tmp_path, monkeypatch):
+        """The assertion that would have caught it: not "rebuild_all blocks"
+        but "rebuild_all blocks *because rebuild does*". Two entry points into
+        one program may not disagree about whether a book is publishable."""
+        monkeypatch.setattr(budget_module, "MAX_DEPTH", 5)
+        budget_module._UNBOUND = None
+        source = self._with_deep_container(tmp_path / "in.epub")
+        try:
+            one = rebuild(source, str(tmp_path / "a.epub"), Policy.preset("preserve"))
+            many = rebuild_all(source, str(tmp_path / "b.epub"), Policy.preset("preserve"))
+        finally:
+            budget_module._UNBOUND = None
+        assert one.status is many[0].status
+        assert not (tmp_path / "a.epub").exists()
+        assert not (tmp_path / "b.epub").exists()
+
+    def test_the_reading_helpers_do_not_raise_either(self, tmp_path, monkeypatch):
+        """`inspect` and `plan_merge` parse the same container. They answer a
+        different question and they answer it without a rebuild around them, so
+        neither has anywhere to put a refusal — which makes "does not raise" the
+        whole requirement rather than a weaker one."""
+        from epubforge import repair
+
+        monkeypatch.setattr(budget_module, "MAX_DEPTH", 5)
+        budget_module._UNBOUND = None
+        source = self._with_deep_container(tmp_path / "in.epub")
+        try:
+            assert repair.inspect(source) is not None
+            assert repair.plan_merge([source, source]) is not None
+        finally:
+            budget_module._UNBOUND = None
+
+
+class TestStoppingInTheMiddleOfABook:
+    """DELTA-2026-08-15-001's other half of F-020.
+
+    The deadline was asked before and after every stage, which bounds a rebuild
+    made of eleven stages and does nothing whatever for a *stage* walking six
+    hundred documents. Cancellation had the identical shape and worse
+    consequences: the window's loop looked at its flag between books, so Cancel
+    on a large book meant "finish this one first".
+
+    Both are the same question asked in the same place — the per-document
+    accessor every stage goes through — and both raise a `BaseException`, so the
+    writer's existing cleanup removes the staging file and whatever was already
+    at the destination is untouched.
+    """
+
+    @staticmethod
+    def _many_documents(path, count: int = 12) -> str:
+        source = make_modern_epub(str(path))
+        page = (
+            '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            '<meta charset="utf-8"/><title>R</title></head><body><p>Tekst.</p></body></html>'
+        )
+        entries = {}
+        with zipfile.ZipFile(source) as archive:
+            for name in archive.namelist():
+                entries[name] = archive.read(name)
+        for index in range(count):
+            entries[f"OEBPS/extra{index}.xhtml"] = page.encode()
+        with zipfile.ZipFile(source, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, data in entries.items():
+                archive.writestr(name, data)
+        return source
+
+    def test_cancelling_stops_the_book_and_writes_nothing(self, tmp_path):
+        source = self._many_documents(tmp_path / "in.epub")
+        destination = tmp_path / "out.epub"
+        result = rebuild(
+            source, str(destination), Policy.preset("preserve"), cancelled=lambda: True
+        )
+        assert result.status is Status.BLOCKED
+        assert not destination.exists()
+        assert "package.cancelled" in {f.rule for f in result.report.findings if f.rule}
+
+    def test_a_file_already_there_is_left_exactly_as_it_was(self, tmp_path):
+        """The whole reason cancelling has to be a refusal rather than a crash:
+        somebody stopping a rebuild must not lose the book they already had."""
+        destination = tmp_path / "out.epub"
+        destination.write_bytes(b"ksiazka, ktora juz tam byla")
+        source = self._many_documents(tmp_path / "in.epub")
+        rebuild(source, str(destination), Policy.preset("preserve"), cancelled=lambda: True)
+        assert destination.read_bytes() == b"ksiazka, ktora juz tam byla"
+
+    def test_nothing_half_written_is_left_beside_it(self, tmp_path):
+        source = self._many_documents(tmp_path / "in.epub")
+        rebuild(
+            source, str(tmp_path / "out.epub"), Policy.preset("preserve"),
+            cancelled=lambda: True,
+        )
+        assert not [p.name for p in tmp_path.glob("*.part.epub")]
+        assert not [p.name for p in tmp_path.glob(".*")]
+
+    def test_not_cancelling_changes_nothing(self, tmp_path):
+        source = self._many_documents(tmp_path / "in.epub")
+        result = rebuild(
+            source, str(tmp_path / "out.epub"), Policy.preset("preserve"),
+            cancelled=lambda: False,
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+
+    def test_the_clock_is_asked_inside_a_stage_and_not_only_between_them(
+        self, tmp_path, monkeypatch
+    ):
+        """The assertion that would have caught the original: count the
+        checkpoints during one rebuild and require more of them than there are
+        stages. A per-stage check passes any test that only asks whether the
+        clock is consulted at all."""
+        seen = []
+        real = Budget.checkpoint
+
+        def counted(self, where=""):
+            seen.append(where)
+            return real(self, where)
+
+        monkeypatch.setattr(Budget, "checkpoint", counted)
+        source = self._many_documents(tmp_path / "in.epub", count=12)
+        rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert len(seen) > len(DEFAULT_STAGES), (
+            f"{len(seen)} checkpoints for {len(DEFAULT_STAGES)} stages: "
+            "the clock is still only asked between them"
+        )
+        assert len(set(seen)) > 1, "every checkpoint named the same place"

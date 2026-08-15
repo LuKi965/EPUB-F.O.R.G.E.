@@ -295,3 +295,126 @@ class TestTheTextInvariantStillHolds:
         assert not HyphenStage._only_the_hyphens_went(
             "Była obo-jętna dziś.", "Była obojętna wczoraj.", planned
         )
+
+
+class TestAWordCutByMarkup:
+    """DELTA-2026-08-15-001, and it corrects a decision written into the module.
+
+    `find` works per text node, and the note beside it said joining across
+    markup would move text between elements — a structural change dressed up as
+    a spelling fix. That is right about `<em>obo</em>-<em>jętna</em>` and it was
+    the wrong conclusion to draw for everything: `<span>obo-</span>jętna` is the
+    exact defect this module exists for, produced by converters that wrap every
+    line of a PDF in a bare span. Measured: the same word inside one node came
+    out `CONFIRMED`, and cut by a span it produced nothing at all.
+
+    Measured before the rule was changed, on both mandatory fixtures and the six
+    rebuilt copies of them: not one text node in any of the eight ends in a
+    hyphen. The class is real and those books are not in it, which is why this
+    detects rather than hunts — the walk is already happening, and nothing
+    changes without an answer.
+    """
+
+    @staticmethod
+    def _book(tmp_path, body: str) -> str:
+        return book(tmp_path / "in.epub", body)
+
+    def test_a_bare_span_does_not_hide_the_word(self, tmp_path):
+        asker = Joins()
+        result = rebuild(
+            self._book(
+                tmp_path,
+                "<p>Zupełnie <span>obo-</span>jętna sprawa.</p>"
+                "<p>Była obojętna wobec tego.</p>"
+                "<p>Zupełnie obojętna rzecz.</p>",
+            ),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            asker=asker,
+        )
+        assert "obojętna" in text_of(result)
+        assert "obo-" not in text_of(result)
+
+    def test_the_joined_word_lands_where_the_word_started(self, tmp_path):
+        """Both halves cannot stay where they were, so the choice is stated
+        rather than left to fall out: the word goes where it began."""
+        asker = Joins()
+        result = rebuild(
+            self._book(
+                tmp_path,
+                "<p>Zupełnie <span>obo-</span>jętna sprawa.</p>"
+                "<p>Była obojętna wobec tego.</p>"
+                "<p>Zupełnie obojętna rzecz.</p>",
+            ),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            asker=asker,
+        )
+        assert "<span>obojętna</span>" in text_of(result)
+
+    def test_an_element_somebody_chose_is_not_joined_across(self, tmp_path):
+        """The original caution, kept. A span with a class is presenting its
+        half of the word differently from the other half; moving text out of it
+        is a structural edit, and this program will not offer to make one under
+        the name of a spelling fix. It is still shown, because a person seeing
+        it is the whole point."""
+        asker = Joins()
+        result = rebuild(
+            self._book(
+                tmp_path,
+                '<p>Zupełnie <span class="kapitaliki">obo-</span>jętna sprawa.</p>'
+                "<p>Była obojętna wobec tego.</p>"
+                "<p>Zupełnie obojętna rzecz.</p>",
+            ),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            asker=asker,
+        )
+        assert 'class="kapitaliki">obo-</span>jętna' in text_of(result)
+        question = next(q for q in asker.asked if "przecięte znacznikiem" in q.summary)
+        assert [option.id for option in question.options] == ["keep"], (
+            "a join was offered across markup somebody chose"
+        )
+
+    def test_two_paragraphs_are_not_one_broken_word(self, tmp_path):
+        """`<p>koń-</p><p>ski</p>` is two paragraphs. Gluing them would invent
+        a sentence, which is a worse defect than the one being fixed."""
+        asker = Joins()
+        rebuild(
+            self._book(
+                tmp_path,
+                "<p>Zupełnie obo-</p><p>jętna sprawa.</p>"
+                "<p>Była obojętna wobec tego.</p>"
+                "<p>Zupełnie obojętna rzecz.</p>",
+            ),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            asker=asker,
+        )
+        assert not asker.asked, [q.summary for q in asker.asked]
+
+    def test_nothing_happens_without_an_answer(self, tmp_path):
+        result = rebuild(
+            self._book(
+                tmp_path,
+                "<p>Zupełnie <span>obo-</span>jętna sprawa.</p>"
+                "<p>Była obojętna wobec tego.</p>"
+                "<p>Zupełnie obojętna rzecz.</p>",
+            ),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+        )
+        assert "obo-</span>jętna" in text_of(result)
+
+    def test_it_needs_the_book_s_own_word_for_it(self, tmp_path):
+        """Inside one node a shape argument can carry a candidate as far as
+        `LIKELY`. Across markup the reader is being asked about two things at
+        once, and a maybe about both is not a question worth putting."""
+        asker = Joins()
+        rebuild(
+            self._book(tmp_path, "<p>Zupełnie <span>obo-</span>jętna sprawa.</p>"),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            asker=asker,
+        )
+        assert not asker.asked, [q.summary for q in asker.asked]

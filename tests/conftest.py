@@ -57,13 +57,41 @@ def without_the_renderer(request, monkeypatch):
 
     The same reasoning as `test_corpus_signatures.py` turning EPUBCheck off: a
     suite nobody waits for is a suite nobody runs. What is deliberately *not*
-    done here is changing the default — `Policy().render_gate` is still `stop`
-    and `test_render_gate.py` asserts it. Only the discovery of a browser is
+    done here is changing the gate — `Policy().render_gate` is still `stop` and
+    `test_render_gate.py` asserts it. Only the discovery of a browser is
     suppressed, which is exactly the state of a machine that has none, and the
     files that are about rendering opt back in.
+
+    **What is emulated changed with DELTA-2026-08-15-001, and for the better.**
+    The first version of this suppressed the browser and nothing else, because
+    "no browser" then meant "publish with a warning" — so every test in the
+    suite ran as a machine that could not check its work, and every report
+    carried a warning saying so. That stopped being true when `stop` started
+    meaning stop, and the choice of what to emulate instead had to be made
+    rather than defaulted into.
+
+    It emulates **a working browser and a book that draws the same** — the
+    ordinary case, the one nearly every test is actually about — by answering
+    the comparison instead of performing it. No browser is started, the gate
+    runs its real code path, and a rebuild that would have been refused for
+    losing content still is, because `_judge` is the thing being stood in for
+    and not `_render_gate`.
+
+    The files that are about rendering, and the tests marked `renders`, get
+    neither substitution and exercise the whole thing for real.
     """
     if request.node.get_closest_marker("renders"):
         return
     if "render" in str(getattr(request.node, "fspath", "")):
         return
-    monkeypatch.setattr("epubforge.render.find_renderer", lambda: None)
+
+    from epubforge import render_fidelity
+
+    monkeypatch.setattr("epubforge.render.find_renderer", lambda: "/nie/ma/mnie")
+    monkeypatch.setattr(
+        render_fidelity,
+        "compare",
+        lambda source, candidate, sample=0, browser=None: render_fidelity.RenderFidelity(
+            available=True, engine="podstawiona przeglądarka", pages=[]
+        ),
+    )

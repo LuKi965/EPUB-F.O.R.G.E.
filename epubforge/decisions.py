@@ -52,7 +52,12 @@ from .report import Risk
 REFERENCE = "reference"
 HYPHEN = "hyphen"
 METADATA = "metadata"
-KINDS = (REFERENCE, HYPHEN, METADATA)
+#: The appearance check is required and could not be performed here. Unlike the
+#: other three this question is not about a place in the book — it is about
+#: whether a book nobody was able to check may be written at all, and it exists
+#: because the alternative was the program answering it silently.
+VERIFICATION = "verification"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that

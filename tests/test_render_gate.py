@@ -17,7 +17,7 @@ import pathlib
 
 import pytest
 
-from epubforge import render
+from epubforge import decisions, render
 from epubforge.pipeline import rebuild
 from epubforge.policy import RENDER_GATES, Policy
 from tests.test_render_fidelity import PARAGRAPHS, book
@@ -67,7 +67,9 @@ class TestAPageThatLostSomething:
         broken = book(tmp_path / "broken.epub", "")
         report = pipeline.Report(source=source, output=str(tmp_path / "out.epub"))
         settings = Policy.preset("preserve", render_gate=gate, render_sample=0)
-        check = pipeline._render_gate(source, settings, report, str(tmp_path / "out.epub"))
+        check = pipeline._render_gate(
+            source, settings, report, str(tmp_path / "out.epub"), decisions.Queue()
+        )
         return check(broken), report
 
     def test_stop_refuses_and_names_the_page(self, tmp_path):
@@ -121,20 +123,72 @@ class TestReflowIsNotLoss:
         )
         report = pipeline.Report(source=source, output=str(tmp_path / "out.epub"))
         settings = Policy.preset("preserve", render_gate="stop", render_sample=0)
-        check = pipeline._render_gate(source, settings, report, str(tmp_path / "out.epub"))
+        check = pipeline._render_gate(
+            source, settings, report, str(tmp_path / "out.epub"), decisions.Queue()
+        )
         assert check(shifted) == ""
 
 
 class TestWithoutABrowser:
     """The owner's instruction, verbatim: tell the person the verification is
-    required, and let them decline it knowingly. Not a silent skip, and not a
-    refusal that holds their book hostage to a dependency this program
-    deliberately does not ship."""
+    required, and let them decline it **knowingly**. Not a silent skip, and not
+    a refusal that holds their book hostage to a dependency this program
+    deliberately does not ship.
 
-    def test_it_publishes_and_says_the_check_did_not_run(self, tmp_path, monkeypatch):
+    The first implementation kept the second half and dropped the first.
+    DELTA-2026-08-15-001 reproduced it in one line: `render_gate="stop"`, no
+    browser, and the book was written with a warning. The program had declined
+    on the person's behalf and recorded it as though they had been asked, which
+    is the one outcome nobody chose — the setting says stop, somebody planned
+    around the word, and it did not stop.
+
+    Three ways through and each is somebody deciding rather than the program
+    assuming: answer the question, tick the box in advance, or set the gate to
+    `report`. With nobody there to answer, an unanswered question falls back to
+    "change nothing", and here that means no file — which is what `stop` says.
+    """
+
+    def test_nobody_to_ask_means_nothing_is_written(self, tmp_path, monkeypatch):
         monkeypatch.setattr(render, "find_renderer", lambda: None)
         _, result = rebuilt(tmp_path, PARAGRAPHS)
-        assert result.status.wrote_a_file
+        assert not result.status.wrote_a_file, result.report.to_text()
+        assert not (tmp_path / "out.epub").exists()
+        assert "render.cannot-run" in rules_of(result)
+
+    def test_a_person_may_decline_the_check_and_get_their_book(self, tmp_path, monkeypatch):
+        """The other half of the instruction, and it has to be reachable by
+        answering rather than by editing a setting: somebody with no browser is
+        told what is missing and can say "write it anyway" on the spot."""
+        from epubforge import decisions
+
+        class Waives:
+            def ask(self, question):
+                assert question.kind == decisions.VERIFICATION
+                return decisions.Answer(option="publish")
+
+        monkeypatch.setattr(render, "find_renderer", lambda: None)
+        source = book(tmp_path / "in.epub", PARAGRAPHS)
+        result = rebuild(
+            source, str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off", render_sample=0),
+            asker=Waives(),
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "render.unverified-accepted" in rules_of(result)
+
+    def test_consent_can_be_given_in_advance_for_a_batch(self, tmp_path, monkeypatch):
+        """A shelf being rebuilt overnight has nobody to ask, and refusing all
+        of it would be exactly the hostage-taking the owner ruled out. One
+        field, set on purpose, and the report still says what was skipped."""
+        monkeypatch.setattr(render, "find_renderer", lambda: None)
+        _, result = rebuilt(tmp_path, PARAGRAPHS, accept_unverified_render=True)
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "render.unverified-accepted" in rules_of(result)
+
+    def test_report_still_reports(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(render, "find_renderer", lambda: None)
+        _, result = rebuilt(tmp_path, PARAGRAPHS, render_gate="report")
+        assert result.status.wrote_a_file, result.report.to_text()
         assert "render.cannot-run" in rules_of(result)
 
     def test_the_message_says_it_is_required_and_how_to_decline(self, tmp_path, monkeypatch):
@@ -150,15 +204,25 @@ class TestWithoutABrowser:
         for phrase in ("obowiązkowa", "świadomie"):
             assert phrase in CATALOGUES["pl"]["render.cannot-run"]
 
-    def test_it_is_a_warning_and_not_an_error(self, tmp_path, monkeypatch):
-        """An error would say the rebuild went wrong. It did not: a tool is
-        missing, and the person is being told."""
+    def test_the_level_follows_what_actually_happened(self, tmp_path, monkeypatch):
+        """It used to be a warning always, on the reasoning that a missing tool
+        is not a broken rebuild. True — and it stopped being the whole story
+        once the same condition could refuse to write the file. A line that
+        explains why there is no output is an error; the same line next to a
+        book that was written is a warning. The level is not a mood, it is
+        whether the reader has an output."""
         from epubforge.report import Level
 
         monkeypatch.setattr(render, "find_renderer", lambda: None)
-        _, result = rebuilt(tmp_path, PARAGRAPHS)
-        finding = next(f for f in result.report.findings if f.rule == "render.cannot-run")
-        assert finding.level is Level.WARN
+        _, refused = rebuilt(tmp_path, PARAGRAPHS)
+        assert next(
+            f for f in refused.report.findings if f.rule == "render.cannot-run"
+        ).level is Level.ERROR
+
+        _, reported = rebuilt(tmp_path, PARAGRAPHS, render_gate="report")
+        assert next(
+            f for f in reported.report.findings if f.rule == "render.cannot-run"
+        ).level is Level.WARN
 
 
 class TestTheWholeBookCanBeAsked:
@@ -203,7 +267,9 @@ class TestTheCheapRefusalGoesFirst:
         pipeline._publication_gate = spy_validator
         pipeline._render_gate = spy_render
         try:
-            both = pipeline._both_gates(source, Policy.preset("preserve"), report, "x")
+            both = pipeline._both_gates(
+                source, Policy.preset("preserve"), report, "x", decisions.Queue()
+            )
             assert both(source) == "nie tym razem"
         finally:
             pipeline._publication_gate = original_validator

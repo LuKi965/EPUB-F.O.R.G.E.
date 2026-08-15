@@ -165,6 +165,45 @@ class Policy:
     #: sample somebody else picked.
     render_sample: int = 12
 
+    #: Publish even though the appearance check could not be performed at all.
+    #:
+    #: Not the same setting as `render_gate` and the difference is the whole
+    #: reason it exists. `render_gate` says what to do when the check *runs* and
+    #: finds a page that lost content. This says what to do when the check
+    #: cannot run — no browser on the machine, or a comparison that came back
+    #: unavailable — which is a different question with a different answer.
+    #:
+    #: DELTA-2026-08-15-001 found `stop` publishing in exactly that case, on a
+    #: warning. That was this program answering, on somebody's behalf, a
+    #: question it had been told to ask: the owner's instruction was that the
+    #: verification is mandatory and *may be knowingly declined*, and declining
+    #: for him without saying so is not that.
+    #:
+    #: So with somebody there to ask, the rebuild asks. `True` here is the same
+    #: consent given in advance, for the runs where nobody is watching — a
+    #: batch over a shelf, a library caller, a machine that will never have a
+    #: browser — because "a missing tool must not hold the book hostage" is his
+    #: instruction too, and one flag is the price of it.
+    accept_unverified_render: bool = False
+
+    #: Publish metadata that came out of a damaged package document without
+    #: anybody having looked at it.
+    #:
+    #: F-004 established that a package which only parsed after tag-soup
+    #: recovery yields fields that are *the parser's reading* of somebody's book
+    #: rather than the book's own words — crossed tags turned a title into
+    #: `ORIGINALpl`, a string no publisher ever wrote. That has been asked about
+    #: since the decision queue existed, and DELTA-2026-08-15-001 found the hole
+    #: underneath the question: with nobody there to answer, the guess was
+    #: published anyway.
+    #:
+    #: The same shape as `accept_unverified_render`, and deliberately so — one
+    #: program, one rule about consent. Somebody who looks at `ORIGINALpl` and
+    #: keeps it has decided, and this program has no vote. Silence has not
+    #: decided anything, so the default refuses; `True` is that consent given in
+    #: advance for a run nobody is watching.
+    accept_reconstructed_metadata: bool = False
+
     #: Read back and write down the answers a person gave about this book.
     #:
     #: BA-2026-002's "save/replay/undo". Kept beside the book, so a library that

@@ -93,6 +93,10 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.render_gate = args.render_gate
     if getattr(args, "render_all", False):
         policy.render_sample = 0
+    if getattr(args, "accept_unverified_render", False):
+        policy.accept_unverified_render = True
+    if getattr(args, "accept_reconstructed_metadata", False):
+        policy.accept_reconstructed_metadata = True
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1017,6 +1021,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--render-all",
         action="store_true",
         help="draw every page rather than a sample of twelve",
+    )
+    build.add_argument(
+        "--accept-reconstructed-metadata",
+        action="store_true",
+        help=(
+            "write the book even when its title, author or language came out of "
+            "a package document that only parsed after recovery and nobody was "
+            "there to confirm them"
+        ),
+    )
+    build.add_argument(
+        "--accept-unverified-render",
+        action="store_true",
+        help=(
+            "write the book even when the appearance check cannot run at all "
+            "(no browser found). Different from --render-gate, which says what "
+            "to do when the check runs and finds a loss"
+        ),
     )
 
     build.add_argument("--no-ncx", action="store_true", help="omit the legacy NCX")

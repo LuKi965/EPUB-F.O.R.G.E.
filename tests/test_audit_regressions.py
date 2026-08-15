@@ -502,8 +502,34 @@ class TestACommentInsideTheMetadata:
 
     def test_a_comment_that_cannot_be_written_back_is_dropped_not_mangled(self, tmp_path):
         """`--` has no escape inside an XML comment, and a broken package is
-        worse than a lost note."""
+        worse than a lost note.
+
+        `--` inside a comment also makes the package ill-formed, so this book
+        reaches the writer through the recovering parser — which means that
+        since DELTA-2026-08-15-001 its metadata needs somebody's word before it
+        is published. That is the new rule doing exactly what it says on a book
+        where it happens to cost something: the title here is in fact read
+        correctly, and this program has no way to know that.
+
+        The consent is what the test supplies, and the assertion underneath it
+        is unchanged: the note is dropped rather than written back mangled.
+        """
+        source = self.build(tmp_path, "zamowienie -- numer 1659")
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", accept_reconstructed_metadata=True),
+        )
+        assert result.output_path, result.report.to_text()
+        assert "zamowienie" not in package_document(result.output_path)
+
+    def test_an_ill_formed_package_asks_before_it_publishes(self, tmp_path):
+        """The same book without the consent, stated so the cost of the rule is
+        visible rather than discovered: a shop's order number containing `--`
+        is enough to make a book need an answer."""
         source = self.build(tmp_path, "zamowienie -- numer 1659")
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
-        assert result.output_path
-        assert "zamowienie" not in package_document(result.output_path)
+        assert not result.output_path
+        assert "package.metadata-unconfirmed" in {
+            f.rule for f in result.report.findings if f.rule
+        }

@@ -160,11 +160,19 @@ class TestAnsweringCorrectsTheBook:
         assert "Tytuł Poprawiony" in said
 
     def test_an_empty_answer_is_refused_by_the_queue(self, tmp_path):
-        """`write` carries a value; the queue rejects one that does not, so the
-        book keeps the parser's reading rather than losing its title."""
+        """`write` carries a value; the queue rejects one that does not.
+
+        What follows from that changed with DELTA-2026-08-15-001 and is the
+        same argument as BA-2026-002's: a front end that sent an empty box is
+        not a person who decided. The queue records it as a failure and the
+        rebuild treats it as unanswered — so the title is neither lost nor
+        quietly replaced by the parser's reading, and no file is written for
+        somebody to find the guess in later.
+        """
         result = run(tmp_path, Asks(option="write", value=""))
         assert "package.metadata-corrected" not in rules_of(result)
-        assert "<dc:title" in titles_of(result)
+        assert not result.output_path
+        assert "package.metadata-unconfirmed" in rules_of(result)
 
 
 class TestAllThreeClassesShareOneApi:
@@ -172,7 +180,13 @@ class TestAllThreeClassesShareOneApi:
 
     def test_the_vocabulary_holds_all_three(self):
         assert set(decisions.KINDS) == {
-            decisions.REFERENCE, decisions.HYPHEN, decisions.METADATA
+            decisions.REFERENCE,
+            decisions.HYPHEN,
+            decisions.METADATA,
+            # DELTA-2026-08-15-001's fourth, and the one that is not about a
+            # place in the book: whether a rebuild nobody could check may be
+            # written at all.
+            decisions.VERIFICATION,
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):
