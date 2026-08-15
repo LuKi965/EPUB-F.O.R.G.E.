@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.23` · alpha · 1949 testów · **Windows**
+`0.2.24` · alpha · 2330 testów · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -144,6 +144,14 @@ zachowane celowo, bo jego usunięcie zmieniłoby wygląd), `FIX`, `INFO`.
 Znaki wodne i wpisy wydawcy **nie są usuwane** — są porządkowane, gdy powtarzają
 się w każdym rozdziale, i zostają.
 
+Tam, gdzie program nie wie, **pyta, zamiast zgadywać**. Martwy odnośnik, słowo
+rozcięte łącznikiem przez konwersję (`wybo-rowy`) i metadana, która wyszła z
+domysłu parsera, a nie z pliku — każde z nich to pytanie z opisanymi
+konsekwencjami każdej odpowiedzi, z rekomendacją i z informacją, czy da się to
+cofnąć. **Bez odpowiedzi nie zmienia się nic**, a odpowiedzi zapisują się obok
+książki, więc ta sama książka nie pyta drugi raz. Wsad, korpus i każdy
+wywołujący bibliotekę dostają książkę nietkniętą w tych miejscach.
+
 ## Ograniczenia
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
@@ -171,15 +179,26 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   dwanaście. Odmowa **nie rusza** pliku, który już leży pod tą nazwą.
   Tryb zachowawczy i minimalny wydają i opisują, tak jak dotąd; wybór jest w
   oknie i pod `--gate`.
+- **Sprawdzenie wyglądu od 0.2.24 też potrafi zatrzymać zapis, i jest
+  obowiązkowe.** Program rysuje strony przed i po przebudowie i porównuje je;
+  przy wykrytej stracie treści domyślnie nic nie zapisuje. Rysuje headlessowym
+  Chromium, jeśli maszyna go ma — **przeglądarka nie jest zależnością tego
+  programu** i instalator jej nie wozi. Bez niej przebudowa idzie dalej, a
+  program mówi wprost, że weryfikacja się nie odbyła i że można z niej
+  **świadomie zrezygnować**. Trzy stany: wyłączone / raportuj / zatrzymaj.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
   zakresem.
 - **Nie zdejmuje DRM** i nie będzie.
 - **Cała książka trafia do pamięci.** Przy dużej bibliotece i wielu procesach
-  naraz to jest odczuwalne.
+  naraz to jest odczuwalne. Od 0.2.24 program **liczy to przed startem** —
+  z katalogu ZIP-a, bez rozpakowywania — i odmawia, zamiast dać się zabić
+  jądru w połowie roboty. Na 32 książkach półki najdroższa wychodzi na
+  104 MiB, więc jest to zabezpieczenie na przypadek patologiczny, a nie próg,
+  który komuś wejdzie w drogę. Wyłączalne, z własnym polem budżetu.
 
 ## Jak to jest sprawdzane
 
-1949 testów, w tym trzy niezależne siatki bezpieczeństwa:
+2330 testów, w tym trzy niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

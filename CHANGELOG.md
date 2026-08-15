@@ -38,6 +38,561 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.24 — alpha — 2026-08-15 — kamień milowy [WP-1] [WP-2] [WP-3]
+
+An external audit read this program on 2026-08-14 and left fifteen findings
+grouped into three work packages; this release is all fifteen of them, and the
+several that turned out to be the same mistake made in different places.
+
+### At a glance
+
+| what it was | the scale of it |
+| --- | --- |
+| A budget with its own test file and zero callers | depth limit 10, document 80 levels deep, calls made: none, book published |
+| A deadline asked only *before* each stage | limit 0.05 s, stage 0.20 s, book published |
+| A book published after part of the archive was never read | every loss refuses now; the owner's decision, and there is no switch |
+| Metadata deleted by prefix | three entire vocabularies — `schema:`, `rendition:`, `media:` |
+| Tag-soup recovery reported as though it were a reading | `<dc:title>ORIGINAL<dc:language>pl</dc:title>` → a title of `ORIGINALpl`, language gone, not one word in the report |
+| The validator was downloaded and taken on trust | 33 MB over the network, no checksum, `extractall` |
+| A misdirected reference read as a dead one | the file is in the book, one directory over |
+| `srcset` was never in the reference graph | every candidate but the first was invisible to the rebuild |
+| A ceiling in the wrong unit | 2 GiB of *content* promised a 24 GB process; the largest book went 2042 → 700 MiB |
+| Nothing could ask a question and remember the answer | one queue, three kinds of question, answers kept beside the book |
+| Hyphens a conversion left inside words | 67 confirmed across 32 books, 46 of them in a single one |
+| Nothing checked that the rebuilt page still looks like itself | two screenshots per document at two sizes; 0 refusals on 32 real books, 4 of 4 deliberate breakages caught |
+| Two tests asked the machine they ran on rather than the program | ZIP timestamps, and a font classifier measured only on host fonts |
+| Nothing stopped a rule about one particular book from being written | now an AST test over the whole package |
+
+### New / fixed
+
+**New:** a health check and a two-copy merge for books the rebuild refuses, a
+change ledger that can be totalled rather than read, a decision queue with
+remembered answers, a hard-hyphen detector, a memory estimate that refuses
+before it allocates, and a render-fidelity gate that compares the drawn page.
+**Fixed:** every boundary in the audit's first two packages — budgets,
+deadlines, incomplete archives, metadata loss, recovery reported as fact, an
+unverified validator, and two classes of reference the rebuild could not see.
+
+### Everything, by subject
+
+#### The limits that were written but never wired in
+
+Three P0 findings, all three reproduced here in a full environment before any
+code was touched, and all three reproduced.
+
+**`Budget.document` had a test file and no callers.** The reproduction is one
+line: a depth limit of 10, a document 80 levels deep, zero calls made, and the
+book published. The test proved the limit worked; nothing proved it was used.
+The check now sits in `reader.parse_xml` and `xhtml.parse_document` — every
+parse in the program goes through one of the two — and it reads the active
+budget from a `ContextVar` rather than from a passed argument, because the
+version with an argument is precisely what produced a limit with no callers.
+
+Wiring it in exposed the second half: the stage caught the refusal with
+`except Exception`, reported `xhtml.unparseable`, and published the book. The
+limit worked perfectly and the output came out anyway, filed under a finding
+about something else entirely. `BudgetExceeded` now derives from
+`BaseException`, like `KeyboardInterrupt`. A limit any local `except` can
+swallow is not a limit.
+
+**The deadline was asked only before each stage** — that is, it measured
+everything except the part that takes time. Limit 0.05 s, stage 0.20 s, book
+published. There is a checkpoint after every stage and one before publication.
+
+**A book is no longer published when part of the archive was never read.**
+`allow_incomplete` is gone rather than defaulted off. The first proposal kept
+the switch for losses that are "only decorative"; the owner rejected it with a
+sentence better than the proposal — losing an ornament is damage to the book
+too, and contradicts what this program is for. What replaces the switch is a
+report that says what the lost file was, whether the book's own manifest listed
+it, and how many documents point at it.
+
+Found on the way: `Policy.preset` silently accepted the name of a field that
+does not exist, so a typo in a setting name did nothing and told nobody.
+
+#### Metadata that vanished, and a guess presented as a reading
+
+**F-011 was two lines in the writer.** The first, `startswith("calibre:")`,
+removed only what nothing else carried — the two Calibre entries this model
+understands are consumed into fields by the reader and never reach it. The
+second, `startswith(("schema:", "rendition:", "media:"))`, meant "do not write
+`schema:accessMode` twice" and did "delete three entire vocabularies whether or
+not this rebuild had anything to say about them".
+
+The fix is not a longer list. The writer now reads back the `<meta>` lines it
+has already emitted and skips only what it actually said; a hand-maintained
+list of "properties we generate" is a second copy of the emitters, and it was
+the copy that drifted. A skip now carries its own finding, because silence and
+a decision look identical in the output.
+
+**F-004: `recover=True` accepted a package with interleaved tags,** turned
+`<dc:title>ORIGINAL<dc:language>pl</dc:language></dc:title>` into a title of
+`ORIGINALpl`, lost the language, and published the book without a word in the
+report. That is not a repair; that is libxml2's opinion about somebody's book
+promoted to a fact.
+
+The strict parser is asked first, so "the file says" and "the parser guessed"
+have stopped being the same answer. The owner's decision was neither to refuse
+nor to publish quietly, but to show the difference and offer a correction: the
+report names the fields that came out of a guess — exactly the ones the window
+and the command line already let you override — and the status stops being a
+clean success.
+
+#### A ledger that can be totalled
+
+The report said a great deal about *why* and almost nothing about *what* in a
+form anything could add up. "4 of 10 rules removed — 17% of this stylesheet" is
+a good sentence, and it is a sentence: nothing can ask it how many removals
+there were in total, how many are irreversible, and how many were a heuristic
+rather than a calculation. Those are the questions you ask before running a
+batch over your own shelf.
+
+A change is now a record beside the finding that explains it, with a closed
+vocabulary: `Action` (removed/replaced/moved/added/carried/reconstructed),
+`Automation` (deterministic/heuristic/asked), `Risk` (none/appearance/content),
+and `reversible` — whether the output alone carries enough to undo it.
+
+Deliberately **not** every change. A register of every edit is a log, and the
+findings are already that log. What goes into the ledger is the set the audit
+names — removal, recovery, relocation — because that is where a mistake costs a
+reader. A test holds the boundary from the other side: rebuilding a clean book
+may not fill the ledger with noise.
+
+Report JSON schema 2 → 3. Two fields added, nothing removed, nothing changed
+meaning.
+
+Also here, a test that was missing: the window checked against a **built**
+window rather than against its strings. The owner asked whether the new
+features were in the window. They were — but what guarded that were tests for
+the existence of labels and CLI commands, which is exactly the class of mistake
+the audit caught five times.
+
+#### What is left when the rebuild refuses
+
+Two features the owner chose. The rebuild refuses a source it did not read in
+full, and there is no switch that turns that off. That is right, and it is not
+help; this is the half that helps.
+
+**A health check** answers "is this file whole" by extracting every entry,
+because a ZIP's directory sits at the end of the file and an interrupted
+download can leave it intact. An archive's claims about itself are exactly what
+a truncated copy still has correct. Worth running on the day of purchase, when
+downloading again takes a minute.
+
+**A merge** turns two copies damaged in different places into one whole book.
+It is the only operation in this program that recovers something rather than
+lowering a requirement. Every entry is copied whole, byte for byte, from an
+archive that yields it cleanly and with its own CRC. Nothing is reconstructed
+and nothing is averaged.
+
+Where two intact copies disagree about the same entry, the merge **refuses**
+instead of choosing: two different intact answers mean two different books, or
+one book after somebody's edit, and picking one produces a book that neither
+copy was.
+
+Human in the loop, as required: the plan is computed and shown in full — which
+entry comes from where, what is missing everywhere, where the copies conflict —
+and the save button stays disabled until the plan has been seen. An existing
+destination is never overwritten: this operation exists because a file was
+damaged, so destroying another one on the way would be the same defect.
+
+In the window (Diagnostics, fourth question; File menu, merge) and on the
+command line (`epubforge health`, `epubforge merge`).
+
+#### The validator was taken on trust
+
+The build downloaded 33 MB over the network and ran whatever arrived — as the
+validator every release is measured with, and, since 0.2.23, as the thing that
+decides whether a book may be published at all. Every Python dependency has
+been pinned with a hash since 0.2.21. This one artefact, with more power over
+the result than any of them, had nothing: no checksum, no size, and
+`ZipFile.extractall`, which Python's own documentation warns against.
+
+**What arrives** — a pinned SHA-256 and size, checked whether the archive was
+just downloaded or handed over with `--epubcheck-zip`. A local file is not more
+trustworthy than a downloaded one, only more convenient, and a build that
+verifies one path and not the other verifies nothing that cannot be walked
+around.
+
+**Where the numbers come from,** because a pin is worth exactly its provenance.
+The archive was fetched on 2026-08-14, which is trust-on-first-use: it detects
+substitution from now on and not retroactively. So it was confirmed through a
+second, independent channel — `epubcheck.jar` from that archive compared entry
+by entry against `org.w3c:epubcheck:5.3.0` from Maven Central, GPG-signed and
+served from a different host. **All 746 entries byte-for-byte identical**,
+except the manifest: the distribution jar differs from the library one only in
+`Class-Path`. The code this build ships is the code from the signed artefact,
+checked rather than assumed.
+
+**What comes out** — extraction one entry at a time, rejecting absolute names,
+`..`, drive letters, symlinks and duplicates, plus a re-check of the JAR's own
+checksum after unpacking. Refusal, not skipping: an archive with an entry that
+escapes the directory is not an archive with one bad entry, it is a substituted
+archive, and skipping quietly would build a release out of it.
+
+Tests follow the audit's closing criteria — substitution, directory escape,
+symlink, duplicate — plus the genuine official artefact, that last one behind
+`EPUBFORGE_NETWORK_TESTS=1`, because a test suite that needs the network is a
+test suite that fails on a train.
+
+#### A reference in the wrong place is not a dead reference
+
+The owner asked how the program knows an `<a href>` is dead rather than merely
+misdirected, when the content is physically there in the book. It did not know.
+It was asking the wrong question: strict mode looked for the target at the
+address written, and unlinked what it did not find there.
+
+A reference whose target does not exist at the address given, but does exist
+elsewhere in the book under that name, is now **relocated** rather than
+neutralised — rule `xhtml.reference-relocated` — and only a target that is
+nowhere in the book at all is treated as dead.
+
+**EF-021, found by that change and older than it:** `srcset` was never in the
+reference graph. The rebuild rewrote the `src` of an `<img>` and left every
+candidate in its `srcset` pointing wherever it had pointed before. It was
+invisible because strict mode used to delete the whole `<img>` when its `src`
+was dead, taking the `srcset` with it; the moment a reference stopped being
+deleted, the gallery fixture regressed and said so. `srcset` is parsed as the
+list it is — the comma may be inside a URL, so the whole non-space run is the
+URL — rewritten candidate by candidate, and only genuinely dead candidates are
+dropped.
+
+The signature test also gets back an assertion that had to be suspended for one
+release: strict mode publishes that book again.
+
+#### The ceiling that was in the wrong unit
+
+The audit asked for a benchmark before anything was done about memory, and it
+was right, because the measurement turned out to answer a different question
+from the one everybody was reading.
+
+Peak RSS of a whole rebuild, each in its own process, four purchased books and
+two synthetic ones:
+
+| text MB | binaries MB | peak RSS, before | peak RSS, now |
+| ---: | ---: | ---: | ---: |
+| 1.0 | 0.5 | 52 MB | 45 MB |
+| 1.3 | 11.6 | 78 MB | 78 MB |
+| 0.2 | 14.9 | 75 MB | 76 MB |
+| 0.2 | 23.3 | 88 MB | 88 MB |
+| 25.4 | 0.0 | 339 MB | 147 MB |
+| 152.1 | 0.0 | 1861 MB | 700 MB |
+
+So the reader's ceiling of 2 GiB of *content* was a promise that the process
+may reach twenty-four gigabytes. It was never a memory bound; it was a content
+bound nobody had converted. A machine with 2 GiB free dies at around 160 MB of
+text, and dies by being killed: no report, no diagnosis, no file, and on
+Windows no message anybody can act on.
+
+`epubforge/memory.py` is the conversion. Sizes come from the ZIP central
+directory, so a book is measured without being unpacked and a refusal costs
+milliseconds — unpacking to find out whether there is room to unpack is exactly
+the failure it prevents. The model is deliberately pessimistic; the guard's
+margin is 13–35% across the six measured books, and the cost of it being too
+careful is one switch.
+
+Checked across the owner's whole shelf: with 15 GiB free, with 2 GiB and with
+1 GiB, it refuses none of the 32 books, and the most expensive comes out at
+104 MiB. It is a safeguard for a pathological case, not a threshold anybody
+will walk into.
+
+**Then the same measurement, by stage, found the 1600 MiB of transient
+allocation, and the answer was embarrassingly simple: one mistake made twice.**
+The profile stage cost 1681 MiB because it joined the book's entire text into a
+single string, and `fingerprint.identify` made a second copy of that and
+lowercased both — four copies of the book's text alive at once, for a function
+that counts pattern occurrences. It takes an iterable of documents now and
+checks them one at a time. That is slightly *more* correct as well: a trace can
+no longer span two documents, so a pattern matching across the `\n` that joined
+them was matching something no tool ever wrote.
+
+The hyphen stage cost 1345 MiB for the same reason, one day old and mine: a
+list of the whole book's texts plus a `Counter` over **every** word. On the
+synthetic fixture 80.6% of words were unique — 11.4 million keys — against
+17.6% of 103k words in a real book. The fixture was pathological and it pointed
+at a real class: a dictionary, a concordance or bad OCR all break the
+assumption that real books have small vocabularies. Only the words some
+candidate will ask about are counted now — three forms per candidate, and there
+are 67 candidates across 32 books. Two passes, both generators; the book's text
+is never a list anywhere.
+
+Measured after, the same book: **profile 518 MiB, hyphens 0, peak 700 MiB**
+against 2042. Identical answers — same rules, same output; ten shelf books
+rebuilt twice give ten byte-identical pairs. The 2 GiB content ceiling now
+implies a ~9 GB process instead of ~24 GB: better, and still not a memory
+limit.
+
+Two negative results are recorded rather than dropped, because both sounded
+reasonable. **Bounding the parse-tree cache does not work.** `Context.parsed()`
+holds every parsed tree until the end of the rebuild, and 601 trees measure
+281 MiB; a 16-entry LRU gave a peak of 2051 MiB against 2042 — no gain, plus
+the re-parsing cost that avoiding was the whole point of F-030. Reverted.
+**And lazy binaries would save about 1× the binary bytes** on a book that was
+never at risk and nothing at all on the one that is.
+
+The multipliers moved three times in two days — 12.0 when first fitted, 14.0
+when a stage was added that reads every content document, 4.6 once the
+transient allocation was gone. That drift is why `test_memory.py` pins every
+row of the table: the constants are a *safety* estimate, and one that quietly
+goes stale fails in the one direction that matters.
+
+Switchable off, the owner's standing rule, with its own budget field — "reachable
+from the window" does not stop at a checkbox. An empty field means "ask the
+system and leave a fifth spare". In the window: the rebuild tab. On the command
+line: `--no-memory-check` and `--memory-limit 4G`. The estimate is in the
+diagnostics too, on a "memory" line, so it can be asked before a run.
+
+Still open, and written down rather than left implied: the parse trees are
+281 MiB of the remaining 518.
+
+#### One queue for every question
+
+The only thing this program knew how to ask about was a dead fragment, and even
+that question had no stable identity, no recommendation, no stated cost and no
+way to answer once and be remembered. A resolver that raised was caught by a
+bare `except` and read as "leave it" — so a front end that crashed and a person
+who deliberately chose to leave something alone were the same event in the
+record. A hundred considered decisions and one broken window looked identical,
+in a report the owner reads as evidence that his book was left alone on purpose.
+
+`epubforge/decisions.py`: a question has a stable id — derived from its kind,
+its place and its subject, not from a counter, because a counter shifts when a
+chapter is renumbered and yesterday's answer lands on a different question
+today — plus a group, options with the consequence of each, a recommendation,
+reversibility and risk. Answers are stored beside the book and discarded
+wholesale if the book file has changed.
+
+Three kinds share it, which is the audit's closing criterion for this finding:
+the dead reference, the hard hyphen, and the metadata conflict. The third is
+the one that showed the API was worth building, because it needed no new
+machinery at all — it is F-004's conflict, reported since F-004 closed, which
+meant a person got a warning and, in the same breath, no way to do anything
+about it. It is one question per field: somebody may know the title and have no
+idea about the identifier, and a single question about the whole book would
+force one answer to cover both.
+
+#### Hyphens a conversion left inside words
+
+The detector answers one question: *what is the evidence that this hyphen is
+not the author's*. Inside a single file there is only one strong answer — the
+same book writes that word without a hyphen somewhere else.
+
+The order took two attempts. The first version checked the linking vowel `-o-`
+before weighing the evidence, and therefore found neither `obo-jętna` nor
+`doboro-wym`, because both end in `-o`. A structural fact — a digit, a capital,
+a reduplication — settles it; a tendency loses to a page of the same book.
+
+Measured across the owner's 32 books: 67 confirmed, 101 "likely", 88
+"uncertain". Read through, almost every entry in the last two lists is a real
+word: `marksizm-leninizm`, `savoir-vivre`, `ping-pong`. A queue of 189
+questions that are mostly not defects is a queue nobody finishes, and it is
+exactly the over-eager heuristic the finding itself warned about. So only the
+confirmed ones are asked about; the rest are counted and shown.
+
+The 67 confirmed cluster in 8 books, and 46 of them in one — the same book the
+audit named as the mandatory fixture for this finding. The detector found it
+independently.
+
+Nothing is joined without an answer. A recommendation is an opinion; a batch
+run, the corpus and every library caller get a book with every hyphen the
+publisher put in it. The text change goes through the same guard typography
+uses, strengthened: the before-text with exactly the agreed replacements
+applied must equal the after-text, character for character. Anything else and
+the document goes back unchanged.
+
+Detection is not gated on the typography flag, and that is deliberate. The flag
+guards a stage that *edits* text without being asked; counting broken words
+edits nothing, and a book with forty-six of them should say so either way.
+
+#### The gate that looks at the drawn page
+
+Every fidelity check until now compares structure — text, shapes, media,
+reading order, declared style — and every one of them passes on a book that
+came out cropped, stretched, blank, or with its dedication pushed past the
+bottom edge. The audit's sentence is exact: the suite proves the output
+validates, and does not prove it still looks like itself.
+
+The question is put in the only form it can honestly be put in. Not "is this
+page well set" — that needs a designer — but "does it look the way it looked
+before this program touched it". Two screenshots, page by page, two viewports,
+paired by reading order.
+
+The renderer is Chromium driven headless from the command line. **It is not a
+dependency of the program** — rebuilding a book draws nothing, and an installer
+carrying a browser in order to repair an EPUB would be absurd. The module finds
+a browser if the machine has one and says in sentences what is missing if it
+does not. The engine version travels with every result, because a comparison
+between two engine versions measures the engine.
+
+**Reading the direction of a change is the whole problem, and it took four
+attempts.** All three failures are written into the code, because each sounded
+reasonable and each fell over on the first real book it saw.
+
+1. *Every significant difference is a defect.* A 1472×2341 cover with no size
+   styling: at a 600×800 window the source draws it at natural size and the
+   reader sees a corner, while the rebuild fits it to the page. A fifth of the
+   pixels differ and the book is *better*.
+2. *Read the direction from where the ink sits.* Works on a cover, falls over
+   on a title page, which is mostly white — ink measures where the letters are,
+   not where the image is.
+3. *Pair pages by index.* Measured on a real book: 70 documents in reading
+   order in, 71 out, because the rebuild generated a cover document the source
+   did not have. Every page after the first was being compared with its
+   neighbour. A gate that compares the wrong pages and refuses to publish a
+   book on that basis is worse than no gate. It is a `difflib` alignment over
+   name stems now, handling insertion and deletion the way a diff does.
+
+What settles it is the one quantity that carries direction: a page that has
+lost something shows **less**. Two refinements came from real books.
+*Coverage alone does not distinguish loss from refitting* — a purchased book's
+title page dropped 46% of its coverage while the reader gained the whole image;
+content cannot appear on top of something already drawn unless it was there all
+along and could not be seen, so an ink box whose top-left corner moves up or
+left is a refit. *Content that disappears takes its area with it* — a page with
+identical text, identical layout and an ink box identical to two decimal places
+came out 10% lighter because the rebuild settled on a different font. Ink alone
+called that a loss; ink together with area does not, and a page that really
+lost a paragraph fails both.
+
+One check was removed after being measured: "the content now reaches the bottom
+edge". A text block pushed off the page leaves its last visible line wherever it
+falls — measured at 34%, 50%, 67% and 83% displacement, the bottom of the ink
+sat at 0.891, 0.889, 0.884 and 0.879, never the 0.995 required. It would have
+fired on images and only by luck on text. Loss catches all four.
+
+Result after all of that: **0 refusals across 32 real books** — 25 with no
+change in appearance at all, 7 with a change that is not a loss — with all four
+deliberate-breakage tests still caught: a blank page, half the text gone,
+content pushed past the bottom at four distances, and a squashed image.
+
+**The owner's question about this, and the answer, are the reason it ships the
+way it does.** He asked: if the program repairs `wybo-rowy` into `wyborowy`,
+the text after that word moves — so what is comparing screenshots supposed to
+mean? It means what it measures. Reflow moves ink; it does not remove it.
+Measured on his own book: all 46 confirmed hyphens joined, all 65 documents
+drawn at two sizes — 7 of 130 comparisons moved at all, the largest by 1.64% of
+pixels, and the drawn content changed by five thousandths of a percentage
+point, upwards. Zero losses reported.
+
+The gate asks three things: did a document disappear from the reading order,
+did a page come out blank, and did content and the room it occupies decrease
+together. It has no opinion about fonts or line breaking.
+
+His three decisions, all three implemented as given:
+
+- **"stop" by default.** On a detected loss nothing is written, and the file
+  already at that name is left untouched. The switch has three states —
+  off / report / stop — because when a program refuses somebody a file, a
+  person decides.
+- **Screenshots only for pages with a loss,** beside the result, in a
+  `<name>.zrzuty` directory. His argument: without them, "this page has less on
+  it" has to be taken on faith.
+- **12 pages by default, with an option to draw the whole book,** which he
+  asked for outright — a sample is somebody else's choice about which pages of
+  his book are worth looking at.
+
+With no browser present the program rebuilds and says plainly that verification
+is **mandatory**, has not been performed, and may be knowingly skipped — along
+with what it looked for and how to point it at a browser. That is his
+instruction and it is a principle rather than a preference: a missing tool is
+not a reason to hold somebody's book hostage to a dependency this program
+deliberately does not carry.
+
+The cheap refusal goes first: EPUBCheck costs seconds and drawing costs half a
+minute, so a book the validator rejects is never drawn.
+
+Two things this forced. The suite stopped fitting in ten minutes, because two
+thousand tests that rebuild a book started paying for a browser — `conftest`
+suppresses browser detection everywhere except files about rendering, exactly
+as `test_corpus_signatures.py` disables EPUBCheck, and the policy default is
+unchanged with `test_render_gate.py` watching it. And corpus signatures stopped
+being a function of the book and the program and started depending on whether
+the measuring machine had a browser, so the corpus rebuilds with the gate off.
+
+In the window: diagnostics, fifth question. On the command line:
+`epubforge render-check`.
+
+#### Which test books, and what a fixture may not become
+
+The audit called two purchased books "mandatory fixtures", recorded three
+findings as blocked for want of files, and nowhere said which files. The
+owner's answer was honest: he had no idea which test files were meant. That is
+a defect here, not in his reading — the program asked for something and gave
+nobody a way to find out what.
+
+A role is now declared in code and described in sentences: what the book has to
+contain, and which findings cannot be closed without it. What is committed is
+`tests/fixtures/ksiazka-{1,2}.json` — a digest, a size and six numbers. No
+title, no author, not one character of text; the mapping from a role to a real
+book lives in private notes. Nothing has to be copied anywhere: the private
+corpus shelf and the directories in `EPUBFORGE_FIXTURES` / `EPUBFORGE_CORPUS`
+are searched, so a book already on the shelf is a fixture by virtue of being
+there.
+
+Matching is by digest and by nothing else. The version that matched on
+structural resemblance was written first and measured second: on the owner's
+own shelf it handed a completely different novel to a role, confidently and
+with a reassuring caption. "EPUB 2, 29 documents, 3 images, 7 fonts, one
+stylesheet" describes one publisher's export settings, not a book. A wrong
+fixture is worse than no fixture, because the test would then be measuring a
+book nobody chose. Resemblance produces a shortlist for a person to confirm,
+never an answer.
+
+**And the owner's question underneath all of this, made into a test.** He asked
+directly whether the program treats a named book literally — "if it is *this*
+book, do X" — or as an example of a shape. It has to be the second, because the
+first would make the program worthless: the point is repairing every book you
+add, not owning a list. Two things were true and only one of them was worth
+anything. There is no book identity anywhere in the code today; and nothing
+stopped one being added tomorrow. So:
+
+- no module outside three (`fixtures`, `cli`, `gui/tabs`) may import the
+  fixture catalogue — checked through the AST, not by grepping text;
+- no recorded digest appears anywhere in the package;
+- the same book with its title, author and identifier replaced produces an
+  identical set of rules, with a guard that there were more than five rules,
+  because two rebuilds that did nothing agree about nothing;
+- the same book under two file names produces identical output, because
+  matching on the file name is the cheapest way to smuggle in a rule "about a
+  book";
+- the list of three modules is a ratchet: the failure it guards against is not
+  somebody writing a rule about a particular novel, it is `fixtures` becoming
+  importable from one more place per release;
+- the rule catalogue names no work and no publisher.
+
+The digest stored beside a role is provenance for a measurement — it says which
+copy the numbers were taken on — and not a condition in a rule. The profile
+itself is a shape and deliberately matches more than one book; identification
+is the digest's job.
+
+In the window: the Corpus tab, "Test books" and "Assign a test book…". On the
+command line: `epubforge fixtures`.
+
+#### Two tests that asked the machine they ran on
+
+**Timestamps in ZIP.** The mutation generator wrote entries through `writestr`
+with a name alone, so every entry got a stamp from the clock. The test beside it
+compared whole archives byte for byte and called the generator repeatable —
+which was true only while both runs fell inside one two-second tick, that being
+the resolution of the format's timestamp. It passed nearly always, and that is
+the bad kind of "nearly": a genuine loss of repeatability would have looked
+exactly like the flutter everybody had learned to re-run. There is a fixed
+stamp now, plus a test that asks what the old one meant to ask — two runs on
+either side of a clock tick — and a second one checking that nothing in the
+archive is stamped from the clock at all.
+
+**Host fonts.** The classifier reads the OS/2 table and was exercised only on
+system fonts. On a machine without them the test asserted nothing and reported
+a pass — on the audit's own container that was every case but three, so
+`classify` ran with branch coverage at the level of a comment. Synthetic sfnt
+files built in that file now cover every branch, including the one the module
+was written around: PANOSE styles 14 and 15 describe stroke termination rather
+than the presence of a serif, and fall through to `sFamilyClass`. The real
+fonts stay; a synthetic font does not replace a real one and is not offered as
+one. The difference is between "this never ran anywhere" and "this runs
+everywhere, and on a real Lato additionally where Lato is".
+
+
 ## 0.2.23 — alpha — 2026-08-13 — kamień milowy [audyt]
 
 The release that closes the last of the audit's fourteen system invariants, and

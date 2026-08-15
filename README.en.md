@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.23` · alpha · 1949 tests · **Windows**
+`0.2.24` · alpha · 2330 tests · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -134,6 +134,14 @@ because removing it would change the rendering), `FIX`, `INFO`.
 Watermarks and publisher marks are **not removed** — they are tidied where they
 repeat in every chapter, and they stay.
 
+Where the program does not know, it **asks instead of guessing**. A dead link, a
+word a conversion cut in half with a hyphen (`wybo-rowy`), and a metadata field
+that came out of the parser's guess rather than out of the file — each is a
+question with the consequence of every answer spelled out, a recommendation, and
+whether it can be undone. **Without an answer nothing changes**, and answers are
+stored beside the book, so the same book does not ask twice. Batch runs, the
+corpus and every library caller get a book untouched in those places.
+
 ## Limits
 
 Things worth knowing before rather than after:
@@ -163,15 +171,28 @@ Things worth knowing before rather than after:
   twelve. A refusal **never touches** the file already at that name. Preserve
   and minimal publish and report as before; the choice is in the window and
   under `--gate`.
+- **The appearance check can stop a write too, from 0.2.24, and it is
+  mandatory.** The program draws the pages before and after the rebuild and
+  compares them; where content is lost it writes nothing by default. It draws
+  with headless Chromium if the machine has it — **a browser is not a
+  dependency of this program** and the installer does not carry one. Without
+  it the rebuild goes ahead and the program says plainly that the verification
+  did not happen and may be **knowingly skipped**. Three states: off / report /
+  stop.
 - **It does not convert from PDF, MOBI or Word.** That is a different job
   and deliberately out of scope.
 - **No DRM removal**, and there will not be.
 - **The whole book is held in memory.** With a large library and several
-  processes at once, that is noticeable.
+  processes at once, that is noticeable. Since 0.2.24 the program **works it
+  out before it starts** — from the ZIP directory, without unpacking — and
+  refuses rather than being killed by the kernel halfway through. Across the
+  32 books on the shelf the most expensive comes out at 104 MiB, so this is a
+  safeguard for a pathological case rather than a threshold anybody will walk
+  into. Switchable off, with its own budget field.
 
 ## How it is checked
 
-1949 tests, including three independent safety nets:
+2330 tests, including three independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;
