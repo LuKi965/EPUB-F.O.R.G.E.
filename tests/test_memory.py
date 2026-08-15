@@ -10,23 +10,23 @@ Peak RSS of a whole rebuild, in its own process, four purchased books and two
 synthetic ones:
 
     tekst MB   binaria MB   szczyt RSS      ponad interpreter
-       1.0          0.5        52 MB
+       1.0          0.5        45 MB
        1.3         11.6        78 MB
-       0.2         14.9        75 MB
-       0.2         23.3        87 MB
-      25.4          0.0       340 MB
-     152.1          0.0      2042 MB
+       0.2         14.9        76 MB
+       0.2         23.3        88 MB
+      25.4          0.0       147 MB
+     152.1          0.0       700 MB
 
-Text costs about fourteen times its own size, so 2 GiB of content permits a
-process of nearly thirty gigabytes, and between the two numbers the outcome is
-not a refusal but a kill: no report, no diagnosis, no output.
+Text costs about 4.6 times its own size, so the reader's 2 GiB content ceiling
+still permits a process of about nine gigabytes — better than the twenty-four it
+permitted before EF-020's second half, and still not a memory bound.
 
-The multiplier moved from 12.0 to 14.0 within a day of being fitted, because a
-stage was added that reads every content document and the big synthetic book
-went from 1861 MB to 2042. The row above is the *current* measurement and the
-test that pins it is the reason a drift like that cannot go unnoticed: the
-constants are a safety estimate, and a safety estimate that quietly goes stale
-fails in the one direction that matters.
+The multiplier moved three times in two days: 12.0 when first fitted, 14.0 when
+a stage was added that reads every content document, and 4.6 once the transient
+allocation was removed — the big synthetic book went 1861 → 2042 → 700 MB. The
+rows above are the *current* measurement and the test that pins them is why a
+drift cannot go unnoticed: the constants are a safety estimate, and one that
+quietly goes stale fails in the one direction that matters.
 """
 
 from __future__ import annotations
@@ -62,10 +62,18 @@ class TestWhatABookIsExpectedToCost:
 
     def test_a_megabyte_of_text_costs_more_than_a_megabyte_of_pictures(self, tmp_path):
         """The whole finding in one assertion. A book's *size* does not predict
-        what it costs; the share of it that gets parsed does."""
+        what it costs; the share of it that gets parsed does.
+
+        This asked for *twice* as much until EF-020's second half, and that
+        number was an artefact of the constants rather than of the claim: text
+        was 14× and binaries 2.4×. With the transient allocation gone the ratio
+        is 4.6 to 2.8, the finding is unchanged, and the assertion now says what
+        it always meant instead of quoting a coefficient.
+        """
         text = memory.estimate(book_of(tmp_path / "a.epub", text_bytes=8_000_000))
         binary = memory.estimate(book_of(tmp_path / "b.epub", binary_bytes=8_000_000))
-        assert text.peak_bytes > binary.peak_bytes * 2
+        assert text.peak_bytes > binary.peak_bytes
+        assert memory.TEXT_MULTIPLIER > memory.BINARY_MULTIPLIER
 
     def test_it_is_read_from_the_directory_and_not_by_decompressing(self, tmp_path):
         """A refusal has to be cheap or it is not a safeguard: decompressing to
@@ -89,8 +97,8 @@ class TestWhatABookIsExpectedToCost:
         module exists to replace.
         """
         for text_mb, binary_mb, peak_mb in (
-            (1.0, 0.5, 52), (1.3, 11.6, 78), (0.2, 14.9, 75),
-            (0.2, 23.3, 87), (25.4, 0.0, 340), (152.1, 0.0, 2042),
+            (1.0, 0.5, 45), (1.3, 11.6, 78), (0.2, 14.9, 76),
+            (0.2, 23.3, 88), (25.4, 0.0, 147), (152.1, 0.0, 700),
         ):
             estimate = memory.Estimate(
                 text_bytes=int(text_mb * 1e6), binary_bytes=int(binary_mb * 1e6)

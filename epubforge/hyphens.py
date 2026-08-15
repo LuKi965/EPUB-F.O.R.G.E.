@@ -164,17 +164,49 @@ def _reads_as_a_compound(left: str) -> "str | None":
     return None
 
 
-def vocabulary(texts) -> Counter:
-    """Every word in the book, folded, counted. The evidence base.
+def wanted_words(texts) -> "set[str]":
+    """The only words the evidence base has to be able to count.
+
+    A first pass over the book, collecting the words each candidate would need
+    an answer about: the joined form, the hyphenated form and the left part.
+    Nothing else is ever looked up, so nothing else needs to be remembered.
+    """
+    wanted: set[str] = set()
+    for text in texts:
+        if "-" not in text:
+            continue
+        for match in _CANDIDATE.finditer(text):
+            left, right = match.group(1), match.group(2)
+            wanted.add(_fold(left + right))
+            wanted.add(_fold(f"{left}-{right}"))
+            wanted.add(_fold(left))
+    return wanted
+
+
+def vocabulary(texts, wanted: "set[str] | None" = None) -> Counter:
+    """How often each word appears in the book, folded. The evidence base.
 
     Built from the whole book on purpose: a word broken in chapter four is
     almost always written whole in chapter nine, and that is the only place the
     answer can come from.
+
+    `wanted` bounds what is remembered, and on a large book it has to. EF-020,
+    measured: counting *every* word of a 120 MB text held eleven million
+    distinct keys and cost well over a gigabyte. A real book is nothing like
+    that — one of the owner's has 103 000 words and 18 000 distinct, 17.6% —
+    but "real books have small vocabularies" is an assumption about somebody
+    else's library, and a dictionary, a concordance or a bad OCR pass breaks it.
+
+    With `wanted` the cost is the number of *candidates*, which is measured in
+    tens: 67 across the owner's thirty-two books. The answers are identical —
+    `find` only ever looks up those three forms per candidate.
     """
     counts: Counter = Counter()
     for text in texts:
         for word in _WORD.findall(text):
-            counts[_fold(word)] += 1
+            folded = _fold(word)
+            if wanted is None or folded in wanted:
+                counts[folded] += 1
     return counts
 
 
@@ -299,4 +331,5 @@ __all__ = [
     "find",
     "question_for",
     "vocabulary",
+    "wanted_words",
 ]

@@ -60,7 +60,12 @@ class ProfileStage(Stage):
         is a program saying its own name, and the same word in a chapter is
         prose. The reader keeps the source package for exactly this.
         """
-        markup = "\n".join(
+        # A generator rather than one joined string — EF-020. Joining put the
+        # whole book's markup in memory as one object, `identify` then made a
+        # second copy and lowercased both, and the four copies were measured at
+        # 1681 MiB on a 152 MB book: the largest single allocation a rebuild
+        # made, in a stage that only counts things.
+        markup = (
             resource.data.decode("utf-8", "replace")
             for resource in ctx.book.content_docs()
         )

@@ -10,33 +10,33 @@ Measured — four purchased books and two synthetic ones, peak RSS of a whole
 rebuild in its own process:
 
     tekst MB   binaria MB   szczyt RSS
-       1.0          0.5        52 MB
+       1.0          0.5        45 MB
        1.3         11.6        78 MB
-       0.2         14.9        75 MB
-       0.2         23.3        87 MB
-      25.4          0.0       340 MB
-     152.1          0.0      2042 MB
+       0.2         14.9        76 MB
+       0.2         23.3        88 MB
+      25.4          0.0       147 MB
+     152.1          0.0       700 MB
 
-The last two are the law: text costs about fourteen times its own size, because
-an XHTML document does not stay a string — it becomes an element tree, and a
-tree of small elements is mostly pointers. Binaries cost about 2.4×.
+Text costs about 4.6 times its own size and binaries about 2.8×.
 
-**The multiplier is a property of this program and moves with it.** It was 12.0
-when first fitted and 14.0 a day later, because a stage was added that reads
-every content document — the same book went from 1861 MB to 2042. That is not a
-detail: the constants below are a *safety* estimate, and an estimate that drifts
-low turns "this will not fit" into a process the kernel kills. So the number is
-re-measured when the pipeline gains work, and the test at the bottom of
-`test_memory.py` pins every row of the table above against it.
+**The multipliers are a property of this program and move with it.** Text was
+12.0 when first fitted, 14.0 a day later when a stage was added that reads every
+content document, and 4.6 once EF-020's second half removed the transient
+allocation that dominated the whole rebuild: the last book went from 2042 MB to
+700. That is why the table above is dated by measurement rather than assumed,
+and why `test_memory.py` pins every row of it — the constants are a *safety*
+estimate, and one that drifts low turns "this will not fit" into a process the
+kernel kills.
 
-A note on what this does *not* say. These are peaks of a whole rebuild, not a
-breakdown of where the memory sits. Measured separately: the model holding a
-book's bytes costs about 1× those bytes, and parsing all 601 documents of the
-synthetic book into trees costs 281 MiB more. The remaining gap to 2042 MB is
-transient allocation during the rebuild itself. Anybody optimising this should
-start there and not with the bytes — and specifically not with lazy binaries,
-which would save about 1× the binary bytes on a book that was never at risk and
-nothing at all on the one that is.
+Where the memory actually goes, measured per stage on the 152 MB book: reading
+it costs 148 MiB — about 1× the bytes — and the profile stage costs 518 MiB,
+which is the parse trees for 601 documents plus what measuring them needs.
+Everything else is now noise. The 1681 MiB the profile stage used to cost, and
+the 1345 MiB the hyphen stage used to cost, were both one mistake made twice:
+building the whole book's text as a single string. Anybody optimising further
+should start at the trees and not at the bytes — and specifically not with lazy
+binaries, which would save about 1× the binary bytes on a book that was never at
+risk and nothing at all on the one that is.
 
 So the ceiling of 2 GiB of *content* is a promise that the process may reach
 **twenty-four gigabytes of memory**. It is not a memory bound at all; it is a
@@ -64,17 +64,19 @@ TEXT_SUFFIXES = (".xhtml", ".html", ".htm", ".xml", ".opf", ".ncx", ".css", ".sv
 
 #: Measured, not assumed. See the table above — and re-measure when a stage is
 #: added, because this is what the pipeline costs and not what text costs.
-TEXT_MULTIPLIER = 14.0
-BINARY_MULTIPLIER = 2.4
+TEXT_MULTIPLIER = 4.6
+BINARY_MULTIPLIER = 2.8
 
 #: The interpreter with lxml, Pillow and the package imported, before a book is
-#: opened. Measured at 33–35 MiB across the runs above.
-BASELINE_BYTES = 35 * 1024**2
+#: opened. Measured at 33–35 MiB; carried at 40 so the smallest books, where the
+#: fixed cost dominates and the multipliers have nothing to work with, keep a
+#: margin like everything else.
+BASELINE_BYTES = 40 * 1024**2
 
 #: On top of the multipliers, because they are a fit and a fit has residuals.
 #: Under is the wrong direction for a guard: an estimate that is a little low
 #: turns "this will not fit" into a process the kernel kills. With the
-#: multipliers above, 1.15 leaves between 10% and 26% of margin across the six
+#: multipliers above, 1.15 leaves between 13% and 28% of margin across the six
 #: measured books, and the cost of it being too careful is one switch.
 SAFETY = 1.15
 

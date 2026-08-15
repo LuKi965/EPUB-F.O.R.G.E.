@@ -29,6 +29,8 @@ report.
 
 from __future__ import annotations
 
+from typing import Iterable
+
 import re
 from dataclasses import dataclass
 
@@ -184,17 +186,58 @@ def _combine(weights: list[float]) -> float:
     return min(0.999, round(1.0 - survives, 3))
 
 
-def identify(*, package: str = "", markup: str = "", css: str = "") -> list[Trace]:
+def identify(
+    *,
+    package: str = "",
+    markup: "str | Iterable[str]" = "",
+    css: str = "",
+) -> list[Trace]:
     """Which tools touched this book, most confident first.
 
     The three texts are kept apart rather than concatenated, because half of
     what a weight means is *where* the trace was allowed to count.
+
+    **`markup` may be an iterable of documents rather than one string, and on a
+    real book it should be.** EF-020: this function was the single largest
+    allocation in a rebuild. It took the whole book's markup as one string,
+    built `everything` as a second copy, and lowercased both — four copies of
+    the book's text alive at once. Measured on a synthetic book of 152 MB of
+    text: the profile stage peaked at 1681 MiB above the rest of the rebuild,
+    and this function was nearly all of it.
+
+    Chunking is not only cheaper, it is slightly *more* correct. A trace never
+    spans two documents — they are separate files — so a pattern that matched
+    across the `\n` joining them was matching something no tool ever wrote.
     """
-    everything = f"{package}\n{markup}\n{css}"
-    haystacks = {"package": package, "markup": markup, "css": css, "any": everything}
-    # Lowercased once per place, so the cheap test below is a C-level scan and
-    # not thirty-five regular expressions over two megabytes.
-    lowered = {place: text.lower() for place, text in haystacks.items()}
+    chunks = (markup,) if isinstance(markup, str) else tuple(markup)
+    # `any` is "package, markup or css". Kept as a list of pieces rather than a
+    # joined string for the same reason as above.
+    places = {
+        "package": (package,),
+        "css": (css,),
+        "markup": chunks,
+        "any": (package, css) + chunks,
+    }
+
+    def present(signal, pattern) -> bool:
+        """Does this signal appear in its place?
+
+        One piece at a time, lowercased and dropped before the next — which is
+        what keeps the peak at one document rather than one book. The needle
+        test stays a C-level scan and still runs before the regular expression,
+        because that ordering is why thirty-five patterns over a large book was
+        ever affordable.
+        """
+        for piece in places.get(signal.place, ()):
+            if not piece:
+                continue
+            if signal.needles:
+                lowered = piece.lower()
+                if not any(needle in lowered for needle in signal.needles):
+                    continue
+            if pattern.search(piece):
+                return True
+        return False
 
     traces: list[Trace] = []
     for name in SIGNATURES:
@@ -206,12 +249,7 @@ def identify(*, package: str = "", markup: str = "", css: str = "") -> list[Trac
         # separately was meant to prevent.
         best: dict[str, tuple[float, str]] = {}
         for pattern, signal in _patterns(name):
-            haystack = haystacks.get(signal.place, "")
-            if signal.needles and not any(
-                needle in lowered[signal.place] for needle in signal.needles
-            ):
-                continue
-            if not pattern.search(haystack):
+            if not present(signal, pattern):
                 continue
             current = best.get(signal.pattern)
             if current is None or signal.weight > current[0]:

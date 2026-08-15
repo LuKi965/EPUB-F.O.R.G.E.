@@ -60,8 +60,17 @@ class HyphenStage(Stage):
             return
 
         # Over the whole book, because that is where the evidence is: a word
-        # broken in chapter four is written whole in chapter nine.
-        words = hyphens.vocabulary("".join(root.itertext()) for _, root in documents)
+        # broken in chapter four is written whole in chapter nine — but only the
+        # words some candidate will ask about. EF-020: counting every word of a
+        # large book held eleven million keys and over a gigabyte, for answers
+        # that never consult more than a few hundred of them.
+        # Two passes, each a generator: the book's text is never a list. One
+        # document's text exists at a time, and the second pass costs a walk
+        # over trees that are already parsed and cached.
+        def every_text():
+            return ("".join(root.itertext()) for _, root in documents)
+
+        words = hyphens.vocabulary(every_text(), hyphens.wanted_words(every_text()))
 
         found: dict[str, int] = {}
         confirmed: list[tuple[object, hyphens.Candidate]] = []
