@@ -118,19 +118,6 @@ jobs:
       # bounds rather than a lock, so the only honest record of what produced a
       # given binary is taken at the moment it is produced — and an incident
       # nobody can reproduce is an incident nobody can fix.
-      - name: Record the build manifest
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          "EPUB F.O.R.G.E. build manifest" | Out-File -Encoding utf8 dist/build-manifest.txt
-          "date: $(Get-Date -Format o)" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
-          "commit: $env:GITHUB_SHA" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
-          "python: $(python -V)" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
-          "epubcheck: $(python -c "import sys; sys.path.insert(0,'packaging'); import build; print(build.EPUBCHECK_VERSION)")" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
-          "" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
-          pip freeze | Out-File -Append -Encoding utf8 dist/build-manifest.txt
-          Get-Content dist/build-manifest.txt
-
       # Staged before the tests rather than only as part of the bundle, and it
       # changes what the test run means. Until 0.2.23 the validator arrived
       # four steps later, so on the one platform this project releases for, 17
@@ -176,6 +163,27 @@ jobs:
       # the bundled JRE and EPUBCheck did the work rather than the runner's.
       - name: Verify the frozen build is self-contained
         run: python packaging/smoke_test.py
+
+      # **After** the build, not before, and that is a correction. `build.py`
+      # wipes `dist/` before it runs, so a manifest written earlier was
+      # deleted every single time — every release since this step existed
+      # attached an installer and quietly no manifest, and the upload step
+      # said so in one line nobody read: `Pattern ... does not match any
+      # files`. The only honest record of what produced a binary is taken
+      # where the binary still exists.
+      - name: Record the build manifest
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          "EPUB F.O.R.G.E. build manifest" | Out-File -Encoding utf8 dist/build-manifest.txt
+          "date: $(Get-Date -Format o)" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "commit: $env:GITHUB_SHA" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "python: $(python -V)" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "epubcheck: $(python -c "import sys; sys.path.insert(0,'packaging'); import build; print(build.EPUBCHECK_VERSION)")" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "chromium: $(python -c "import sys; sys.path.insert(0,'packaging'); import build; print(build.CHROMIUM_VERSION)")" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          "" | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          pip freeze | Out-File -Append -Encoding utf8 dist/build-manifest.txt
+          Get-Content dist/build-manifest.txt
 
       - name: Resolve version
         id: version
