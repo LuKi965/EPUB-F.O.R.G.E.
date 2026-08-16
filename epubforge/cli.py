@@ -1390,7 +1390,41 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def readable_output() -> None:
+    """Make the console able to carry the language the report is written in.
+
+    A Polish report on a Windows console is the ordinary case for this program,
+    and until this existed it **crashed the executable**:
+
+        UnicodeEncodeError: 'charmap' codec can't encode character '\\u015b'
+
+    `ś` in "na stronie", position 14, and the whole run gone — after the rebuild
+    had finished and the book had been written. A console left on a legacy code
+    page (cp1252 on a Polish Windows) cannot encode Polish, and `rich` hands its
+    output straight to that stream.
+
+    Two changes, and both are needed. UTF-8 so the characters have a
+    representation at all, and `errors="replace"` so that a console which still
+    cannot draw a glyph shows a placeholder instead of ending the process. The
+    second one is the important half: a report is a diagnosis, and a diagnosis
+    that can kill the program it is diagnosing is worse than no diagnosis.
+
+    Found by the release smoke test, on the frozen build, three attempts into a
+    release — which is exactly where it should have been found, and is the
+    argument for that test existing.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:  # a pipe somebody replaced, or a test's buffer
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # pragma: no cover — a stream that cannot
+            pass                       # be reconfigured is still a usable one
+
+
 def main(argv: list[str] | None = None) -> int:
+    readable_output()
     parser = build_parser()
     args = parser.parse_args(argv)
     if getattr(args, "separate_validator_process", False):
