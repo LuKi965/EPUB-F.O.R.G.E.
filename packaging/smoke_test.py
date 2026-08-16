@@ -75,9 +75,26 @@ def main() -> int:
         )
 
         output = work / "rebuilt.epub"
-        build = run([str(cli), "build", str(source), "-o", str(output), "--strict"], env)
+        # `--accept-unverified-render` because the bundle deliberately does not
+        # ship a browser and this runner has none: the appearance check cannot
+        # run, and since 0.2.24 "cannot run" means "do not write" unless somebody
+        # says otherwise. Here that somebody is this script, saying it on purpose
+        # — which is the whole point of the switch existing.
+        #
+        # This is what the check is *for*, and it caught something real on the
+        # way in. A first attempt without the flag failed, and the reason was not
+        # the flag: `find_renderer` searched `PATH` alone, and Edge — which is on
+        # every Windows machine — is not on `PATH`. So the released program
+        # refused every command-line rebuild on the only platform it ships for.
+        build = run(
+            [str(cli), "build", str(source), "-o", str(output), "--strict",
+             "--accept-unverified-render"],
+            env,
+        )
         if build.returncode != 0 or not output.is_file():
-            raise SystemExit("frozen build did not produce an output file")
+            raise SystemExit(
+                "frozen build did not produce an output file:\n" + build.stdout[-2000:]
+            )
 
         check = run([str(cli), "check", str(output)], env)
         if check.returncode == 3:

@@ -52,6 +52,25 @@ _NAMES = (
 #: somebody to install a second copy is asking for nothing.
 _PLAYWRIGHT = "PLAYWRIGHT_BROWSERS_PATH"
 
+#: Where Windows actually keeps the browser everybody already has.
+#:
+#: Found by a failed release build and worth stating plainly, because searching
+#: `PATH` alone made the whole feature useless on the only platform this program
+#: is released for. **Edge is installed on every Windows 10 and 11 machine and is
+#: not on `PATH`** — it lives under Program Files, and so does Chrome. So
+#: `find_renderer` answered `None` on a normal Windows box, the gate defaulted to
+#: `stop`, and every rebuild from the command line was refused for want of a
+#: browser sitting right there.
+#:
+#: That is exactly the outcome the owner ruled out — a missing tool holding
+#: somebody's book hostage — arrived at by looking for the tool in one place.
+_WINDOWS_PROGRAMS = (
+    r"Microsoft\Edge\Application\msedge.exe",
+    r"Google\Chrome\Application\chrome.exe",
+    r"Chromium\Application\chrome.exe",
+    r"BraveSoftware\Brave-Browser\Application\brave.exe",
+)
+
 #: Rendered at this size unless asked otherwise. A six-inch reader at 1×, which
 #: is the device the owner's library is read on.
 DEFAULT_VIEWPORT = (600, 800)
@@ -75,7 +94,28 @@ def _candidates() -> "list[pathlib.Path]":
         for pattern in ("chromium-*/chrome-linux/chrome", "chromium-*/chrome-win/chrome.exe",
                         "chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium"):
             found.extend(sorted(pathlib.Path(root).glob(pattern)))
+    if os.name == "nt":
+        found.extend(pathlib.Path(name) for name in windows_installs(os.environ))
     return found
+
+
+def windows_installs(environ) -> "list[str]":
+    """Where Edge and Chrome sit on Windows, as plain strings.
+
+    Takes the environment and returns strings rather than reading `os.environ`
+    and building `Path`s, for one reason: a `WindowsPath` cannot be constructed
+    on Linux, so anything that builds one is a function only a Windows machine
+    can test. That is the shape of defect this whole thing came out of, and it
+    is not worth repeating one level down.
+    """
+    names: list[str] = []
+    for variable in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA"):
+        base = environ.get(variable)
+        if not base:
+            continue
+        for relative in _WINDOWS_PROGRAMS:
+            names.append(base.rstrip("\\/") + "\\" + relative)
+    return names
 
 
 def find_renderer() -> "pathlib.Path | None":
@@ -92,7 +132,8 @@ def why_not() -> str:
         "przeglądarki opartej na Chromium — Chrome, Chromium albo Edge. "
         "Nie jest częścią programu i nie jest instalowana razem z nim: "
         "przebudowa książki niczego nie rysuje.\n\n"
-        f"Szukane w PATH pod nazwami: {', '.join(_NAMES)}. Jeżeli masz "
+        f"Szukane w PATH pod nazwami: {', '.join(_NAMES)}, a na Windowsie "
+        f"dodatkowo tam, gdzie instalują się Edge i Chrome. Jeżeli masz "
         f"przeglądarkę gdzie indziej, wskaż ją zmienną {ENV_BROWSER}."
     )
 

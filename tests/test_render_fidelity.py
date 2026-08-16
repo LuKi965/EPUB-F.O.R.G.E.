@@ -267,3 +267,52 @@ class TestMeasuringOnePage:
         shot = render.shoot(html, tmp_path / "p.png", viewport=(600, 400))
         with Image.open(shot) as image:
             assert image.size == (600, 400)
+
+
+class TestFindingTheBrowserWhereItActuallyIs:
+    """A failed release build, and a product defect underneath it.
+
+    `find_renderer` searched `PATH` and the Playwright directory. **Edge is
+    installed on every Windows 10 and 11 machine and is not on `PATH`** — it
+    lives under Program Files, and so does Chrome. So on a normal Windows box,
+    which is the only platform this program is released for, the answer was
+    `None`; the gate defaults to `stop`; and every rebuild from the command line
+    was refused for want of a browser sitting right there on the disk.
+
+    That is the outcome the owner ruled out in as many words — a missing tool
+    holding somebody's book hostage — reached by looking for the tool in one
+    place.
+
+    `windows_installs` takes an environment and returns strings rather than
+    reading `os.environ` and building paths, so that this can be tested from
+    Linux. A `WindowsPath` cannot even be constructed here, which would have made
+    the fix for a host-dependence defect testable only on one host.
+    """
+
+    def test_edge_is_looked_for_where_windows_puts_it(self):
+        found = render.windows_installs(
+            {"PROGRAMFILES(X86)": r"C:\Program Files (x86)",
+             "PROGRAMFILES": r"C:\Program Files"}
+        )
+        assert any(name.endswith(r"Microsoft\Edge\Application\msedge.exe") for name in found)
+
+    def test_chrome_too_and_under_both_program_files(self):
+        found = render.windows_installs(
+            {"PROGRAMFILES(X86)": r"C:\Program Files (x86)",
+             "PROGRAMFILES": r"C:\Program Files"}
+        )
+        chrome = [name for name in found if name.endswith(r"Google\Chrome\Application\chrome.exe")]
+        assert len(chrome) == 2, chrome
+
+    def test_a_user_local_install_is_looked_for(self):
+        """Chrome installs per-user without administrator rights, which is how
+        it arrives on a work laptop."""
+        found = render.windows_installs({"LOCALAPPDATA": r"C:\Users\ktos\AppData\Local"})
+        assert any("AppData" in name and name.endswith("chrome.exe") for name in found)
+
+    def test_an_environment_that_says_nothing_produces_nothing(self):
+        assert render.windows_installs({}) == []
+
+    def test_no_trailing_separator_doubles_up(self):
+        found = render.windows_installs({"PROGRAMFILES": "C:\\Program Files\\"})
+        assert all("\\\\" not in name for name in found), found
