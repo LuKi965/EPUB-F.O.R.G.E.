@@ -440,7 +440,20 @@ class TestTheClassesWithoutEvidence:
         "<p>Znał savoir-vivre i bia-ły dom.</p>"
     )
 
-    def test_the_default_asks_only_about_the_evidenced_ones(self, tmp_path):
+    def test_the_default_asks_about_the_ones_something_can_evidence(self, tmp_path):
+        """Two, since WP-10 gave the detector a dictionary.
+
+        `obo-jętna` was always evidenced by the book itself, which writes
+        `obojętna` elsewhere. `bia-ły` was not — the book uses it once — and it
+        was silently dropped for want of a second opinion. The dictionary is
+        that second opinion and it is decisive here rather than suggestive:
+        `bia` is not a Polish word and `biały` is, so no compound can be spelled
+        this way and the hyphen came from a converter.
+
+        `savoir-vivre` in the same paragraph is still not asked about, which is
+        the half that matters — the dictionary made the detector see more, not
+        see everything as broken.
+        """
         asker = Joins()
         rebuild(
             book(tmp_path / "in.epub", self.BOOK),
@@ -448,8 +461,11 @@ class TestTheClassesWithoutEvidence:
             Policy.preset("preserve"),
             asker=asker,
         )
-        assert len(asker.asked) == 1
-        assert "obo-jętna" in asker.asked[0].summary
+        asked = sorted(question.summary for question in asker.asked)
+        assert len(asked) == 2, asked
+        assert any("obo-jętna" in summary for summary in asked)
+        assert any("bia-ły" in summary for summary in asked)
+        assert not any("savoir" in summary for summary in asked)
 
     def test_grouped_adds_one_question_carrying_the_words(self, tmp_path):
         asker = Joins()

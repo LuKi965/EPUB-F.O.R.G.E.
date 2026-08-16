@@ -38,6 +38,41 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Słownik jako drugi dowód dla łączników — pierwsza połowa
+
+WP-10, część detekcyjna. Detektor miał jeden dowód: *czy ta sama książka pisze
+to słowo bez łącznika gdzie indziej*. To jest mocny dowód i **nie ma go
+dokładnie tam, gdzie jest potrzebny** — przy słowie, które w książce występuje
+raz. Sześć realnych artefaktów z Książki 2 ginęło bez śladu z tego powodu.
+
+Słownik odpowiada na jedno pytanie, nie na wszystkie: **czy pierwsza połówka
+jest słowem**. Zmierzone na prawdziwym `pl_PL`:
+
+| słowo | lewa | złączone | wniosek |
+|---|---|---|---|
+| `doboro-wym` | **nie** | tak | artefakt, bez pytania kogokolwiek |
+| `przeko-naniem` | **nie** | tak | artefakt |
+| `wspo-minał` | **nie** | tak | artefakt |
+| `czarno-czerwone` | tak | tak | nie da się rozstrzygnąć |
+
+Złożenie, którego pierwsza połowa nie jest słowem, **nie istnieje** — więc
+łącznik wstawiła konwersja. To rozstrzyga trzy z sześciu artefaktów właściciela
+bez zadawania mu ani jednego pytania, a na książce korpusu publicznego
+wychwyciło kandydata, którego wcześniej nikt nie widział.
+
+Silnik: **`spylls`** — hunspell przepisany na czysty Python, czyta te same
+`.dic`/`.aff`. Wybrany dlatego, że wiązanie C do hunspella **nie buduje się
+nawet na Linuksie z kompletem narzędzi**, więc na Windowsie nie miałoby szans.
+
+**Czego ta połowa nie robi**, i to jest świadome: kształty złożeniowe nadal nie
+trafiają do kolejki jako `UNCERTAIN`. Pomiar mówi dlaczego — `nie-wielkich`
+(artefakt) i `pseudo-naukowy` (słowo, którego ruszać nie wolno) są **nie do
+odróżnienia** przez żaden sygnał, jaki ten program ma: obie połówki są słowami,
+złączona forma jest słowem, kształt ten sam. Promowanie całej gałęzi wstawiłoby
+każde `pseudo-`, `eks-` i `pół-` do kolejki jako pytanie. Próg mierzy się na
+korpusie właściciela, nie zgaduje (D-012).
+
+
 ### K1 wreszcie stoi w bramie, która decyduje o zapisie
 
 WP-11. Dwie połowy jednego ustalenia, i druga jest ta, która boli.

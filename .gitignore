@@ -41,3 +41,4 @@ tests/corpus_gutenberg/runs.json
 # Skonsolidowany audyt i jego artefakty żyją w prywatnym repozytorium notatek.
 # Wróciły tu raz przez `git add -A` po przepisaniu historii; to je zatrzymuje.
 audit_consolidation/
+dictionaries/

@@ -73,6 +73,12 @@ class HyphenStage(Stage):
 
         words = hyphens.vocabulary(every_text(), hyphens.wanted_words(every_text()))
 
+        # The book's own language, because a Polish dictionary asked about a
+        # Dutch book answers "not a word" to everything and would call every
+        # hyphen a converter's artefact. No language means no second opinion,
+        # which is the same state as no dictionary at all.
+        tongue = (ctx.book.metadata.language or "").strip() or "pl_PL"
+
         found: dict[str, int] = {}
         confirmed: list[tuple[object, hyphens.Candidate]] = []
         across: list[tuple[object, hyphens.CrossCandidate]] = []
@@ -83,7 +89,9 @@ class HyphenStage(Stage):
                 text = getattr(element, attribute)
                 if not text or "-" not in text:
                     continue
-                for candidate in hyphens.find(text, where=resource.path, words=words):
+                for candidate in hyphens.find(
+                    text, where=resource.path, words=words, language=tongue
+                ):
                     found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
                     if candidate.confidence == hyphens.CONFIRMED:
                         confirmed.append((resource, candidate))
@@ -95,7 +103,7 @@ class HyphenStage(Stage):
             # Same walk, so it costs nothing; a separate list, because applying
             # it writes into two elements instead of one.
             for candidate in hyphens.find_across(
-                nodes, root=root, where=resource.path, words=words
+                nodes, root=root, where=resource.path, words=words, language=tongue
             ):
                 found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
                 across.append((resource, candidate))

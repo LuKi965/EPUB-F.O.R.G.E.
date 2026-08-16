@@ -38,6 +38,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import Counter
+
+from . import dictionaries
 from dataclasses import dataclass
 
 #: A hyphen with a letter on each side and no space anywhere near it. Only
@@ -261,7 +263,9 @@ BLOCKS = frozenset({
 })
 
 
-def find(text: str, *, where: str, words: Counter) -> "list[Candidate]":
+def find(
+    text: str, *, where: str, words: Counter, language: str = "pl_PL"
+) -> "list[Candidate]":
     """Candidates in one text node's worth of text.
 
     Per text node, which is what makes this DOM-aware, and `find_across` is the
@@ -299,10 +303,36 @@ def find(text: str, *, where: str, words: Counter) -> "list[Candidate]":
                 f"ta książka pisze „{left}{right}” bez łącznika "
                 f"{elsewhere}× — więc to jest to słowo"
             )
+        elif dictionaries.half_is_not_a_word(left, left + right, language):
+            # The dictionary settles it without anybody being asked. A compound
+            # whose first half is not a word does not exist, so the hyphen came
+            # from a converter and not from a writer — which is exactly the
+            # evidence the book itself could not give for a word it uses once.
+            #
+            # Measured on the owner's Book 2: this alone recovers `doboro-wym`,
+            # `przeko-naniem` and `wspo-minał`, three of the six artefacts that
+            # were being dropped without a trace.
+            confidence = CONFIRMED
+            reason = (
+                f"„{left}” nie jest słowem, a „{left}{right}” jest — "
+                f"więc łącznik wstawiła konwersja, nie autor"
+            )
         elif compound_shape:
-            # Nothing in the book says otherwise and the shape says compound.
-            # Not a low-confidence candidate: not a candidate. Offering to join
-            # `biało-czerwony` is not a question worth a person's time.
+            # The shape says compound and the dictionary could not rule it out.
+            # Not a candidate — for now, and the "for now" is the honest part.
+            #
+            # EF-028 asks for this branch to produce `UNCERTAIN` instead of
+            # nothing, because a real artefact whose shape reads as a compound
+            # currently leaves no trace. The measurement says why that is not a
+            # one-line change: `nie-wielkich` (an artefact on the owner's shelf)
+            # and `pseudo-naukowy` (a word nobody may touch) are **identical**
+            # to every signal available — both halves are words, the joined form
+            # is a word, and the shape is the same. Promoting the whole branch
+            # would put every `pseudo-`, `eks-` and `pół-` in the queue as a
+            # question, which is a worse tool than one that misses six words.
+            #
+            # D-012: the threshold is to be **measured** on the owner's corpus
+            # after the dictionary lands, not guessed. This is where it goes.
             continue
         elif hyphenated > 3:
             # The same hyphenation four times over is a spelling this book uses.
@@ -434,7 +464,9 @@ def _same_flow(one, other, root) -> bool:
     return seen_one and seen_other
 
 
-def find_across(nodes, *, root, where: str, words: Counter) -> "list[CrossCandidate]":
+def find_across(
+    nodes, *, root, where: str, words: Counter, language: str = "pl_PL"
+) -> "list[CrossCandidate]":
     """Candidates whose two halves live in different text nodes.
 
     DELTA-2026-08-15-001. `<span>obo-</span>jętna` produced nothing at all,
