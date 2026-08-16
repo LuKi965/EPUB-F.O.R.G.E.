@@ -548,6 +548,7 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str, q
 #: is not in this list will be refused by the gate, which is the right way
 #: round: the burden is on the change to declare itself.
 REMOVES_TEXT_ON_PURPOSE = frozenset({
+    "xhtml.shop-notice-removed",
     "xhtml.watermark-removed",
     "xhtml.watermark-relocated",
     "xhtml.watermark-consolidated",

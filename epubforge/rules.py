@@ -132,6 +132,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.remote-import-removed": "{count} @import rule(s) fetching a stylesheet over the network were removed from a style element",
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
+    "xhtml.shop-notice-removed": "{count} shop notice(s) were removed from {documents} document(s), by request: {removed}",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
     "css.invalid-value-inherited": "{count} declaration(s) using the invalid value 'regular' were left alone, because this stylesheet also sets italic or bold",
     "css.absolute-units": "{count} font size(s) are given in absolute units, so the reader's own font setting cannot move them",
@@ -408,6 +409,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.remote-import-removed': 'usunięto z elementu <style> {count} {count:regułę @import pobierającą arkusz stylów z sieci|reguły @import pobierające arkusz stylów z sieci|reguł @import pobierających arkusz stylów z sieci}',
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
+    'xhtml.shop-notice-removed': 'usunięto na życzenie {count} {count:zdanie księgarni|zdania księgarni|zdań księgarni} z {documents} {documents:dokumentu|dokumentów|dokumentów}: {removed}',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
     'css.invalid-value-inherited': 'zostawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”, bo ten arkusz ustawia też kursywę albo pogrubienie',
     'css.absolute-units': '{count} {count:rozmiar czcionki jest podany|rozmiary czcionek są podane|rozmiarów czcionek jest podanych} w jednostkach absolutnych, więc ustawienie czcionki w czytniku ich nie ruszy',
@@ -608,6 +610,8 @@ DETAILS: dict[str, str] = {
         "Known profiles: {known}.",
     "css.font-stack-generic-missing":
         "e.g. {examples} — inherited from the source and left as-is, since guessing serif vs sans-serif could change how the book looks.",
+    "xhtml.shop-notice-removed":
+        "Listed word for word rather than counted, because this is the only setting in the program that deletes text a reader can see. Only sentences naming the sale are taken — an order, a purchase, a licence, a buyer. A publisher's colophon names the publisher rather than the transaction and is never touched, and no page is ever removed: an element left empty stays, and the balance reports it.",
     "css.invalid-value-corrected":
         "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant — and only because nothing in this stylesheet sets italic or bold, so inheriting and overriding come to the same page.",
     "css.invalid-value-inherited":
@@ -919,6 +923,8 @@ DETAILS_PL: dict[str, str] = {
         "Zadeklarowanie którejś z nich bez odpowiadających jej znaczników jest samo w sobie błędem zgodności i EPUBCheck zgłasza to wobec źródła.",
     "css.vendor-at-rule-kept":
         "Użyj --strict, żeby je usunąć.",
+    "xhtml.shop-notice-removed":
+        "Wypisane co do słowa, a nie policzone, bo to jedyne ustawienie w programie, które kasuje tekst widoczny dla czytelnika. Zabierane są wyłącznie zdania nazywające sprzedaż — zamówienie, zakup, licencję, kupującego. Stopka redakcyjna wydawcy nazywa wydawcę, a nie transakcję, i nie jest ruszana; żadna strona nie jest usuwana — element, który zostanie pusty, zostaje, a bilans to zgłasza.",
     "css.invalid-value-corrected":
         "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal” — i tylko dlatego, że nic w tym arkuszu nie ustawia kursywy ani pogrubienia, więc dziedziczenie i nadpisanie dają tę samą stronę.",
     "css.invalid-value-inherited":

@@ -101,6 +101,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.hyphen_review = args.hyphen_review
     if getattr(args, "relative_units", False):
         policy.relative_units = True
+    if getattr(args, "remove_shop_notices", False):
+        policy.remove_shop_notices = True
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1041,6 +1043,17 @@ def build_parser() -> argparse.ArgumentParser:
             "'confirmed' asks only about words the book writes without a hyphen "
             "elsewhere (default), 'grouped' adds one question per confidence "
             "class carrying the words, 'each' asks about every candidate"
+        ),
+    )
+    build.add_argument(
+        "--remove-shop-notices",
+        action="store_true",
+        help=(
+            "remove the shop's visible leavings as well as its hidden marker — "
+            "the order number, the buyer's name, the address a copy was "
+            "generated for. Off by default; every removed sentence is printed "
+            "in the report word for word. A publisher's colophon is not a shop "
+            "notice and is never touched"
         ),
     )
     build.add_argument(

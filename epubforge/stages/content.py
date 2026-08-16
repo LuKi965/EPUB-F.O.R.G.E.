@@ -455,6 +455,11 @@ class ContentStage(Stage):
         self._watermark_documents = 0
         self._watermark_tokens: set[str] = set()
         self._watermark_notices: list[str] = []
+        # WP-17. Kept as the sentences themselves rather than as a count: this
+        # is the one switch that deletes readable text, and the report has to
+        # let somebody check it rather than trust it.
+        self._shop_notices_removed: list[str] = []
+        self._shop_notice_documents: set[str] = set()
         # Aggregated for the same reason as the watermarks: a book whose every
         # document arrived with an empty <title> would otherwise report the
         # same sentence forty times.
@@ -785,6 +790,22 @@ class ContentStage(Stage):
                     "count": self._watermarks_removed,
                     "documents": self._watermark_documents,
                     "tokens": len(self._watermark_tokens),
+                },
+            )
+        if self._shop_notices_removed:
+            # Verbatim, and every one of them. The acceptance for WP-17 said the
+            # report has to name what went "tekstem, nie liczbą", and it is the
+            # right condition: this is the only switch in the program that
+            # deletes readable text, so the report is the thing that lets
+            # somebody see it took the shop's sentence and not their book's.
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.shop-notice-removed",
+                values={
+                    "count": len(self._shop_notices_removed),
+                    "documents": len(self._shop_notice_documents),
+                    "removed": " | ".join(self._shop_notices_removed),
                 },
             )
         if self._watermark_notices:
@@ -2421,6 +2442,38 @@ class ContentStage(Stage):
                 location=resource.path,
             )
 
+    def _strip_shop_notice(self, element, resource) -> bool:
+        """Take the shop's sentences out of *element*, and nothing else.
+
+        WP-17. Sentence by sentence rather than element by element, and that is
+        the whole safety of it: in Book 1 the stamp sits in the running text
+        immediately in front of the novel's first sentence, so removing the
+        element that contains it would remove the opening of the book.
+
+        Three things this deliberately does not do:
+
+        * **it does not remove a page.** The owner corrected me on exactly this:
+          the job is the shop's leavings in the text, not documents. A document
+          that ends up empty stays, empty, and the balance reports it — a
+          rebuild that silently drops a spine item is a different program;
+        * **it does not touch an element whose text is not the shop's.** A
+          publisher's colophon carries an address, a telephone number, an e-mail
+          and an ISBN, and names the publisher rather than the sale, so
+          `is_shop_notice` says no to all of it;
+        * **it does not count.** Every removed sentence is recorded verbatim for
+          the report, because this is the one switch in the program that deletes
+          text a person can read, and "3 fragments removed" is not something
+          anybody can check.
+        """
+        text = element.text or ""
+        kept, removed = watermark.without_shop_notices(text)
+        if not removed:
+            return False
+        element.text = kept
+        self._shop_notices_removed.extend(removed)
+        self._shop_notice_documents.add(resource.path)
+        return True
+
     def _watermarks(self, ctx: Context, root, resource) -> None:
         """Deal with a publisher's per-purchase marker, as the caller asked.
 
@@ -2450,7 +2503,16 @@ class ContentStage(Stage):
                 continue
 
             if watermark.is_visible_notice(text):
-                # Meant to be read; the buyer's own copy notice. Never restyled.
+                # Meant to be read; the buyer's own copy notice. Never restyled,
+                # and removed only where somebody has asked for that (WP-17).
+                # Recorded as kept only if it survived. A notice that has just
+                # been taken out must not also be reported as preserved — two
+                # findings contradicting each other in one report is worse than
+                # either of them being absent.
+                if ctx.policy.remove_shop_notices and self._strip_shop_notice(
+                    element, resource
+                ):
+                    continue
                 notices.append(text[:120])
                 continue
 

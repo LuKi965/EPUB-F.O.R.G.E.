@@ -412,6 +412,24 @@ PL: dict[str, str] = {
         "Zaznaczone — rysowane są wszystkie strony. Dla książki o 65 rozdziałach "
         "to kilka minut, ale wtedy nic nie jest zgadywane z próbki."
     ),
+    "policy.shop.notices": "Usuń widoczne ślady księgarni",
+    "policy.shop.notices.tip": (
+        "Niektóre księgarnie wstawiają w treść zdanie o zamówieniu: numer "
+        "zamówienia, imię i nazwisko kupującego, adres e-mail, „zakupione "
+        "dla…”. W jednej z Twoich książek siedzi to **w biegnącym tekście, "
+        "tuż przed pierwszym zdaniem powieści**.\n\n"
+        "Włączone — takie zdania są usuwane, a raport wypisuje **każde z nich "
+        "co do słowa**, nie liczbę. To jedyne ustawienie w tym programie, które "
+        "kasuje tekst widoczny dla czytelnika, więc masz sprawdzić, że zabrało "
+        "zdanie księgarni, a nie zdanie z Twojej książki.\n\n"
+        "Zabierane są wyłącznie zdania nazywające **sprzedaż** — zamówienie, "
+        "zakup, licencję, kupującego. **Stopka redakcyjna wydawcy** (adres, "
+        "telefon, ISBN) nazywa wydawcę, a nie transakcję, i nie jest ruszana. "
+        "**Żadna strona nie jest usuwana** — element, który zostanie pusty, "
+        "zostaje, a bilans to zgłasza.\n\n"
+        "To ustawienie jest osobne od „znaków wodnych” powyżej: tamto pyta, jak "
+        "widoczny może być ukryty znacznik, to pyta, czy wolno skasować zdanie."
+    ),
     "policy.relative.units": "Uwolnij rozmiary czcionek spod pikseli",
     "policy.relative.units.tip": (
         "Książka, która pisze `font-size: 12px`, odebrała sterowanie wielkością "
@@ -1241,6 +1259,24 @@ EN: dict[str, str] = {
         "spread across the book. About 36 seconds per book.\n\n"
         "Ticked, every page is drawn. For a 65-chapter book that is several "
         "minutes, but then nothing is inferred from a sample."
+    ),
+    "policy.shop.notices": "Remove the shop's visible traces",
+    "policy.shop.notices.tip": (
+        "Some shops stamp a sentence about the purchase into the text: an "
+        "order number, the buyer's name, an e-mail address, “purchased "
+        "for…”. In one of your books it sits **in the running text, directly "
+        "in front of the novel's first sentence**.\n\n"
+        "On, those sentences are removed, and the report prints **every one of "
+        "them word for word** rather than a count. This is the only setting in "
+        "the program that deletes text a reader can see, so you are meant to "
+        "check that it took the shop's sentence and not your book's.\n\n"
+        "Only sentences naming **the sale** are taken — an order, a purchase, a "
+        "licence, a buyer. **A publisher's colophon** (address, telephone, "
+        "ISBN) names the publisher rather than the transaction and is never "
+        "touched. **No page is ever removed** — an element left empty stays, "
+        "and the balance reports it.\n\n"
+        "Separate from “watermarks” above: that one asks how visible a hidden "
+        "marker may be, this one asks whether a sentence may be deleted."
     ),
     "policy.relative.units": "Free font sizes from pixels",
     "policy.relative.units.tip": (

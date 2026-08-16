@@ -511,6 +511,13 @@ class MainWindow(QMainWindow):
             layout, "policy.relative.units", checked=False
         )
 
+        # WP-17 / D-019. Off, and next to the watermark setting rather than
+        # inside it: that one asks how visible a token may be, this one asks
+        # whether a sentence may be deleted.
+        self.shop_notices_check = self._checkbox(
+            layout, "policy.shop.notices", checked=False
+        )
+
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
         # BA-2026-001's remaining half. 67 evidenced candidates against 189
         # that the book itself does not settle — so the weaker classes are one
@@ -777,6 +784,7 @@ class MainWindow(QMainWindow):
         policy.hyphen_review = self.hyphen_review_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.relative_units = self.relative_units_check.isChecked()
+        policy.remove_shop_notices = self.shop_notices_check.isChecked()
         policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()
         typed = self.memory_limit_edit.text().strip()

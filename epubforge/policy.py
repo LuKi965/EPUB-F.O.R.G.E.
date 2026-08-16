@@ -354,6 +354,29 @@ class Policy:
     #: a person chooses. No preset reaches either.
     watermarks: str = "consolidate"
 
+    #: Take out the shop's *visible* leavings too — the order number, the buyer's
+    #: name, the address the copy was generated for.
+    #:
+    #: WP-17 / D-019, and a deliberate reversal of what this program did before.
+    #: `watermarks` above governs the opaque token, which nobody was meant to
+    #: read; a visible notice was always kept, on the reasoning that a sentence
+    #: the buyer is meant to read is the buyer's business. The owner's answer was
+    #: that it is his business precisely because he bought the book: *"książki
+    #: kupiłem legalnie i mam paragony"*, and the shop's sentence sits in the
+    #: running text of Book 1 immediately in front of the novel's first
+    #: sentence, where it spoils the page on every reader he owns.
+    #:
+    #: Separate from `watermarks` rather than a fifth mode of it, because it
+    #: answers a different question — that one is *how visible may the token be*,
+    #: this one is *may a sentence be deleted* — and folding them together would
+    #: make one of the four existing modes silently start removing prose.
+    #:
+    #: **Off by default and reached by no preset.** This is the only switch in
+    #: the program that deletes text somebody can read, so the report lists every
+    #: removed sentence verbatim rather than counting them: a number is not
+    #: something anybody can check, and this is a person's book.
+    remove_shop_notices: bool = False
+
     #: Repair the typography of the text itself — roadmap [7].
     #:
     #: Off everywhere, reached by no preset, and that is the point rather than

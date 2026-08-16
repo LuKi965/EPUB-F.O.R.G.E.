@@ -109,6 +109,185 @@ _NOTICE_PHRASES = (
 
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 
+#: Phrases that name the *shop's* per-purchase debris, as opposed to anything a
+#: publisher put in the book on purpose (WP-17 / D-019).
+#:
+#: This tuple is the whole feature. Everything else in WP-17 is plumbing; the
+#: question that decides whether a book comes out whole or damaged is whether a
+#: given sentence is the shop talking about a transaction or the publisher
+#: talking about the book, and these phrases are the answer.
+#:
+#: **What they all have in common:** every one of them names *the sale* — an
+#: order, a purchase, a licence, a buyer, a copy made for somebody. That is the
+#: line. A publisher's colophon carries an address, a telephone number, an
+#: e-mail and an ISBN, and it names *the publisher*, never the transaction, so
+#: it matches none of these and must not. That is not a happy accident: it is
+#: measured against a real colophon in Book 2, which carries an editorial
+#: address, a phone number, `biuro@…` and an ISBN, and is kept.
+#:
+#: **What is deliberately not here,** and each omission cost a candidate phrase:
+#:
+#: * bare `"kopia"` / `"copy"` — "kopia redakcyjna", "review copy" are the
+#:   publisher's own words, and "copy" appears in "copyright" on every book;
+#: * bare `"e-mail"` or an address on its own — the colophon has one;
+#: * bare `"licencja"` / `"license"` — a Creative Commons book says it about
+#:   itself, and Project Gutenberg says it at length in every volume;
+#: * `"wszelkie prawa zastrzeżone"` — that is the publisher's copyright notice
+#:   and removing it would be removing the copyright page.
+_SHOP_PHRASES = (
+    # English — the wording used by the shops on the owner's shelf.
+    "this document is protected using an electronic watermark",
+    "this document is protected",
+    "electronic watermark",
+    "order ##",
+    "order number",
+    "licensed to",
+    "purchased by",
+    "generated for",
+    "sold to",
+    "this copy was prepared for",
+    # Polish.
+    "zamówienie nr",
+    "nr zamówienia",
+    "numer zamówienia",
+    "zakupione dla",
+    "zakupione przez",
+    # Inflections, because Polish has them and a shop writes whichever fits its
+    # sentence. Each one widens the net and therefore the risk, so only the
+    # forms that cannot mean anything but a sale are here.
+    "zakupiony przez",
+    "zakupiona przez",
+    "wygenerowane dla",
+    "wygenerowano dla",
+    "przygotowane dla",
+    "egzemplarz dla",
+    "kopia dla",
+    "znak wodny",
+    "znakiem wodnym",
+    "dokument jest chroniony",
+    "dokument zabezpieczony",
+)
+
+
+def is_shop_notice(text: str) -> bool:
+    """True when *text* is the shop talking about a purchase.
+
+    The narrower half of :func:`is_visible_notice`, and the one that is allowed
+    to delete something. Both look at the same sentences; this one has to be
+    right about a publisher's colophon, because the cost of a false positive
+    here is a page of somebody's book.
+    """
+    lowered = " ".join(text.lower().split())
+    return any(phrase in lowered for phrase in _SHOP_PHRASES)
+
+
+#: How a notice is broken up before being judged. A shop stamps its sentence
+#: into the running text — in Book 1 directly in front of the book's first
+#: sentence — so judging a whole paragraph at once would either miss it or take
+#: the opening line of the novel with it. Line breaks and sentence ends both
+#: count, because the stamp arrives as its own line about as often as its own
+#: sentence.
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+#: What the shop writes *after* its phrase, and what may be swept up with it: an
+#: order number, a masked address, a reference in brackets. Recognised by
+#: carrying a digit, an `@` or a `#` — the marks of an identifier rather than of
+#: prose. Deliberately not "the rest of the line": in Book 1 the rest of the line
+#: is the first sentence of the novel.
+_STAMP_TAIL = re.compile(r"^[\s.,:;–—-]*(?:\S*[\d@#]\S*[\s.,:;]*)+")
+
+#: Whether what is left of a piece is somebody's writing rather than the tail of
+#: a stamp. Three words or more, one of them an ordinary lower-case word — which
+#: `Jan Kowalski` is not, and `był chłodny, jasny dzień kwietnia` is.
+_PROSE_WORD = re.compile(r"\b[a-ząćęłńóśźż]{3,}\b")
+
+
+def _looks_like_prose(text: str) -> bool:
+    return len(text.split()) >= 3 and bool(_PROSE_WORD.search(text))
+
+
+def without_shop_notices(text: str) -> "tuple[str, list[str]]":
+    """*text* with the shop's sentences taken out, and the list of what went.
+
+    The hard case is the one this was first written wrong for, and the test that
+    caught it is the one that matters most in `test_shop_notices.py`. In Book 1
+    the stamp is glued to the opening of the novel with no sentence break
+    between them:
+
+        Order ##46932 (l***k@…) Był chłodny, jasny dzień kwietnia.
+
+    Splitting on sentence ends leaves that as **one** piece, it matches
+    `order ##`, and dropping the piece takes the first line of the book. So a
+    matching piece is not dropped wholesale. What goes is the shop's phrase plus
+    the identifiers trailing it — the order number, the address in brackets —
+    and whatever is left is examined again: prose stays, a leftover that is not
+    prose (`Jan Kowalski` after `Zakupione dla:`) goes with the stamp.
+
+    The rule is deliberately conservative in one direction. Leaving a buyer's
+    name behind is a blemish somebody can see and report; deleting a sentence of
+    the novel is damage they may not notice until they read that page. So where
+    it is unsure, text stays.
+
+    Returns the surviving text and the exact fragments removed — because "3
+    fragments removed" is not something anybody can check, and this is the one
+    feature in the program that deletes a person's book.
+    """
+    kept: list[str] = []
+    removed: list[str] = []
+    for piece in _SENTENCE_SPLIT.split(text):
+        piece = piece.strip()
+        if not piece:
+            continue
+        if not is_shop_notice(piece):
+            kept.append(piece)
+            continue
+
+        lowered = " ".join(piece.lower().split())
+        starts = [lowered.find(p) for p in _SHOP_PHRASES if p in lowered]
+        # Measured on the normalised copy, so the index is only usable when the
+        # piece has no runs of whitespace to collapse. It rarely does; where it
+        # does, the whole piece is treated as the stamp, which is the same
+        # answer the prose check below would reach anyway.
+        at = min(starts) if starts and len(lowered) == len(piece) else 0
+        head = piece[:at].strip()
+        body = piece[at:]
+
+        phrase_text = ""
+        for phrase in _SHOP_PHRASES:
+            if body.lower().startswith(phrase):
+                phrase_text = body[: len(phrase)]
+                break
+        after = body[len(phrase_text):]
+        swept = _STAMP_TAIL.match(after)
+        stamp_tail = after[: swept.end()] if swept else ""
+        rest = after[len(stamp_tail):].strip()
+        keeping = _looks_like_prose(rest)
+
+        # Assembled from what was actually taken rather than measured back from
+        # what survived. The first version subtracted the survivor's length from
+        # the piece, which reported `Zakupione dla` while `Jan Kowalski` had also
+        # gone — an understatement in the one message whose entire job is to let
+        # somebody check this feature.
+        # The same question asked of the words in front of the phrase. A stamp
+        # written mid-sentence — "Ten egzemplarz zakupiony przez …" — leaves a
+        # head that is a piece of the shop's own sentence, not of the book, and
+        # keeping it strands two words in the middle of a page. Prose in front
+        # of the phrase is somebody's writing and stays.
+        holding = _looks_like_prose(head)
+        taken = (
+            ("" if holding else head)
+            + (" " if head and not holding else "")
+            + phrase_text
+            + stamp_tail
+            + ("" if keeping else rest)
+        ).strip()
+        if taken:
+            removed.append(taken)
+        for survivor in (head if holding else "", rest if keeping else ""):
+            if survivor:
+                kept.append(survivor)
+    return " ".join(kept), removed
+
 
 def is_token(text: str) -> bool:
     """True when *text* looks like an opaque identifier rather than prose."""
