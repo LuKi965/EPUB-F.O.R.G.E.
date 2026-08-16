@@ -204,6 +204,10 @@ CATALOGUE: dict[str, str] = {
     "xhtml.image-paragraph-centred": "{count} image-only paragraph(s) were centred and their text indent removed",
     "xhtml.image-paragraph-centred-unstyled": "{count} image-only paragraph(s) on a page that links no stylesheet were centred",
     "xhtml.cover-sized-in-pixels": "the cover image is sized in pixels by an attribute, and was left that way",
+    "package.text-lost": "text from the source is missing from the rebuild, so nothing was written",
+    "package.text-check-per-rendition": "the container holds more than one publication, so the text invariant was not checked across the whole of it",
+    "package.text-changed-on-request": "text left the book because you asked for it ({rules}), so the character-for-character invariant no longer holds",
+    "package.text-check-failed": "the text invariant could not be measured on this book",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
     "xhtml.image-paragraph-kept": "{count} image paragraph(s) were left as the publisher styled them",
     "xhtml.cover-fitted": "the cover image was given page-fitting limits, because nothing in the book set any",
@@ -471,6 +475,10 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.image-paragraph-centred': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} i usunięto z nich wcięcie',
     'xhtml.image-paragraph-centred-unstyled': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} na stronie, która nie linkuje żadnego arkusza',
     'xhtml.cover-sized-in-pixels': 'obraz okładki ma rozmiar podany w pikselach atrybutem i został tak zostawiony',
+    'package.text-lost': 'w wyniku brakuje tekstu ze źródła, więc nic nie zostało zapisane',
+    'package.text-check-per-rendition': 'kontener zawiera więcej niż jedną publikację, więc niezmiennik tekstu nie był sprawdzany na całości',
+    'package.text-changed-on-request': 'tekst ubył z książki, bo o to poprosiłeś ({rules}), więc niezmiennik znak w znak już nie obowiązuje',
+    'package.text-check-failed': 'nie udało się zmierzyć niezmiennika tekstu na tej książce',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
     'xhtml.image-paragraph-kept': '{count} {count:akapit z obrazem zostawiono|akapity z obrazem zostawiono|akapitów z obrazem zostawiono} tak, jak {count:ostylował go|ostylował je|ostylował je} wydawca',
     'xhtml.cover-fitted': 'obrazowi okładki nadano ograniczenia dopasowujące go do strony, bo nic w książce ich nie ustawiało',
@@ -710,6 +718,12 @@ DETAILS: dict[str, str] = {
         "Running-text rules were shifting the artwork; no rule targeted these paragraphs specifically, so the layout was inherited rather than chosen.",
     "xhtml.image-paragraph-centred-unstyled":
         "This page links no stylesheet at all, so there was no indent to remove and no publisher's rule to override — the reader's own default was left-aligning the artwork. Said separately from the paragraph above because the two are different facts about the book, and a message that describes the wrong one is a message somebody learns to skip.",
+    "package.text-lost":
+        "K1, the rule above every other one in this program: every character of the source's reading order appears in the output, in the same order. Measured at word level, because a rebuild legitimately changes spacing. The file was built, checked and refused before it took its name, so whatever was already there is untouched.",
+    "package.text-changed-on-request":
+        "K1 is a statement about losses nobody asked for. Removing a watermark and joining a word a conversion cut in half both take characters out, both happen only after you say so, and both are in the change ledger — so they are named here rather than refused. What the gate still refuses is text going missing with nothing accounting for it.",
+    "package.text-check-failed":
+        "The comparison itself raised. A check that cannot run is not a book that failed, so the rebuild continued — but nothing verified the text, and that is worth knowing before trusting the result.",
     "xhtml.cover-sized-in-pixels":
         "A width or height attribute in pixels fixes the cover at one size whatever the screen is. It is the publisher's instruction, so it is reported and not overwritten: changing it is a decision about how the book looks, and this program does not make those on its own.",
     "xhtml.image-paragraph-kept":
@@ -861,6 +875,12 @@ DETAILS_PL: dict[str, str] = {
         "Reguły tekstu bieżącego przesuwały grafikę; żadna reguła nie celowała w te akapity z osobna, więc nic, co wybrał wydawca, nie zostało nadpisane.",
     "xhtml.image-paragraph-centred-unstyled":
         "Ta strona nie linkuje żadnego arkusza, więc nie było wcięcia do usunięcia ani reguły wydawcy do nadpisania — grafikę dosuwało do lewej domyślne ustawienie czytnika. Mówione osobno, bo to inny fakt o książce, a komunikat opisujący nie ten fakt uczy przeskakiwać nad komunikatami.",
+    "package.text-lost":
+        "K1, reguła nadrzędna wobec wszystkich innych w tym programie: każdy znak kolejności czytania źródła jest w wyniku, w tej samej kolejności. Mierzone na poziomie słów, bo przebudowa świadomie zmienia odstępy. Plik został zbudowany, sprawdzony i odrzucony, zanim wziął swoją nazwę — więc to, co leżało pod tą nazwą, jest nietknięte.",
+    "package.text-changed-on-request":
+        "K1 mówi o stratach, o które nikt nie prosił. Usunięcie znaku wodnego i złączenie słowa przeciętego przez konwersję zabierają znaki, oba dzieją się dopiero za zgodą czytelnika i oba są w rejestrze zmian — więc są tutaj nazwane, a nie odrzucone. Brama nadal odmawia, gdy tekst znika i nic tego nie tłumaczy.",
+    "package.text-check-failed":
+        "Samo porównanie rzuciło wyjątkiem. Kontrola, która nie umiała się wykonać, to nie jest książka, która padła, więc przebudowa poszła dalej — ale nikt nie sprawdził tekstu i warto o tym wiedzieć, zanim się temu wynikowi zaufa.",
     "xhtml.cover-sized-in-pixels":
         "Atrybut width albo height w pikselach ustala okładkę na jednym rozmiarze niezależnie od ekranu. To instrukcja wydawcy, więc jest raportowana, a nie nadpisywana: zmiana jest decyzją o wyglądzie książki, a takich program nie podejmuje sam.",
     "xhtml.image-paragraph-unindented":

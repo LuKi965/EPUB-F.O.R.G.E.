@@ -160,6 +160,19 @@ class Policy:
     #: 130 page comparisons moved at all, the largest by 1.64% of pixels, and
     #: nothing was called a loss. Reflow moves ink; it does not remove it.
     render_gate: str = "stop"
+    #: Whether the publication gate asks K1 — is every word of the source still
+    #: in the output — before the file takes its name.
+    #:
+    #: WP-11. `fidelity.text_survives` existed and was reachable only from a
+    #: separate command and from the corpus, so the gate that decides whether
+    #: somebody's book is written asked the validator and the renderer and did
+    #: not ask whether the text was still there. A book can lose a paragraph and
+    #: validate perfectly; it can lose one and draw almost the same, because the
+    #: page that lost it need not be among the ones sampled.
+    #:
+    #: On by default, and switchable like every other gate — the owner's rule is
+    #: that a choice belongs to him, not to a constant in the code.
+    verify_text_survives: bool = True
 
     #: How many spine documents the render check draws. `0` means all of them.
     #:

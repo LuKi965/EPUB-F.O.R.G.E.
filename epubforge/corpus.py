@@ -131,10 +131,10 @@ def _text_survived(before: pathlib.Path, after: pathlib.Path) -> bool:
     A corpus run has already read the source — once, for all three modes — and
     calls the inner form directly rather than parsing it again per mode.
     """
-    from .inventory import spine_text
+    from .fidelity import spine_text_of
 
     try:
-        return _survives(" ".join(spine_text(before).split()), after)
+        return _survives(spine_text_of(before), after)
     except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
         return False
 
@@ -151,23 +151,19 @@ def _survives(source_text: str, after: pathlib.Path) -> bool:
     collapsing runs of spaces is not losing text. Everything else has to appear,
     in order.
     """
-    from .inventory import spine_text
+    from .fidelity import first_character_lost, spine_text_of
 
     try:
-        source = source_text
-        result = " ".join(spine_text(after).split())
+        result = spine_text_of(after)
     except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
         return False
 
     # Subsequence rather than substring: the rebuild may insert text between
-    # documents (a generated cover page) without having lost any.
-    position = 0
-    for character in source:
-        position = result.find(character, position)
-        if position < 0:
-            return False
-        position += 1
-    return True
+    # documents (a generated cover page) without having lost any. The comparison
+    # itself moved to `fidelity` in WP-11, so the gate in front of the writer and
+    # this corpus mean the same thing by K1 — two definitions of the invariant
+    # this program is built around would be one too many.
+    return first_character_lost(source_text, result) < 0
 
 
 _checker_identity: "str | None" = None
@@ -255,7 +251,13 @@ def _read_source(book: pathlib.Path) -> _Source:
 
     try:
         characters = inventory_measure(book).fields.get("spine_text_characters", 0)
-        text = " ".join(spine_text(book).split())
+        # Folded exactly as the output side is folded. WP-11: the two sides went
+        # through different normalisations for one commit and every book in the
+        # corpus reported its text as lost — which is what happens when "the
+        # same text" has two definitions.
+        from .fidelity import spine_text_of
+
+        text = spine_text_of(book)
     except Exception:  # noqa: BLE001 — an unreadable book is reported elsewhere
         return _Source(0, "")
     return _Source(characters, text)

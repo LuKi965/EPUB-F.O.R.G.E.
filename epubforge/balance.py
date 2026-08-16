@@ -80,6 +80,7 @@ class Side:
             side.counts[kind_of(path, getattr(resource, "media_type", ""))] += 1
         side.spine_items = len(book.spine)
         side.metadata_entries = _metadata_entries(book)
+        side.text_characters = _characters_of(book)
         return side
 
     def as_dict(self) -> dict:
@@ -138,6 +139,63 @@ _METADATA_SINGLES = (
 #: Named rather than left out, so `test_balance` can hold the two lists above to
 #: the model and fail when a field is added to it and counted by neither.
 _METADATA_BOOKKEEPING = ("title_ids", "prefixes")
+
+
+def characters_in(text: str) -> int:
+    """How many characters of text that is, once normalised.
+
+    Through `typography.canonical`, which is what every other comparison in this
+    program already means by "the same text". A rebuild collapses runs of
+    whitespace and rewrites line endings by design; counting raw characters
+    would report those as thousands lost on every book and the number would be
+    useless within a release.
+
+    The specification asked for `typography.fold`. There is no such function —
+    `canonical` is the one this module has, and using it keeps one definition
+    of sameness rather than adding a second that would drift from the first.
+    """
+    from . import typography
+
+    return len(typography.canonical(text or ""))
+
+
+_TAG_RE = None
+
+
+def _characters_of(book) -> int:
+    """Every character of the book's reading order, normalised.
+
+    Only the spine, and in spine order: a document nothing points at carries no
+    text a reader will meet, and K1 is a statement about the reading order.
+
+    **Extracted with a regular expression rather than by parsing**, which is not
+    a shortcut. Parsing here charges the document budget a second time, on
+    documents the reader has already paid for — and `BudgetExceeded` is a
+    `BaseException` by design, so it does not stop at the `except` below. The
+    result was that a book with deeply nested markup stopped being refused by
+    the stage that is supposed to refuse it and started blowing up in a counter
+    that exists to put a number in a report. Three tests said so.
+
+    A number in a report may not decide whether a book rebuilds. This counts
+    what is there and never raises.
+    """
+    import re
+
+    global _TAG_RE
+    if _TAG_RE is None:
+        _TAG_RE = re.compile(rb"<[^>]*>")
+
+    total = 0
+    for item in getattr(book, "spine", ()) or ():
+        resource = book.get(getattr(item, "path", "")) if hasattr(book, "get") else None
+        if resource is None or not getattr(resource, "is_content_doc", False):
+            continue
+        try:
+            stripped = _TAG_RE.sub(b" ", resource.data).decode("utf-8", "replace")
+            total += characters_in(stripped)
+        except Exception:
+            continue
+    return total
 
 
 def _metadata_entries(book) -> int:

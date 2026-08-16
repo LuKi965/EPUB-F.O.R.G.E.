@@ -397,6 +397,13 @@ PL: dict[str, str] = {
         "się zobaczyć, o co chodzi.\n\n"
         "Zmierzone przed ustawieniem tego jako domyślne: 0 odmów na 32 książkach."
     ),
+    "policy.text.invariant": "Sprawdź, czy nie ubyło tekstu (K1)",
+    "policy.text.invariant.tip":
+        "Przed nadaniem plikowi nazwy porównuje tekst źródła z tekstem wyniku: "
+        "każdy znak kolejności czytania ma być w wyniku, w tej samej kolejności. "
+        "Odstępy, cudzysłowy i myślniki są składane, bo przebudowa świadomie je "
+        "zmienia. Usunięcie znaku wodnego i złączenie przeciętego słowa są "
+        "wyjątkami — dzieją się na Twoją prośbę i są nazwane w raporcie.",
     "policy.render.all": "Rysuj wszystkie strony, nie próbkę",
     "policy.render.all.tip": (
         "Domyślnie rysowanych jest 12 stron: pierwsze trzy zawsze, bo okładka i "
@@ -1159,6 +1166,14 @@ EN: dict[str, str] = {
         "can see what it means.\n\n"
         "Measured before this became the default: 0 refusals across 32 books."
     ),
+    "policy.text.invariant": "Check that no text went missing (K1)",
+    "policy.text.invariant.tip":
+        "Before the file takes its name, compares the source's text with the "
+        "output's: every character of the reading order has to be there, in the "
+        "same order. Spacing, quotes and dashes are folded, because the rebuild "
+        "changes those on purpose. Removing a watermark and joining a word a "
+        "conversion cut in half are the exceptions — both happen at your request "
+        "and both are named in the report.",
     "policy.render.all": "Draw every page, not a sample",
     "policy.render.unverified": "Write the book even when the appearance check cannot run",
     "policy.metadata.reconstructed": "Accept metadata read out of a damaged package",

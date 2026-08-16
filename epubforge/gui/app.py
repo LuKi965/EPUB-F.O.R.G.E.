@@ -477,6 +477,14 @@ class MainWindow(QMainWindow):
             self.render_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
         self.render_combo.setCurrentIndex(RENDER_GATES.index(Policy().render_gate))
         layout.addWidget(self.render_combo)
+        # WP-11. K1 in the publication gate: every character of the source in
+        # the output, in the same order. On by default and here rather than
+        # hidden, because the owner's rule is that a choice belongs to him — and
+        # because somebody rebuilding a book with a deliberately altered text
+        # has a reason this program cannot know.
+        self.text_check = self._checkbox(
+            layout, "policy.text.invariant", checked=Policy().verify_text_survives
+        )
         # He asked for this one in those words: there has to be an option to
         # check the whole book. A sample is somebody else's choice about which
         # pages of *his* book are worth looking at.
@@ -755,6 +763,7 @@ class MainWindow(QMainWindow):
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()
         policy.render_gate = self.render_combo.currentData()
+        policy.verify_text_survives = self.text_check.isChecked()
         policy.render_sample = 0 if self.render_all_check.isChecked() else 12
         policy.accept_unverified_render = self.unverified_check.isChecked()
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()

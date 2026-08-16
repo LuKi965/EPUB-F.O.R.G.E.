@@ -38,6 +38,59 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### K1 wreszcie stoi w bramie, która decyduje o zapisie
+
+WP-11. Dwie połowy jednego ustalenia, i druga jest ta, która boli.
+
+**Liczba nigdy nie była liczona.** `balance.Side.text_characters` było
+deklarowane, zapisywane do każdego raportu i **nigdy nie przypisywane** — pole,
+które mówi, ile tekstu weszło i ile wyszło, odpowiadało zerem od dnia, w którym
+je napisano.
+
+**Kontrola nigdy nie stała w bramie.** `fidelity.text_survives` istniało
+i było osiągalne wyłącznie z osobnej komendy i z korpusu. Więc brama publikacji
+— rzecz, która decyduje, czy czyjaś książka trafi na dysk — pytała EPUBCheck,
+czy plik jest poprawny, pytała renderer, czy strony wyglądają tak samo, i **nie
+pytała, czy tekst jeszcze tam jest**. Książka może stracić akapit i być
+bezbłędnie poprawna; może stracić akapit i narysować się prawie tak samo, bo
+strona, która go straciła, nie musi być wśród próbkowanych.
+
+Odtworzone: wstrzyknięty etap kasujący jeden akapit bez słowa w rejestrze —
+książka wychodziła, bilans się zamykał, status `SUCCEEDED`.
+
+**Trzy rzeczy wyszły dopiero przy podłączaniu tego do bramy**, i każda zmieniła
+naprawę:
+
+1. `text_survives` porównuje **zbiory słów**. To jest uczciwy pomiar po fakcie
+   i zła brama: rozwinięcie `<span>` łączy dwie połówki słowa w jedno, więc
+   słowo znika, choć każdy znak leży dokładnie tam, gdzie leżał. Dwadzieścia
+   dwa testy powiedziały to w minutę. Brama używa więc reguły z korpusu —
+   podciąg znaków — czyli tej, która chodzi po stu sześćdziesięciu prawdziwych
+   książkach.
+2. Etap typograficzny **celowo podmienia znaki** (trzy kropki na wielokropek,
+   cudzysłowy na konwencję książki). Porównanie idzie więc przez
+   `typography.canonical` — fold, którym ten program już się posługuje, żeby
+   ocenić, czy reguła typograficzna zachowała tekst. Litery, cyfry, znaczące
+   znaki interpunkcyjne i granice słów się nie składają, więc zgubione słowo
+   nadal przepada.
+3. **Strata, o którą poprosiłeś, to nie jest strata.** Usunięcie znaku wodnego
+   i złączenie przeciętego słowa zabierają znaki; zebranie znacznika do głowy
+   dokumentu przestawia je. Wszystkie cztery dzieją się po Twojej zgodzie
+   i wszystkie są w rejestrze — więc brama je **nazywa**, a nie odrzuca. To ta
+   sama zasada, na której stoi bilans.
+
+Liczenie znaków idzie wyrażeniem regularnym, nie parsowaniem — parsowanie tutaj
+obciąża budżet dokumentu po raz drugi, a `BudgetExceeded` jest `BaseException`,
+więc książka z głęboko zagnieżdżonym znacznikiem przestawała być odrzucana przez
+etap, który ma ją odrzucać, i wybuchała w liczniku do raportu. **Liczba w
+raporcie nie ma prawa decydować, czy książka się przebuduje.**
+
+**Zmierzony koszt na Książce 2** (65 dokumentów, 683 703 znaki): 1,87 s → 2,20 s,
+czyli **+17,2%** przy dopuszczalnych 20%. Znaki przed = po, co do jednego.
+
+Kontrola jest przełącznikiem w oknie, jak każda inna.
+
+
 ### Żaden test nie pada dlatego, że maszyna nie ma Javy
 
 WP-12. Zmierzone przed zmianą: przy `EPUBCHECK_JAR` wskazującym w próżnię i bez

@@ -421,3 +421,72 @@ def compare(source: str, rebuilt: str) -> Fidelity:
 
 
 __all__ = ["Check", "Fidelity", "CHECKS", "compare"]
+
+def spine_text_of(book: "str | pathlib.Path") -> str:
+    """The book's reading order, folded into the form both sides are compared in.
+
+    Through `typography.canonical`, and that is the load-bearing decision here
+    rather than a tidy-up. The typography stage is *allowed* to replace
+    characters — three dots become an ellipsis, straight quotes become the
+    book's own convention, every dash becomes one dash — and a subsequence test
+    on raw characters calls every one of those a loss. Nine typography tests
+    said so within a minute of the gate being wired up.
+
+    `canonical` is the fold this program already uses to decide whether a
+    typographic rule kept the text it was given: quotes, dashes, ellipses and
+    invisible characters fold; letters, digits, meaningful punctuation and word
+    boundaries do not. So a lost word, a swallowed letter and two sentences run
+    together all still fail. Using it here means K1 and the typography stage
+    agree about what "the same text" is, instead of the gate forbidding what the
+    stage is for.
+    """
+    from .inventory import spine_text
+    from .typography import canonical
+
+    return canonical(spine_text(book))
+
+
+def first_character_lost(source_text: str, output_text: str) -> int:
+    """Index of the first source character the output does not carry, or -1.
+
+    K1 as it is actually written: *no character is lost*. **Subsequence**, not
+    equality and not substring — the rebuild is supposed to generate a cover
+    page and a navigation document, so the output may carry text between the
+    source's characters without having lost any. Whitespace is compared loosely
+    because reflowing markup is not losing text.
+
+    This is the rule the corpus has been running over a hundred and sixty real
+    books, lifted here so that the gate in front of the writer and the corpus
+    mean the same thing by K1. They did not: `text_survives` above compares
+    *word sets*, which is a fair post-hoc measurement and a bad gate — unwrapping
+    a `<span>` legitimately joins two half-words into one, so a word disappears
+    while every character is exactly where it was. Twenty-two tests said so
+    within a minute of it being wired to the gate.
+
+    Returns an index rather than a boolean so a refusal can quote the text
+    around the loss. "Something is missing" is not a diagnosis.
+    """
+    position = 0
+    for index, character in enumerate(source_text):
+        position = output_text.find(character, position)
+        if position < 0:
+            return index
+        position += 1
+    return -1
+
+
+def text_is_preserved(source: "str | pathlib.Path", candidate: "str | pathlib.Path") -> Check:
+    """K1 between two files, with the place it broke if it broke."""
+    before = spine_text_of(source)
+    after = spine_text_of(candidate)
+    lost = first_character_lost(before, after)
+    if lost < 0:
+        return Check("K1", True, "", {"source_characters": len(before)})
+    window = before[max(0, lost - 40):lost + 40].strip()
+    return Check(
+        "K1",
+        False,
+        f"tekst źródła urywa się w wyniku na pozycji {lost}: …{window}…",
+        {"source_characters": len(before), "lost_at": lost},
+    )
+

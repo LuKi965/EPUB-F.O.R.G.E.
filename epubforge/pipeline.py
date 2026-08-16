@@ -517,6 +517,11 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str, q
     turns away is never drawn.
     """
     checks = [
+        # K1 first, and cheapest of the three: it reads two archives and
+        # compares words, where the validator starts a JVM and the renderer
+        # draws pages. It is also the one whose refusal matters most — a book
+        # that lost a paragraph is damaged whatever the other two say.
+        _text_gate(source, policy, report),
         _publication_gate(source, policy, report),
         _render_gate(source, policy, report, destination, queue),
     ]
@@ -530,6 +535,133 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str, q
             if refusal:
                 return refusal
         return ""
+
+    return gate
+
+
+#: Rules whose whole job is to take text out of the book, or move it, each one
+#: only after the person said so.
+#:
+#: This is the same principle the balance runs on: a loss the ledger accounts
+#: for is not an unexplained loss. Watermark removal happens because the owner
+#: ticked a box, and joining a hyphenated word happens because he answered a
+#: question about that exact word — both are consented, both are recorded, and
+#: K1 exists for the loss nobody asked for.
+#:
+#: Two of the four *move* rather than remove, and they belong here for a reason
+#: worth stating: K1 is "every character, **in the same order**", so a watermark
+#: token gathered to the head of its document breaks the subsequence test
+#: without a single character having left the book. Moving the publisher's mark
+#: out of the running text is the owner's own instruction, so the gate names it
+#: instead of refusing it.
+#:
+#: Named rather than inferred. A rule added later that removes or moves text and
+#: is not in this list will be refused by the gate, which is the right way
+#: round: the burden is on the change to declare itself.
+REMOVES_TEXT_ON_PURPOSE = frozenset({
+    "xhtml.watermark-removed",
+    "xhtml.watermark-relocated",
+    "xhtml.watermark-consolidated",
+    "hyphens.joined",
+})
+
+
+def _more_than_one_rendition(source: str) -> bool:
+    """Whether the container offers more than one publication."""
+    import zipfile
+
+    try:
+        from .reader import rootfiles
+
+        with zipfile.ZipFile(source) as archive:
+            entries = {
+                name: archive.read(name)
+                for name in archive.namelist()
+                if name == "META-INF/container.xml" or name.endswith(".opf")
+            }
+        return len(rootfiles(entries)) > 1
+    except Exception:  # noqa: BLE001 — not knowing means running the check
+        return False
+
+
+def _text_gate(source: str, policy: Policy, report: Report):
+    """K1 at the gate: every word of the source is in the file about to be named.
+
+    WP-11 / EF-027. The measurement existed — `fidelity.text_survives` — and was
+    reachable from a separate command and from the corpus, which means it ran
+    after the fact on a machine that had already written the book, or never.
+
+    What it catches that the others do not is the quietest loss there is. The
+    invariant gate in front of the writer sees a *document* disappear; a
+    paragraph is not a document. EPUBCheck reads the file as a specification
+    and has no opinion about how much of the book is in it. The render check
+    draws a sample of pages, and the page a converter dropped a paragraph from
+    is not necessarily in the sample.
+
+    Character-level and as a **subsequence**, which is K1 as it is actually
+    written and the rule the corpus has been running over a hundred and sixty
+    real books. Not `fidelity.text_survives`, which compares word *sets*: that
+    is a fair measurement after the fact and a bad gate, because unwrapping a
+    `<span>` joins two half-words into one and a word disappears while every
+    character is exactly where it was. Wiring the word-set version to the gate
+    failed twenty-two tests inside a minute, every one of them a legitimate
+    rebuild — which is how the two got told apart.
+    """
+    if not policy.verify_text_survives:
+        return None
+
+    from . import fidelity
+
+    def gate(candidate: str) -> str:
+        try:
+            if _more_than_one_rendition(source):
+                # `rebuild_all` writes each rendition into its own file, so the
+                # source's reading order is the *union* of them and comparing it
+                # against one output reports the other rendition's text as lost.
+                # Said rather than silently passed: a gate that quietly excuses
+                # itself is worse than one that is not there.
+                report.add("package", Level.INFO, "package.text-check-per-rendition")
+                return ""
+            check = fidelity.text_is_preserved(source, candidate)
+        except Exception as exc:
+            # A check that cannot run is not a book that failed. Said out loud
+            # rather than passed over, because a silent skip is how a gate stops
+            # being a gate without anybody noticing.
+            report.add(
+                "package",
+                Level.WARN,
+                "package.text-check-failed",
+                values={"detail": f"{type(exc).__name__}: {exc}"},
+            )
+            return ""
+        if check.ok:
+            return ""
+        consented = sorted(
+            {
+                finding.rule
+                for finding in report.findings
+                if finding.rule in REMOVES_TEXT_ON_PURPOSE
+            }
+        )
+        if consented:
+            # Text did leave the book, and somebody asked for it to. Reported
+            # rather than refused, and reported rather than passed over in
+            # silence: the person reading this is entitled to know that the
+            # invariant no longer holds character for character and why.
+            report.add(
+                "package",
+                Level.WARN,
+                "package.text-changed-on-request",
+                values={"rules": ", ".join(consented), "detail": check.detail},
+            )
+            return ""
+        report.add(
+            "package",
+            Level.ERROR,
+            "package.text-lost",
+            values={"detail": check.detail},
+        )
+        return f"K1: {check.detail}"
 
     return gate
 
