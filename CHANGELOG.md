@@ -36,6 +36,10 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## Unreleased
+
+_Nic jeszcze._
+
 ## 0.2.28 — alpha — 2026-08-16
 
 Seria porządkowa według specyfikacji właściciela, kroki 0–9, domknięta.
@@ -82,10 +86,14 @@ czyjś tytuł, więc to mówi.
 ### Widoczne ślady księgarni — do usunięcia, jeśli o to poprosisz
 
 WP-17 / D-019. Dotąd widoczna notka księgarni była **zawsze** zachowywana, na tej
-podstawie, że zdanie, które kupujący ma przeczytać, to jego sprawa. Właściciel:
-to jest jego sprawa właśnie dlatego, że kupił książkę i ma paragony — a zdanie
-księgarni siedzi w biegnącym tekście jednej z nich tuż przed pierwszym zdaniem
-powieści.
+podstawie, że zdanie, które kupujący ma przeczytać, to jego sprawa. Odwrócone:
+jest jego sprawą właśnie dlatego, że to on kupił książkę — a taka wstawka potrafi
+siedzieć w biegnącym tekście tuż przed pierwszym zdaniem powieści albo dokładać
+całą stronę.
+
+Zastrzeżenie, które przy tej funkcji musi paść: program **nie zdejmuje DRM**
+i nie służy do obchodzenia zabezpieczeń. Usuwa wstawki księgarni z plików, do
+których użytkownik ma prawo, i zakłada, że je ma.
 
 Nowy przełącznik, **domyślnie wyłączony**, osobny od „znaków wodnych" (tamten
 pyta, jak widoczny może być ukryty znacznik; ten pyta, czy wolno skasować
@@ -111,8 +119,8 @@ uszkodzenie, którego można nie zauważyć aż do tej strony.**
 
 Raport wypisuje każde usunięte zdanie **co do słowa**, nie liczbę — to jedyny
 przełącznik w programie kasujący tekst widoczny dla czytelnika, więc masz czym
-sprawdzić, że zabrał zdanie księgarni, a nie zdanie z Twojej książki. Żadna
-strona nie jest usuwana.
+sprawdzić, że zabrał zdanie księgarni, a nie zdanie z książki. Żadna strona nie
+jest usuwana.
 
 ### Reszta serii
 
@@ -126,8 +134,6 @@ kontrakt tego wymaga.
 Korpus publiczny: 19 książek × 3 tryby, zero błędów EPUBCheck, dwie świadome
 odmowy w trybie ścisłym. Sygnatury korpusu **bajtowo identyczne** przez cały
 podział `content.py`.
-
-## Unreleased
 
 ### Słownik jako drugi dowód dla łączników — pierwsza połowa
 
