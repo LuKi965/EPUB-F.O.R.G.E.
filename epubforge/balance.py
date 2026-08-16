@@ -160,6 +160,7 @@ def characters_in(text: str) -> int:
 
 
 _TAG_RE = None
+_NOT_TEXT_RE = None
 
 
 def _characters_of(book) -> int:
@@ -179,11 +180,27 @@ def _characters_of(book) -> int:
     A number in a report may not decide whether a book rebuilds. This counts
     what is there and never raises.
     """
+    import html
     import re
 
-    global _TAG_RE
+    global _TAG_RE, _NOT_TEXT_RE
     if _TAG_RE is None:
         _TAG_RE = re.compile(rb"<[^>]*>")
+    if _NOT_TEXT_RE is None:
+        # `<style>` and `<script>` sit inside the body of a document and are not
+        # read by anybody. Stripping tags alone leaves their **contents** behind,
+        # and those contents were being counted as the book's text.
+        #
+        # Found by EF-041 rather than on purpose, which is worth writing down.
+        # Fixing the cover template stopped a stylesheet block from being
+        # injected into a chapter, and the character balance promptly reported
+        # 431 → 388: a loss of 43 characters that were never text, on a rebuild
+        # that had lost nothing. The count had been inflated by exactly the CSS
+        # this program adds — so the closer the rebuild came to touching a
+        # document, the more "text" it appeared to gain.
+        _NOT_TEXT_RE = re.compile(
+            rb"<(style|script)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
+        )
 
     total = 0
     for item in getattr(book, "spine", ()) or ():
@@ -191,8 +208,25 @@ def _characters_of(book) -> int:
         if resource is None or not getattr(resource, "is_content_doc", False):
             continue
         try:
-            stripped = _TAG_RE.sub(b" ", resource.data).decode("utf-8", "replace")
-            total += characters_in(stripped)
+            readable = _NOT_TEXT_RE.sub(b" ", resource.data)
+            stripped = _TAG_RE.sub(b" ", readable).decode("utf-8", "replace")
+            # Character references resolved before counting, because the two
+            # sides of this balance are written differently. A legacy source
+            # spells the word `Rozdzia&#322;`; the rebuilt document spells it
+            # `Rozdział`. Same word, same reading, twelve characters against
+            # eight — and the balance was subtracting the difference and calling
+            # it lost text.
+            #
+            # Measured on the suite's own legacy fixture: 431 → 388, a "loss" of
+            # 43 characters on a rebuild that lost nothing, every one of them an
+            # entity the rebuild had decoded. Most books this program is for are
+            # legacy books full of `&#261;` and `&nbsp;`, so K1's number was
+            # meaningless for exactly the books it matters most on.
+            #
+            # After stripping tags rather than before: `&lt;p&gt;` in somebody's
+            # text is text, and unescaping first would turn it into a tag for
+            # the stripper to eat.
+            total += characters_in(html.unescape(stripped))
         except Exception:
             continue
     return total

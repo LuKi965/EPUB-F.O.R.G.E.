@@ -236,3 +236,77 @@ class TestTheGateDoesNotCostTheBook:
             Policy.preset("preserve", verify_text_survives=False).verify_text_survives
             is False
         )
+
+
+class TestTheCounterCountsTextAndOnlyText:
+    """Dwa defekty licznika znaków, oba znalezione przy EF-041 i oba takie, że
+    ukrywały się nawzajem.
+
+    Test „obie strony się zgadzają" przechodził **przez przypadek**: wstrzykiwany
+    blok CSS dokładał do wyniku mniej więcej tyle znaków, ile gubiła nieodkodowana
+    encja po stronie źródła. Naprawa jednego z nich odsłoniła drugi — a naprawa
+    obu daje liczbę, która wreszcie znaczy to, co obiecuje.
+    """
+
+    def test_css_in_a_style_block_is_not_the_books_text(self):
+        """`<style>` siedzi w dokumencie i nie czyta go nikt. Zdejmowanie samych
+        znaczników zostawiało jego **zawartość**, więc im bliżej program podszedł
+        do dokumentu, tym więcej „tekstu" książka pozornie zyskiwała."""
+        from epubforge.balance import _characters_of
+
+        book = _one_document(
+            "<html><head><style>body { color: red; margin: 0 }</style></head>"
+            "<body><p>Tekst</p></body></html>"
+        )
+        assert _characters_of(book) == len("Tekst")
+
+    def test_a_script_is_not_the_books_text_either(self):
+        from epubforge.balance import _characters_of
+
+        book = _one_document(
+            "<html><body><script>var x = 1; alert('nie tekst');</script>"
+            "<p>Tekst</p></body></html>"
+        )
+        assert _characters_of(book) == len("Tekst")
+
+    def test_an_entity_counts_as_the_character_it_stands_for(self):
+        """`Rozdzia&#322;` i `Rozdział` to to samo słowo. Licznik porównywał
+        stronę zakodowaną z odkodowaną i różnicę nazywał utraconym tekstem —
+        na książkach legacy, czyli tych, dla których ten program powstał."""
+        from epubforge.balance import _characters_of
+
+        encoded = _one_document("<html><body><p>Rozdzia&#322;</p></body></html>")
+        decoded = _one_document("<html><body><p>Rozdział</p></body></html>")
+        assert _characters_of(encoded) == _characters_of(decoded) == len("Rozdział")
+
+    def test_a_named_entity_too(self):
+        from epubforge.balance import _characters_of
+
+        assert _characters_of(
+            _one_document("<html><body><p>a&nbsp;b&amp;c</p></body></html>")
+        ) == _characters_of(_one_document("<html><body><p>a b&c</p></body></html>"))
+
+    def test_and_escaped_markup_in_the_text_stays_text(self):
+        """`&lt;p&gt;` w czyimś tekście jest tekstem. Odkodowanie **przed**
+        zdjęciem znaczników zrobiłoby z niego znacznik do zjedzenia."""
+        from epubforge.balance import _characters_of
+
+        book = _one_document("<html><body><p>pisz &lt;p&gt; tak</p></body></html>")
+        assert _characters_of(book) == len("pisz <p> tak")
+
+
+def _one_document(markup: str):
+    """Najmniejsza atrapa, jaką `_characters_of` umie policzyć: jeden dokument
+    w grzbiecie."""
+    class Resource:
+        is_content_doc = True
+        def __init__(self, data): self.data = data
+
+    class Item:
+        path = "a.xhtml"
+
+    class Book:
+        spine = [Item()]
+        def get(self, path): return Resource(markup.encode("utf-8"))
+
+    return Book()

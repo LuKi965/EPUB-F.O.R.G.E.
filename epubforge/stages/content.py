@@ -425,6 +425,24 @@ def _colour(value: str) -> "tuple[int, int, int] | None":
     return {"black": (0, 0, 0), "white": (255, 255, 255)}.get(said)
 
 
+def _has_flow_text(root) -> bool:
+    """Whether this document has running text — anything to lay out besides art.
+
+    The question the cover page template has to be asked before it is used
+    (EF-041). A cover page is one image; a document with a sentence in it is
+    somebody's chapter, and centring it in a flex box the height of the screen
+    is not a repair.
+
+    Whitespace does not count, and neither does the `<title>` in the head: a
+    cover page has a title like every other document. What counts is text a
+    reader would see on the page.
+    """
+    body = root.find(xhtml.qname("body"))
+    if body is None:
+        return False
+    return bool("".join(body.itertext()).strip())
+
+
 def _append_style(element, declarations: str) -> None:
     if not declarations:
         return
@@ -2085,10 +2103,24 @@ class ContentStage(Stage):
             return
 
         head = root.find(xhtml.qname("head"))
-        if head is None:
-            # No head to put a block in, so fall back to what the old code did.
-            # Half a repair, and better than none: `max-width` works without a
-            # containing block even though `max-height` does not.
+        # The page-level template lays out the **whole document**: `height: 100%`
+        # on html and body, and a centring flex box. That is right for a cover
+        # page, which is one image and nothing else, and destroys any document
+        # with text in it — the running text gets centred and clipped to the
+        # height of the screen, and whatever does not fit simply is not drawn.
+        #
+        # EF-041, measured. A legacy `<guide>` may point `type="cover"` at a
+        # document that is also chapter one, and books do: the suite's own
+        # legacy fixture is one. Before this condition existed, that chapter got
+        # the cover template and came out with **3.3% → 2.9%** of the page inked
+        # at 600×800 — the render gate caught it and refused to publish, which
+        # is the gate working exactly as intended.
+        #
+        # So the template needs a page with nothing to lay out, and everything
+        # else gets the per-image rule instead: `max-width`/`max-height` can only
+        # ever make an image smaller than it already is, so it is safe on any
+        # document, and it is what this code did before WP-8.
+        if head is None or _has_flow_text(root):
             for element in still_wanted:
                 _append_style(element, "max-width: 100%; max-height: 100%;")
         else:

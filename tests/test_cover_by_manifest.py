@@ -46,6 +46,52 @@ def rebuilt(tmp_path, name: str = "out.epub"):
     return result
 
 
+#: Ta sama okładka co w atrapie legacy, ale na stronie, która jest **wyłącznie**
+#: okładką: obrazek i nic poza nim. To jest kształt, dla którego szablon strony
+#: okładkowej powstał, i jedyny, w którym wolno go użyć (EF-041).
+COVER_ONLY_PAGE = (
+    '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+    '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+    '<meta charset="utf-8"/><title>Okładka</title></head>'
+    '<body><div><img src="cover.png" alt=""/></div></body></html>'
+)
+
+
+def cover_page_book(tmp_path, name: str = "cover-page.epub"):
+    """Książka, której okładka jest osobną stroną bez tekstu."""
+    from tests.factory import MODERN_NAV, write_zip
+    from tests.test_dead_css_urls import CONTAINER, PNG
+
+    package = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+        'unique-identifier="i"><metadata '
+        'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        '<dc:identifier id="i">urn:uuid:9</dc:identifier><dc:title>T</dc:title>'
+        "<dc:language>pl</dc:language>"
+        '<meta property="dcterms:modified">2020-01-01T00:00:00Z</meta></metadata>'
+        "<manifest>"
+        '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
+        '<item id="c" href="cover.xhtml" media-type="application/xhtml+xml"/>'
+        '<item id="img" href="cover.png" media-type="image/png" properties="cover-image"/>'
+        "</manifest>"
+        '<spine><itemref idref="c"/></spine></package>'
+    )
+    source = write_zip(str(tmp_path / name), {
+        "META-INF/container.xml": CONTAINER.encode(),
+        "OEBPS/package.opf": package.encode(),
+        "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+        "OEBPS/cover.xhtml": COVER_ONLY_PAGE.encode(),
+        "OEBPS/cover.png": PNG,
+    })
+    result = rebuild(
+        source, str(tmp_path / f"out-{name}"),
+        Policy.preset("preserve", validate_before_publish="off"),
+    )
+    assert result.status.wrote_a_file, result.report.to_text()
+    return result
+
+
 def documents(result) -> "dict[str, str]":
     with zipfile.ZipFile(result.output_path) as archive:
         return {
@@ -132,11 +178,67 @@ class TestOneTemplateForBothCoverPages:
 
     def test_the_repair_lands_in_the_document_head(self, tmp_path):
         """Two of the three rules are about `html` and `body`, and an inline
-        style cannot say anything about an ancestor. So it has to be a block."""
-        written = documents(rebuilt(tmp_path, "head.epub"))
-        fitted = [page for page in written.values() if "EPUB-Forge: nothing in this book sized the cover" in page]
-        assert fitted, "the fixture's cover is unsized, so one page must carry it"
+        style cannot say anything about an ancestor. So it has to be a block.
+
+        Measured on a page that is *only* the cover, which is what this template
+        is for. The earlier version of this test used the legacy fixture, whose
+        cover reference points at chapter one — see `TestTheTemplateNeedsAPage`
+        below for why that was asserting a defect.
+        """
+        written = documents(cover_page_book(tmp_path))
+        fitted = [
+            page for page in written.values()
+            if "EPUB-Forge: nothing in this book sized the cover" in page
+        ]
+        assert fitted, "the cover is unsized, so the page must carry the template"
         assert "<head" in fitted[0].split("html, body")[0]
+
+
+class TestTheTemplateNeedsAPageWithNothingToLayOut:
+    """EF-041, and the finding that held a release back.
+
+    `COVER_STYLE_ADDED` lays out the **whole document**: `height: 100%` on html
+    and body, and a centring flex box. That is right for a cover page — one
+    image, nothing else — and it destroys any document with text in it, because
+    the running text is centred and clipped to the height of the screen and
+    whatever does not fit is simply not drawn.
+
+    A legacy `<guide>` may point `type="cover"` at a document that is also
+    chapter one, and books do — the suite's own legacy fixture is one. That
+    chapter was getting the page template, and the rebuilt page came out with
+    **3.3% → 2.9%** of it inked at 600×800. The render gate refused to publish,
+    which is the gate doing exactly what it exists for.
+
+    The previous version of the test above asserted that behaviour, because the
+    test was written from the same misunderstanding as the code.
+    """
+
+    def test_a_chapter_that_happens_to_be_named_as_the_cover_keeps_its_layout(
+        self, tmp_path
+    ):
+        written = documents(rebuilt(tmp_path, "guide.epub"))
+        chapter = next(
+            page for name, page in written.items() if name.endswith("chapter-1.xhtml")
+        )
+        assert "Rozdział pierwszy" in chapter, "wrong page — the fixture moved"
+        assert "display: flex" not in chapter
+        assert "html, body { height: 100%" not in chapter
+
+    def test_but_the_image_is_still_kept_from_overflowing(self, tmp_path):
+        """The repair is not withdrawn, only scoped. `max-width`/`max-height` on
+        the image itself can only ever make it smaller, so it is safe on any
+        document — and it is what this code did before WP-8."""
+        written = documents(rebuilt(tmp_path, "scoped.epub"))
+        chapter = next(
+            page for name, page in written.items() if name.endswith("chapter-1.xhtml")
+        )
+        assert "max-width: 100%" in chapter
+
+    def test_a_real_cover_page_still_gets_the_template(self, tmp_path):
+        """The other side, so that the condition cannot be tightened into
+        uselessness: a page carrying the cover and no text gets the block."""
+        written = documents(cover_page_book(tmp_path))
+        assert any("display: flex" in page for page in written.values())
 
 
 class TestAPixelSizedCoverIsReportedNotOverwritten:
