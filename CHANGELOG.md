@@ -73,6 +73,78 @@ każde `pseudo-`, `eks-` i `pół-` do kolejki jako pytanie. Próg mierzy się n
 korpusie właściciela, nie zgaduje (D-012).
 
 
+### Pytania mówią wreszcie tym językiem, co okno
+
+EF-032, i to jest defekt, który trudno zobaczyć z polskiej maszyny. Raport ma
+dwujęzyczny katalog od 0.2.4 i renderuje z `rule` + `values` w chwili
+wyświetlenia. Pytania — czyli **jedyne miejsce, w którym ten program naprawdę
+rozmawia z człowiekiem** — nie miały ani katalogu, ani renderowania: każde było
+polskim literałem w tym module, który akurat je podnosił.
+
+Więc użytkownik angielski dostawał okno po angielsku, a potem, w momencie
+decydowania o czymś nieodwracalnym w swojej książce, akapit po polsku.
+
+Nowy `epubforge/question_texts.py`: pięć pytań, dziesięć opcji, oba języki,
+klucze nazywające **sytuację, a nie brzmienie**, żeby przeredagowanie pytania
+było edycją jednego pliku.
+
+Mechanizm celowo mniejszy niż w raporcie, i warto powiedzieć dlaczego, bo
+wygląda na niekonsekwencję. Raport jest pisany raz i czytany w dowolnym języku,
+więc trzyma dane i renderuje przy każdym odczycie. Pytanie jest zadane,
+odpowiedziane i znika — renderuje się raz, w chwili zadawania.
+
+Skąd język: `gui.strings.set_language` przestawia teraz oba naraz, więc nie ma
+jak przestawić jednego bez drugiego. Poza oknem — `EPUBFORGE_LANG`, ta sama
+zmienna, którą `cli.py` już czytał na końcową uwagę.
+
+Test, który pilnuje tego naprawdę, dotyczy **cichej** awarii: klucz obecny
+w jednym katalogu i nieobecny w drugim nie psuje się głośno — fallback podaje
+polski i wszystko wygląda na działające, dopóki ktoś na to nie patrzy. Więc
+sprawdzane jest, że oba katalogi mają te same klucze **i te same placeholdery**,
+oraz że w `hyphens.py` i `pipeline.py` nie został ani jeden polski `summary=`.
+
+### `stages/content.py` przestał być dwoma modułami w jednym pliku
+
+EF-031. 3865 linii i dwie niezwiązane ze sobą roboty. `StyleStage` mieszka teraz
+w `stages/style.py`, a granica jest ta, którą testy i tak już rysowały: tam
+wchodzi tekst CSS i wychodzi tekst CSS, i nie dotyka to żadnego dokumentu
+treści. `ContentStage` obok robi odwrotnie.
+
+```
+content.py   3865 → 2900 linii
+style.py            987 linii
+```
+
+Przeniesienie, nie przepisanie — kod jest przeniesiony dosłownie, a osiemnaście
+stałych i pomocników poszło razem z nim dlatego, że **pomiar** przed cięciem
+pokazał, że używa ich wyłącznie ten jeden etap. Współdzielone (`strip_remote_imports`,
+`_css_length`, `_colour`, `_selector_classes`) zostają w `content.py`, bo
+`ContentStage` też ich używa; `style.py` importuje z `content.py`, nigdy
+odwrotnie. Z zewnątrz nie zmienia się nic: `stages/__init__.py` nadal podaje oba
+etapy z jednego miejsca.
+
+**Dowód, i jest mocniejszy niż zielona suita.** WP-14 wymagał sygnatur korpusu
+bajtowo identycznych, więc: `test_public_corpus` i `test_corpus_gutenberg`
+przebudowały 19 książek w trzech trybach i porównały je z sygnaturami zapisanymi
+**przed** podziałem — przechodzą bez nagrywania czegokolwiek od nowa, a pliki
+sygnatur mają tę samą sumę SHA-256.
+
+Granicy pilnuje teraz test, nie opis: `style.py` nie ma prawa importować `lxml`,
+a cztery przeniesione stałe nie mają prawa wrócić do `content.py`. Bez tego
+moduły zrastają się z powrotem po jednym wygodnym imporcie — dokładnie tak
+powstało tamte 3865 linii.
+
+Przy okazji **EF-037**: docstring `render_fidelity` mówił „opt-in check", a
+`Policy.render_gate` domyślnie mówi `stop` (D-016). Prawdą jest domyślna.
+Docstring nie jest drugim miejscem, w którym zapada polityka.
+
+**EF-036 obalone.** Ustalenie mówiło, że pięć modułów to „narzędzia autora
+w pakiecie runtime". Sprawdzone po kolei: `repair` (scalanie kopii), `survey`
+(przegląd biblioteki), `corpus` i `fixtures` (zakładka Korpus), `edge_cases`
+(`gui/tabs.py:709`) — **wszystkie pięć jest osiągalnych z okna**. Siedzą
+w pakiecie dokładnie dlatego, że S-04 każe wszystko udostępnić z okna. To nie
+jest dług do spłacenia, to jest kontrakt działający.
+
 ### Piksele przestały być cichą regułą
 
 WP-13, i dwa ustalenia, które przy pisaniu okazały się **tym samym błędem
