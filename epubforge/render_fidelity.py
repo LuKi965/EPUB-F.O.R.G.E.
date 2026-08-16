@@ -395,7 +395,16 @@ def compare(
     engine = render.version(browser)
     result = RenderFidelity(available=True, engine=engine)
 
-    with tempfile.TemporaryDirectory() as room:
+    # `ignore_cleanup_errors` because of a Windows crash on the owner's own
+    # machine: `OSError: [WinError 145] Katalog nie jest pusty`, raised while
+    # deleting this directory, which turned into "the rebuilt book could not be
+    # written". Windows will not remove a directory while anything still holds a
+    # handle inside it — the browser that has just exited, an indexer, an
+    # antivirus scanner — and none of that is a reason to lose somebody's book.
+    #
+    # It was invisible until 0.2.25 fixed browser discovery: this path had never
+    # once run on Windows before, because Edge was never found.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as room:
         room_path = pathlib.Path(room)
         before_root = _extract(source, room_path / "przed")
         after_root = _extract(output, room_path / "po")

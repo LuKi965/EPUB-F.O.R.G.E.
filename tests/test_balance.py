@@ -220,3 +220,68 @@ class TestWhatItCountsAndWhatItDoesNot:
 
         assert not balance.reconcile(before, after, [Entry(Action.MOVED)]).closes
         assert balance.reconcile(before, after, [Entry(Action.REMOVED)]).closes
+
+
+class TestABalanceMayNotCryWolf:
+    """The owner's first batch on 0.2.25: both books refused, and the balance
+    was wrong, not the books.
+
+    With *omit the legacy NCX* ticked — a setting he chose — the source's
+    `toc.ncx` left the book, the balance saw one resource fewer in `other` with
+    nothing accounting for it, and reported an error about a removal he had
+    asked for.
+
+    A false alarm from a check like this is worse than no check. It teaches the
+    person reading the report to skip past the one message that means something,
+    and this program's whole claim is that its messages mean something.
+    """
+
+    @staticmethod
+    def _with_an_ncx(path) -> str:
+        return make_legacy_epub(str(path))
+
+    def test_dropping_the_ncx_on_request_is_not_an_unexplained_loss(self, tmp_path):
+        result = rebuild(
+            self._with_an_ncx(tmp_path / "in.epub"),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off", write_ncx=False),
+        )
+        assert result.report.balance.closes, result.report.balance.as_dict()
+        assert "package.balance-unexplained" not in rules_of(result)
+        assert result.status is not None
+
+    def test_and_it_is_still_recorded_as_a_removal(self, tmp_path):
+        """Not silenced — accounted for. The file really is gone, he really did
+        ask, and a machine can now read both halves of that."""
+        result = rebuild(
+            self._with_an_ncx(tmp_path / "in.epub"),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off", write_ncx=False),
+        )
+        removals = [
+            change for change in result.report.changes
+            if change.rule == "nav.ncx-dropped"
+        ]
+        assert len(removals) == 1, [c.rule for c in result.report.changes]
+        assert removals[0].action is Action.REMOVED
+
+    def test_keeping_the_ncx_still_balances(self, tmp_path):
+        """The other half: rewriting it under a new name moves a file rather
+        than losing one.
+
+        Asserted on the ledger rather than on the count, and the first draft of
+        this test got that wrong — it required `other` to come out unchanged,
+        and this fixture also carries a `.DS_Store` that the junk sweep removes
+        and accounts for. The count is allowed to move; what may not happen is a
+        move being recorded as a loss.
+        """
+        result = rebuild(
+            self._with_an_ncx(tmp_path / "in.epub"),
+            str(tmp_path / "out2.epub"),
+            Policy.preset("preserve", validate_before_publish="off", write_ncx=True),
+        )
+        assert result.report.balance.closes, result.report.balance.as_dict()
+        assert not [
+            change for change in result.report.changes
+            if change.rule == "nav.ncx-dropped"
+        ], "the NCX was kept, so nothing may record it as removed"

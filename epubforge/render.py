@@ -181,10 +181,24 @@ def shoot(
         raise RenderError("no renderer")
     target = pathlib.Path(destination)
     width, height = viewport
-    with tempfile.TemporaryDirectory() as profile:
+    # The browser writes its profile here and does not always let go of it
+    # before the process exits, which on Windows makes deleting the directory
+    # raise. A screenshot that succeeded must not fail on the tidying up.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
         command = [
             str(browser),
-            "--headless",
+            # `--headless=new` rather than bare `--headless`. The owner saw an
+            # Edge window open on his machine and show nothing, which is exactly
+            # what a browser does when it does not recognise the flag: it starts
+            # normally. Bare `--headless` is the deprecated spelling and recent
+            # Chrome and Edge builds no longer honour it the old way.
+            #
+            # A window opening and sitting blank is not a cosmetic problem. It
+            # is a program doing something on somebody's screen that looks like
+            # it should not be happening, which is a fair thing to be suspicious
+            # of and a bad thing for a tool that is asking to be trusted with a
+            # library.
+            "--headless=new",
             "--disable-gpu",
             "--no-sandbox",
             "--hide-scrollbars",

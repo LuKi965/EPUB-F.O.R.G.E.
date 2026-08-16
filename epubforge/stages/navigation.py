@@ -779,15 +779,49 @@ class NavigationStage(Stage):
 
     def _drop_ncx(self, ctx: Context) -> None:
         if ctx.book.ncx_path:
-            ctx.book.remove(ctx.book.ncx_path)
+            dropped = ctx.book.ncx_path
+            ctx.book.remove(dropped)
             ctx.book.ncx_path = None
+            # In the ledger, because the balance is right to ask about it and
+            # this is the answer. Found on the owner's own run: with "omit the
+            # legacy NCX" ticked, the source's `toc.ncx` left the book, the
+            # balance saw one resource fewer with nothing accounting for it, and
+            # reported an error on a removal he had *asked for*.
+            #
+            # A false alarm from a check like this is worse than no check: it
+            # teaches the person to read past the one message that means
+            # something. The removal is deliberate, it is his to ask for, and it
+            # now says so where a machine can read it.
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                "other",
+                before=dropped,
+                after="",
+                risk=Risk.NONE,
+                reversible=True,
+                rule="nav.ncx-dropped",
+            )
             self.note(ctx, Level.INFO, "nav.ncx-dropped")
 
     def _write_ncx(self, ctx: Context) -> None:
         book = ctx.book
         ncx_path = paths.content_path(ctx.policy, "toc.ncx")
         if book.ncx_path and book.ncx_path != ncx_path:
+            # The same file under a new name, written again below. Recorded as a
+            # move rather than a removal so the balance sees what happened: the
+            # count is unchanged and nothing has gone missing.
             book.remove(book.ncx_path)
+            self.changed(
+                ctx,
+                Action.MOVED,
+                "other",
+                before=book.ncx_path,
+                after=ncx_path,
+                risk=Risk.NONE,
+                reversible=True,
+                rule="nav.ncx-written",
+            )
 
         identifier = book.metadata.primary_identifier
         counter = [0]

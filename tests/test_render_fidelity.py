@@ -337,3 +337,4 @@ class TestFindingTheBrowserWhereItActuallyIs:
     def test_no_trailing_separator_doubles_up(self):
         found = render.windows_installs({"PROGRAMFILES": "C:\\Program Files\\"})
         assert all("\\\\" not in name for name in found), found
+

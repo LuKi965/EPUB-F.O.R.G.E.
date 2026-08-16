@@ -408,7 +408,7 @@ def _keep_evidence(source, candidate, destination, measured, report) -> str:
     try:
         os.makedirs(folder, exist_ok=True)
         browser = render.find_renderer()
-        with tempfile.TemporaryDirectory() as room:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as room:
             room_path = pathlib.Path(room)
             before = render_fidelity._extract(source, room_path / "przed")
             after = render_fidelity._extract(candidate, room_path / "po")
