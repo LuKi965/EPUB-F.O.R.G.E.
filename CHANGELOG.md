@@ -38,6 +38,54 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The engine, and nothing but the engine
+
+The owner's answer to 0.2.27 was that I had half-done what he asked: *mamy
+WBUDOWANE Chromium, na cholerę nam w ogóle „opcjonalny" Edge.* He is right.
+Demoting `EPUBFORGE_CHROME` left the whole apparatus standing — the `PATH`
+search, the Program Files paths, Playwright's download directory, and an
+override that could put any of them back in front of the engine we ship.
+
+All of it is gone. Every one of those paths existed for a single reason, that
+this program had no engine of its own, and that reason ended when 0.2.26 put
+one in the installer. What they bought in the meantime was an answer that
+depended on the desk the program was standing on.
+
+One door is left, and only one: a build that carries **no** engine — a
+checkout, a `pip` install, this project's own render tests — reads
+`EPUBFORGE_CHROME`. It cannot apply to a release, because a release always
+carries one.
+
+### Attributes an element was never allowed to carry
+
+Seven shapes of `RSC-005` survived a `preserve` rebuild on the second shelf —
+errors *this program produced*, in books that arrived without them. Two were
+attributes nobody ever defined (`font17`, `p`: an exporter writing its own
+bookkeeping into the markup); the rest were legacy attributes on elements that
+never took them (`clear` on a `<p>`, `size` on a `<span>`, `link` on a `<div>`).
+
+Naming them one by one would have fixed those seven and left the next seven, so
+the rule runs the other way: **an attribute an element is not allowed to carry
+is one no engine reads.** That is what makes removing it safe, and it is also
+why leaving it is an error rather than a quirk. Where the attribute still meant
+something to a page it is translated into CSS first — `clear` becomes
+`clear: both`, `<hr size="3">` becomes a height — so the appearance survives the
+removal. Anything with a vocabulary of its own is not touched: `data-`, `aria-`,
+`epub:`, RDFa, and every element outside the XHTML namespace.
+
+That last exemption is not theoretical. The first version had no namespace rule
+and stripped `viewBox` off an `<svg>`, which is a drawing losing its coordinate
+system. The suite caught it in one run.
+
+Two more shapes from the same shelf, both fixed by putting the content where
+the reader was already seeing it: a link loose inside a `<table>` but not in a
+cell is lifted out in front of the table (which is where every HTML parser has
+foster-parented it for twenty years), and flow content that landed in `<head>`
+moves to the top of `<body>` (where a browser has always started it). Measured
+on a synthetic book carrying all of them: **12 EPUBCheck errors in, 1 out** —
+and the one left is the fixture's own missing image.
+
+
 ## 0.2.27 — alpha — 2026-08-16
 
 Both defects the owner reported on 0.2.26, and a false alarm his corpus run

@@ -8,12 +8,18 @@ bottom of the page. Nothing here had ever looked at a rendered page.
 The renderer is Chromium, driven headless through its own command line. Two
 things about that choice, both deliberate:
 
-**It is not a dependency of the program.** Nothing in a rebuild renders
-anything, and an installer that carried a browser to repair an EPUB would be
-absurd. This module *finds* a browser if the machine has one and says plainly
-what is missing if it does not — reachable from the window either way, because
-"the check you are asking for needs something you do not have, here is what"
-is an answer and a greyed-out button is not.
+**The engine is the one we ship, and only that one.** Until 0.2.26 there was
+none, so this module hunted for a browser: the `PATH`, the Program Files
+directories, Playwright's downloads, an environment variable. All of it went in
+0.2.28, once there was an engine in the installer to make it pointless. What
+that apparatus really did was make every answer a property of the desk the
+program was standing on — Edge, found on every Windows machine, disagreed with
+Chromium about three of four kinds of damage and reported no version at all.
+
+A checkout carries nothing, so there one variable remains — `EPUBFORGE_CHROME`
+— and where even that is unset the answer is a paragraph saying so, reachable
+from the window, because "the check you asked for needs something you do not
+have, here is what" is an answer and a greyed-out button is not.
 
 **The version is recorded, not assumed.** A rendered page is a function of the
 engine that drew it, so a comparison across two engine versions measures the
@@ -32,55 +38,16 @@ from __future__ import annotations
 import os
 import pathlib
 import re
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 
 from . import spawn
 
-#: Names an engine somebody else's machine may have. Read when this program is
-#: running from a checkout and carries nothing of its own; a release build has
-#: its own engine and does not get here.
+#: Names the engine to use **when this build carries none** — a checkout, a
+#: `pip` install, this project's own render tests. That is the whole of its job
+#: from 0.2.28; a release build has its own engine and never reads it.
 ENV_BROWSER = "EPUBFORGE_CHROME"
-
-#: Makes the named engine outrank the carried one, which it no longer does on
-#: its own. See :func:`chosen` for why, at length.
-ENV_BROWSER_WINS = "EPUBFORGE_CHROME_OVERRIDE"
-
-#: Names a browser goes by, in the order they are tried.
-#:
-#: **Edge is deliberately not among them**, and was until 0.2.27. It was added
-#: when the problem looked like "find any Chromium" and removed once there were
-#: numbers: measured against the same four kinds of damage, Edge disagreed with
-#: Chromium about three of them and reported no version string at all, which
-#: also defeats the check that two runs are comparable. An engine that answers
-#: differently is not a fallback — it is a second opinion nobody asked for,
-#: silently replacing the first.
-_NAMES = (
-    "chrome-headless-shell",
-    "chromium", "chromium-browser", "chrome", "google-chrome",
-    "google-chrome-stable",
-)
-
-#: Where Playwright puts the browsers it downloads. Searched because a machine
-#: that has run any Python browser automation already has one, and asking
-#: somebody to install a second copy is asking for nothing.
-_PLAYWRIGHT = "PLAYWRIGHT_BROWSERS_PATH"
-
-#: Where Windows keeps the browsers, for a checkout that carries no engine.
-#:
-#: Searching `PATH` alone made the whole feature useless on the only platform
-#: this program is released for: nothing here is on `PATH`, it all lives under
-#: Program Files, so `find_renderer` answered `None` on a normal Windows box and
-#: every rebuild was refused for want of a browser sitting right there.
-#:
-#: Edge left this list in 0.2.27 for the reason given above `_NAMES`.
-_WINDOWS_PROGRAMS = (
-    r"Google\Chrome\Application\chrome.exe",
-    r"Chromium\Application\chrome.exe",
-    r"BraveSoftware\Brave-Browser\Application\brave.exe",
-)
 
 #: Rendered at this size unless asked otherwise. A six-inch reader at 1×, which
 #: is the device the owner's library is read on.
@@ -96,21 +63,15 @@ class Choice:
     """Which engine is going to draw, and where it came from.
 
     Exists so that question has an answer somebody can read. The owner spent a
-    release watching this program start Edge and had no way to find out why
-    short of reading the source: a variable he had set weeks earlier, for a
-    build that carried no engine of its own, was quietly outranking the engine
-    the release ships. Nothing on the screen said so.
+    release watching this program start Edge with no way to find out why short
+    of reading the source.
     """
 
     #: The engine, or ``None`` when there is none to be had.
     path: "pathlib.Path | None"
-    #: ``carried`` (shipped with this build), ``named`` (the variable),
-    #: ``machine`` (found installed), or ``none``.
+    #: ``carried`` (shipped with this build), ``named`` (the variable, and only
+    #: where nothing is carried), or ``none``.
     origin: str = "none"
-    #: Set when the variable named something and the carried engine was used
-    #: anyway. Carries the value, because the whole point is being able to see
-    #: what it was pointing at.
-    overruled: str = ""
 
     @property
     def carried(self) -> bool:
@@ -122,111 +83,53 @@ def _named() -> "pathlib.Path | None":
     return pathlib.Path(value) if value else None
 
 
-def _wants_to_win() -> bool:
-    return os.environ.get(ENV_BROWSER_WINS, "").strip().lower() in (
-        "1", "yes", "true", "tak", "on",
-    )
-
-
 def _usable(candidate: "pathlib.Path") -> bool:
     return candidate.is_file() and os.access(candidate, os.X_OK)
 
 
-def _machine_candidates() -> "list[pathlib.Path]":
-    """Whatever this machine happens to have, in the order it is tried."""
-    found: list[pathlib.Path] = []
-    for name in _NAMES:
-        located = shutil.which(name)
-        if located:
-            found.append(pathlib.Path(located))
-    root = os.environ.get(_PLAYWRIGHT)
-    if root and pathlib.Path(root).is_dir():
-        for pattern in ("chromium-*/chrome-linux/chrome", "chromium-*/chrome-win/chrome.exe",
-                        "chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium"):
-            found.extend(sorted(pathlib.Path(root).glob(pattern)))
-    if os.name == "nt":
-        found.extend(pathlib.Path(name) for name in windows_installs(os.environ))
-    return found
-
-
 def chosen() -> Choice:
-    """Pick the engine, and say which and why.
+    """The engine this build carries, and nothing else if it carries one.
 
-    **The carried engine wins.** That is a change in 0.2.27 and it is the whole
-    of the owner's first complaint about 0.2.26: the program was still starting
-    Edge on his machine, through a variable he had set back when there was
-    nothing else to point it at.
+    **This program no longer looks for a browser on the machine.** Not the
+    `PATH`, not the Program Files directories, not Playwright's download
+    folder, and no environment variable able to overrule what is shipped. All
+    of that existed for one reason — there was no engine of our own — and that
+    reason ended in 0.2.26.
 
-    Two reasons, and neither is about Edge in particular.
+    The owner put it plainly: *we have Chromium built in, what do we need an
+    "optional" Edge for.* He is right, and the apparatus was worse than
+    redundant. Every path through it made the answer a property of the desk the
+    program was standing on. A rendered comparison says something about the
+    **book** only when the same engine drew both sides; run against whatever a
+    machine happens to have, it says something about the machine. Edge was the
+    proof rather than the exception — measured on the same four kinds of damage
+    it disagreed with Chromium about three, and reported no version string at
+    all, so two runs could not even be shown to be comparable.
 
-    An environment variable is not a decision somebody is making now — it is a
-    decision somebody made once, that keeps applying long after the reason for
-    it has gone. This one was set in a build that carried no engine. The build
-    that replaced it carries one, pinned by digest, that cannot open a window
-    and that every number in this release was measured against. Silently
-    preferring whatever the old variable points at means the answer in the
-    report is about somebody's browser and nothing says so.
-
-    And a comparison of two renderings is only a statement about the *book* if
-    both were drawn by the same engine. The carried one is the only engine that
-    is the same on every machine this ships to. Preferring it is what makes a
-    result reproducible rather than a property of the desk it was produced on.
-
-    The variable is not ignored. Where nothing is carried — a checkout, a `pip`
-    install, this project's own tests — it wins exactly as it always did. Where
-    something is carried and the variable disagrees, the carried engine draws
-    and :attr:`Choice.overruled` says what was passed over, so the window and
-    the report can show it instead of the person having to guess. Setting
-    ``EPUBFORGE_CHROME_OVERRIDE=1`` alongside it restores the old order: a
-    sentence that cannot be typed by accident, for somebody who means it.
+    What is left is one fallback with one purpose: a build that carries **no**
+    engine — a checkout, a `pip` install, this project's own render tests —
+    reads :data:`ENV_BROWSER`. It cannot apply to a release, because a release
+    always carries one, so the variable the owner had set for 0.2.25 is now
+    inert on his machine whatever it points at.
     """
     from . import resources
 
     carried = resources.bundled_renderer()
+    if carried is not None and _usable(carried):
+        return Choice(carried, "carried")
     named = _named()
-    if carried is not None and _usable(carried) and not (named and _wants_to_win()):
-        return Choice(carried, "carried", overruled=str(named) if named else "")
     if named is not None and _usable(named):
         return Choice(named, "named")
-    if carried is not None and _usable(carried):
-        return Choice(carried, "carried", overruled=str(named) if named else "")
-    for candidate in _machine_candidates():
-        if _usable(candidate):
-            return Choice(candidate, "machine")
-    return Choice(None, "none", overruled=str(named) if named else "")
+    return Choice(None, "none")
 
 
 def _candidates() -> "list[pathlib.Path]":
-    """Everything that might be an engine, best first. Kept for the tests that
-    assert the order, and for diagnostics; :func:`chosen` is what runs."""
+    """Both places an engine can come from, best first. Kept for the tests that
+    assert the order; :func:`chosen` is what runs."""
     from . import resources
 
-    found: list[pathlib.Path] = []
-    carried = resources.bundled_renderer()
-    named = _named()
-    ordered = [named, carried] if (named and _wants_to_win()) else [carried, named]
-    found.extend(path for path in ordered if path is not None)
-    found.extend(_machine_candidates())
-    return found
-
-
-def windows_installs(environ) -> "list[str]":
-    """Where Edge and Chrome sit on Windows, as plain strings.
-
-    Takes the environment and returns strings rather than reading `os.environ`
-    and building `Path`s, for one reason: a `WindowsPath` cannot be constructed
-    on Linux, so anything that builds one is a function only a Windows machine
-    can test. That is the shape of defect this whole thing came out of, and it
-    is not worth repeating one level down.
-    """
-    names: list[str] = []
-    for variable in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA"):
-        base = environ.get(variable)
-        if not base:
-            continue
-        for relative in _WINDOWS_PROGRAMS:
-            names.append(base.rstrip("\\/") + "\\" + relative)
-    return names
+    found = [resources.bundled_renderer(), _named()]
+    return [path for path in found if path is not None]
 
 
 def find_renderer() -> "pathlib.Path | None":
@@ -244,17 +147,9 @@ def describe() -> str:
         return "silnik rysujący: brak"
     origin = {
         "carried": "dołączony do programu",
-        "named": f"wskazany zmienną {ENV_BROWSER}",
-        "machine": "znaleziony w systemie",
+        "named": f"wskazany zmienną {ENV_BROWSER} (ten build nie ma własnego)",
     }.get(picked.origin, picked.origin)
-    line = f"silnik rysujący: {picked.path.name} ({origin})"
-    if picked.overruled:
-        line += (
-            f"\n  {ENV_BROWSER} wskazuje {picked.overruled} — pominięte, bo "
-            f"program ma własny silnik. Aby mimo to użyć wskazanego, ustaw "
-            f"{ENV_BROWSER_WINS}=1."
-        )
-    return line
+    return f"silnik rysujący: {picked.path.name} ({origin})"
 
 
 def why_not() -> str:
@@ -266,15 +161,16 @@ def why_not() -> str:
     return (
         "Ta kontrola rysuje strony i porównuje obrazy, więc potrzebuje "
         "silnika opartego na Chromium. Wydania dla Windowsa mają własny "
-        "(chrome-headless-shell) i nie szukają niczego w systemie; ta "
+        "(chrome-headless-shell) i niczego nie szukają w systemie — ta "
         "instalacja go nie ma, bo działa z kodu źródłowego.\n\n"
-        f"Szukane w PATH pod nazwami: {', '.join(_NAMES)}, a na Windowsie "
-        f"dodatkowo tam, gdzie instalują się Chrome, Chromium i Brave. "
-        f"Edge celowo nie jest brany pod uwagę: zmierzony na tych samych "
-        f"czterech rodzajach uszkodzenia odpowiadał inaczej niż Chromium w "
-        f"trzech z nich i nie podaje swojej wersji, więc nie da się "
-        f"stwierdzić, czy dwa przebiegi są porównywalne.\n\n"
-        f"Własny silnik wskazuje się zmienną {ENV_BROWSER}."
+        "Program celowo **nie** szuka przeglądarki na maszynie: ani w PATH, "
+        "ani tam, gdzie instalują się Chrome, Edge czy Brave, ani w katalogu "
+        "Playwrighta. Porównanie dwóch rysunków mówi coś o książce tylko "
+        "wtedy, gdy oba zrobił ten sam silnik; puszczone na tym, co maszyna "
+        "akurat ma, mówi coś o maszynie.\n\n"
+        f"Jeżeli uruchamiasz z kodu źródłowego, wskaż silnik zmienną "
+        f"{ENV_BROWSER} — najlepiej ten sam chrome-headless-shell, który "
+        f"jedzie w wydaniu."
     )
 
 
@@ -467,7 +363,6 @@ def engine_matches(recorded: str, measured: str) -> bool:
 __all__ = [
     "DEFAULT_VIEWPORT",
     "ENV_BROWSER",
-    "ENV_BROWSER_WINS",
     "Choice",
     "Ink",
     "RenderError",

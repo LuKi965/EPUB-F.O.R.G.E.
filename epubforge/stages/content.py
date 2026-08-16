@@ -57,6 +57,122 @@ STYLED_REPLACEMENTS = {
     "menu": ("ul", ""),
 }
 
+
+#: Attributes XHTML5 allows on any element. Anything outside this set, and
+#: outside :data:`_ELEMENT_ATTRIBUTES` for the element carrying it, is not read
+#: by any rendering engine — which is what makes removing it safe, and what
+#: makes leaving it a plain `RSC-005` in the output.
+
+def _translate_stray(tag: str, name: str, value: str) -> str:
+    """The CSS a stray attribute meant, where it meant anything.
+
+    Short and deliberately so. Two entries, both from the owner's shelf, both
+    attributes that a rendering engine of the day honoured: `clear` anywhere
+    other than `<br>` (which is handled above, on its own terms) and `size` on
+    `<hr>`, where it set the rule's thickness. Everything else this sweep meets
+    was never drawn by anything, so there is nothing to translate and dropping
+    it changes no pixel.
+    """
+    if not value:
+        return ""
+    if name == "clear":
+        keyword = value.lower()
+        if keyword in {"left", "right", "none"}:
+            return f"clear: {keyword};"
+        if keyword == "all":
+            return "clear: both;"
+        return ""
+    if name == "size" and tag == "hr":
+        length = _css_length(value)
+        return f"height: {length}; border: 0;" if length else ""
+    return ""
+
+
+_GLOBAL_ATTRIBUTES = frozenset({
+    "accesskey", "autocapitalize", "autofocus", "class", "contenteditable",
+    "dir", "draggable", "enterkeyhint", "hidden", "id", "inert", "inputmode",
+    "is", "itemid", "itemprop", "itemref", "itemscope", "itemtype", "lang",
+    "nonce", "popover", "role", "slot", "spellcheck", "style", "tabindex",
+    "title", "translate",
+})
+
+#: What each element allows beyond the globals. Only the elements a book
+#: actually contains; anything not named here is judged on the globals alone,
+#: which is the conservative direction — an unknown element keeps everything
+#: except what we can prove is junk.
+_ELEMENT_ATTRIBUTES = {
+    "a": {"href", "download", "hreflang", "ping", "referrerpolicy", "rel", "target", "type"},
+    "area": {"alt", "coords", "download", "href", "ping", "referrerpolicy", "rel", "shape", "target"},
+    "audio": {"autoplay", "controls", "crossorigin", "loop", "muted", "preload", "src"},
+    "base": {"href", "target"},
+    "blockquote": {"cite"},
+    "button": {"disabled", "form", "formaction", "name", "type", "value"},
+    "canvas": {"height", "width"},
+    "col": {"span"},
+    "colgroup": {"span"},
+    "data": {"value"},
+    "del": {"cite", "datetime"},
+    "details": {"open"},
+    "embed": {"height", "src", "type", "width"},
+    "form": {"accept-charset", "action", "autocomplete", "enctype", "method", "name", "novalidate", "target"},
+    "iframe": {"allow", "height", "loading", "name", "referrerpolicy", "sandbox", "src", "srcdoc", "width"},
+    "img": {"alt", "crossorigin", "decoding", "height", "ismap", "loading", "longdesc",
+            "referrerpolicy", "sizes", "src", "srcset", "usemap", "width"},
+    "input": {"accept", "alt", "checked", "disabled", "form", "list", "max", "maxlength",
+              "min", "name", "pattern", "placeholder", "readonly", "required", "size",
+              "src", "step", "type", "value"},
+    "ins": {"cite", "datetime"},
+    "label": {"for"},
+    "li": {"value"},
+    "link": {"as", "color", "crossorigin", "href", "hreflang", "media", "referrerpolicy",
+             "rel", "sizes", "type"},
+    "map": {"name"},
+    "meta": {"charset", "content", "http-equiv", "name", "property", "scheme"},
+    "object": {"data", "form", "height", "name", "type", "usemap", "width"},
+    "ol": {"reversed", "start", "type"},
+    "optgroup": {"disabled", "label"},
+    "option": {"disabled", "label", "selected", "value"},
+    "output": {"for", "form", "name"},
+    "param": {"name", "value"},
+    "q": {"cite"},
+    "script": {"async", "crossorigin", "defer", "integrity", "nomodule",
+               "referrerpolicy", "src", "type"},
+    "select": {"disabled", "form", "multiple", "name", "required", "size"},
+    "source": {"height", "media", "sizes", "src", "srcset", "type", "width"},
+    "style": {"media", "type"},
+    "td": {"colspan", "headers", "rowspan"},
+    "textarea": {"cols", "disabled", "form", "maxlength", "name", "placeholder",
+                 "readonly", "required", "rows", "wrap"},
+    "th": {"abbr", "colspan", "headers", "rowspan", "scope"},
+    "time": {"datetime"},
+    "track": {"default", "kind", "label", "src", "srclang"},
+    "video": {"autoplay", "controls", "crossorigin", "height", "loop", "muted",
+              "playsinline", "poster", "preload", "src", "width"},
+}
+
+#: Prefixes that carry their own vocabulary and are never this sweep's business:
+#: author data, accessibility, the EPUB namespace, XML's own attributes, RDFa,
+#: and scripting. Whatever a `data-` attribute means, it means it to somebody.
+_KEPT_PREFIXES = ("data-", "aria-", "xml:", "epub:", "on")
+
+#: Exact names kept on any element for the same reason as the prefixes above:
+#: RDFa, which EPUB 3 allows in content documents and which a book uses to say
+#: what its parts *are*. Held as exact names rather than prefixes so that
+#: `relative` and `contents` are not kept by accident.
+_KEPT_ANYWHERE = frozenset({
+    "about", "content", "datatype", "prefix", "property", "rel", "resource",
+    "rev", "typeof", "vocab",
+})
+
+#: Attributes with a CSS equivalent that survives the sweep as a declaration
+#: rather than being dropped, whichever element they turn up on. A converter
+#: that copies `clear` onto a `<p>` copied something that still means
+#: something; losing it is losing a piece of the page.
+_CARRIES_APPEARANCE = {
+    "clear": lambda value: f"clear: {'both' if value == 'all' else value};",
+    "size": None,  # element-specific; handled where the element is known
+}
+
 _FONT_SIZE_SCALE = {
     "1": "x-small", "2": "small", "3": "medium", "4": "large",
     "5": "x-large", "6": "xx-large", "7": "xxx-large",
@@ -1493,6 +1609,12 @@ class ContentStage(Stage):
             if tag == "col" and self._wrap_a_stray_col(element):
                 changed.add("col")
 
+            if self._foster_out_of_a_table(element, tag):
+                changed.add(f"table>{tag}")
+
+            if self._move_flow_out_of_the_head(element, tag, root):
+                changed.add(f"head>{tag}")
+
             self._presentational_attributes(element, tag, changed)
 
         if changed:
@@ -1503,6 +1625,73 @@ class ContentStage(Stage):
                 location=resource.path,
                 detail=", ".join(sorted(changed)),
             )
+
+
+    #: What a table is allowed to contain directly. Anything else sitting under
+    #: `<table>` is content a converter dropped in the wrong place.
+    _TABLE_CONTENT = frozenset({
+        "caption", "colgroup", "col", "thead", "tbody", "tfoot", "tr", "script",
+        "template",
+    })
+
+    #: What a `<head>` is allowed to contain. Anything else there is flow
+    #: content, and a browser has been quietly moving it into the body for
+    #: twenty years.
+    _HEAD_CONTENT = frozenset({
+        "base", "link", "meta", "noscript", "script", "style", "title",
+        "template",
+    })
+
+    @classmethod
+    def _foster_out_of_a_table(cls, element, tag: str) -> bool:
+        """Lift content that is inside `<table>` but not inside a cell.
+
+        `<a>` straight under `<table>`, from the owner's second shelf. XHTML 1.1
+        let it through and XHTML5 does not, so a book that arrived valid left
+        this program invalid — which is the one thing `preserve` may never do.
+
+        Moved **in front of** the table rather than into the first cell, and
+        that is not a preference. It is what every HTML parser already does with
+        this markup: content in a table but not in a cell is *foster parented*
+        out to just before the table, and that is where a reader has always seen
+        it. So the fix puts the element where it was already being drawn, which
+        is why the page does not move.
+        """
+        parent = element.getparent()
+        if parent is None:
+            return False
+        if xhtml.local_name(parent).lower() != "table":
+            return False
+        if tag in cls._TABLE_CONTENT:
+            return False
+        grandparent = parent.getparent()
+        if grandparent is None:
+            return False
+        grandparent.insert(list(grandparent).index(parent), element)
+        return True
+
+    @classmethod
+    def _move_flow_out_of_the_head(cls, element, tag: str, root) -> bool:
+        """Move flow content out of `<head>` and to the top of `<body>`.
+
+        A `<p>` inside `<head>`, from the same shelf. A browser starts the body
+        at the first thing that does not belong in the head, so the paragraph
+        was already the first thing on the page — moving it to the top of
+        `<body>` writes down where it was already being shown.
+        """
+        parent = element.getparent()
+        if parent is None or xhtml.local_name(parent).lower() != "head":
+            return False
+        if tag in cls._HEAD_CONTENT:
+            return False
+        body = next(
+            (child for child in root if xhtml.local_name(child).lower() == "body"),
+            None,
+        )
+        if body is None:
+            return False
+        body.insert(0, element)
+        return True
 
     @staticmethod
     def _wrap_a_stray_col(element) -> bool:
@@ -2559,7 +2748,62 @@ class ContentStage(Stage):
                 element.attrib.pop(obsolete, None)
                 changed.add(obsolete)
 
+        declarations.extend(self._sweep_unknown_attributes(element, tag, changed))
+
         _append_style(element, " ".join(declarations))
+
+    @staticmethod
+    def _sweep_unknown_attributes(element, tag: str, changed: set[str]) -> "list[str]":
+        """Whatever is left that XHTML5 does not allow on this element.
+
+        Everything above this names an attribute and says what it means. That
+        answers the attributes somebody thought of; it does not answer the ones
+        a converter invents. The owner's second shelf produced `font17` and `p`
+        — not misspellings of anything, just an exporter writing its own state
+        into the markup — alongside `clear` and `size` sitting on elements that
+        never took them. Each is an `RSC-005` in a book this program rebuilt,
+        and each was reached by a route no list of known names would cover.
+
+        So the rule runs the other way: an attribute this element is not
+        allowed to carry is one **no engine reads**, and that is exactly what
+        makes removing it safe. Where it is a legacy attribute that still means
+        something to a page — `clear`, `<hr size>` — the meaning is translated
+        into CSS first and the appearance survives the removal. Anything under a
+        prefix that carries its own vocabulary is not touched at all.
+
+        The direction matters: an element this table has never heard of is
+        judged on the global attributes alone, so an unknown element keeps
+        everything the globals permit rather than being stripped on a guess.
+        """
+        # SVG and MathML are whole other vocabularies inside an XHTML document,
+        # with their own attribute names on their own elements — `viewBox`, `d`,
+        # `fill`, `display`. Judging them by the HTML tables would strip a
+        # drawing of its coordinate system, which the suite caught within a
+        # minute of this being written and is the reason the exemption is by
+        # **namespace** rather than by a list of element names: an SVG document
+        # can contain elements this program has never heard of.
+        if isinstance(element.tag, str) and element.tag.startswith("{"):
+            namespace = element.tag[1:].split("}", 1)[0]
+            if namespace != xhtml.XHTML_NS:
+                return []
+
+        allowed = _GLOBAL_ATTRIBUTES | _ELEMENT_ATTRIBUTES.get(tag, frozenset())
+        declarations: list[str] = []
+        for name in list(element.attrib):
+            if name.startswith("{"):
+                continue  # namespaced: xml:lang, epub:type, and anybody else's
+            plain = name.lower()
+            if plain in allowed or plain in _KEPT_ANYWHERE:
+                continue
+            if plain.startswith(_KEPT_PREFIXES):
+                continue
+            value = (element.get(name) or "").strip()
+            translated = _translate_stray(tag, plain, value)
+            if translated:
+                declarations.append(translated)
+            element.attrib.pop(name, None)
+            changed.add(f"{tag}[{plain}]")
+        return declarations
 
     def _unwrap(self, element, keep_children: bool) -> None:
         """Replace an element with its children (or remove it entirely)."""

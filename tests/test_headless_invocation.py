@@ -107,16 +107,17 @@ class TestTheRendererWeCarry:
         assert "chrome-headless-shell" in source
 
 
-class TestWhichEngineWinsAndWhoIsTold:
-    """0.2.27, and the whole of the owner's first complaint about 0.2.26:
-    *"nie posprzątałeś kodu po syfie z Edge i aplikacja wciąż otwiera mi Edge
-    przez zmienną EPUBFORGE_CHROME"*.
+class TestOnlyTheEngineWeCarry:
+    """0.2.27 answered the owner's complaint by demoting `EPUBFORGE_CHROME`.
+    0.2.28 answers what he actually asked, which was larger and simpler:
+    *mamy WBUDOWANE Chromium, na cholerę nam w ogóle „opcjonalny" Edge.*
 
-    He was right, and the earlier order was mine. `EPUBFORGE_CHROME` came first
-    on the reasoning that somebody who names an engine has said which one they
-    mean. What that reasoning missed is that a variable is not somebody saying
-    something now — it is somebody having said it once, in a build that carried
-    no engine at all, and it kept applying after the reason for it was gone.
+    He was right and I had half-done it. Demoting the variable left the whole
+    apparatus standing — `PATH`, Program Files, Playwright, and an override that
+    could put any of them back in front. Every one of those paths existed for a
+    single reason, that there was no engine of our own, and that reason ended
+    with 0.2.26. What they really bought was an answer that depended on the desk
+    the program stood on.
     """
 
     @staticmethod
@@ -128,42 +129,39 @@ class TestWhichEngineWinsAndWhoIsTold:
             path.chmod(0o755)
         return mine, carried
 
-    def test_what_we_carry_beats_what_the_variable_names(self, monkeypatch, tmp_path):
+    def test_what_we_carry_is_what_draws(self, monkeypatch, tmp_path):
         from epubforge import resources
 
         mine, carried = self._two_engines(tmp_path)
         monkeypatch.setenv(render.ENV_BROWSER, str(mine))
-        monkeypatch.delenv(render.ENV_BROWSER_WINS, raising=False)
         monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
 
         picked = render.chosen()
         assert picked.path == carried
         assert picked.origin == "carried"
 
-    def test_and_says_what_it_passed_over(self, monkeypatch, tmp_path):
-        """Overruling somebody silently is how this went wrong in the first
-        place. The value is carried out so the window and the console can print
-        it, rather than the person guessing why Edge is not starting any more."""
+    def test_and_there_is_no_way_to_put_anything_in_front_of_it(
+        self, monkeypatch, tmp_path
+    ):
+        """The escape hatch 0.2.27 invented — `EPUBFORGE_CHROME_OVERRIDE` — is
+        gone with everything else. It was a way to reintroduce exactly the
+        defect the bundle exists to remove, one environment variable at a time.
+        """
+        assert not hasattr(render, "ENV_BROWSER_WINS")
         from epubforge import resources
 
         mine, carried = self._two_engines(tmp_path)
         monkeypatch.setenv(render.ENV_BROWSER, str(mine))
-        monkeypatch.delenv(render.ENV_BROWSER_WINS, raising=False)
+        monkeypatch.setenv("EPUBFORGE_CHROME_OVERRIDE", "1")
         monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+        assert render.chosen().path == carried
 
-        monkeypatch.setattr(render, "describe", _REAL_DESCRIBE)
-        assert render.chosen().overruled == str(mine)
-        said = render.describe()
-        assert str(mine) in said
-        assert render.ENV_BROWSER_WINS in said
-
-    def test_the_variable_still_wins_where_nothing_is_carried(
+    def test_the_variable_is_the_only_thing_left_and_only_without_a_bundle(
         self, monkeypatch, tmp_path
     ):
-        """A checkout, a `pip` install, this project's own render tests. There
-        the variable is the only way to name an engine and it works as it always
-        did — the demotion is about a build that ships one, not about the
-        variable being a bad idea."""
+        """Kept for one case and no other: a checkout, a `pip` install and this
+        project's own render tests carry no engine, and with no way to name one
+        the check could never run anywhere but a release."""
         from epubforge import resources
 
         mine, _ = self._two_engines(tmp_path)
@@ -173,31 +171,12 @@ class TestWhichEngineWinsAndWhoIsTold:
         picked = render.chosen()
         assert picked.path == mine
         assert picked.origin == "named"
-        assert picked.overruled == ""
 
-    def test_saying_it_twice_restores_the_old_order(self, monkeypatch, tmp_path):
-        """Human in the loop cuts both ways: this program does not get to decide
-        that somebody may never use their own engine. It gets to decide that
-        doing so has to be said deliberately, in a sentence nobody types by
-        accident."""
-        from epubforge import resources
-
-        mine, carried = self._two_engines(tmp_path)
-        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
-        monkeypatch.setenv(render.ENV_BROWSER_WINS, "1")
-        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
-
-        picked = render.chosen()
-        assert picked.path == mine
-        assert picked.origin == "named"
-        assert render._candidates()[0] == mine
-
-    def test_a_variable_pointing_at_nothing_does_not_break_the_check(
+    def test_a_variable_pointing_at_nothing_falls_through_to_ours(
         self, monkeypatch, tmp_path
     ):
         """The commonest state of a stale variable: it names a path that is not
-        there any more. That must fall through to the carried engine rather than
-        leaving the check unable to run."""
+        there any more."""
         from epubforge import resources
 
         _, carried = self._two_engines(tmp_path)
@@ -205,22 +184,20 @@ class TestWhichEngineWinsAndWhoIsTold:
         monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
         assert render.chosen().path == carried
 
-    def test_edge_is_not_looked_for_any_more(self):
-        """The clearing-up he asked for, and it is not tidiness.
+    def test_nothing_hunts_for_a_browser_any_more(self):
+        """Named one by one, because each was its own way of asking the machine
+        what it happened to have."""
+        for name in (
+            "windows_installs", "_machine_candidates", "_NAMES",
+            "_WINDOWS_PROGRAMS", "_PLAYWRIGHT", "ENV_BROWSER_WINS",
+            "_wants_to_win",
+        ):
+            assert not hasattr(render, name), name
 
-        Edge was added when the problem looked like *find any Chromium*. It was
-        measured afterwards: on the same four kinds of damage it disagreed with
-        Chromium about three, and it reports no version string, which also
-        defeats `engine_matches` — so two runs cannot even be shown to be
-        comparable. An engine that answers differently is not a fallback.
-        """
-        assert "msedge" not in render._NAMES
-        assert not [
-            path for path in render._WINDOWS_PROGRAMS if "Edge" in path
-        ], render._WINDOWS_PROGRAMS
-        assert "msedge" not in render.windows_installs(
-            {"PROGRAMFILES": r"C:\Program Files"}
-        )
+    def test_edge_is_not_mentioned_as_something_to_use(self):
+        """It may still be named in the comments — that is where the reasoning
+        lives — but not in a string this program shows somebody as an option."""
+        assert "Edge" not in render.why_not() or "nie szuka" in render.why_not()
 
     def test_the_engine_is_named_wherever_a_result_is_shown(self, monkeypatch, tmp_path):
         from epubforge import resources
@@ -236,11 +213,9 @@ class TestWhichEngineWinsAndWhoIsTold:
 
         monkeypatch.delenv(render.ENV_BROWSER, raising=False)
         monkeypatch.setattr(resources, "bundled_renderer", lambda: None)
-        monkeypatch.setattr(render, "_machine_candidates", list)
         monkeypatch.setattr(render, "describe", _REAL_DESCRIBE)
         assert render.chosen().path is None
         assert render.describe()
-
 
 class TestNothingOpensAWindowOnHisScreen:
     """His second complaint about 0.2.26: a black console box flashing roughly

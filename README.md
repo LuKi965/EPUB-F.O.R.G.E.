@@ -193,13 +193,13 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   otworzyć puste okno, i wynik kontroli zależał od tego, jaką przeglądarkę kto
   ma — zmierzone, Edge i Chromium nie zgadzały się co do trzech z czterech
   rodzajów uszkodzenia. Instalator jest przez to o jakieś 110 MB większy.
-  **Od 0.2.27 silnik dołączony wygrywa**, a Edge nie jest już w ogóle szukany:
-  porównanie dwóch rysunków mówi coś o *książce* tylko wtedy, gdy oba zrobił ten
-  sam silnik, a dołączony to jedyny, który jest identyczny na każdej maszynie.
-  Zmienna `EPUBFORGE_CHROME` działa dalej tam, gdzie nic nie jest dołączone
-  (kod źródłowy, `pip`), a gdy jest dołączone i zmienna wskazuje co innego —
-  program **mówi o tym** w oknie i w konsoli, zamiast po cichu ją uszanować.
-  Żeby mimo to wygrała, trzeba dopisać `EPUBFORGE_CHROME_OVERRIDE=1`.
+  **Od 0.2.28 program nie szuka przeglądarki na maszynie w ogóle** — ani w
+  PATH, ani w Program Files, ani u Playwrighta, i nie ma zmiennej, którą dałoby
+  się postawić przed silnikiem dołączonym. Cały ten aparat istniał z jednego
+  powodu: nie mieliśmy własnego silnika. Porównanie dwóch rysunków mówi coś o
+  *książce* tylko wtedy, gdy oba zrobił ten sam silnik; puszczone na tym, co
+  maszyna akurat ma, mówi coś o maszynie. Zostaje jedna furtka, dla uruchomienia
+  z kodu źródłowego, gdzie nie ma czego dołączyć: `EPUBFORGE_CHROME`.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
   zakresem.
 - **Nie zdejmuje DRM** i nie będzie.

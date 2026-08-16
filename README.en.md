@@ -185,14 +185,14 @@ Things worth knowing before rather than after:
   machine, which was wrong twice over: Edge could open an empty window, and the
   check's answer depended on which browser you happened to have — measured, Edge
   and Chromium disagreed about three of four kinds of damage. It costs about
-  110 MB of installer. **From 0.2.27 the carried engine wins** and Edge is not
-  searched for at all: a comparison of two renderings is a statement about the
-  *book* only if the same engine drew both, and the carried one is the only
-  engine identical on every machine. `EPUBFORGE_CHROME` still wins where nothing
-  is carried — a checkout, a `pip` install — and where something is carried and
-  the variable disagrees, the program **says so** in the window and on the
-  console instead of quietly obeying it. `EPUBFORGE_CHROME_OVERRIDE=1` alongside
-  it restores the old order.
+  110 MB of installer. **From 0.2.28 no browser is looked for on the machine at
+  all** — not the `PATH`, not Program Files, not Playwright's downloads, and no
+  environment variable can put anything in front of the carried engine. That
+  whole apparatus existed for one reason: there was no engine of our own. A
+  comparison of two renderings says something about the *book* only if the same
+  engine drew both; run against whatever a machine happens to have, it says
+  something about the machine. One door is left, for running from source where
+  there is nothing to carry: `EPUBFORGE_CHROME`.
 - **It does not convert from PDF, MOBI or Word.** That is a different job
   and deliberately out of scope.
 - **No DRM removal**, and there will not be.

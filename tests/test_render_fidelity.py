@@ -19,6 +19,7 @@ week, and the audit's own risk note for this finding is exactly that.
 
 from __future__ import annotations
 
+import inspect
 import pathlib
 import zipfile
 
@@ -290,51 +291,73 @@ class TestMeasuringOnePage:
             assert image.size == (600, 400)
 
 
-class TestFindingTheBrowserWhereItActuallyIs:
-    """A failed release build, and a product defect underneath it.
+class TestNothingIsLookedForOnTheMachine:
+    """This class used to assert the opposite, and the class it replaces is the
+    point of the change.
 
-    `find_renderer` searched `PATH` and the Playwright directory. **Edge is
-    installed on every Windows 10 and 11 machine and is not on `PATH`** — it
-    lives under Program Files, and so does Chrome. So on a normal Windows box,
-    which is the only platform this program is released for, the answer was
-    `None`; the gate defaults to `stop`; and every rebuild from the command line
-    was refused for want of a browser sitting right there on the disk.
+    It held `windows_installs` to finding Edge under Program Files — added
+    because a release build failed for want of a browser that was sitting right
+    there on the disk. That was the correct fix for 0.2.25, when this program
+    carried no engine. It stopped being correct the moment 0.2.26 put one in
+    the installer, and the owner said so: *we have Chromium built in, what do we
+    need an "optional" Edge for.*
 
-    That is the outcome the owner ruled out in as many words — a missing tool
-    holding somebody's book hostage — reached by looking for the tool in one
-    place.
-
-    `windows_installs` takes an environment and returns strings rather than
-    reading `os.environ` and building paths, so that this can be tested from
-    Linux. A `WindowsPath` cannot even be constructed here, which would have made
-    the fix for a host-dependence defect testable only on one host.
+    So the search is gone — `PATH`, Program Files, Playwright, the lot — and
+    what is asserted now is its absence. A test that only checked the new path
+    would leave the old one free to come back.
     """
 
-    def test_edge_is_looked_for_where_windows_puts_it(self):
-        found = render.windows_installs(
-            {"PROGRAMFILES(X86)": r"C:\Program Files (x86)",
-             "PROGRAMFILES": r"C:\Program Files"}
+    def test_the_search_apparatus_is_gone(self):
+        for name in (
+            "windows_installs", "_machine_candidates", "_NAMES",
+            "_WINDOWS_PROGRAMS", "_PLAYWRIGHT", "ENV_BROWSER_WINS",
+        ):
+            assert not hasattr(render, name), (
+                f"{name} is browser-hunting, and this program ships its own engine"
+            )
+
+    def test_the_source_does_not_reach_for_path_or_program_files(self):
+        source = inspect.getsource(render)
+        body = "\n".join(
+            line for line in source.splitlines()
+            if not line.lstrip().startswith("#")
         )
-        assert any(name.endswith(r"Microsoft\Edge\Application\msedge.exe") for name in found)
+        for reached in ("shutil.which", "PROGRAMFILES", "PLAYWRIGHT_BROWSERS_PATH"):
+            assert reached not in body, reached
 
-    def test_chrome_too_and_under_both_program_files(self):
-        found = render.windows_installs(
-            {"PROGRAMFILES(X86)": r"C:\Program Files (x86)",
-             "PROGRAMFILES": r"C:\Program Files"}
-        )
-        chrome = [name for name in found if name.endswith(r"Google\Chrome\Application\chrome.exe")]
-        assert len(chrome) == 2, chrome
+    def test_what_we_carry_is_the_only_engine_when_we_carry_one(
+        self, monkeypatch, tmp_path
+    ):
+        from epubforge import resources
 
-    def test_a_user_local_install_is_looked_for(self):
-        """Chrome installs per-user without administrator rights, which is how
-        it arrives on a work laptop."""
-        found = render.windows_installs({"LOCALAPPDATA": r"C:\Users\ktos\AppData\Local"})
-        assert any("AppData" in name and name.endswith("chrome.exe") for name in found)
+        carried = tmp_path / "chrome-headless-shell"
+        carried.write_text("", encoding="utf-8")
+        carried.chmod(0o755)
+        elsewhere = tmp_path / "msedge.exe"
+        elsewhere.write_text("", encoding="utf-8")
+        elsewhere.chmod(0o755)
 
-    def test_an_environment_that_says_nothing_produces_nothing(self):
-        assert render.windows_installs({}) == []
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+        monkeypatch.setenv(render.ENV_BROWSER, str(elsewhere))
+        assert render.chosen().path == carried
+        assert render._candidates()[0] == carried
 
-    def test_no_trailing_separator_doubles_up(self):
-        found = render.windows_installs({"PROGRAMFILES": "C:\\Program Files\\"})
-        assert all("\\\\" not in name for name in found), found
+    def test_a_checkout_still_has_one_way_to_name_an_engine(
+        self, monkeypatch, tmp_path
+    ):
+        """The one thing that is not removed, and the reason it is not: this
+        project's own render tests, a `pip` install and a working copy all carry
+        no engine, and with nothing to name them the check could never run
+        anywhere but a release."""
+        from epubforge import resources
+
+        mine = tmp_path / "chrome-headless-shell"
+        mine.write_text("", encoding="utf-8")
+        mine.chmod(0o755)
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: None)
+        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
+
+        picked = render.chosen()
+        assert picked.path == mine
+        assert picked.origin == "named"
 
