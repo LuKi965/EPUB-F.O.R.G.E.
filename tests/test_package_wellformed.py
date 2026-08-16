@@ -103,21 +103,21 @@ class TestEveryGeneratedFileAndNotOnlyThePackage:
                     etree.fromstring(archive.read(name))  # raises if it is not
 
     def test_the_navigation_document_keeps_the_rest_of_the_title(self, tmp_path):
-        result = written(tmp_path, "Wiedźmin \x0b Ostatnie życzenie")
+        result = written(tmp_path, "Zbójecki gościniec \x0b Powieść")
         with zipfile.ZipFile(result.output_path) as archive:
             nav = archive.read(
                 next(n for n in archive.namelist() if n.endswith("nav.xhtml"))
             ).decode("utf-8")
-        assert "Wiedźmin" in nav and "Ostatnie życzenie" in nav
+        assert "Zbójecki gościniec" in nav and "Powieść" in nav
 
 
 class TestOnlyTheImpossibleCharactersGo:
     def test_the_rest_of_the_title_survives(self, tmp_path):
         """The removal is surgical. A title that loses its control character and
         its words is a title this program invented."""
-        result = written(tmp_path, "Wiedźmin \x0b Ostatnie życzenie")
+        result = written(tmp_path, "Zbójecki gościniec \x0b Powieść")
         package = package_of(result).decode("utf-8")
-        assert "Wiedźmin" in package and "Ostatnie życzenie" in package
+        assert "Zbójecki gościniec" in package and "Powieść" in package
 
     def test_ordinary_punctuation_is_untouched(self, tmp_path):
         result = written(tmp_path, "Tytuł — „w cudzysłowie” & Spółka")
