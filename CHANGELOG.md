@@ -36,6 +36,97 @@ tagged or published under those numbers, so they were renumbered rather than
 left to imply a maturity the software does not have. The history is kept as
 written; only the current version was reset.
 
+## 0.2.28 — alpha — 2026-08-16
+
+Seria porządkowa według specyfikacji właściciela, kroki 0–9, domknięta.
+Trzydzieści trzy ustalenia w rejestrze, z tego **jedno** zostaje otwarte.
+
+### Dokument pakietu jest poprawnym XML-em, cokolwiek niesie książka
+
+WP-18, i najważniejsza pozycja tego wydania — bo dotyczy książek, które program
+**zapisywał jako nieotwieralne**, w trybie domyślnym, meldując `succeeded`.
+
+EF-038 mówiło, że pakiet powstaje przez sklejanie stringów (58 × `lines.append`)
+i traktowało metodę jako ryzyko. Zanim przepisałem 475 linii, sprawdziłem, czy ta
+metoda faktycznie produkuje zepsuty dokument. **Nie produkuje.** Czternaście
+wrogich wejść — `<script>`, `]]>`, deklaracja XML, podwójny myślnik tam, gdzie
+komentarz XML go nie uniesie, pięć tysięcy znaków, emoji spoza BMP — wychodzi
+jako poprawny XML, bo każda wartość idzie przez `escape` albo `quoteattr`.
+
+Zepsute wychodziło co innego: **znak sterujący**. Nie ma czym go zaescapować —
+XML 1.0 w ogóle nie ma dla niego zapisu. Zmierzone:
+
+| tryb | książka z `0x0B` w tytule |
+|---|---|
+| `preserve` (domyślny) | **zapisana**, pakiet się nie parsuje, status `succeeded` |
+| `strict` | odmowa |
+
+I rzecz, która przesądziła o wyborze naprawy: **przepisanie na drzewo by tego nie
+naprawiło.** lxml na tych znakach rzuca wyjątkiem zamiast je zapisać, więc wynik
+przesunąłby się z „nieotwieralna książka" na „wywrotka" — lepiej, i nadal nie
+książka.
+
+Naprawa siedzi w jednym miejscu: `escape` i `quoteattr` przesłonięte w
+`writer.py`. Reguła, o której trzeba pamiętać w pięćdziesięciu siedmiu
+miejscach, zostanie pominięta w pięćdziesiątym ósmym.
+
+**Usterka okazała się szersza niż ustalenie.** Po naprawie writera `nav.xhtml`
+i `toc.ncx` **nadal** wychodziły niepoprawne — są generowane przez etap nawigacji
+z tych samych metadanych, przez inny helper. Oba zapisywane, oba nieotwieralne.
+Dlatego test sprawdza teraz **całe archiwum**, a nie plik, który ustalenie akurat
+wymieniło.
+
+Nigdy po cichu: raport nazywa pola, z których znaki zniknęły. Program edytuje
+czyjś tytuł, więc to mówi.
+
+### Widoczne ślady księgarni — do usunięcia, jeśli o to poprosisz
+
+WP-17 / D-019. Dotąd widoczna notka księgarni była **zawsze** zachowywana, na tej
+podstawie, że zdanie, które kupujący ma przeczytać, to jego sprawa. Właściciel:
+to jest jego sprawa właśnie dlatego, że kupił książkę i ma paragony — a zdanie
+księgarni siedzi w biegnącym tekście jednej z nich tuż przed pierwszym zdaniem
+powieści.
+
+Nowy przełącznik, **domyślnie wyłączony**, osobny od „znaków wodnych" (tamten
+pyta, jak widoczny może być ukryty znacznik; ten pyta, czy wolno skasować
+zdanie). Nie sięga go **żaden** preset, nawet ścisły: zgodność nie jest powodem
+do kasowania czyjegoś zdania.
+
+Sercem jest lista fraz i to, czego na niej **nie ma**. Zabierane są wyłącznie
+zdania nazywające **sprzedaż**. Odrzucone kandydatury, każda z powodem: gołe
+„kopia"/`copy` (siedzi w `copyright`), goły adres e-mail (stopka redakcyjna go
+ma), gołe „licencja"/`license` (Gutenberg pisze to o sobie w każdym tomie),
+„wszelkie prawa zastrzeżone" (to jest strona praw autorskich).
+
+**Usuwanie zdaniami, nie elementami** — i tu test złapał mnie na realnym błędzie
+w pierwszej wersji. Stempel bywa sklejony z otwarciem powieści bez kropki między
+nimi, więc podział po zdaniach zostawia to jako **jeden** kawałek — a wyrzucenie
+kawałka zabiera pierwszą linijkę książki. Teraz usuwana jest fraza plus ciągnące
+się za nią identyfikatory, a to, co zostanie, jest badane ponownie: proza
+zostaje.
+
+Reguła jest świadomie zachowawcza w jedną stronę: **zostawione nazwisko
+kupującego to skaza, którą widać i można zgłosić; skasowane zdanie powieści to
+uszkodzenie, którego można nie zauważyć aż do tej strony.**
+
+Raport wypisuje każde usunięte zdanie **co do słowa**, nie liczbę — to jedyny
+przełącznik w programie kasujący tekst widoczny dla czytelnika, więc masz czym
+sprawdzić, że zabrał zdanie księgarni, a nie zdanie z Twojej książki. Żadna
+strona nie jest usuwana.
+
+### Reszta serii
+
+Kroki 0–8 opisane w pozycjach poniżej: katalog pytań (EF-032), podział
+`stages/content.py` (EF-031), formatowanie absolutne (EF-029, EF-033), słownik
+łączników z instalatorem (EF-028), oraz **EF-036 obalone** — wszystkie pięć
+„narzędzi autora" jest osiągalnych z okna, więc siedzą w pakiecie dlatego, że
+kontrakt tego wymaga.
+
+**Liczby tego wydania:** 2652 testy przechodzą, 46 pominiętych, zero porażek.
+Korpus publiczny: 19 książek × 3 tryby, zero błędów EPUBCheck, dwie świadome
+odmowy w trybie ścisłym. Sygnatury korpusu **bajtowo identyczne** przez cały
+podział `content.py`.
+
 ## Unreleased
 
 ### Słownik jako drugi dowód dla łączników — pierwsza połowa
