@@ -504,6 +504,13 @@ class MainWindow(QMainWindow):
             layout, "policy.metadata.reconstructed", checked=False
         )
 
+        # EF-029. Off by default and in the window rather than only behind a
+        # flag, because it is a change to the publisher's stylesheet and S-04
+        # says the person deciding gets to see the switch.
+        self.relative_units_check = self._checkbox(
+            layout, "policy.relative.units", checked=False
+        )
+
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
         # BA-2026-001's remaining half. 67 evidenced candidates against 189
         # that the book itself does not settle — so the weaker classes are one
@@ -769,6 +776,7 @@ class MainWindow(QMainWindow):
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.hyphen_review = self.hyphen_review_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
+        policy.relative_units = self.relative_units_check.isChecked()
         policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()
         typed = self.memory_limit_edit.text().strip()

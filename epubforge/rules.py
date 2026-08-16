@@ -133,6 +133,10 @@ CATALOGUE: dict[str, str] = {
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
+    "css.invalid-value-inherited": "{count} declaration(s) using the invalid value 'regular' were left alone, because this stylesheet also sets italic or bold",
+    "css.absolute-units": "{count} font size(s) are given in absolute units, so the reader's own font setting cannot move them",
+    "css.absolute-units-relativised": "{count} absolute font size(s) were rewritten in rem, so the reader's font setting reaches them",
+    "css.absolute-units-rooted": "{count} absolute font size(s) were kept: this stylesheet sets the root font size in pixels, so rewriting the rest would not free them",
     "css.unreachable-rules-found": "{count} of {total} rule(s) — {share}% of this stylesheet — name a class or id that appears nowhere in the book",
     "css.unreachable-rules-removed": "{count} of {total} rule(s) removed — {share}% of this stylesheet — naming a class or id that appears nowhere in the book",
     "css.unreachable-rules-scripted": "{count} rule(s) match nothing today, and are kept because the book carries a script",
@@ -405,6 +409,10 @@ CATALOGUE_PL: dict[str, str] = {
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
+    'css.invalid-value-inherited': 'zostawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”, bo ten arkusz ustawia też kursywę albo pogrubienie',
+    'css.absolute-units': '{count} {count:rozmiar czcionki jest podany|rozmiary czcionek są podane|rozmiarów czcionek jest podanych} w jednostkach absolutnych, więc ustawienie czcionki w czytniku ich nie ruszy',
+    'css.absolute-units-relativised': 'przepisano {count} {count:absolutny rozmiar czcionki|absolutne rozmiary czcionek|absolutnych rozmiarów czcionek} na rem, więc ustawienie czcionki w czytniku do nich sięga',
+    'css.absolute-units-rooted': 'zachowano {count} {count:absolutny rozmiar czcionki|absolutne rozmiary czcionek|absolutnych rozmiarów czcionek}: ten arkusz ustawia w pikselach rozmiar elementu głównego, więc przepisanie reszty niczego by nie uwolniło',
     'css.unreachable-rules-found': '{count} z {total} {count:reguła nazywa|reguły nazywają|reguł nazywa} klasę lub id, których nie ma nigdzie w książce — {share}% tego arkusza',
     'css.unreachable-rules-removed': 'usunięto {count} z {total} {count:regułę|reguły|reguł} nazywającą klasę lub id, których nie ma nigdzie w książce — {share}% tego arkusza',
     'css.unreachable-rules-scripted': '{count} {count:reguła nie pasuje|reguły nie pasują|reguł nie pasuje} dziś do niczego i zostaje, bo książka niesie skrypt',
@@ -601,7 +609,15 @@ DETAILS: dict[str, str] = {
     "css.font-stack-generic-missing":
         "e.g. {examples} — inherited from the source and left as-is, since guessing serif vs sans-serif could change how the book looks.",
     "css.invalid-value-corrected":
-        "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant.",
+        "font-style/font-weight have no 'regular' keyword, so parsers dropped these rules entirely. Replaced with 'normal', which is what was meant — and only because nothing in this stylesheet sets italic or bold, so inheriting and overriding come to the same page.",
+    "css.invalid-value-inherited":
+        "'regular' is dropped by every parser, so the element inherits; 'normal' would override. Those agree only while the inherited value is already normal, and this stylesheet sets italic or bold somewhere, so correcting the value could turn an italic passage upright. It was already being ignored, so leaving it changes nothing.",
+    "css.absolute-units":
+        "Sizes in px or pt do not respond to the font-size control on a reading device, which is usually the first thing somebody changes. Left as the publisher wrote them; use --relative-units to rewrite them in rem.",
+    "css.absolute-units-relativised":
+        "rem and not em: em resolves against the parent, so a nested rule would compound and the same value would mean different sizes in different places. rem resolves against the root, so every size comes out at exactly size/16 — the same pixels as before at the default setting, and scaling together with it away from the default.",
+    "css.absolute-units-rooted":
+        "rem is measured from the root element, and this stylesheet fixes the root in pixels. Converting the rest would rewrite the sheet without freeing a single size.",
     "css.unreachable-rules-found":
         "Shops ship one house stylesheet into every title they sell, and most of it is for markup the particular book has not got — `td.proc4` in a novel with no tables. It changes no pixel either way. Use --strict to remove it; this mode reports and keeps, because a selector matching nothing in the documents we parsed is not the same claim as a selector matching nothing.",
     "css.unreachable-rules-removed":
@@ -904,7 +920,15 @@ DETAILS_PL: dict[str, str] = {
     "css.vendor-at-rule-kept":
         "Użyj --strict, żeby je usunąć.",
     "css.invalid-value-corrected":
-        "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal”.",
+        "font-style ani font-weight nie mają słowa kluczowego „regular”, więc parsery odrzucały te reguły w całości. Zastąpione przez „normal” — i tylko dlatego, że nic w tym arkuszu nie ustawia kursywy ani pogrubienia, więc dziedziczenie i nadpisanie dają tę samą stronę.",
+    "css.invalid-value-inherited":
+        "„regular” odrzuca każdy parser, więc element dziedziczy; „normal” by nadpisało. Te dwie rzeczy zgadzają się tylko dopóki dziedziczona wartość i tak jest normalna, a ten arkusz gdzieś ustawia kursywę albo pogrubienie — więc poprawka mogłaby wyprostować pochyły fragment. Deklaracja i tak była ignorowana, więc zostawienie jej niczego nie zmienia.",
+    "css.absolute-units":
+        "Rozmiary w px albo pt nie reagują na ustawienie wielkości czcionki w czytniku, a to zwykle pierwsza rzecz, którą się zmienia. Zostawione tak, jak napisał je wydawca; użyj --relative-units, żeby przepisać je na rem.",
+    "css.absolute-units-relativised":
+        "rem, a nie em: em liczy się względem rodzica, więc zagnieżdżona reguła kumulowałaby się i ta sama wartość znaczyłaby w różnych miejscach różny rozmiar. rem liczy się względem elementu głównego, więc każdy rozmiar wychodzi dokładnie jako rozmiar/16 — te same piksele co dotąd przy ustawieniu domyślnym i skalowanie razem z nim poza domyślnym.",
+    "css.absolute-units-rooted":
+        "rem mierzy się od elementu głównego, a ten arkusz ustala go w pikselach. Przepisanie reszty przerobiłoby arkusz, nie uwalniając ani jednego rozmiaru.",
     "css.unreachable-rules-found":
         "Księgarnie wgrywają jeden firmowy arkusz do każdego sprzedawanego tytułu i większość z niego dotyczy znaczników, których dana książka nie ma — `td.proc4` w powieści bez tabel. Tak czy inaczej nie zmienia to ani piksela. Użyj --strict, żeby to usunąć; ten tryb raportuje i zostawia, bo selektor niepasujący do niczego w sparsowanych przez nas dokumentach to nie to samo, co selektor niepasujący do niczego.",
     "css.unreachable-rules-removed":

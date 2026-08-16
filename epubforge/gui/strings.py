@@ -412,6 +412,24 @@ PL: dict[str, str] = {
         "Zaznaczone — rysowane są wszystkie strony. Dla książki o 65 rozdziałach "
         "to kilka minut, ale wtedy nic nie jest zgadywane z próbki."
     ),
+    "policy.relative.units": "Uwolnij rozmiary czcionek spod pikseli",
+    "policy.relative.units.tip": (
+        "Książka, która pisze `font-size: 12px`, odebrała sterowanie wielkością "
+        "pisma osobie, która ją czyta: na czytniku ustawionym na większy tekst "
+        "ten fragment i tak zostanie dwunastopikselowy. To najczęstsza "
+        "pozostałość po składzie do druku na twojej półce.\n\n"
+        "Włączone — rozmiary podane w px i pt zostają przepisane na **rem**, "
+        "czyli miarę liczoną od ustawienia czytnika. Przy ustawieniu domyślnym "
+        "strona wygląda **identycznie** co do piksela; przy zmienionym cała "
+        "książka skaluje się razem z nim, zachowując proporcje między "
+        "rozmiarami, które dobrał wydawca.\n\n"
+        "Domyślnie **wyłączone**, i nie z ostrożności o arytmetykę: to jest "
+        "przepisanie arkusza, który ktoś napisał. Poza ustawieniem domyślnym "
+        "książka celowo przestaje wyglądać tak samo — o to w tym chodzi — więc "
+        "jest to decyzja, a nie naprawa.\n\n"
+        "Raport wypisuje liczbę takich rozmiarów w każdym pliku niezależnie od "
+        "tego, czy ten przełącznik jest włączony."
+    ),
     "policy.hyphens": "Szukaj łączników zostawionych w środku słów",
     "policy.hyphens.tip": (
         "Zła konwersja PDF-a zostawia w tekście łącznik z podziału wiersza: "
@@ -1223,6 +1241,24 @@ EN: dict[str, str] = {
         "spread across the book. About 36 seconds per book.\n\n"
         "Ticked, every page is drawn. For a 65-chapter book that is several "
         "minutes, but then nothing is inferred from a sample."
+    ),
+    "policy.relative.units": "Free font sizes from pixels",
+    "policy.relative.units.tip": (
+        "A book that writes `font-size: 12px` has taken the size control away "
+        "from the person reading it: on a device set to larger text, that "
+        "passage stays twelve pixels. It is the most common piece of "
+        "print-era formatting on your shelf.\n\n"
+        "On, sizes given in px and pt are rewritten in **rem** — a measure "
+        "taken from the reading device's own setting. At the default setting "
+        "the page is **identical** to the pixel; away from it the whole book "
+        "scales together, keeping the proportions between the sizes the "
+        "publisher chose.\n\n"
+        "**Off** by default, and not out of caution about the arithmetic: this "
+        "rewrites a stylesheet somebody wrote. Away from the default setting "
+        "the book deliberately stops looking the same — that is the point — so "
+        "it is a decision rather than a repair.\n\n"
+        "The report gives the number of such sizes in every file whether or "
+        "not this is switched on."
     ),
     "policy.hyphens": "Look for hyphens left inside words",
     "policy.hyphens.tip": (

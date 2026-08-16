@@ -99,6 +99,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.accept_reconstructed_metadata = True
     if getattr(args, "hyphen_review", None):
         policy.hyphen_review = args.hyphen_review
+    if getattr(args, "relative_units", False):
+        policy.relative_units = True
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1039,6 +1041,16 @@ def build_parser() -> argparse.ArgumentParser:
             "'confirmed' asks only about words the book writes without a hyphen "
             "elsewhere (default), 'grouped' adds one question per confidence "
             "class carrying the words, 'each' asks about every candidate"
+        ),
+    )
+    build.add_argument(
+        "--relative-units",
+        action="store_true",
+        help=(
+            "rewrite font sizes given in px or pt as rem, so the reading "
+            "device's own font setting reaches them. Off by default: at the "
+            "default setting the page is identical, away from it the book "
+            "scales, and that is a change to the publisher's stylesheet"
         ),
     )
     build.add_argument(

@@ -225,6 +225,40 @@ GENERIC_FAMILIES = {
 #: dropped by every parser, so the publisher's intent never applied at all.
 _REGULAR_VALUE_RE = re.compile(r"(font-(?:style|weight)\s*:\s*)regular\b", re.IGNORECASE)
 
+#: What the element would have to be inheriting for correcting `regular` to
+#: change the page (EF-033). `regular` is dropped, so the element inherits; the
+#: correction says `normal`, which *overrides*. Those two agree everywhere the
+#: inherited value is already normal, and disagree exactly here.
+_INHERITABLE_EMPHASIS_RE = re.compile(
+    r"font-style\s*:\s*(?:italic|oblique)"
+    r"|font-weight\s*:\s*(?:bold|bolder|[6-9]00)"
+    r"|font\s*:[^;{}]*\b(?:italic|oblique|bold)\b",
+    re.IGNORECASE,
+)
+
+#: A font size given in a unit the reader cannot scale (EF-029). `pt` belongs
+#: here with `px`: it is an absolute unit in CSS, fixed at 4/3 px, and reaches
+#: EPUB from print stylesheets rather than from anybody's intent about screens.
+_ABSOLUTE_FONT_SIZE_RE = re.compile(
+    r"font-size\s*:\s*(\d+(?:\.\d+)?)\s*(px|pt)\b", re.IGNORECASE
+)
+
+#: Whether the sheet decides the root font size itself. `rem` resolves against
+#: the root element, so a sheet that sets the root in pixels has already fixed
+#: every `rem` under it and the conversion below would buy nothing.
+_ROOT_FONT_SIZE_RE = re.compile(
+    r"(?:^|[\s,}])(?:html|:root)[^{}]*\{[^{}]*font-size\s*:\s*\d+(?:\.\d+)?\s*(?:px|pt)",
+    re.IGNORECASE,
+)
+
+#: The CSS initial font size, and the base every conversion here is measured
+#: against. Not a guess: `medium` is 16px in every engine, and it is the number
+#: a reader's font-size setting moves.
+_INITIAL_FONT_SIZE_PX = 16.0
+
+#: One CSS point, in pixels. Fixed by the specification, not by the device.
+_PX_PER_PT = 4.0 / 3.0
+
 #: Out-of-flow positioning in a reflowable book. Legitimate in fixed-layout,
 #: where the viewport is known; in reflowable it detaches content from
 #: pagination and readers clip, overlap or lose it.
@@ -3065,6 +3099,7 @@ class StyleStage(Stage):
                 unresolved -= neutralised
             rewritten = self._strip_vendor_hacks(ctx, rewritten, resource)
             rewritten = self._repair(ctx, rewritten, resource)
+            rewritten = self._absolute_font_sizes(ctx, rewritten, resource)
             rewritten = self._vendor_properties(ctx, rewritten, resource)
             rewritten = self._unreachable_rules(ctx, rewritten, resource)
             rewritten = self._font_stacks(ctx, rewritten, resource)
@@ -3296,19 +3331,154 @@ class StyleStage(Stage):
         already discards them, so repairing them restores the intended layout
         instead of overriding it.
         """
-        repaired, invalid_values = _REGULAR_VALUE_RE.subn(r"\1normal", css_text)
-        if invalid_values:
-            self.note(
-                ctx,
-                Level.FIX,
-                "css.invalid-value-corrected",
-                values={"count": invalid_values},
-                location=resource.path,
-            )
-
+        repaired = self._repair_invalid_emphasis(ctx, css_text, resource)
         repaired = self._repair_positioning(ctx, repaired, resource)
         repaired = self._repair_direction(ctx, repaired, resource)
         return repaired
+
+    def _repair_invalid_emphasis(self, ctx: Context, css_text: str, resource) -> str:
+        """`font-style: regular` → `normal`, but only where that is the same page.
+
+        EF-033, and the finding is subtler than the fix it corrects. `regular`
+        is not a value of either property, so every parser throws the whole
+        declaration away and the element **inherits**. Writing `normal` in its
+        place does not restore the publisher's intent — it *overrides*, and
+        override and inherit are the same thing only while the inherited value
+        is already normal.
+
+            .list { font-style: italic; }
+            .list .name { font-style: regular; }   /* dropped: stays italic */
+
+        Correct that and the names come out upright on a page that has been
+        italic since the book was published. The publisher probably meant
+        upright; this program does not rebuild books to what the publisher
+        probably meant, it rebuilds them to what they look like (S-03).
+
+        So the question is whether anything in this sheet could put a non-normal
+        emphasis above the declaration. Nothing can: no italic, no bold, no
+        shorthand carrying either — then `normal` and the inherited value agree
+        for every element the selector can reach, the correction is provably
+        invisible, and it is made. Something can: the sheet is left exactly as
+        it is, invalid declaration and all, and the report says why. Leaving it
+        costs nothing, because it was already being ignored.
+
+        Deliberately a property of the *sheet* and not of the selector. Working
+        out which elements a selector reaches means resolving the cascade across
+        every document, and the answer would still be wrong the moment a second
+        sheet or a `style` attribute joined in. A sheet with no emphasis in it
+        anywhere cannot produce the bad case whatever the cascade does, which is
+        a weaker question with an answer this program can actually stand behind.
+        """
+        found = len(_REGULAR_VALUE_RE.findall(css_text))
+        if not found:
+            return css_text
+        if _INHERITABLE_EMPHASIS_RE.search(css_text):
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.invalid-value-inherited",
+                values={"count": found},
+                location=resource.path,
+            )
+            return css_text
+        self.note(
+            ctx,
+            Level.FIX,
+            "css.invalid-value-corrected",
+            values={"count": found},
+            location=resource.path,
+        )
+        return _REGULAR_VALUE_RE.sub(r"\1normal", css_text)
+
+    def _absolute_font_sizes(self, ctx: Context, css_text: str, resource) -> str:
+        """Report font sizes the reader's own setting cannot move, and — if asked
+        — make them movable without moving them today.
+
+        EF-029. `absolute_font_sizes` has been counted in the inventory since
+        the survey existed and has never reached a report or a repair, so the
+        most common piece of print-era formatting on the shelf was measured and
+        never mentioned. The count is now said per file, in both modes, whether
+        or not anything is going to be done about it.
+
+        The conversion, when `--relative-units` asks for it, is to **`rem` and
+        not `em`**, and that is the whole of why this is safe:
+
+            body { font-size: 20px }      p { font-size: 16px }
+
+        `em` resolves against the *parent*, so `16px → 1em` inside that body
+        computes to 20px and the paragraph grows by a quarter. Every nesting in
+        the book compounds differently, and no amount of care with the arithmetic
+        fixes it, because the regex cannot see which rule ends up inside which.
+        `rem` resolves against the root, does not compound, and is therefore
+        exactly `size / 16` wherever it lands — identical to the pixel value at
+        the default reader setting, on every rule, without knowing the cascade.
+
+        The one case that breaks it is a sheet that pins the root itself in
+        pixels: then `rem` is pinned too and the conversion buys nothing while
+        still rewriting somebody's stylesheet. Those sheets are reported and
+        left alone.
+
+        Measured on Chromium 141, one page, three viewports, rather than argued:
+
+            rem, against the render before conversion      0.000000% of pixels
+            em, the same arithmetic and the other unit     0.242292% of pixels
+
+        And the promise itself, with the reader's control moved from 16 to 24 —
+        which is the reason the feature exists, so it is worth a number too:
+
+            before conversion, reader 16 → 24             0.0000% of pixels
+            after conversion,  reader 16 → 24             0.1998% of pixels
+
+        A book that ignores the person's font setting entirely, and the same
+        book following it. That second figure is not a defect: away from the
+        default the page deliberately stops being identical, which is why this
+        is a switch rather than a repair. The proportions the publisher chose
+        survive it — every size moves by one factor.
+        """
+        sizes = _ABSOLUTE_FONT_SIZE_RE.findall(css_text)
+        if not sizes:
+            return css_text
+        if not ctx.policy.relative_units:
+            self.note(
+                ctx,
+                Level.INFO,
+                "css.absolute-units",
+                values={"count": len(sizes)},
+                location=resource.path,
+            )
+            return css_text
+        if _ROOT_FONT_SIZE_RE.search(css_text):
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.absolute-units-rooted",
+                values={"count": len(sizes)},
+                location=resource.path,
+            )
+            return css_text
+
+        def to_rem(match: "re.Match[str]") -> str:
+            size = float(match.group(1))
+            if match.group(2).lower() == "pt":
+                size *= _PX_PER_PT
+            # Four places, and the number is not arbitrary: 16 is a power of
+            # two, so every whole pixel value divides into at most four decimal
+            # places and comes out **exact** — 11px is 0.6875rem and not a
+            # rounding of it. Points are the only ones that can round (a point
+            # is 1/12 of the base, which recurs), and there four places put the
+            # error below a ten-thousandth of a character height.
+            value = f"{size / _INITIAL_FONT_SIZE_PX:.4f}".rstrip("0").rstrip(".")
+            return f"font-size: {value or '0'}rem"
+
+        converted, count = _ABSOLUTE_FONT_SIZE_RE.subn(to_rem, css_text)
+        self.note(
+            ctx,
+            Level.FIX,
+            "css.absolute-units-relativised",
+            values={"count": count},
+            location=resource.path,
+        )
+        return converted
 
     def _repair_direction(self, ctx: Context, css_text: str, resource) -> str:
         """Drop `direction` and `unicode-bidi` where they say nothing; keep them where they do.

@@ -255,6 +255,23 @@ class Policy:
     #: its own, which is deliberate and is why the detector may be on.
     detect_hyphens: bool = True
 
+    #: Rewrite absolute font sizes so the reader's own font setting works again.
+    #:
+    #: EF-029 / WP-13. A book that writes `font-size: 12px` has taken the size
+    #: control off the person reading it: on a reader whose default is larger,
+    #: that text stays twelve pixels. This is the single most common piece of
+    #: print-era formatting on the owner's shelf, and the report now names it
+    #: per file whether or not this is on.
+    #:
+    #: **Off by default**, and the reason is not caution about the units — it is
+    #: that this rewrites a stylesheet the publisher wrote. `S-03` says losing an
+    #: ornament is damage too, and a house sheet whose sizes were chosen against
+    #: each other is an ornament. The conversion below is appearance-identical at
+    #: the default reader setting and *deliberately* not identical away from it,
+    #: because being adjustable is the entire point; that is a change to somebody
+    #: else's book and therefore a decision, not a repair.
+    relative_units: bool = False
+
     #: Refuse a book this machine is not expected to have the memory for.
     #:
     #: EF-020, after the benchmark it asked for. The reader's ceiling of 2 GiB
