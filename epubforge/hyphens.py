@@ -368,6 +368,7 @@ def question_for(candidate: Candidate):
     where the book itself supplied the answer.
     """
     from .decisions import HYPHEN, KEEP, Option, Question
+    from .question_texts import say
     from .report import Risk
 
     # A word cut by markup somebody chose can be seen and kept and nothing more.
@@ -378,20 +379,20 @@ def question_for(candidate: Candidate):
         return Question(
             kind=HYPHEN,
             where=candidate.where,
-            summary=f"„{candidate.word}” — słowo przecięte znacznikiem <{candidate.carrier}>",
+            summary=say(
+                "hyphen.cut-by-markup.summary",
+                word=candidate.word,
+                carrier=candidate.carrier,
+            ),
             detail=(
                 f"{candidate.context}\n\n{candidate.reason}\n\n"
-                f"Nie proponuję złączenia: obie połowy siedzą w różnych "
-                f"elementach, a <{candidate.carrier}> niesie własne "
-                f"formatowanie albo znaczenie. Złączenie przeniosłoby tekst "
-                f"poza element, który ktoś wybrał — to zmiana struktury, a nie "
-                f"pisowni."
+                + say("hyphen.cut-by-markup.detail", carrier=candidate.carrier)
             ),
             options=(
                 Option(
                     KEEP,
-                    "Zostaw jak jest",
-                    "Słowo zostaje przecięte dokładnie tak, jak w pliku źródłowym",
+                    say("hyphen.cut-by-markup.keep"),
+                    say("hyphen.cut-by-markup.keep.why"),
                 ),
             ),
             recommended=KEEP,
@@ -404,23 +405,19 @@ def question_for(candidate: Candidate):
     return Question(
         kind=HYPHEN,
         where=candidate.where,
-        summary=f"„{candidate.word}” — łącznik w środku słowa",
+        summary=say("hyphen.one.summary", word=candidate.word),
         detail=f"{candidate.context}\n\n{candidate.reason}",
         options=(
-            Option(
-                KEEP,
-                "Zostaw jak jest",
-                "Słowo zostaje z łącznikiem, dokładnie tak jak w pliku źródłowym",
-            ),
+            Option(KEEP, say("hyphen.one.keep"), say("hyphen.one.keep.why")),
             Option(
                 "join",
-                f"Złącz w „{candidate.joined}”",
-                f"W tekście będzie „{candidate.joined}”",
+                say("hyphen.one.join", joined=candidate.joined),
+                say("hyphen.one.join.why", joined=candidate.joined),
             ),
             Option(
                 "write",
-                "Wpisz poprawną formę",
-                "W tekście będzie to, co wpiszesz",
+                say("hyphen.one.write"),
+                say("hyphen.one.write.why"),
                 needs_value=True,
             ),
         ),
@@ -546,31 +543,26 @@ def review_question(confidence: str, words: list):
     for this detector warned about exactly that over-eagerness.
     """
     from .decisions import HYPHEN, KEEP, Option, Question
+    from .question_texts import say
     from .report import Risk
 
     shown = ", ".join(f"„{word}”" for word in words[:40])
-    more = f" … i jeszcze {len(words) - 40}" if len(words) > 40 else ""
-    label = "prawdopodobne" if confidence == LIKELY else "niepewne"
+    more = say("hyphen.group.more", count=len(words) - 40) if len(words) > 40 else ""
+    label = say(
+        "hyphen.group.label.likely" if confidence == LIKELY
+        else "hyphen.group.label.uncertain"
+    )
     return Question(
         kind=HYPHEN,
         where="",
-        summary=f"{len(words)} słów z łącznikiem — {label}, bez dowodu w tej książce",
-        detail=(
-            f"Ta książka nigdzie nie pisze tych słów bez łącznika, więc nie ma "
-            f"dowodu, że łącznik jest usterką konwersji, a nie pisownią autora. "
-            f"Wiele z nich to prawdziwe wyrazy złożone.\n\n{shown}{more}"
-        ),
+        summary=say("hyphen.group.summary", count=len(words), label=label),
+        detail=say("hyphen.group.detail", shown=shown, more=more),
         options=(
-            Option(
-                KEEP,
-                "Zostaw wszystkie",
-                "Żadne z tych słów nie zostanie zmienione — tak jak dotąd",
-            ),
+            Option(KEEP, say("hyphen.group.keep"), say("hyphen.group.keep.why")),
             Option(
                 "join",
-                f"Złącz wszystkie {len(words)}",
-                "Każde z tych słów straci łącznik; to zmiana treści i nie da się "
-                "jej cofnąć z samego wyniku",
+                say("hyphen.group.join", count=len(words)),
+                say("hyphen.group.join.why"),
             ),
         ),
         recommended=KEEP,

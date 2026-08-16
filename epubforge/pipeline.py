@@ -16,6 +16,7 @@ from . import budget as budget_module
 from .budget import Budget, BudgetExceeded, Cancelled
 from .model import Book
 from .policy import Policy
+from .question_texts import say
 from .reader import EpubReadError, read_epub
 from .references import Resolver
 from .report import Level, Report, Risk
@@ -281,31 +282,21 @@ def _cannot_verify(policy: Policy, report: Report, queue) -> str:
             kind=decisions.VERIFICATION,
             where="",
             subject="render",
-            summary="Sprawdzenie wyglądu jest obowiązkowe i nie dało się go wykonać",
-            detail=(
-                "Program rysuje strony przed i po przebudowie i porównuje je, "
-                "żeby wykryć stronę, która straciła treść. Na tej maszynie nie "
-                "ma przeglądarki, którą mógłby do tego użyć, więc wynik nie "
-                "został sprawdzony.\n\n"
-                "Zainstaluj Chromium albo Chrome'a, albo wskaż własną "
-                f"przeglądarkę zmienną {render_module().ENV_BROWSER}, a "
-                "sprawdzenie wykona się samo. Możesz też świadomie z niego "
-                "zrezygnować — teraz, tą odpowiedzią, albo z góry dla całej "
-                "partii ustawieniem „przyjmij niesprawdzone”."
+            summary=say("render.unverified.summary"),
+            detail=say(
+                "render.unverified.detail",
+                variable=render_module().ENV_BROWSER,
             ),
             options=(
                 decisions.Option(
                     decisions.KEEP,
-                    "Nie zapisuj",
-                    "Plik nie powstanie, a ten, który leży pod tą nazwą, "
-                    "zostanie nietknięty. Nic nie tracisz i możesz wrócić po "
-                    "zainstalowaniu przeglądarki.",
+                    say("render.unverified.keep"),
+                    say("render.unverified.keep.why"),
                 ),
                 decisions.Option(
                     "publish",
-                    "Zapisz mimo to",
-                    "Plik powstanie, a w raporcie stanie, że wygląd nie został "
-                    "sprawdzony. Świadoma rezygnacja z weryfikacji.",
+                    say("render.unverified.publish"),
+                    say("render.unverified.publish.why"),
                 ),
             ),
             recommended=decisions.KEEP,
@@ -462,22 +453,20 @@ def _ask_about_reconstructed(book, reconstructed, queue, report) -> bool:
         question = decisions.Question(
             kind=decisions.METADATA,
             where=book.source_opf_path or "",
-            summary=f"„{current}” — {label} odczytany z uszkodzonego pakietu",
-            detail=(
-                f"Pakiet tej książki dał się sparsować dopiero po odzysku, więc to "
-                f"pole jest odczytem parsera, a nie tym, co napisał wydawca. "
-                f"Wyszło: „{current}”."
+            summary=say(
+                "metadata.reconstructed.summary", current=current, label=label
             ),
+            detail=say("metadata.reconstructed.detail", current=current),
             options=(
                 decisions.Option(
                     decisions.KEEP,
-                    f"Zostaw „{current}”",
-                    "W książce zostanie to, co odczytał parser",
+                    say("metadata.reconstructed.keep", current=current),
+                    say("metadata.reconstructed.keep.why"),
                 ),
                 decisions.Option(
                     "write",
-                    "Wpisz poprawną wartość",
-                    "W książce będzie to, co wpiszesz",
+                    say("metadata.reconstructed.write"),
+                    say("metadata.reconstructed.write.why"),
                     needs_value=True,
                 ),
             ),

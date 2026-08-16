@@ -1683,9 +1683,21 @@ _ACTIVE = _detect()
 
 
 def set_language(code: str) -> None:
+    """Switch the window's language, and the questions' along with it.
+
+    The second half is the point (EF-032). Questions are raised deep in the
+    rebuild, by modules that must not import anything from the window, so they
+    carry their own catalogue; keeping the two settings in step here means there
+    is one call to make and no way to change one without the other. Before this,
+    an English user got the interface in English and then a paragraph of Polish
+    at the moment of deciding something irreversible about their book.
+    """
     global _ACTIVE
     if code in LANGUAGES:
         _ACTIVE = code
+        from .. import question_texts
+
+        question_texts.set_language(code)
 
 
 def tr(key: str, **kwargs) -> str:
