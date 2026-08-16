@@ -20,7 +20,7 @@ import threading
 from collections import Counter
 from dataclasses import dataclass, field
 
-from . import resources
+from . import resources, spawn
 from .report import Level, Report
 
 ENV_JAR = "EPUBCHECK_JAR"
@@ -122,8 +122,8 @@ def accepted_tuning(java: str) -> tuple[str, ...]:
     starting that java with those options and seeing whether it comes up.
     """
     try:
-        probe = subprocess.run(
-            [java, *TUNING, "-version"], capture_output=True, timeout=60, **_no_console()
+        probe = spawn.run(
+            [java, *TUNING, "-version"], capture_output=True, timeout=60
         )
     except (OSError, subprocess.SubprocessError):
         return ()
@@ -169,28 +169,6 @@ def _java_command(jar: str) -> list[str] | None:
     if shutil.which("java") is None:
         return None
     return ["java", "-jar", jar]
-
-
-def _no_console() -> dict:
-    """Keep Windows from opening a console window for the validator.
-
-    A GUI process on Windows has no console, so starting one is starting a
-    new window: a black rectangle appears, sits there for as long as the JVM
-    runs, and disappears. It does nothing, explains nothing, and the progress
-    it looks like it should be showing is in the application window already.
-
-    `CREATE_NO_WINDOW` is the documented way to say no. It exists only on
-    Windows, hence the guard; everywhere else this returns nothing and the call
-    is unchanged.
-    """
-    if os.name != "nt":
-        return {}
-    options: dict = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = subprocess.SW_HIDE
-    options["startupinfo"] = startupinfo
-    return options
 
 
 # --------------------------------------------------------------------------
@@ -249,11 +227,10 @@ def _driver_class() -> pathlib.Path | None:
         return None
     try:
         cached.parent.mkdir(parents=True, exist_ok=True)
-        built = subprocess.run(
+        built = spawn.run(
             [javac, "-cp", jar, "-d", str(cached.parent), str(source)],
             capture_output=True,
             timeout=300,
-            **_no_console(),
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -317,12 +294,11 @@ class SharedValidator:
         if command is None:
             return None
         try:
-            process = subprocess.Popen(
+            process = spawn.popen(
                 command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                **_no_console(),
             )
         except (OSError, subprocess.SubprocessError) as exc:
             self.reason = f"{type(exc).__name__}: {exc}"
@@ -513,12 +489,11 @@ def validate(
         # The warm JVM first; `None` from it means "this one goes the old way",
         # and the old way is the line below, unchanged.
         if SHARED.check(epub_path, json_path, timeout=300) is None:
-            subprocess.run(
+            spawn.run(
                 command + [epub_path, "--json", json_path, "--quiet"],
                 capture_output=True,
                 timeout=300,
                 check=False,
-                **_no_console(),
             )
         with open(json_path, encoding="utf-8") as handle:
             payload = json.load(handle)

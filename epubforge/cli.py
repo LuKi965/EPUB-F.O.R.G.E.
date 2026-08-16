@@ -350,7 +350,10 @@ def command_build(args: argparse.Namespace) -> int:
                 console.print(f"  [bold red]not written[/] {extra.output_path}")
                 exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
-        if args.check and result.output_path:
+        # Not when the publication gate has already validated these bytes: same
+        # file, one name earlier. Twice is four and a half seconds a book and
+        # the verdict printed twice.
+        if args.check and result.output_path and result.report.validated is None:
             validate(
                 result.output_path,
                 result.report,
@@ -740,6 +743,10 @@ def command_render_check(args: argparse.Namespace) -> int:
     if render.find_renderer() is None:
         console.print(f"[yellow]{render.why_not()}[/]")
         return 3
+    # Named before the first page is drawn. A rendered comparison is a statement
+    # about the book only if it says which engine made it; otherwise it is a
+    # statement about the machine, and nothing on screen distinguishes the two.
+    console.print(f"[dim]{render.describe()}[/]\n")
 
     worst = 0
     for book in args.inputs:

@@ -143,6 +143,17 @@ class Report:
     #: they answer different questions: a finding says why somebody should look,
     #: a change says what happened to the book.
     changes: list[Change] = field(default_factory=list)
+    #: EPUBCheck's verdict on the bytes that were published, once something has
+    #: asked for it. Set by the publication gate, which validates the staged file
+    #: immediately before it is renamed into place — the same bytes under a
+    #: different name.
+    #:
+    #: Here so that nothing validates them a second time. In strict mode the
+    #: window did exactly that: the gate ran EPUBCheck, the "check the result"
+    #: pass ran it again on the finished file, and the report carried the same
+    #: `epubcheck.clean` line twice. Measured at about four and a half seconds
+    #: per book, spent to learn a thing already known.
+    validated: object = None
 
     def add(
         self,

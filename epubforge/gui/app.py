@@ -112,7 +112,14 @@ class Worker(QObject):
                 result = produced[0]
                 if self._run_check:
                     for one in produced:
-                        if one.output_path:
+                        # `report.validated` means the publication gate has
+                        # already asked EPUBCheck about these exact bytes, under
+                        # the staging name they carried a moment earlier. Asking
+                        # again costs about four and a half seconds a book and
+                        # writes the same verdict into the report a second time,
+                        # which is how a strict run came back saying
+                        # `epubcheck.clean` twice.
+                        if one.output_path and one.report.validated is None:
                             self.validating.emit(index, os.path.basename(source))
                             validate(
                                 one.output_path,

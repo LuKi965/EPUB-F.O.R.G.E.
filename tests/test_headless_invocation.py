@@ -16,6 +16,12 @@ import inspect
 
 from epubforge import render, render_fidelity
 
+#: `conftest` stubs `render.describe` for the whole session, so that no test's
+#: answer depends on which engine this machine happens to have. The two tests
+#: below are *about* that line, so they are handed the real one back — the same
+#: arrangement the render tests have, and for the same reason.
+_REAL_DESCRIBE = render.describe
+
 class TestWhatTheOwnersOwnRunFound:
     """0.2.25 fixed browser discovery, and that switched on a code path which
     had **never once run on Windows** — because Edge was never found. Two
@@ -72,33 +78,6 @@ class TestTheRendererWeCarry:
     three of the four damage shapes and reported an empty version string.
     """
 
-    def test_the_order_is_named_first_then_ours_then_the_machine(
-        self, monkeypatch, tmp_path
-    ):
-        """Asserted on `_candidates`, which is where the order lives, rather
-        than on `find_renderer` — `conftest` stubs the latter for the whole
-        session so that two thousand rebuilds do not start a browser.
-
-        The order carries two decisions. Somebody who sets the variable has said
-        which engine they mean and outranks what we shipped. What we shipped
-        outranks whatever is installed, because otherwise the numbers in a report
-        would be about somebody else's Edge.
-        """
-        from epubforge import resources
-
-        mine = tmp_path / "moja-przegladarka"
-        carried = tmp_path / "chrome-headless-shell"
-        for path in (mine, carried):
-            path.write_text("", encoding="utf-8")
-            path.chmod(0o755)
-        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
-        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
-
-        order = render._candidates()
-        assert order[0] == mine
-        assert carried in order
-        assert order.index(carried) < len(order), order
-
     def test_ours_comes_before_anything_on_the_machine(self, monkeypatch, tmp_path):
         from epubforge import resources
 
@@ -126,3 +105,215 @@ class TestTheRendererWeCarry:
 
         source = inspect.getsource(resources.bundled_renderer)
         assert "chrome-headless-shell" in source
+
+
+class TestWhichEngineWinsAndWhoIsTold:
+    """0.2.27, and the whole of the owner's first complaint about 0.2.26:
+    *"nie posprzątałeś kodu po syfie z Edge i aplikacja wciąż otwiera mi Edge
+    przez zmienną EPUBFORGE_CHROME"*.
+
+    He was right, and the earlier order was mine. `EPUBFORGE_CHROME` came first
+    on the reasoning that somebody who names an engine has said which one they
+    mean. What that reasoning missed is that a variable is not somebody saying
+    something now — it is somebody having said it once, in a build that carried
+    no engine at all, and it kept applying after the reason for it was gone.
+    """
+
+    @staticmethod
+    def _two_engines(tmp_path):
+        mine = tmp_path / "msedge.exe"
+        carried = tmp_path / "chrome-headless-shell"
+        for path in (mine, carried):
+            path.write_text("", encoding="utf-8")
+            path.chmod(0o755)
+        return mine, carried
+
+    def test_what_we_carry_beats_what_the_variable_names(self, monkeypatch, tmp_path):
+        from epubforge import resources
+
+        mine, carried = self._two_engines(tmp_path)
+        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
+        monkeypatch.delenv(render.ENV_BROWSER_WINS, raising=False)
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+
+        picked = render.chosen()
+        assert picked.path == carried
+        assert picked.origin == "carried"
+
+    def test_and_says_what_it_passed_over(self, monkeypatch, tmp_path):
+        """Overruling somebody silently is how this went wrong in the first
+        place. The value is carried out so the window and the console can print
+        it, rather than the person guessing why Edge is not starting any more."""
+        from epubforge import resources
+
+        mine, carried = self._two_engines(tmp_path)
+        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
+        monkeypatch.delenv(render.ENV_BROWSER_WINS, raising=False)
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+
+        monkeypatch.setattr(render, "describe", _REAL_DESCRIBE)
+        assert render.chosen().overruled == str(mine)
+        said = render.describe()
+        assert str(mine) in said
+        assert render.ENV_BROWSER_WINS in said
+
+    def test_the_variable_still_wins_where_nothing_is_carried(
+        self, monkeypatch, tmp_path
+    ):
+        """A checkout, a `pip` install, this project's own render tests. There
+        the variable is the only way to name an engine and it works as it always
+        did — the demotion is about a build that ships one, not about the
+        variable being a bad idea."""
+        from epubforge import resources
+
+        mine, _ = self._two_engines(tmp_path)
+        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: None)
+
+        picked = render.chosen()
+        assert picked.path == mine
+        assert picked.origin == "named"
+        assert picked.overruled == ""
+
+    def test_saying_it_twice_restores_the_old_order(self, monkeypatch, tmp_path):
+        """Human in the loop cuts both ways: this program does not get to decide
+        that somebody may never use their own engine. It gets to decide that
+        doing so has to be said deliberately, in a sentence nobody types by
+        accident."""
+        from epubforge import resources
+
+        mine, carried = self._two_engines(tmp_path)
+        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
+        monkeypatch.setenv(render.ENV_BROWSER_WINS, "1")
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+
+        picked = render.chosen()
+        assert picked.path == mine
+        assert picked.origin == "named"
+        assert render._candidates()[0] == mine
+
+    def test_a_variable_pointing_at_nothing_does_not_break_the_check(
+        self, monkeypatch, tmp_path
+    ):
+        """The commonest state of a stale variable: it names a path that is not
+        there any more. That must fall through to the carried engine rather than
+        leaving the check unable to run."""
+        from epubforge import resources
+
+        _, carried = self._two_engines(tmp_path)
+        monkeypatch.setenv(render.ENV_BROWSER, str(tmp_path / "nie-ma-mnie"))
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+        assert render.chosen().path == carried
+
+    def test_edge_is_not_looked_for_any_more(self):
+        """The clearing-up he asked for, and it is not tidiness.
+
+        Edge was added when the problem looked like *find any Chromium*. It was
+        measured afterwards: on the same four kinds of damage it disagreed with
+        Chromium about three, and it reports no version string, which also
+        defeats `engine_matches` — so two runs cannot even be shown to be
+        comparable. An engine that answers differently is not a fallback.
+        """
+        assert "msedge" not in render._NAMES
+        assert not [
+            path for path in render._WINDOWS_PROGRAMS if "Edge" in path
+        ], render._WINDOWS_PROGRAMS
+        assert "msedge" not in render.windows_installs(
+            {"PROGRAMFILES": r"C:\Program Files"}
+        )
+
+    def test_the_engine_is_named_wherever_a_result_is_shown(self, monkeypatch, tmp_path):
+        from epubforge import resources
+
+        _, carried = self._two_engines(tmp_path)
+        monkeypatch.delenv(render.ENV_BROWSER, raising=False)
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+        monkeypatch.setattr(render, "describe", _REAL_DESCRIBE)
+        assert "chrome-headless-shell" in render.describe()
+
+    def test_no_engine_is_still_a_sentence(self, monkeypatch):
+        from epubforge import resources
+
+        monkeypatch.delenv(render.ENV_BROWSER, raising=False)
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: None)
+        monkeypatch.setattr(render, "_machine_candidates", list)
+        monkeypatch.setattr(render, "describe", _REAL_DESCRIBE)
+        assert render.chosen().path is None
+        assert render.describe()
+
+
+class TestNothingOpensAWindowOnHisScreen:
+    """His second complaint about 0.2.26: a black console box flashing roughly
+    once a second for as long as a batch ran.
+
+    One per screenshot. A frozen GUI application on Windows has no console of
+    its own, so Windows makes one for every child process that does not say no
+    — and `render` never said no. `validate` had said no since the day the same
+    thing was found there, one window per book, which is exactly why the flags
+    now live in one place instead of two.
+    """
+
+    def test_the_flags_exist_and_are_windows_only(self, monkeypatch):
+        from epubforge import spawn
+
+        monkeypatch.setattr(spawn.os, "name", "posix")
+        assert spawn.no_console() == {}
+
+    def test_on_windows_it_asks_for_no_console(self, monkeypatch):
+        """Built without a Windows interpreter, so `STARTUPINFO` and the
+        `SW_HIDE` constant are stubbed; what is under test is that the code
+        takes the branch and puts `creationflags` in, not that Python's own
+        constants have the values Microsoft documents."""
+        import subprocess
+
+        from epubforge import spawn
+
+        class FakeStartupInfo:
+            def __init__(self):
+                self.dwFlags = 0
+                self.wShowWindow = 0
+
+        monkeypatch.setattr(spawn.os, "name", "nt")
+        monkeypatch.setattr(subprocess, "STARTUPINFO", FakeStartupInfo, raising=False)
+        monkeypatch.setattr(subprocess, "STARTF_USESHOWWINDOW", 1, raising=False)
+        monkeypatch.setattr(subprocess, "SW_HIDE", 0, raising=False)
+
+        options = spawn.no_console()
+        assert options["creationflags"] == getattr(
+            subprocess, "CREATE_NO_WINDOW", 0x08000000
+        )
+        assert options["startupinfo"].dwFlags & 1
+
+    def test_every_child_process_in_the_package_goes_through_it(self):
+        """The invariant, rather than a fix in two files.
+
+        This defect shipped twice — once in the validator, once in the renderer
+        — and the second time only because the module that spawns the second
+        kind of child was written after the first was fixed and nothing tied
+        them together. A grep is what ties them together.
+        """
+        import pathlib
+
+        package = pathlib.Path(spawn_module().__file__).parent
+        offenders = []
+        for source in sorted(package.rglob("*.py")):
+            if source.name == "spawn.py":
+                continue
+            text = source.read_text(encoding="utf-8")
+            for number, line in enumerate(text.splitlines(), start=1):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+                if "subprocess.run(" in stripped or "subprocess.Popen(" in stripped:
+                    offenders.append(f"{source.name}:{number}: {stripped}")
+        assert not offenders, (
+            "these spawn a child process without going through `spawn`, which on "
+            "Windows means a console window on somebody's screen: "
+            + "; ".join(offenders)
+        )
+
+
+def spawn_module():
+    from epubforge import spawn
+
+    return spawn

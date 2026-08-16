@@ -181,6 +181,74 @@ class TestALossHasToBeAccountedFor:
         assert "images" in said or "obraz" in said
 
 
+class TestTheMetadataCountIsTheWholeOfTheMetadata:
+    """A check that reads a field which does not exist is a check that passes.
+
+    `_metadata_entries` asked for `metadata.extra`. The model has no such
+    attribute — it spells that vocabulary `extra_meta`, `extra_properties`,
+    `extra_refinements` and `dublin_core_extra` — and the `getattr` default
+    turned the mistake into a quiet zero. So the balance's metadata arm was
+    counting titles, creators, identifiers and the language, and nothing else,
+    while its docstring claimed it existed to catch F-011: *a whole vocabulary
+    vanishing while the title stayed put*. That is precisely the loss it could
+    not have seen.
+    """
+
+    def test_every_field_of_the_model_is_counted_or_named_as_bookkeeping(self):
+        """The invariant, so this cannot rot again as the model grows.
+
+        A field added to `Metadata` and forgotten here is a class of statement
+        the balance stops watching, silently and with every test still green.
+        """
+        import dataclasses
+
+        from epubforge.model import Metadata
+
+        known = set(balance._METADATA_LISTS) | set(balance._METADATA_SINGLES)
+        known |= set(balance._METADATA_BOOKKEEPING)
+        missing = [
+            entry.name
+            for entry in dataclasses.fields(Metadata)
+            if entry.name not in known
+        ]
+        assert not missing, (
+            "these say something about the book and the balance does not count "
+            f"them: {missing}"
+        )
+
+    def test_the_names_it_counts_are_names_the_model_has(self):
+        """The other direction, and the one that actually shipped: a name that
+        is not a field counts zero for ever."""
+        import dataclasses
+
+        from epubforge.model import Metadata
+
+        fields = {entry.name for entry in dataclasses.fields(Metadata)}
+        for name in (*balance._METADATA_LISTS, *balance._METADATA_SINGLES):
+            assert name in fields, f"{name} is not a field of Metadata"
+
+    def test_a_vendor_property_counts(self):
+        """`ibooks:specified-fonts` is the one that exposed the model's gap.
+        Here it is standing in for the whole class: dropped, the balance has to
+        see the number go down."""
+        from epubforge.model import Book, Metadata
+
+        book = Book(metadata=Metadata(titles=["T"], language="pl"))
+        bare = balance.Side.of(book).metadata_entries
+        book.metadata.extra_properties.append(("ibooks:specified-fonts", "true", {}))
+        assert balance.Side.of(book).metadata_entries == bare + 1
+
+    def test_a_subtitle_counts_as_much_as_a_title(self):
+        from epubforge.model import Book, Metadata
+
+        two = Book(metadata=Metadata(titles=["A", "B"], language="pl"))
+        moved = Book(metadata=Metadata(titles=["A"], subtitle="B", language="pl"))
+        assert (
+            balance.Side.of(two).metadata_entries
+            == balance.Side.of(moved).metadata_entries
+        )
+
+
 class TestWhatItCountsAndWhatItDoesNot:
     def test_a_resource_lands_in_the_bucket_its_type_says(self):
         assert balance.kind_of("a/b.xhtml", "application/xhtml+xml") == "documents"
@@ -264,6 +332,49 @@ class TestABalanceMayNotCryWolf:
         ]
         assert len(removals) == 1, [c.rule for c in result.report.changes]
         assert removals[0].action is Action.REMOVED
+
+    def test_a_second_title_is_not_a_lost_title(self, tmp_path):
+        """The 0.2.26 corpus run: 21 books of 93 reported a metadata entry lost.
+
+        Every one of them was an EPUB 2 whose package carries two `<dc:title>`
+        elements. The reader keeps the first as the title and moves the second
+        into `subtitle`, the writer emits both with their `title-type`
+        refinements, and EPUBCheck accepts the result — the statement is in the
+        output, in the file, where anybody can read it.
+
+        The balance counted `titles` and not `subtitle`, saw two become one, and
+        reported a loss. Nothing was lost. A quarter of his library was told
+        otherwise, which is the failure mode this class exists to prevent and
+        the second time it has happened.
+        """
+        import zipfile
+
+        source = make_legacy_epub(str(tmp_path / "two-titles.epub"))
+        entries = {}
+        with zipfile.ZipFile(source) as archive:
+            for entry in archive.namelist():
+                entries[entry] = archive.read(entry)
+        opf_name = next(name for name in entries if name.endswith(".opf"))
+        opf = entries[opf_name].decode()
+        entries[opf_name] = opf.replace(
+            "</dc:title>", "</dc:title><dc:title>Podtytuł tej książki</dc:title>", 1
+        ).encode()
+        with zipfile.ZipFile(source, "w", zipfile.ZIP_DEFLATED) as archive:
+            for entry, data in entries.items():
+                archive.writestr(entry, data)
+
+        result = rebuild(
+            source,
+            str(tmp_path / "two-titles-out.epub"),
+            Policy.preset("preserve", validate_before_publish="off"),
+        )
+        assert result.report.balance.closes, result.report.balance.as_dict()
+        assert "package.balance-unexplained" not in rules_of(result)
+
+        with zipfile.ZipFile(result.output_path) as archive:
+            written = next(n for n in archive.namelist() if n.endswith(".opf"))
+            package = archive.read(written).decode()
+        assert "Podtytuł tej książki" in package, "and it really is still there"
 
     def test_keeping_the_ncx_still_balances(self, tmp_path):
         """The other half: rewriting it under a new name moves a file rather

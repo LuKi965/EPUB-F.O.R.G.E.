@@ -74,6 +74,12 @@ def no_browser_anywhere():
 
     patch = pytest.MonkeyPatch()
     patch.setattr(render, "find_renderer", lambda: "/nie/ma/mnie")
+    # `describe` is the line the window and the console print. Left alone it
+    # would report whatever engine this machine has, which is the same
+    # host-dependence one line up. `chosen` underneath it is deliberately *not*
+    # patched: it is what `test_headless_invocation.py` is about, and a stub
+    # over the thing under test is how the last two of these went unnoticed.
+    patch.setattr(render, "describe", lambda: "silnik rysujący: podstawiony")
     patch.setattr(
         render_fidelity,
         "compare",

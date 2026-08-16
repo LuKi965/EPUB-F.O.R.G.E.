@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.26` · alpha · 2457 tests · **Windows**
+`0.2.27` · alpha · 2475 tests · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -167,8 +167,11 @@ Things worth knowing before rather than after:
 - **Strict mode can refuse to publish, from 0.2.23.** It asks EPUBCheck
   *before* the file takes its name and will not publish something the validator
   calls invalid — including when the defect arrived with the book and this
-  program did not make it. On the public corpus that is two books out of
-  twelve. A refusal **never touches** the file already at that name. Preserve
+  program did not make it. Measured on 0.2.27, the whole public corpus with the
+  validator on: **17 books of 19 come out, 2 are refused** — one for a
+  fixed-layout document with no `viewport`, one for Media Overlays class names
+  with no stylesheet, and both defects arrived with the source. A refusal
+  **never touches** the file already at that name. Preserve
   and minimal publish and report as before; the choice is in the window and
   under `--gate`.
 - **The appearance check can stop a write too, from 0.2.24, and it is
@@ -182,8 +185,14 @@ Things worth knowing before rather than after:
   machine, which was wrong twice over: Edge could open an empty window, and the
   check's answer depended on which browser you happened to have — measured, Edge
   and Chromium disagreed about three of four kinds of damage. It costs about
-  110 MB of installer. Your own browser still wins if you name it in
-  `EPUBFORGE_CHROME`.
+  110 MB of installer. **From 0.2.27 the carried engine wins** and Edge is not
+  searched for at all: a comparison of two renderings is a statement about the
+  *book* only if the same engine drew both, and the carried one is the only
+  engine identical on every machine. `EPUBFORGE_CHROME` still wins where nothing
+  is carried — a checkout, a `pip` install — and where something is carried and
+  the variable disagrees, the program **says so** in the window and on the
+  console instead of quietly obeying it. `EPUBFORGE_CHROME_OVERRIDE=1` alongside
+  it restores the old order.
 - **It does not convert from PDF, MOBI or Word.** That is a different job
   and deliberately out of scope.
 - **No DRM removal**, and there will not be.
@@ -197,7 +206,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-2457 tests, including four independent safety nets:
+2475 tests, including four independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

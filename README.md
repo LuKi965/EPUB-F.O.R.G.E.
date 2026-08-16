@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.26` · alpha · 2457 testów · **Windows**
+`0.2.27` · alpha · 2475 testów · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -175,8 +175,11 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 - **Tryb ścisły od 0.2.23 potrafi odmówić wydania pliku.** Pyta EPUBCheck
   *zanim* plik trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje
   za niepoprawne — również wtedy, gdy defekt przyszedł razem z książką i ten
-  program go nie stworzył. Na korpusie publicznym dotyczy to dwóch książek na
-  dwanaście. Odmowa **nie rusza** pliku, który już leży pod tą nazwą.
+  program go nie stworzył. Zmierzone na 0.2.27, cały korpus publiczny z
+  walidatorem: **17 książek na 19 wychodzi, 2 są odmówione** — jedna za brak
+  `viewport` w dokumencie o stałym układzie, druga za klasy Media Overlays bez
+  arkusza, i obie wady przyszły razem ze źródłem. Odmowa **nie rusza** pliku,
+  który już leży pod tą nazwą.
   Tryb zachowawczy i minimalny wydają i opisują, tak jak dotąd; wybór jest w
   oknie i pod `--gate`.
 - **Sprawdzenie wyglądu od 0.2.24 też potrafi zatrzymać zapis, i jest
@@ -189,8 +192,14 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   Chrome'a albo Edge'a na maszynie, a to znaczyło dwie złe rzeczy: Edge potrafił
   otworzyć puste okno, i wynik kontroli zależał od tego, jaką przeglądarkę kto
   ma — zmierzone, Edge i Chromium nie zgadzały się co do trzech z czterech
-  rodzajów uszkodzenia. Instalator jest przez to o jakieś 110 MB większy; własną
-  przeglądarkę nadal można wskazać zmienną `EPUBFORGE_CHROME` i wtedy wygrywa.
+  rodzajów uszkodzenia. Instalator jest przez to o jakieś 110 MB większy.
+  **Od 0.2.27 silnik dołączony wygrywa**, a Edge nie jest już w ogóle szukany:
+  porównanie dwóch rysunków mówi coś o *książce* tylko wtedy, gdy oba zrobił ten
+  sam silnik, a dołączony to jedyny, który jest identyczny na każdej maszynie.
+  Zmienna `EPUBFORGE_CHROME` działa dalej tam, gdzie nic nie jest dołączone
+  (kod źródłowy, `pip`), a gdy jest dołączone i zmienna wskazuje co innego —
+  program **mówi o tym** w oknie i w konsoli, zamiast po cichu ją uszanować.
+  Żeby mimo to wygrała, trzeba dopisać `EPUBFORGE_CHROME_OVERRIDE=1`.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
   zakresem.
 - **Nie zdejmuje DRM** i nie będzie.
@@ -203,7 +212,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-2457 testów, w tym cztery niezależne siatki bezpieczeństwa:
+2475 testów, w tym cztery niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

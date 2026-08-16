@@ -579,6 +579,10 @@ def _publication_gate(source: str, policy: Policy, report: Report):
             return ""
 
         produced = validate(candidate, report, content_untouched=not policy.rewrite_content)
+        # The candidate is what gets renamed into place, so this verdict is the
+        # verdict on the published file. Recorded so nothing pays for it twice.
+        if produced.available:
+            report.validated = produced
         if not produced.available:
             if policy.validate_before_publish == "clean":
                 report.add(

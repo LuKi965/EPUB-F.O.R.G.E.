@@ -358,3 +358,58 @@ class TestTheReportSaysEnoughToActOn:
             f for f in result.report.findings if f.rule == "package.errors-were-already-there"
         )
         assert finding.values["count"] >= 1
+
+
+class TestTheVerdictIsAskedForOnce:
+    """His 0.2.26 report carried `epubcheck.clean` twice on every strict book.
+
+    Both lines were true and both were about the same bytes. The gate validates
+    the staging file one line before `os.replace` renames it into place; the
+    window's *check the result* pass then validated the file at its final name.
+    Same archive, same digest, one name apart — and about four and a half
+    seconds of JVM, per book, to be told a second time.
+
+    A duplicated line is the small half of it. The larger half is that a report
+    saying the same thing twice is a report somebody stops reading carefully.
+    """
+
+    @needs_epubcheck
+    def test_the_gate_records_the_verdict_it_got(self, tmp_path, good):
+        result = rebuild(
+            good,
+            str(tmp_path / "raz.epub"),
+            Policy.preset("strict", validate_before_publish="clean"),
+        )
+        assert result.status.wrote_a_file
+        assert result.report.validated is not None
+        assert result.report.validated.available
+
+    def test_with_no_gate_nothing_is_recorded_and_the_check_still_runs(
+        self, tmp_path, good
+    ):
+        """The other half: with the gate off, nothing has asked, so the caller
+        that wants a verdict has to ask. Recording one here would be the same
+        defect facing the other way — a check silently skipped."""
+        result = rebuild(
+            good,
+            str(tmp_path / "dwa.epub"),
+            Policy.preset("preserve", validate_before_publish="off"),
+        )
+        assert result.report.validated is None
+
+    def test_the_callers_that_would_ask_twice_look_at_it(self):
+        """Asserted on the source of both call sites, because the condition is
+        the fix and there is no other way to see it without a JVM.
+
+        Two places validate a finished book — the window's batch and the command
+        line's `--check` — and both had to learn the same thing. A test on one
+        of them would have left the other exactly as it was.
+        """
+        import inspect
+
+        from epubforge import cli
+        from epubforge.gui import app
+
+        for module in (cli, app):
+            source = inspect.getsource(module)
+            assert "report.validated is None" in source, module.__name__

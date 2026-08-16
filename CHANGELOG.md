@@ -38,6 +38,127 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.27 — alpha — 2026-08-16
+
+Both defects the owner reported on 0.2.26, and a false alarm his corpus run
+found that neither of us was looking for.
+
+### At a glance
+
+| what it was | the scale of it |
+| --- | --- |
+| A black console window flashing about once a second while a batch ran | one per screenshot; the flags to prevent it existed and lived in the wrong module |
+| `EPUBFORGE_CHROME` still starting Edge, months after the reason for setting it | a variable set once outranked the engine the release ships and measured against |
+| Edge was still being searched for | it disagreed with Chromium about 3 of 4 damage shapes and reports no version at all |
+| The balance reported a lost metadata entry on 21 of 93 books | none of them had lost anything; a second `<dc:title>` moves to `subtitle` and both are written |
+| The balance's metadata arm read a field the model does not have | so the vocabulary loss it was written to catch could have happened again in silence |
+| EPUBCheck ran twice on the same bytes in strict mode | ~4.5 s a book, and `epubcheck.clean` printed twice in every report |
+
+### The console window
+
+A frozen GUI application on Windows has no console of its own. Every child
+process it starts therefore *gets* one: Windows creates a console window for
+the child, on top of whatever the person was looking at, for as long as the
+child runs. For the validator that was one window per book, and it was fixed
+where it was found, inside `validate`, in 0.2.14. For the renderer it is one
+window per **screenshot** — which the owner watched flash roughly once a second
+for as long as a batch ran, and described exactly right: distracting, and
+suspicious to anybody standing near the screen.
+
+The flags were already written and already correct. They were written in the
+module where the problem was first noticed, and `render` was written afterwards
+by somebody — me — who did not know to look for them. So they now live in
+`epubforge/spawn.py`, every child process in the package goes through it, and a
+test reads the whole package to make sure the third module to spawn something
+cannot repeat this.
+
+### Which engine draws, and who is told
+
+His words: *"nie posprzątałeś kodu po syfie z Edge i aplikacja wciąż otwiera mi
+Edge przez zmienną EPUBFORGE_CHROME"*. He was right, and the order was mine.
+
+`EPUBFORGE_CHROME` came first on the reasoning that somebody who names an
+engine has said which one they mean. What that missed is that an environment
+variable is not somebody saying something *now*. It is somebody having said it
+once — in his case for a build that carried no engine at all, because there was
+nothing else to point it at — and it keeps applying long after the reason has
+gone. Nothing on the screen said it was still in force.
+
+So from this release **the carried engine wins**. Not because Edge is bad, but
+because a comparison of two renderings is a statement about the *book* only if
+both were drawn by the same engine, and the carried one is the only engine that
+is identical on every machine this ships to. It is pinned by digest, it is what
+this release's numbers were measured against, and it has no window code
+compiled into it.
+
+The variable is not ignored:
+
+- where nothing is carried — a checkout, a `pip` install, this project's own
+  render tests — it wins exactly as it always did;
+- where something is carried and the variable disagrees, the carried engine
+  draws and both the window and the console **say so**, naming the path that
+  was passed over;
+- `EPUBFORGE_CHROME_OVERRIDE=1` alongside it restores the old order, which is a
+  sentence nobody types by accident.
+
+And the clearing-up he asked for: **Edge is no longer searched for at all.** Not
+tidiness — measurement. On the same four kinds of damage it disagreed with
+Chromium about three, and it reports no version string, which also defeats the
+check that two runs are comparable at all. An engine that answers differently is
+not a fallback; it is a second opinion quietly replacing the first.
+
+### A quarter of his library told it had lost something
+
+The 0.2.26 corpus run reported `package.balance-unexplained` on 21 of 93 books,
+and on 3 of the 67 in the second collection. All 24 validate clean, keep every
+character of their text, and had lost nothing whatsoever.
+
+Every one of them is an EPUB 2 whose package carries two `<dc:title>` elements.
+The reader keeps the first as the title and moves the second into `subtitle`;
+the writer emits both, with their `title-type` refinements, and EPUBCheck
+accepts the result. The balance counted `titles` and not `subtitle`, watched two
+become one, and called it a loss.
+
+A false alarm at that rate is worse than no check: it teaches whoever reads the
+report to skip past the one line that means something. That is the second time
+this has happened — 0.2.25's was the legacy NCX — and the class of it is the
+same both times: a counter that models the file rather than the model.
+
+While fixing it, a worse thing turned up underneath. The counter also read
+`metadata.extra`, which **does not exist**. The model spells that vocabulary
+`extra_meta`, `extra_properties`, `extra_refinements` and `dublin_core_extra`;
+`getattr` with a default turned the mistake into a quiet zero. So the balance's
+metadata arm was counting four fields out of twenty-nine, while its own
+docstring said it existed to catch F-011 — *a whole vocabulary vanishing while
+the title stays put* — which is exactly the loss it could not have seen. It now
+counts every field of `Metadata`, and a test holds the two lists to the model so
+that a field added later is either counted or named as bookkeeping.
+
+### Asked once
+
+In strict mode the publication gate validates the staging file one line before
+`os.replace` renames it into place. The window's *check the result* pass then
+validated the same archive under its final name: same bytes, one name apart,
+about four and a half seconds of JVM to be told a second time — and
+`epubcheck.clean` written into the report twice. The gate now records the
+verdict it got, and both callers that would have asked again look at it first.
+
+### What the corpus run says otherwise
+
+The rest of it is the 0.2.24 → 0.2.26 work landing, measured on the 67-book
+collection: EPUBCheck errors 19 → 14, carried defects 122 → 117, books strict
+mode refused to publish 14 → 10. `RSC-011` (8 occurrences) and `RSC-007` (1)
+are gone entirely. Four books that strict refused now publish clean.
+
+What has not moved is the count of errors this program **introduces**: 3, the
+same as 0.2.24. They are all one family — presentational and junk attributes
+(`clear`, `align`, `valign`, `size`, and two that are simply not attributes:
+`font17`, `p`) and misplaced elements (`<a>` directly inside `<table>`, `<p>`
+inside `<head>`) — surviving a rebuild into a document where EPUB 3 does not
+allow them. That is the next work package rather than a note; it needs the
+owner's ruling on which of them are the publisher's decisions and which are a
+converter's debris, because removing the first kind changes how a page looks.
+
 ## 0.2.26 — alpha — 2026-08-16
 
 Two defects from the owner's first batch on 0.2.25, and the renderer he was

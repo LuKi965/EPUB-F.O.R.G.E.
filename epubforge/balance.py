@@ -91,19 +91,84 @@ class Side:
         }
 
 
+#: Every field on `Metadata` holding a collection, where its length is a number
+#: of statements. `dict`s are here too: `len` of a mapping is the number of
+#: things it says, which is the question.
+_METADATA_LISTS = (
+    "titles",
+    "creators",
+    "identifiers",
+    "languages_extra",
+    "subjects",
+    "title_alternate_scripts",
+    "accessibility",
+    "media_durations",
+    "media_classes",
+    "collection_memberships",
+    "extra_meta",
+    "extra_properties",
+    "extra_refinements",
+    "dublin_core_extra",
+    "links",
+    "metadata_comments",
+)
+
+#: Every single-valued field that is a statement when it is set.
+_METADATA_SINGLES = (
+    "subtitle",
+    "sort_title",
+    "language",
+    "direction",
+    "title_language",
+    "title_direction",
+    "publisher",
+    "published",
+    "modified",
+    "description",
+    "rights",
+    "source",
+    "series",
+    "series_index",
+    "accessibility_summary",
+    "conforms_to",
+)
+
+
+#: Fields of `Metadata` that are deliberately not statements about the book.
+#: Named rather than left out, so `test_balance` can hold the two lists above to
+#: the model and fail when a field is added to it and counted by neither.
+_METADATA_BOOKKEEPING = ("title_ids", "prefixes")
+
+
 def _metadata_entries(book) -> int:
     """Every distinct thing the package says about the book.
 
-    Counted rather than summed from one field, because the loss this exists to
-    catch — F-011's — was a whole vocabulary vanishing while the title stayed
-    put.
+    Counted across the whole of `Metadata` rather than a handful of its fields,
+    and the first version of this got that wrong in both directions at once.
+
+    It read `metadata.extra`, which **does not exist** — the model spells it
+    `extra_meta`, `extra_properties`, `extra_refinements` and
+    `dublin_core_extra`. `getattr` with a default turned that into a silent
+    zero, so the vendor vocabulary was never counted and the exact loss this was
+    written for, F-011's, could have happened again without the balance saying a
+    word. A default is how a typo becomes a check that passes.
+
+    And it counted `titles` while ignoring `subtitle`, which is the same
+    statement in a different slot. On a book whose EPUB 2 package carries two
+    `<dc:title>` elements the reader keeps the first as the title and moves the
+    second to `subtitle`; both are written out, both are in the file, and the
+    balance reported a metadata entry lost. That is 21 of the 93 books in the
+    owner's corpus — a quarter of them — every one told it had lost something it
+    still had.
+
+    A false alarm at that rate is worse than no check. It teaches whoever reads
+    the report to skip the one line that means something.
     """
     metadata = book.metadata
-    total = len(getattr(metadata, "titles", []) or [])
-    total += len(getattr(metadata, "creators", []) or [])
-    total += len(getattr(metadata, "identifiers", []) or [])
-    total += len(getattr(metadata, "extra", []) or [])
-    total += 1 if getattr(metadata, "language", "") else 0
+    total = sum(
+        len(getattr(metadata, name, None) or ()) for name in _METADATA_LISTS
+    )
+    total += sum(1 for name in _METADATA_SINGLES if getattr(metadata, name, None))
     return total
 
 

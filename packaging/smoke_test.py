@@ -83,9 +83,12 @@ def main() -> int:
         #
         # This is what the check is *for*, and it caught something real on the
         # way in. A first attempt without the flag failed, and the reason was not
-        # the flag: `find_renderer` searched `PATH` alone, and Edge — which is on
-        # every Windows machine — is not on `PATH`. So the released program
-        # refused every command-line rebuild on the only platform it ships for.
+        # the flag: `find_renderer` searched `PATH` alone, and nothing a Windows
+        # machine installs is on `PATH`. So the released program refused every
+        # command-line rebuild on the only platform it ships for. (That fix
+        # briefly made Edge reachable; from 0.2.27 it is not searched for at all,
+        # because measured against the same damage it answers differently from
+        # Chromium and reports no version. The bundle is the answer, not Edge.)
         # No `--accept-unverified-render` any more, and that is the point of
         # this release: the bundle carries its own headless renderer, so the
         # appearance check *runs*. If it does not, this build has 112 MB of

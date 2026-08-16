@@ -521,14 +521,24 @@ class DiagnosticsPanel(Panel):
         browsers count and how to point at one, because "this needs something
         you do not have" is an answer and a disabled control is not.
         """
-        import tempfile
-
-        from .. import render, render_fidelity
-        from ..pipeline import rebuild
-        from ..policy import Policy
+        from .. import render
 
         if render.find_renderer() is None:
             return ["  " + line for line in render.why_not().splitlines()]
+        # Which engine drew this, said out loud. A result whose engine is not
+        # named is a result about somebody's browser, and the person reading it
+        # has no way to know that.
+        lines = ["  " + line for line in render.describe().splitlines()] + [""]
+        return lines + Diagnostics._render_pages(book)
+
+    @staticmethod
+    def _render_pages(book: str) -> list[str]:
+        import tempfile
+
+        from .. import render_fidelity
+        from ..pipeline import rebuild
+        from ..policy import Policy
+
         with tempfile.TemporaryDirectory() as room:
             destination = os.path.join(room, os.path.basename(book))
             result = rebuild(book, destination, Policy.for_measurement())

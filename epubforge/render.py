@@ -37,14 +37,30 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 
-#: Overridden first, because somebody with two browsers should be able to say
-#: which — and because this is how the tests point it at a stub.
+from . import spawn
+
+#: Names an engine somebody else's machine may have. Read when this program is
+#: running from a checkout and carries nothing of its own; a release build has
+#: its own engine and does not get here.
 ENV_BROWSER = "EPUBFORGE_CHROME"
 
+#: Makes the named engine outrank the carried one, which it no longer does on
+#: its own. See :func:`chosen` for why, at length.
+ENV_BROWSER_WINS = "EPUBFORGE_CHROME_OVERRIDE"
+
 #: Names a browser goes by, in the order they are tried.
+#:
+#: **Edge is deliberately not among them**, and was until 0.2.27. It was added
+#: when the problem looked like "find any Chromium" and removed once there were
+#: numbers: measured against the same four kinds of damage, Edge disagreed with
+#: Chromium about three of them and reported no version string at all, which
+#: also defeats the check that two runs are comparable. An engine that answers
+#: differently is not a fallback — it is a second opinion nobody asked for,
+#: silently replacing the first.
 _NAMES = (
+    "chrome-headless-shell",
     "chromium", "chromium-browser", "chrome", "google-chrome",
-    "google-chrome-stable", "msedge",
+    "google-chrome-stable",
 )
 
 #: Where Playwright puts the browsers it downloads. Searched because a machine
@@ -52,20 +68,15 @@ _NAMES = (
 #: somebody to install a second copy is asking for nothing.
 _PLAYWRIGHT = "PLAYWRIGHT_BROWSERS_PATH"
 
-#: Where Windows actually keeps the browser everybody already has.
+#: Where Windows keeps the browsers, for a checkout that carries no engine.
 #:
-#: Found by a failed release build and worth stating plainly, because searching
-#: `PATH` alone made the whole feature useless on the only platform this program
-#: is released for. **Edge is installed on every Windows 10 and 11 machine and is
-#: not on `PATH`** — it lives under Program Files, and so does Chrome. So
-#: `find_renderer` answered `None` on a normal Windows box, the gate defaulted to
-#: `stop`, and every rebuild from the command line was refused for want of a
-#: browser sitting right there.
+#: Searching `PATH` alone made the whole feature useless on the only platform
+#: this program is released for: nothing here is on `PATH`, it all lives under
+#: Program Files, so `find_renderer` answered `None` on a normal Windows box and
+#: every rebuild was refused for want of a browser sitting right there.
 #:
-#: That is exactly the outcome the owner ruled out — a missing tool holding
-#: somebody's book hostage — arrived at by looking for the tool in one place.
+#: Edge left this list in 0.2.27 for the reason given above `_NAMES`.
 _WINDOWS_PROGRAMS = (
-    r"Microsoft\Edge\Application\msedge.exe",
     r"Google\Chrome\Application\chrome.exe",
     r"Chromium\Application\chrome.exe",
     r"BraveSoftware\Brave-Browser\Application\brave.exe",
@@ -80,21 +91,50 @@ DEFAULT_VIEWPORT = (600, 800)
 _TIMEOUT = 60
 
 
-def _candidates() -> "list[pathlib.Path]":
-    found: list[pathlib.Path] = []
-    override = os.environ.get(ENV_BROWSER)
-    if override:
-        found.append(pathlib.Path(override))
-    # The bundled headless shell comes before anything installed on the machine
-    # and after the environment variable, which is the right order for both
-    # reasons. It is the engine this release measured its numbers against, so
-    # preferring it makes the check reproducible; and somebody who names a
-    # browser has said which one they mean, which outranks what we shipped.
-    from . import resources
+@dataclass(frozen=True)
+class Choice:
+    """Which engine is going to draw, and where it came from.
 
-    carried = resources.bundled_renderer()
-    if carried is not None:
-        found.append(carried)
+    Exists so that question has an answer somebody can read. The owner spent a
+    release watching this program start Edge and had no way to find out why
+    short of reading the source: a variable he had set weeks earlier, for a
+    build that carried no engine of its own, was quietly outranking the engine
+    the release ships. Nothing on the screen said so.
+    """
+
+    #: The engine, or ``None`` when there is none to be had.
+    path: "pathlib.Path | None"
+    #: ``carried`` (shipped with this build), ``named`` (the variable),
+    #: ``machine`` (found installed), or ``none``.
+    origin: str = "none"
+    #: Set when the variable named something and the carried engine was used
+    #: anyway. Carries the value, because the whole point is being able to see
+    #: what it was pointing at.
+    overruled: str = ""
+
+    @property
+    def carried(self) -> bool:
+        return self.origin == "carried"
+
+
+def _named() -> "pathlib.Path | None":
+    value = os.environ.get(ENV_BROWSER)
+    return pathlib.Path(value) if value else None
+
+
+def _wants_to_win() -> bool:
+    return os.environ.get(ENV_BROWSER_WINS, "").strip().lower() in (
+        "1", "yes", "true", "tak", "on",
+    )
+
+
+def _usable(candidate: "pathlib.Path") -> bool:
+    return candidate.is_file() and os.access(candidate, os.X_OK)
+
+
+def _machine_candidates() -> "list[pathlib.Path]":
+    """Whatever this machine happens to have, in the order it is tried."""
+    found: list[pathlib.Path] = []
     for name in _NAMES:
         located = shutil.which(name)
         if located:
@@ -106,6 +146,67 @@ def _candidates() -> "list[pathlib.Path]":
             found.extend(sorted(pathlib.Path(root).glob(pattern)))
     if os.name == "nt":
         found.extend(pathlib.Path(name) for name in windows_installs(os.environ))
+    return found
+
+
+def chosen() -> Choice:
+    """Pick the engine, and say which and why.
+
+    **The carried engine wins.** That is a change in 0.2.27 and it is the whole
+    of the owner's first complaint about 0.2.26: the program was still starting
+    Edge on his machine, through a variable he had set back when there was
+    nothing else to point it at.
+
+    Two reasons, and neither is about Edge in particular.
+
+    An environment variable is not a decision somebody is making now — it is a
+    decision somebody made once, that keeps applying long after the reason for
+    it has gone. This one was set in a build that carried no engine. The build
+    that replaced it carries one, pinned by digest, that cannot open a window
+    and that every number in this release was measured against. Silently
+    preferring whatever the old variable points at means the answer in the
+    report is about somebody's browser and nothing says so.
+
+    And a comparison of two renderings is only a statement about the *book* if
+    both were drawn by the same engine. The carried one is the only engine that
+    is the same on every machine this ships to. Preferring it is what makes a
+    result reproducible rather than a property of the desk it was produced on.
+
+    The variable is not ignored. Where nothing is carried — a checkout, a `pip`
+    install, this project's own tests — it wins exactly as it always did. Where
+    something is carried and the variable disagrees, the carried engine draws
+    and :attr:`Choice.overruled` says what was passed over, so the window and
+    the report can show it instead of the person having to guess. Setting
+    ``EPUBFORGE_CHROME_OVERRIDE=1`` alongside it restores the old order: a
+    sentence that cannot be typed by accident, for somebody who means it.
+    """
+    from . import resources
+
+    carried = resources.bundled_renderer()
+    named = _named()
+    if carried is not None and _usable(carried) and not (named and _wants_to_win()):
+        return Choice(carried, "carried", overruled=str(named) if named else "")
+    if named is not None and _usable(named):
+        return Choice(named, "named")
+    if carried is not None and _usable(carried):
+        return Choice(carried, "carried", overruled=str(named) if named else "")
+    for candidate in _machine_candidates():
+        if _usable(candidate):
+            return Choice(candidate, "machine")
+    return Choice(None, "none", overruled=str(named) if named else "")
+
+
+def _candidates() -> "list[pathlib.Path]":
+    """Everything that might be an engine, best first. Kept for the tests that
+    assert the order, and for diagnostics; :func:`chosen` is what runs."""
+    from . import resources
+
+    found: list[pathlib.Path] = []
+    carried = resources.bundled_renderer()
+    named = _named()
+    ordered = [named, carried] if (named and _wants_to_win()) else [carried, named]
+    found.extend(path for path in ordered if path is not None)
+    found.extend(_machine_candidates())
     return found
 
 
@@ -129,22 +230,51 @@ def windows_installs(environ) -> "list[str]":
 
 
 def find_renderer() -> "pathlib.Path | None":
-    for candidate in _candidates():
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return candidate
-    return None
+    return chosen().path
+
+
+def describe() -> str:
+    """One line for the window and the console: which engine, and from where.
+
+    Human in the loop needs something to look at. Until 0.2.27 the only way to
+    find out which of three engines had drawn a page was to read this file.
+    """
+    picked = chosen()
+    if picked.path is None:
+        return "silnik rysujący: brak"
+    origin = {
+        "carried": "dołączony do programu",
+        "named": f"wskazany zmienną {ENV_BROWSER}",
+        "machine": "znaleziony w systemie",
+    }.get(picked.origin, picked.origin)
+    line = f"silnik rysujący: {picked.path.name} ({origin})"
+    if picked.overruled:
+        line += (
+            f"\n  {ENV_BROWSER} wskazuje {picked.overruled} — pominięte, bo "
+            f"program ma własny silnik. Aby mimo to użyć wskazanego, ustaw "
+            f"{ENV_BROWSER_WINS}=1."
+        )
+    return line
 
 
 def why_not() -> str:
-    """What to tell somebody who has no renderer. Sentences, not a stack trace."""
+    """What to tell somebody who has no renderer. Sentences, not a stack trace.
+
+    Only reachable from a checkout or a `pip` install: the Windows builds carry
+    an engine, so this text is for somebody running from source.
+    """
     return (
         "Ta kontrola rysuje strony i porównuje obrazy, więc potrzebuje "
-        "przeglądarki opartej na Chromium — Chrome, Chromium albo Edge. "
-        "Nie jest częścią programu i nie jest instalowana razem z nim: "
-        "przebudowa książki niczego nie rysuje.\n\n"
+        "silnika opartego na Chromium. Wydania dla Windowsa mają własny "
+        "(chrome-headless-shell) i nie szukają niczego w systemie; ta "
+        "instalacja go nie ma, bo działa z kodu źródłowego.\n\n"
         f"Szukane w PATH pod nazwami: {', '.join(_NAMES)}, a na Windowsie "
-        f"dodatkowo tam, gdzie instalują się Edge i Chrome. Jeżeli masz "
-        f"przeglądarkę gdzie indziej, wskaż ją zmienną {ENV_BROWSER}."
+        f"dodatkowo tam, gdzie instalują się Chrome, Chromium i Brave. "
+        f"Edge celowo nie jest brany pod uwagę: zmierzony na tych samych "
+        f"czterech rodzajach uszkodzenia odpowiadał inaczej niż Chromium w "
+        f"trzech z nich i nie podaje swojej wersji, więc nie da się "
+        f"stwierdzić, czy dwa przebiegi są porównywalne.\n\n"
+        f"Własny silnik wskazuje się zmienną {ENV_BROWSER}."
     )
 
 
@@ -158,7 +288,7 @@ def version(browser: "pathlib.Path | None" = None) -> str:
     if browser is None:
         return ""
     try:
-        finished = subprocess.run(
+        finished = spawn.run(
             [str(browser), "--version"],
             capture_output=True, text=True, timeout=30, check=False,
         )
@@ -224,7 +354,14 @@ def shoot(
             pathlib.Path(page).absolute().as_uri(),
         ]
         try:
-            subprocess.run(
+            # Through `spawn`, which on Windows says *do not give this child a
+            # console*. Without that flag a windowed application opens one black
+            # rectangle per screenshot — the owner watched it flash roughly once
+            # a second for as long as a batch ran, and called it distracting and
+            # suspicious to anybody nearby. He was right on both counts: a
+            # program that looks like it is doing something it should not be is
+            # a program nobody should hand a library to.
+            spawn.run(
                 command, capture_output=True, timeout=_TIMEOUT, check=False,
             )
         except subprocess.TimeoutExpired as exc:
@@ -330,8 +467,12 @@ def engine_matches(recorded: str, measured: str) -> bool:
 __all__ = [
     "DEFAULT_VIEWPORT",
     "ENV_BROWSER",
+    "ENV_BROWSER_WINS",
+    "Choice",
     "Ink",
     "RenderError",
+    "chosen",
+    "describe",
     "difference",
     "engine_matches",
     "find_renderer",
