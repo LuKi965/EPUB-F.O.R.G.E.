@@ -13,7 +13,7 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, plan_batch
-from .policy import GATES, RENDER_GATES, Policy
+from .policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -97,6 +97,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.accept_unverified_render = True
     if getattr(args, "accept_reconstructed_metadata", False):
         policy.accept_reconstructed_metadata = True
+    if getattr(args, "hyphen_review", None):
+        policy.hyphen_review = args.hyphen_review
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -570,7 +572,7 @@ def command_fidelity(args: argparse.Namespace) -> int:
     # Its own mode rather than `build_policy`, which reads two dozen flags this
     # subcommand does not define. The question here is "did the rebuild keep the
     # book", and the mode is the only part of the rebuild that changes the answer.
-    policy = Policy.preset(args.mode)
+    policy = Policy.for_measurement(args.mode)
     exit_code = 0
     with tempfile.TemporaryDirectory() as room:
         for source in collect_inputs(args.inputs):
@@ -744,7 +746,7 @@ def command_render_check(args: argparse.Namespace) -> int:
         console.print(f"[bold]{os.path.basename(book)}[/]")
         with tempfile.TemporaryDirectory() as room:
             destination = os.path.join(room, os.path.basename(book))
-            result = rebuild(book, destination, Policy.preset("preserve"))
+            result = rebuild(book, destination, Policy.for_measurement())
             if not result.status.wrote_a_file:
                 console.print("  [red]nie udało się przebudować[/]")
                 worst = max(worst, 2)
@@ -1021,6 +1023,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--render-all",
         action="store_true",
         help="draw every page rather than a sample of twelve",
+    )
+    build.add_argument(
+        "--hyphen-review",
+        choices=HYPHEN_REVIEWS,
+        help=(
+            "how far to go with hyphens the book itself does not settle: "
+            "'confirmed' asks only about words the book writes without a hyphen "
+            "elsewhere (default), 'grouped' adds one question per confidence "
+            "class carrying the words, 'each' asks about every candidate"
+        ),
     )
     build.add_argument(
         "--accept-reconstructed-metadata",

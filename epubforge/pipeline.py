@@ -11,6 +11,7 @@ from enum import Enum
 from . import decisions
 from . import invariants
 from . import memory
+from . import balance
 from . import budget as budget_module
 from .budget import Budget, BudgetExceeded, Cancelled
 from .model import Book
@@ -913,6 +914,11 @@ def _rebuild_inside_budget(
         )
         return Result(report, None, None, Status.FAILED)
 
+    # Counted here, before a single stage has touched the book: the balance is
+    # between what the *source* had and what is about to be written, and taking
+    # it any later would be counting the rebuild against itself.
+    before_side = balance.Side.of(book)
+
     queue = decisions.Queue(asker=asker if asker is not None else _asker_from(resolver))
     if policy.remember_decisions:
         stored = decisions.Queue.load(
@@ -1185,6 +1191,22 @@ def _rebuild_inside_budget(
         parent = os.path.dirname(os.path.abspath(destination))
         if parent:
             os.makedirs(parent, exist_ok=True)
+        # BA-2026-003's remaining criterion. The ledger says what this rebuild
+        # did; the balance asks whether anything went missing that nothing in
+        # the ledger accounts for — the other direction, and the one that does
+        # not require trusting the thing under suspicion to have written itself
+        # down.
+        reconciled = balance.reconcile(
+            before_side, balance.Side.of(book), report.changes
+        )
+        report.balance = reconciled
+        if not reconciled.closes:
+            report.add(
+                "package",
+                Level.ERROR,
+                "package.balance-unexplained",
+                values={"detail": str(reconciled)},
+            )
         write_epub(
             book,
             destination,

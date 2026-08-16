@@ -1490,6 +1490,9 @@ class ContentStage(Stage):
                 element.attrib.pop("name", None)
                 changed.add("a[name]")
 
+            if tag == "col" and self._wrap_a_stray_col(element):
+                changed.add("col")
+
             self._presentational_attributes(element, tag, changed)
 
         if changed:
@@ -1500,6 +1503,47 @@ class ContentStage(Stage):
                 location=resource.path,
                 detail=", ".join(sorted(changed)),
             )
+
+    @staticmethod
+    def _wrap_a_stray_col(element) -> bool:
+        """Put a `<col>` that sits straight under `<table>` into a `<colgroup>`.
+
+        XHTML 1.1 allows `col` as a child of `table`; XHTML5, which is what an
+        EPUB 3 content document is, requires it inside a `colgroup`. So a book
+        that validated as EPUB 2 comes out of the version upgrade with
+        `RSC-005: element "col" not allowed here` — and that error is *ours*,
+        because the markup was conforming where it started and the rebuild is
+        what moved it.
+
+        Found on the owner's 67-book collection: of six error shapes his run
+        attributed to `preserve`, this is the one that reproduced as genuinely
+        introduced — source clean, output not. Four of the others are carried
+        from markup that was already invalid, and one (`<a name="1…">`) this
+        program already repairs.
+
+        The repair is the smallest one that is true: consecutive `col` elements
+        move together into one `colgroup`, which is what they meant, and column
+        widths keep applying exactly as before. Nothing is deleted and nothing
+        is styled differently.
+        """
+        parent = element.getparent()
+        if parent is None or xhtml.local_name(parent).lower() != "table":
+            return False
+        position = list(parent).index(element)
+        group = parent.makeelement(xhtml.qname("colgroup"), {})
+        parent.insert(position, group)
+        # Every `col` from here on, so a table declaring four columns gets one
+        # group of four rather than four groups of one.
+        for sibling in list(parent)[position + 1:]:
+            if not isinstance(sibling.tag, str):
+                continue
+            if xhtml.local_name(sibling).lower() != "col":
+                break
+            parent.remove(sibling)
+            group.append(sibling)
+        group.tail = element.tail
+        element.tail = None
+        return True
 
     def _document_cascade(self, ctx: Context, root, resource) -> css_cascade.Cascade:
         """Collect the CSS that actually applies to one document.

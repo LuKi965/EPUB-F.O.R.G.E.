@@ -504,6 +504,51 @@ def find_across(nodes, *, root, where: str, words: Counter) -> "list[CrossCandid
     return found
 
 
+def review_question(confidence: str, words: list):
+    """One question for a whole class of candidates, carrying the words.
+
+    The alternative — a question per word — was measured before it was rejected:
+    101 `LIKELY` and 88 `UNCERTAIN` across 32 books, of which almost every entry
+    read as a real compound. A queue of a hundred and eighty-nine questions that
+    are mostly not defects is a queue nobody finishes, and the finding that asked
+    for this detector warned about exactly that over-eagerness.
+    """
+    from .decisions import HYPHEN, KEEP, Option, Question
+    from .report import Risk
+
+    shown = ", ".join(f"„{word}”" for word in words[:40])
+    more = f" … i jeszcze {len(words) - 40}" if len(words) > 40 else ""
+    label = "prawdopodobne" if confidence == LIKELY else "niepewne"
+    return Question(
+        kind=HYPHEN,
+        where="",
+        summary=f"{len(words)} słów z łącznikiem — {label}, bez dowodu w tej książce",
+        detail=(
+            f"Ta książka nigdzie nie pisze tych słów bez łącznika, więc nie ma "
+            f"dowodu, że łącznik jest usterką konwersji, a nie pisownią autora. "
+            f"Wiele z nich to prawdziwe wyrazy złożone.\n\n{shown}{more}"
+        ),
+        options=(
+            Option(
+                KEEP,
+                "Zostaw wszystkie",
+                "Żadne z tych słów nie zostanie zmienione — tak jak dotąd",
+            ),
+            Option(
+                "join",
+                f"Złącz wszystkie {len(words)}",
+                "Każde z tych słów straci łącznik; to zmiana treści i nie da się "
+                "jej cofnąć z samego wyniku",
+            ),
+        ),
+        recommended=KEEP,
+        reversible=False,
+        risk=Risk.CONTENT,
+        group=f"hyphen-review:{confidence}",
+        subject=f"{confidence}:{len(words)}",
+    )
+
+
 __all__ = [
     "CONFIRMED",
     "Candidate",
@@ -513,6 +558,7 @@ __all__ = [
     "find",
     "find_across",
     "question_for",
+    "review_question",
     "vocabulary",
     "wanted_words",
 ]

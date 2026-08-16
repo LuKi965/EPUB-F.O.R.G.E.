@@ -178,7 +178,19 @@ def survey_library(
     rebuild would produce. Turning it off reads the books only, which is much
     faster and sees only the defects the reader can name on its own.
     """
-    policy = policy or Policy.preset("preserve")
+    # The result is written to a scratch directory and deleted, so the two
+    # gates that exist to protect a *destination* have nothing to protect here
+    # and every reason to be off: EPUBCheck costs seconds a book and drawing
+    # costs half a minute, over a library that is measured in hundreds.
+    #
+    # `accept_unverified_render` is the load-bearing one and it was found by the
+    # owner's own corpus run rather than by reasoning. On a machine with no
+    # browser — his — every one of 93 books reported `render.cannot-run`, and
+    # once "cannot check" started meaning "do not write", a survey would have
+    # come back as 93 refusals and no measurements at all. A survey that refuses
+    # to look at a library because it cannot verify an output it is going to
+    # throw away is a survey nobody can run.
+    policy = policy or Policy.for_measurement("preserve")
     survey = Survey()
     scratch = tempfile.mkdtemp(prefix="epubforge-survey-")
     try:

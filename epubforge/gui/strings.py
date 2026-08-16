@@ -339,6 +339,29 @@ PL: dict[str, str] = {
     "policy.render.gate": "Gdy strona straci treść:",
     "policy.render.unverified": "Zapisz nawet wtedy, gdy nie da się sprawdzić wyglądu",
     "policy.metadata.reconstructed": "Przyjmuj metadane odczytane z uszkodzonego pakietu",
+    "policy.hyphen.review": "Słowa z łącznikiem bez dowodu w książce:",
+    "policy.hyphen.review.tip": (
+        "Program pyta o słowo z łącznikiem wtedy, gdy ta sama książka pisze je "
+        "gdzie indziej bez łącznika — to jest dowód, że łącznik został po "
+        "konwersji. Reszta dowodu nie ma.\n\n"
+        "Zmierzone na 32 książkach: 67 z dowodem, 101 „prawdopodobnych” i 88 "
+        "„niepewnych”, a w tych dwóch listach prawie każdy wpis to prawdziwy "
+        "wyraz złożony — „marksizm-leninizm”, „savoir-vivre”, „ping-pong”."
+    ),
+    "policy.hyphen.review.confirmed": "pytaj tylko o te z dowodem",
+    "policy.hyphen.review.confirmed.tip": (
+        "Reszta jest policzona i pokazana w raporcie, i nietknięta."
+    ),
+    "policy.hyphen.review.grouped": "pokaż resztę jednym pytaniem na klasę",
+    "policy.hyphen.review.grouped.tip": (
+        "Jedno pytanie na klasę pewności, z listą słów w środku. 189 kandydatów "
+        "to jedna decyzja zamiast 189."
+    ),
+    "policy.hyphen.review.each": "pytaj o każde osobno",
+    "policy.hyphen.review.each.tip": (
+        "Dla kogoś, kto chce przejść przez wszystkie po kolei. Przy dużej "
+        "książce to bywa i sto kilkadziesiąt pytań."
+    ),
     "policy.metadata.reconstructed.tip": (
         "Kiedy pakiet książki daje się sparsować dopiero po odzysku, tytuł, autor "
         "i język są odczytem parsera z cudzej książki, a nie tym, co napisał wydawca "
@@ -1139,6 +1162,29 @@ EN: dict[str, str] = {
     "policy.render.all": "Draw every page, not a sample",
     "policy.render.unverified": "Write the book even when the appearance check cannot run",
     "policy.metadata.reconstructed": "Accept metadata read out of a damaged package",
+    "policy.hyphen.review": "Hyphenated words the book does not settle:",
+    "policy.hyphen.review.tip": (
+        "The program asks about a hyphenated word when the same book writes it "
+        "without a hyphen somewhere else — that is evidence the hyphen is left "
+        "over from a conversion. For the rest there is no evidence.\n\n"
+        "Measured over 32 books: 67 with evidence, 101 'likely' and 88 "
+        "'uncertain', and in those two lists nearly every entry is a real "
+        "compound — `marksizm-leninizm`, `savoir-vivre`, `ping-pong`."
+    ),
+    "policy.hyphen.review.confirmed": "ask only about the evidenced ones",
+    "policy.hyphen.review.confirmed.tip": (
+        "The rest are counted, shown in the report, and left alone."
+    ),
+    "policy.hyphen.review.grouped": "show the rest as one question per class",
+    "policy.hyphen.review.grouped.tip": (
+        "One question per confidence class, carrying the words. 189 candidates "
+        "become one decision instead of 189."
+    ),
+    "policy.hyphen.review.each": "ask about every one separately",
+    "policy.hyphen.review.each.tip": (
+        "For going through them properly. On a large book that can be a "
+        "hundred and something questions."
+    ),
     "policy.metadata.reconstructed.tip": (
         "When a book's package only parses after recovery, the title, author and "
         "language are the parser's reading of somebody else's book rather than what "

@@ -326,13 +326,31 @@ class StructureStage(Stage):
             resource = book.resources[path]
             if path in reachable or resource.media_type in keep_types:
                 continue
+            size = len(resource.data)
             book.remove(path)
             self.note(
                 ctx,
                 Level.FIX,
                 "structure.orphan-removed",
-                values={"bytes": len(resource.data)},
+                values={"bytes": size},
                 location=path,
+            )
+            # In the ledger, and it took the balance to notice it was not.
+            # This deletes a file out of somebody's book on the strength of a
+            # reachability graph that is deliberately incomplete — the switch is
+            # off by default for exactly that reason — so it is precisely the
+            # kind of removal the ledger exists to carry. It had a finding and
+            # no entry, which reads to any machine as a resource that simply
+            # stopped existing.
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                "other" if not resource.media_type else _ledger_bucket(path, resource),
+                before=f"{path} ({size} B)",
+                after="",
+                risk=Risk.APPEARANCE,
+                reversible=False,
+                rule="structure.orphan-removed",
             )
 
     def _unmovable(self, ctx: Context) -> set[str]:
@@ -471,3 +489,10 @@ class StructureStage(Stage):
                     reversible=True,
                     rule="structure.relaid-out",
                 )
+
+
+def _ledger_bucket(path: str, resource) -> str:
+    """Which count in the balance a removed resource belongs to."""
+    from .. import balance
+
+    return balance.kind_of(path, resource.media_type)

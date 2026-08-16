@@ -459,6 +459,64 @@ def collections_and_refinements(path: pathlib.Path) -> pathlib.Path:
 # `tools/make_edge_cases.py` writes them into a real corpus folder; the three
 # cheap ones are also registered below so they are exercised on every run.
 
+def cover_outside_the_spine(path: pathlib.Path) -> pathlib.Path:
+    """EPUB 2 whose cover page is in the manifest and the guide, not the spine.
+
+    Ordinary and legal in EPUB 2 — the cover is reached through `<guide>` and
+    the reading order starts at chapter one. EPUB 3 does not allow a navigation
+    document to link to anything outside the spine, so the rebuild's generated
+    nav turned a conforming book into `RSC-011`.
+
+    Not invented for the test. Four books of the owner's 67-book collection came
+    out of `preserve` carrying exactly this error while their sources carried
+    none, and all four shared this shape. It is in the public corpus so the same
+    thing cannot happen again on a shelf nobody but him can run.
+
+    It also carries a `<col>` directly under `<table>`, which XHTML 1.1 allows
+    and XHTML5 does not — the second shape from that run, and the second thing
+    the rebuild used to carry straight into an invalid EPUB 3.
+    """
+    ncx = """<?xml version="1.0" encoding="utf-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head><meta name="dtb:uid" content="urn:uuid:00000000-0000-4000-8000-00000000000d"/></head>
+  <docTitle><text>Okładka poza kolejnością</text></docTitle>
+  <navMap>
+    <navPoint id="n1" playOrder="1"><navLabel><text>Rozdział I</text></navLabel>
+      <content src="text/r1.xhtml"/></navPoint>
+  </navMap>
+</ncx>
+"""
+    return _write(path, {
+        "META-INF/container.xml": CONTAINER,
+        "OEBPS/package.opf": _opf(
+            version="2.0", title="Okładka poza kolejnością",
+            identifier="urn:uuid:00000000-0000-4000-8000-00000000000d",
+            manifest=(
+                '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n'
+                '    <item id="cover" href="text/cover.xhtml" media-type="application/xhtml+xml"/>\n'
+                '    <item id="coverimg" href="images/cover.png" media-type="image/png"/>\n'
+                '    <item id="r1" href="text/r1.xhtml" media-type="application/xhtml+xml"/>\n'
+            ),
+            spine='    <itemref idref="r1"/>\n',
+            spine_attrs=' toc="ncx"',
+            metadata='    <meta name="cover" content="coverimg"/>\n',
+        ).replace("</package>", '  <guide>\n'
+                  '    <reference type="cover" title="Okładka" href="text/cover.xhtml"/>\n'
+                  '  </guide>\n</package>'),
+        "OEBPS/toc.ncx": ncx,
+        "OEBPS/text/cover.xhtml": _page(
+            "Okładka", '<div><img src="../images/cover.png" alt="Okładka"/></div>'
+        ),
+        "OEBPS/text/r1.xhtml": _page(
+            "Rozdział I",
+            "<h1>Rozdział I</h1><p>Pierwszy akapit.</p>"
+            '<table><col width="120"/><col width="240"/>'
+            "<tr><td>Lewa</td><td>Prawa</td></tr></table>",
+        ),
+        "OEBPS/images/cover.png": PNG,
+    })
+
+
 _CONTAINER = """<?xml version="1.0" encoding="utf-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
@@ -483,6 +541,7 @@ BOOKS = {
     "edge-no-cover": no_cover,
     "edge-400-sections": four_hundred_documents,
     "edge-single-document": single_document,
+    "cover-outside-the-spine": cover_outside_the_spine,
 }
 
 

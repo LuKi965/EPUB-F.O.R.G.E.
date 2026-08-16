@@ -7,7 +7,7 @@ import re
 
 from .. import paths
 from ..model import Landmark, NavPoint, Resource, SpineItem
-from ..report import Level
+from ..report import Action, Level, Risk
 from ..xhtml import EPUB_NS, XHTML_NS
 from .base import Context, Stage
 
@@ -275,18 +275,36 @@ class NavigationStage(Stage):
         # Navigation order, which is the order a reader meets these in.
         wanted: list[str] = []
         ordered: list[str] = []
+
+        def consider(path: str) -> None:
+            if not path:
+                return
+            ordered.append(path)
+            if path in placed or path in wanted:
+                return
+            resource = book.resources.get(path)
+            if resource is not None and resource.is_content_doc:
+                wanted.append(path)
+
         roots = list(book.toc) + [root for s in book.extra_navs for root in s.entries]
         for root in roots:
             for node in root.walk():
-                path = node.target_path
-                if not path:
-                    continue
-                ordered.append(path)
-                if path in placed or path in wanted:
-                    continue
-                resource = book.resources.get(path)
-                if resource is not None and resource.is_content_doc:
-                    wanted.append(path)
+                consider(node.target_path)
+        # Landmarks and the page list are navigation too, and EPUBCheck does not
+        # distinguish: `RSC-011` is about the navigation *document*, and all
+        # three end up inside it. This used to walk the contents alone, so a
+        # book whose cover page is reached from `<guide>` and never from the
+        # table of contents — which is how EPUB 2 covers are normally wired —
+        # went out with a landmark pointing outside the spine.
+        #
+        # Found on the owner's 67-book collection: four books came out of
+        # `preserve` carrying `RSC-011` where their sources carried none, and
+        # all four had `xhtml.cover-fitted` in their findings. The mechanism was
+        # right and its input was half the navigation.
+        for landmark in book.landmarks:
+            consider(landmark.target.split("#", 1)[0] if landmark.target else "")
+        for page in book.page_list:
+            consider(page.target.split("#", 1)[0] if page.target else "")
         if not wanted:
             return
 

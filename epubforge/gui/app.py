@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 
 from .. import resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
-from ..policy import GATES, RENDER_GATES, Policy
+from ..policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_to_json
 from .. import rules
@@ -490,6 +490,22 @@ class MainWindow(QMainWindow):
         )
 
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
+        # BA-2026-001's remaining half. 67 evidenced candidates against 189
+        # that the book itself does not settle — so the weaker classes are one
+        # question carrying the words rather than 189 questions.
+        hyphen_label = QLabel(tr("policy.hyphen.review"))
+        hyphen_label.setToolTip(tr("policy.hyphen.review.tip"))
+        layout.addWidget(hyphen_label)
+        self.hyphen_review_combo = QComboBox()
+        self.hyphen_review_combo.setToolTip(tr("policy.hyphen.review.tip"))
+        for index, value in enumerate(HYPHEN_REVIEWS):
+            key = f"policy.hyphen.review.{value}"
+            self.hyphen_review_combo.addItem(tr(key), value)
+            self.hyphen_review_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.hyphen_review_combo.setCurrentIndex(
+            HYPHEN_REVIEWS.index(Policy().hyphen_review)
+        )
+        layout.addWidget(self.hyphen_review_combo)
         self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
         self.memory_check = self._checkbox(layout, "policy.memory", checked=True)
         # And the budget itself, because "everything is reachable from the
@@ -735,6 +751,7 @@ class MainWindow(QMainWindow):
         policy.render_sample = 0 if self.render_all_check.isChecked() else 12
         policy.accept_unverified_render = self.unverified_check.isChecked()
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
+        policy.hyphen_review = self.hyphen_review_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()

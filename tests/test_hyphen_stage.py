@@ -418,3 +418,93 @@ class TestAWordCutByMarkup:
             asker=asker,
         )
         assert not asker.asked, [q.summary for q in asker.asked]
+
+
+class TestTheClassesWithoutEvidence:
+    """BA-2026-001's remaining half, and the numbers are why it has this shape.
+
+    Measured across the owner's 32 books: 67 candidates the book itself settles
+    — it writes the word without a hyphen elsewhere — against 101 `LIKELY` and
+    88 `UNCERTAIN`. Reading those two lists, nearly every entry is a real
+    compound: `marksizm-leninizm`, `savoir-vivre`, `ping-pong`.
+
+    So they are neither asked about one by one (189 questions that are mostly
+    not defects is a queue nobody finishes, and that over-eagerness is what the
+    finding warned about) nor thrown away (some of them are real breaks). One
+    question per class, carrying the words, and the default is unchanged.
+    """
+
+    BOOK = (
+        "<p>Czytał o marksizm-leninizm i grał w ping-pong.</p>"
+        "<p>Zupełnie obo-jętna sprawa, a obojętna była zawsze i obojętna zostanie.</p>"
+        "<p>Znał savoir-vivre i bia-ły dom.</p>"
+    )
+
+    def test_the_default_asks_only_about_the_evidenced_ones(self, tmp_path):
+        asker = Joins()
+        rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            asker=asker,
+        )
+        assert len(asker.asked) == 1
+        assert "obo-jętna" in asker.asked[0].summary
+
+    def test_grouped_adds_one_question_carrying_the_words(self, tmp_path):
+        asker = Joins()
+        rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", hyphen_review="grouped"),
+            asker=asker,
+        )
+        review = [q for q in asker.asked if "bez dowodu" in q.summary]
+        assert len(review) == 1, [q.summary for q in asker.asked]
+        # The words themselves, because "101 words might be broken" is not
+        # something a person can answer and "these 101 words" is.
+        assert "ping-pong" in review[0].detail
+        assert "savoir-vivre" in review[0].detail
+
+    def test_answering_the_class_once_settles_all_of_it(self, tmp_path):
+        asker = Joins()
+        result = rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", hyphen_review="grouped"),
+            asker=asker,
+        )
+        text = text_of(result)
+        assert "pingpong" in text and "savoirvivre" in text
+        # One question for the class, not one per word in it.
+        assert len([q for q in asker.asked if "bez dowodu" in q.summary]) == 1
+
+    def test_keeping_the_class_changes_nothing_and_says_so(self, tmp_path):
+        result = rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", hyphen_review="grouped"),
+            asker=Keeps(),
+        )
+        assert "ping-pong" in text_of(result)
+        assert "hyphens.class-left-alone" in rules_of(result)
+
+    def test_each_goes_back_to_one_question_per_word(self, tmp_path):
+        asker = Joins()
+        rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", hyphen_review="each"),
+            asker=asker,
+        )
+        assert len(asker.asked) > 2, [q.summary for q in asker.asked]
+        assert not [q for q in asker.asked if "bez dowodu" in q.summary]
+
+    def test_nothing_is_joined_without_an_answer(self, tmp_path):
+        result = rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", hyphen_review="grouped"),
+        )
+        assert "ping-pong" in text_of(result)
+        assert "savoir-vivre" in text_of(result)

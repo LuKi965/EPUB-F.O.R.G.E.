@@ -531,7 +531,7 @@ class DiagnosticsPanel(Panel):
             return ["  " + line for line in render.why_not().splitlines()]
         with tempfile.TemporaryDirectory() as room:
             destination = os.path.join(room, os.path.basename(book))
-            result = rebuild(book, destination, Policy.preset("preserve"))
+            result = rebuild(book, destination, Policy.for_measurement())
             if not result.status.wrote_a_file:
                 return ["  nie udało się przebudować, więc nie ma czego porównać"]
             measured = render_fidelity.compare(book, destination)

@@ -33,7 +33,7 @@ _ORDER = {Level.ERROR: 0, Level.WARN: 1, Level.PRESERVED: 2, Level.FIX: 3, Level
 #: were added: `description`, the finding in the language asked for, and
 #: `detail_description`, the same for the paragraph beneath it. Nothing was
 #: removed.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class Action(str, Enum):
@@ -135,6 +135,10 @@ class Report:
     output: str = ""
     findings: list[Finding] = field(default_factory=list)
     stats: dict[str, object] = field(default_factory=dict)
+    #: The input→output reconciliation — see :mod:`epubforge.balance`. `None`
+    #: until the rebuild reaches the writer, which is also the only point at
+    #: which both sides exist.
+    balance: object = None
     #: The balance sheet — see :class:`Change`. Separate from `findings` because
     #: they answer different questions: a finding says why somebody should look,
     #: a change says what happened to the book.
@@ -250,6 +254,7 @@ class Report:
             "output": self.output,
             "ok": self.ok,
             "stats": self.stats,
+            "balance": self.balance.as_dict() if self.balance is not None else None,
             "summary": {level.value: self.count(level) for level in Level},
             "findings": findings,
             # BA-2026-003. The findings say why; this says what, in a shape

@@ -29,6 +29,7 @@ library caller change nothing at all.
 from __future__ import annotations
 
 from .. import hyphens, typography, xhtml
+from .. import decisions
 from ..decisions import KEEP
 from ..report import Action, Level, Risk
 from .base import Context, Stage
@@ -75,6 +76,7 @@ class HyphenStage(Stage):
         found: dict[str, int] = {}
         confirmed: list[tuple[object, hyphens.Candidate]] = []
         across: list[tuple[object, hyphens.CrossCandidate]] = []
+        weaker: dict[str, list] = {}
         for resource, root in documents:
             nodes = list(typography.text_nodes(root))
             for element, attribute in nodes:
@@ -85,6 +87,10 @@ class HyphenStage(Stage):
                     found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
                     if candidate.confidence == hyphens.CONFIRMED:
                         confirmed.append((resource, candidate))
+                    else:
+                        weaker.setdefault(candidate.confidence, []).append(
+                            (resource, candidate)
+                        )
             # The half a word that ends one text node and continues in the next.
             # Same walk, so it costs nothing; a separate list, because applying
             # it writes into two elements instead of one.
@@ -101,6 +107,8 @@ class HyphenStage(Stage):
             self._ask_and_apply(ctx, confirmed)
         if across:
             self._ask_and_apply_across(ctx, across)
+        if weaker and ctx.policy.hyphen_review != "confirmed":
+            self._review_the_weaker(ctx, weaker)
 
     def _report_counts(self, ctx: Context, found: dict) -> None:
         self.note(
@@ -114,7 +122,47 @@ class HyphenStage(Stage):
             },
         )
 
-    def _ask_and_apply(self, ctx: Context, confirmed: list) -> None:
+    def _review_the_weaker(self, ctx: Context, weaker: dict) -> None:
+        """The candidates the book itself does not settle, put once per class.
+
+        BA-2026-001's remaining half. Measured across the owner's 32 books: 67
+        confirmed, 101 `LIKELY`, 88 `UNCERTAIN` — and reading the last two
+        lists, almost every entry is a real word (`marksizm-leninizm`,
+        `savoir-vivre`, `ping-pong`). That is why they are not asked about one
+        by one, and it is also why they cannot simply be dropped: some of them
+        are real breaks, and a hundred and eighty-nine questions is a queue
+        nobody finishes.
+
+        So the queue gets one question per confidence class, carrying the words
+        themselves. Answering it once settles the class; `each` in the policy
+        turns the same candidates back into individual questions for somebody
+        who wants to go through them; `confirmed`, the default, leaves them
+        counted and untouched exactly as before.
+
+        The words are listed in the question rather than summarised, because
+        "101 words might be broken" is not something a person can answer and
+        "these 101 words" is.
+        """
+        for confidence in (hyphens.LIKELY, hyphens.UNCERTAIN):
+            entries = weaker.get(confidence)
+            if not entries:
+                continue
+            if ctx.policy.hyphen_review == "each":
+                self._ask_and_apply(ctx, entries)
+                continue
+            words = sorted({candidate.word for _, candidate in entries})
+            answer = ctx.decide(hyphens.review_question(confidence, words))
+            if answer.option != "join":
+                self.note(
+                    ctx, Level.PRESERVED, "hyphens.class-left-alone",
+                    values={"confidence": confidence, "count": len(words)},
+                )
+                continue
+            self._ask_and_apply(
+                ctx, entries, standing=decisions.Answer(option="join")
+            )
+
+    def _ask_and_apply(self, ctx: Context, confirmed: list, standing=None) -> None:
         """One question per confirmed candidate, then whatever was answered.
 
         The text is edited through the same guard the typography stage uses: the
@@ -126,7 +174,9 @@ class HyphenStage(Stage):
         replacements: dict[str, list] = {}
         asked = 0
         for resource, candidate in confirmed:
-            answer = ctx.decide(hyphens.question_for(candidate))
+            # A class answered as a group is not asked again word by word: the
+            # person has already looked at the list and said what to do with it.
+            answer = standing or ctx.decide(hyphens.question_for(candidate))
             asked += 1
             if answer.option == KEEP:
                 continue

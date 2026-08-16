@@ -118,6 +118,20 @@ class ImageStage(Stage):
         self._transcode(ctx, resource)
 
     def _fix_extension(self, ctx: Context, resource) -> None:
+        # Not in the container-only rebuild, and the reason is that mode's whole
+        # promise: content documents come out byte for byte as they went in. A
+        # document that says `src="cover.jpg"` cannot be left untouched *and*
+        # have its target renamed to `cover.png` — one of the two promises has
+        # to give, and it is not going to be the one this mode exists for.
+        #
+        # Found on the owner's 67-book collection, where one book came out of
+        # `minimal` with `RSC-007: Referenced resource could not be found`: an
+        # image whose bytes were PNG, whose name and manifest entry said JPEG,
+        # renamed by this method while the document pointing at it stayed as it
+        # was. The manifest is this program's to write, so the declared type is
+        # still corrected there; only the file keeps its name.
+        if not ctx.policy.rewrite_content:
+            return
         expected = EXTENSION_FOR.get(resource.media_type)
         if not expected:
             return

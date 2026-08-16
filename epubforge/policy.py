@@ -13,6 +13,10 @@ GATES = ("off", "no-new-errors", "clean")
 #: What `Policy.render_gate` may say, in the same order: least to most refusing.
 RENDER_GATES = ("off", "report", "stop")
 
+#: What `Policy.hyphen_review` may say: how far down the confidence classes
+#: the questions go. Ordered least to most asking, like the gates above.
+HYPHEN_REVIEWS = ("confirmed", "grouped", "each")
+
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 #:
 #: `image/webp` belongs here and was missing until 0.2.20. EPUB 3.3 lists it
@@ -203,6 +207,21 @@ class Policy:
     #: decided anything, so the default refuses; `True` is that consent given in
     #: advance for a run nobody is watching.
     accept_reconstructed_metadata: bool = False
+
+    #: What to do with hyphen candidates the book itself does not settle.
+    #:
+    #: BA-2026-001's remaining half, and the numbers decide the shape. Across
+    #: the owner's 32 books: 67 `CONFIRMED` — the book writes the word without a
+    #: hyphen somewhere else — against 101 `LIKELY` and 88 `UNCERTAIN`, and
+    #: reading those two lists, almost every entry is a real compound
+    #: (`marksizm-leninizm`, `savoir-vivre`, `ping-pong`).
+    #:
+    #: * `confirmed` — only the evidenced ones are asked about; the rest are
+    #:   counted and reported. The default, and what 0.2.24 did.
+    #: * `grouped` — one question per confidence class, carrying the words, so
+    #:   189 candidates are one decision instead of 189.
+    #: * `each` — every candidate individually, for going through them properly.
+    hyphen_review: str = "confirmed"
 
     #: Read back and write down the answers a person gave about this book.
     #:
@@ -420,6 +439,34 @@ class Policy:
             )
         _check_ocf_segment("content_dir", self.content_dir, allow_empty=True)
         _check_ocf_segment("package_name", self.package_name, allow_empty=False)
+
+    @classmethod
+    def for_measurement(cls, name: str = "preserve", **overrides) -> "Policy":
+        """A rebuild whose output is going to be thrown away.
+
+        The survey, the fidelity harness and `render-check` all rebuild a book
+        into a temporary directory, measure the result and delete it. The two
+        gates exist to protect a *destination*, and here there is none — so they
+        cost time and can only get in the way.
+
+        This has a name rather than four copies of the same four overrides
+        because the owner's own corpus run is what found it. On his machine,
+        which has no browser, all 93 books reported `render.cannot-run`; once
+        "cannot check" started meaning "do not write", a survey of his library
+        would have come back as 93 refusals and no measurements. A tool that
+        refuses to look at a library because it cannot verify an output it is
+        about to delete is a tool nobody can run — and the same trap was set in
+        three other places, which is exactly how many copies of a rule there
+        should never be.
+        """
+        settings = {
+            "render_gate": "off",
+            "accept_unverified_render": True,
+            "accept_reconstructed_metadata": True,
+            "validate_before_publish": "off",
+        }
+        settings.update(overrides)
+        return cls.preset(name, **settings)
 
     @classmethod
     def preset(cls, name: str, **overrides) -> "Policy":
