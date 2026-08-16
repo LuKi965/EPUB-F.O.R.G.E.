@@ -49,13 +49,12 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 4,
       "fix": 2,
       "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "epubcheck.clean": 1,
       "nav.contents-page-kept": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,

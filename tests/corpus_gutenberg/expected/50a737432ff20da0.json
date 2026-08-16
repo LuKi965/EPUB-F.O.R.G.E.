@@ -68,7 +68,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 11,
+      "info": 10,
       "fix": 8,
       "preserved": 2,
       "warn": 1
@@ -77,7 +77,6 @@
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
       "css.unreachable-rules-removed": 3,
-      "epubcheck.clean": 1,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,

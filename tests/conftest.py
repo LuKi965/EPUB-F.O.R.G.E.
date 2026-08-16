@@ -18,6 +18,9 @@ from epubforge import render_fidelity as _render_fidelity
 
 _REAL_FIND_RENDERER = _render.find_renderer
 _REAL_COMPARE = _render_fidelity.compare
+#: `Policy.preset` before WP-12 wraps it. A classmethod, so the underlying
+#: function is what gets stored and re-bound.
+_REAL_PRESET = Policy.preset.__func__
 
 FIXTURE_IDENTIFIER = "urn:uuid:8f2c1b44-9c1e-4f0a-9c2b-3f6b1a7d5e21"
 
@@ -137,3 +140,80 @@ def without_the_renderer(request, monkeypatch):
         # does not.
         monkeypatch.setattr(render, "find_renderer", _REAL_FIND_RENDERER)
         monkeypatch.setattr(render_fidelity, "compare", _REAL_COMPARE)
+
+#: Files whose subject *is* validation. They get the real lookup back, and skip
+#: on their own when there is no validator — the same arrangement the render
+#: tests have, and for the same reason: a test about a tool is allowed to depend
+#: on that tool being present.
+#: `commit_gate` is deliberately **not** here. Its subject is the invariant gate
+#: in front of the writer, not EPUBCheck — it merely rebuilds in strict mode to
+#: get a book, and failing it for want of Java is exactly the confusion this
+#: fixture exists to remove.
+ABOUT_VALIDATION = ("epubcheck", "publication_gate", "validator")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def no_epubcheck_gate_anywhere():
+    """A test may not fail because this machine has no Java.
+
+    WP-12 / EF-030. Measured before the change: with `EPUBCHECK_JAR` pointing at
+    nothing and no cached jar, five ordinary test files produced **28 failures
+    and 4 errors** — none of them about EPUBCheck. `strict` asks for the `clean`
+    gate, the gate answers `BLOCKED: the validator this gate needs is not
+    installed`, the rebuild does not publish, and a test that wanted a rebuilt
+    book gets none. All correct behaviour, and none of it the test's subject.
+
+    **Why this neutralises rather than emulates, unlike the renderer above.**
+    The renderer is stood in for with an *answer* — the two pages draw the same
+    — because that is the ordinary case and nearly every test is about
+    something else. There is no equivalent ordinary answer here. "EPUBCheck says
+    this book is valid" is not a default, it is the verdict the gate exists to
+    obtain; asserting it on a machine that never asked would make every
+    publication test pass for a reason that has nothing to do with the book. So
+    the gate is switched **off** for tests that are not about it, which is
+    honest — nobody validated anything — and the files that are about validation
+    get the real thing back below.
+
+    Session-scoped for the reason `no_browser_anywhere` is: the first draft of
+    this was function-scoped and left eighteen errors behind, all of them in
+    module-scoped fixtures that build their book before any function fixture
+    runs. That is the same mistake as BA-2026-004 and it took the same shape
+    twice, which is why it is worth saying out loud rather than just fixing.
+
+    A test that names the setting explicitly keeps what it named, whatever it
+    named: a test writing `validate_before_publish="clean"` is asking for the
+    gate on purpose.
+    """
+    from epubforge.policy import Policy
+    from epubforge.validate import find_epubcheck
+
+    if find_epubcheck() is not None:
+        yield
+        return
+
+    patch = pytest.MonkeyPatch()
+
+    def stood_down(cls, name, **overrides):
+        overrides.setdefault("validate_before_publish", "off")
+        return _REAL_PRESET(cls, name, **overrides)
+
+    patch.setattr(Policy, "preset", classmethod(stood_down))
+    yield
+    patch.undo()
+
+
+@pytest.fixture(autouse=True)
+def validation_tests_get_the_real_gate(request, monkeypatch):
+    """The other half: a test about the validator asks for the validator.
+
+    Handed back rather than never taken away, because the patch above has to be
+    session-scoped to reach module fixtures and a session-scoped patch cannot
+    know which test is running.
+    """
+    from epubforge.policy import Policy
+
+    where = str(getattr(request.node, "fspath", "")).lower()
+    if request.node.get_closest_marker("validates") or any(
+        name in where for name in ABOUT_VALIDATION
+    ):
+        monkeypatch.setattr(Policy, "preset", classmethod(_REAL_PRESET))

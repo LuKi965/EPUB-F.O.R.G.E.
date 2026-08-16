@@ -51,5 +51,6 @@ epubforge = ["java/*.java"]
 [tool.pytest.ini_options]
 markers = [
     "renders: needs a browser and draws pages; excluded from the suite-wide skip",
+    "validates: asks EPUBCheck for a verdict on purpose; the gate is not stood down",
 ]
 testpaths = ["tests"]

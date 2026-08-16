@@ -49,11 +49,10 @@
     "report": {
       "info": 4,
       "fix": 3,
-      "error": 2
+      "error": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
-      "epubcheck.reported": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.gate-refused": 1,

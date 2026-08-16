@@ -38,6 +38,36 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Żaden test nie pada dlatego, że maszyna nie ma Javy
+
+WP-12. Zmierzone przed zmianą: przy `EPUBCHECK_JAR` wskazującym w próżnię i bez
+cache'u pięć zwykłych plików testowych dawało **28 porażek i 4 błędy** — żaden
+z nich nie był o EPUBCheck-u. Tryb ścisły prosi o bramkę `clean`, bramka
+odpowiada „walidatora, którego ta bramka potrzebuje, nie ma", książka się nie
+publikuje, a test, który chciał przebudowanej książki, nie dostaje jej. Wszystko
+poprawne i nic z tego nie jest tematem tamtych testów.
+
+**Neutralizacja, nie emulacja** — inaczej niż przy silniku rysującym, i to jest
+wybór, nie przeoczenie. Silnik zastępuje się *odpowiedzią* („obie strony rysują
+się tak samo"), bo to jest przypadek zwykły. Tutaj nie ma odpowiednika: „EPUBCheck
+mówi, że ta książka jest poprawna" nie jest domyślną, tylko werdyktem, po który
+bramka istnieje. Twierdzenie go na maszynie, która nigdy nie zapytała, sprawiłoby,
+że każdy test publikacji przechodzi z powodu niemającego nic wspólnego z książką.
+Więc bramka jest **wyłączana** dla testów, które nie są o niej — co jest uczciwe,
+bo nikt niczego nie zwalidował — a pliki, które są o walidacji, dostają ją z
+powrotem i pomijają się same.
+
+Przy okazji wyszło, że **sygnatury korpusu były zależne od maszyny**: zapisywały
+reguły `epubcheck.*` i liczyły je w sumach poziomów, więc przebieg bez Javy
+raportował trzynaście książek na trzynaście jako zmienione, choć żadna książka
+się nie zmieniła. Werdykt EPUBCheck-a jest zapisywany osobno i zostaje;
+z sygnatury rebuildu wyszedł. Pole, którego ten przebieg nie umiał zmierzyć,
+mówi teraz o tym wprost, zamiast udawać różnicę.
+
+**Wynik:** bez Javy i bez silnika **2370 przechodzi, 141 pominiętych, zero
+porażek**; w pełnym środowisku 2465 przechodzi, 46 pominiętych.
+
+
 ### Każdy identyfikator wychodzi ze schematem, z którym wszedł
 
 WP-9. Trzy defekty w jednym kawałku writera, widoczne dopiero na książce, która

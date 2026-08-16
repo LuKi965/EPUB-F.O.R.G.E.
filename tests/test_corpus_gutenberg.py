@@ -31,6 +31,8 @@ import sys
 
 import pytest
 
+from epubforge.validate import find_epubcheck
+
 from epubforge.corpus import books_in, compare, signature_files, summarise
 
 CORPUS = pathlib.Path(__file__).parent / "corpus_gutenberg"
@@ -48,6 +50,24 @@ def test_the_books_are_actually_here():
     assert len(books_in(CORPUS)) == 6
 
 
+#: The recorded signatures were measured with EPUBCheck reachable, and two of
+#: them record strict mode **refusing to publish** — a verdict only a validator
+#: can produce. Comparing them against a run that had none compares two
+#: different measurements, so this says so instead of failing.
+#:
+#: WP-12 removed everything else that made these signatures depend on the
+#: machine: `epubcheck.*` rules, the level counts that included them, and the
+#: `epubcheck`/`checker` fields. What is left is not noise — it is a book that
+#: genuinely comes out differently when nothing can check it.
+needs_a_validator = pytest.mark.skipif(
+    find_epubcheck() is None,
+    reason=(
+        "sygnatury zapisano z EPUBCheck-iem; dwie z nich zapisują odmowę "
+        "publikacji w trybie ścisłym, a bez walidatora nie ma jej kto wydać"
+    ),
+)
+
+@needs_a_validator
 def test_every_book_still_rebuilds_the_way_it_did():
     results = compare(CORPUS, EXPECTED)
     moved = [r for r in results if not r.ok]

@@ -65,14 +65,13 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 12,
+      "info": 11,
       "fix": 8,
       "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
       "css.unreachable-rules-removed": 3,
-      "epubcheck.clean": 1,
       "hyphens.detected": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,

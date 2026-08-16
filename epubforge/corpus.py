@@ -291,14 +291,37 @@ def _measure(
     # *which* three, so a signature that moves reads as "this book stopped
     # losing its contents page" rather than as "a number went up" — which is
     # the difference between a regression net and a tripwire (EF-018).
-    rules: Counter = Counter(f.rule for f in result.report.findings if f.rule)
+    # `epubcheck.*` is deliberately not among them, and that is WP-12.
+    #
+    # Those rules do not describe the rebuild — they describe whether the
+    # machine running it had a validator. `epubcheck.clean` appeared in every
+    # strict signature here, so a recorded corpus could only ever be reproduced
+    # on a machine with Java, and a run without one reported thirteen books as
+    # "changed" when nothing about any book had changed. The verdict itself is
+    # kept, separately and honestly, in the `epubcheck` field below — which is
+    # already omitted when there is nothing to record.
+    rules: Counter = Counter(
+        f.rule
+        for f in result.report.findings
+        if f.rule and not f.rule.startswith("epubcheck.")
+    )
+
+    # Counted over the same findings the `rules` above are counted over, and for
+    # the same reason: `report.info` included `epubcheck.clean`, so the totals
+    # moved by one on every strict signature depending on whether the machine
+    # had Java. Two views of one set of findings, filtered two different ways,
+    # is a disagreement waiting to be recorded as a regression.
+    counted = [
+        finding
+        for finding in result.report.findings
+        if not (finding.rule or "").startswith("epubcheck.")
+    ]
+    levels: Counter = Counter(finding.level.value for finding in counted)
 
     measurement: dict = {
         "written": result.output_path is not None,
         "report": {
-            level.value: result.report.count(level)
-            for level in Level
-            if result.report.count(level)
+            level.value: levels[level.value] for level in Level if levels[level.value]
         },
         "rules": dict(sorted(rules.items())),
     }
@@ -562,6 +585,15 @@ _MODE_METADATA = frozenset({"checker"})
 #: ones, the identifiers when a count stopped being enough to act on.
 _NEWLY_MEASURED = frozenset({*MODES, "source_epubcheck", "epubcheck", "codes"})
 
+#: How `differences` says a field could not be measured on this machine. Matched
+#: rather than re-derived, so the sentence and the rule that reads it cannot
+#: drift apart.
+NOT_MEASURED_HERE = "nie zmierzone tutaj"
+
+#: Fields that only exist when EPUBCheck was reachable. Their absence is a fact
+#: about the machine, not about the book — see `differences`.
+_NEEDS_A_VALIDATOR = frozenset({"source_epubcheck", "epubcheck", "checker"})
+
 
 def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
     """Field-level diff, so a change reads as a sentence and not as two hashes."""
@@ -587,6 +619,19 @@ def differences(recorded: dict, measured: dict, path: str = "") -> list[str]:
         # four it means the field did not exist when the signature was written.
         if key in _NEWLY_MEASURED and key not in recorded and new is not None:
             lines.append(f"{here}: not measured before")
+            continue
+        # And the mirror image: a field the recorded signature holds that this
+        # run could not measure, because this machine has no validator.
+        #
+        # WP-12. Without it, running the corpus on a machine without Java
+        # reported every book as changed — thirteen of thirteen — for the
+        # single reason that `epubcheck` and `checker` are missing from the
+        # measurement. That is a fact about the machine and it is worth saying,
+        # once per field, but it is not a book that rebuilds differently. Said
+        # rather than skipped, because a signature quietly compared over fewer
+        # fields is a weaker net wearing the same name.
+        if key in _NEEDS_A_VALIDATOR and new is None and old is not None:
+            lines.append(f"{here}: nie zmierzone tutaj (brak walidatora)")
             continue
         if key == "rules" and isinstance(old, dict) and isinstance(new, dict):
             # Rendered as one line naming what appeared and what stopped,
@@ -705,7 +750,14 @@ def compare(
                 status, changes = "new", []
             else:
                 changes = differences(previous, current)
-                status = "unchanged" if not changes else "changed"
+                # A note about the machine is not a book that rebuilt
+                # differently. WP-12: on a machine without Java every book said
+                # "changed" because two fields were missing from the
+                # measurement, which turns a regression net into a tripwire for
+                # the environment. The lines stay in the output — the run is
+                # weaker and says so — but they do not fail the comparison.
+                moved = [line for line in changes if NOT_MEASURED_HERE not in line]
+                status = "unchanged" if not moved else "changed"
             if record:
                 reference.write_text(
                     json.dumps(current, indent=2, ensure_ascii=False) + "\n",
