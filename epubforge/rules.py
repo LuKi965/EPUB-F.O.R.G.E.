@@ -202,6 +202,8 @@ CATALOGUE: dict[str, str] = {
     "xhtml.dead-fragment-dropped": "{count} link(s) pointed at an anchor no document defines and were sent to the top of the target document instead, because the person running the rebuild said that is where they belong",
     "xhtml.presentational-markup-converted": "legacy presentational markup was converted to CSS",
     "xhtml.image-paragraph-centred": "{count} image-only paragraph(s) were centred and their text indent removed",
+    "xhtml.image-paragraph-centred-unstyled": "{count} image-only paragraph(s) on a page that links no stylesheet were centred",
+    "xhtml.cover-sized-in-pixels": "the cover image is sized in pixels by an attribute, and was left that way",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
     "xhtml.image-paragraph-kept": "{count} image paragraph(s) were left as the publisher styled them",
     "xhtml.cover-fitted": "the cover image was given page-fitting limits, because nothing in the book set any",
@@ -467,6 +469,8 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.dead-fragment-dropped': '{count} {count:odnośnik wskazywał|odnośniki wskazywały|odnośników wskazywało} na kotwicę, której żaden dokument nie definiuje, i {count:prowadzi teraz|prowadzą teraz|prowadzi teraz} na początek dokumentu docelowego — bo tak zdecydowała osoba prowadząca przebudowę',
     'xhtml.presentational-markup-converted': 'stare znaczniki prezentacyjne zamieniono na CSS',
     'xhtml.image-paragraph-centred': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} i usunięto z nich wcięcie',
+    'xhtml.image-paragraph-centred-unstyled': 'wyśrodkowano {count} {count:akapit zawierający sam obraz|akapity zawierające sam obraz|akapitów zawierających sam obraz} na stronie, która nie linkuje żadnego arkusza',
+    'xhtml.cover-sized-in-pixels': 'obraz okładki ma rozmiar podany w pikselach atrybutem i został tak zostawiony',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
     'xhtml.image-paragraph-kept': '{count} {count:akapit z obrazem zostawiono|akapity z obrazem zostawiono|akapitów z obrazem zostawiono} tak, jak {count:ostylował go|ostylował je|ostylował je} wydawca',
     'xhtml.cover-fitted': 'obrazowi okładki nadano ograniczenia dopasowujące go do strony, bo nic w książce ich nie ustawiało',
@@ -704,6 +708,10 @@ DETAILS: dict[str, str] = {
         "Required for valid markup. It is not treated as a description: the accessibility stage still counts these images as undescribed, so nothing is claimed on their behalf.",
     "xhtml.image-paragraph-centred":
         "Running-text rules were shifting the artwork; no rule targeted these paragraphs specifically, so the layout was inherited rather than chosen.",
+    "xhtml.image-paragraph-centred-unstyled":
+        "This page links no stylesheet at all, so there was no indent to remove and no publisher's rule to override — the reader's own default was left-aligning the artwork. Said separately from the paragraph above because the two are different facts about the book, and a message that describes the wrong one is a message somebody learns to skip.",
+    "xhtml.cover-sized-in-pixels":
+        "A width or height attribute in pixels fixes the cover at one size whatever the screen is. It is the publisher's instruction, so it is reported and not overwritten: changing it is a decision about how the book looks, and this program does not make those on its own.",
     "xhtml.image-paragraph-kept":
         "A rule aimed at these paragraphs, or at an element containing them, sets their alignment or indent.",
     "xhtml.image-paragraph-unindented":
@@ -851,6 +859,10 @@ DETAILS_PL: dict[str, str] = {
         "EPUB 3 dopuszcza jeden rodzaj zasobu zdalnego — font zadeklarowany przy pozycji manifestu — a arkusz stylów nim nie jest. Deklaracje font-family zostają nietknięte, więc książka podstawia kroje dokładnie tak, jak podstawiłaby wcześniej.",
     "xhtml.image-paragraph-centred":
         "Reguły tekstu bieżącego przesuwały grafikę; żadna reguła nie celowała w te akapity z osobna, więc nic, co wybrał wydawca, nie zostało nadpisane.",
+    "xhtml.image-paragraph-centred-unstyled":
+        "Ta strona nie linkuje żadnego arkusza, więc nie było wcięcia do usunięcia ani reguły wydawcy do nadpisania — grafikę dosuwało do lewej domyślne ustawienie czytnika. Mówione osobno, bo to inny fakt o książce, a komunikat opisujący nie ten fakt uczy przeskakiwać nad komunikatami.",
+    "xhtml.cover-sized-in-pixels":
+        "Atrybut width albo height w pikselach ustala okładkę na jednym rozmiarze niezależnie od ekranu. To instrukcja wydawcy, więc jest raportowana, a nie nadpisywana: zmiana jest decyzją o wyglądzie książki, a takich program nie podejmuje sam.",
     "xhtml.image-paragraph-unindented":
         "O położeniu obrazu decyduje reguła celująca w te akapity albo w ich kontener; wcięcie dotyczy tekstu bieżącego, którego tu nie ma.",
     "xhtml.image-paragraph-kept":

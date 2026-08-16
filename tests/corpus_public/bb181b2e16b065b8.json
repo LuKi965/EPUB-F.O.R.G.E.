@@ -1,6 +1,6 @@
 {
   "source": "sha256:bb181b2e16b065b8a1b0d7b360aa35274bafed85f34b9756f03e7d03619b9726",
-  "version": "0.2.24",
+  "version": "0.2.27",
   "minimal": {
     "written": true,
     "report": {
@@ -31,7 +31,7 @@
     "written": true,
     "report": {
       "info": 4,
-      "fix": 5,
+      "fix": 6,
       "preserved": 1,
       "warn": 3
     },
@@ -46,11 +46,12 @@
       "package.regenerated": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 1,
       "xhtml.image-paragraph-centred": 1,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:427e7952cb2cee2525b451080ab309283cdac978af369388d571b309cc6fe431",
+    "output": "sha256:f97ce5df9fcfcb159489e69217e0de295e21bc48f5400d8f75df5740a6a65b86",
     "text_characters": 57,
     "text_added": 2,
     "text_invariant": true,
@@ -60,7 +61,7 @@
     "written": true,
     "report": {
       "info": 5,
-      "fix": 5,
+      "fix": 6,
       "preserved": 1,
       "warn": 3
     },
@@ -76,11 +77,12 @@
       "package.regenerated": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
+      "xhtml.cover-fitted": 1,
       "xhtml.image-paragraph-centred": 1,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:427e7952cb2cee2525b451080ab309283cdac978af369388d571b309cc6fe431",
+    "output": "sha256:f97ce5df9fcfcb159489e69217e0de295e21bc48f5400d8f75df5740a6a65b86",
     "text_characters": 57,
     "text_added": 2,
     "text_invariant": true,

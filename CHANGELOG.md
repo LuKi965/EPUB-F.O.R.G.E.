@@ -38,6 +38,44 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Okładka rozpoznawana po manifeście, i reguła, która wreszcie działa
+
+WP-8. Trzy ustalenia, które okazały się jednym błędem popełnionym w dwóch
+miejscach: okładka była rozpoznawana po ścieżce, która zdążyła się zmienić,
+i naprawiana regułą, która nie mogła zadziałać.
+
+**EF-024.** `_cover_fits_the_page` rozwiązywał każdy `<img src>` względem
+*pierwotnej* ścieżki dokumentu — w miejscu potoku, w którym `src` jest już
+przepisany na nową. Powstawała ścieżka, która niczego nie nazywa; `path_map`
+odpowiadał `None` dla niej i `None` dla okładki; `None != None` jest fałszem;
+i warunek mający trzymać regułę okładki na okładce przepuszczał wszystko.
+Zmierzone na *Pan Tadeusz*: okładka z manifestu nie występuje w żadnym
+dokumencie tej książki, a regułę dostawało **dziewięć ilustracji**.
+Pytanie zadaje teraz manifest — a manifest nie przesuwa się razem z plikami.
+
+**EF-026.** To, co dokładał, to `max-width: 100%; max-height: 100%` inline.
+Druga z tych deklaracji jest procentem, a procentowa wysokość rozwiązuje się
+względem bloku zawierającego — bez wysokości na `html` i `body` nie ma do czego
+jej odnieść. Reguła trzymająca wysoką okładkę na jednej stronie była martwa
+dokładnie tam, gdzie była potrzebna. Strona okładki, którą program **generuje**,
+miała tę wysokość od zawsze: dwie drogi do jednego efektu i jedna z nich nie
+prowadziła nigdzie. Teraz obie biorą te same trzy reguły z `epubforge/covers.py`.
+
+**EF-034.** Jeden komunikat opisywał dwa różne fakty: stronę, której wcięcie
+przyszło z arkusza, i stronę, która nie linkuje żadnego arkusza i nie miała
+wcięcia do usunięcia. Obie dostawały zdanie o usuniętym wcięciu. Teraz są dwa
+komunikaty, EN i PL.
+
+**Nowe ostrzeżenie:** `<img width="1472" height="2341">` na okładce jest
+raportowane i **zostawiane**. To instrukcja wydawcy; zmiana jest decyzją
+o wyglądzie książki, a takich program nie podejmuje sam.
+
+Zmierzone na obu książkach wzorcowych, trzy viewporty (600×800, 758×1024,
+1072×1448), przypięty silnik: **zero stron ze stratą**. Grafiki tytułowe
+Książki 1 nie dostają już reguły okładki; `body.cover img { max-height: 98% }`
+Książki 2 nadal uszanowane.
+
+
 ### The engine, and nothing but the engine
 
 The owner's answer to 0.2.27 was that I had half-done what he asked: *mamy

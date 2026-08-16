@@ -909,25 +909,39 @@ class TestTheCoverFitsThePage:
         return path
 
     def cover_markup(self, tmp_path, *, sheet: str | None):
-        import re
+        """The whole cover document, not just its `<img>`.
 
+        It used to return the image tag alone, which was right while the limits
+        were an inline style and became wrong when WP-8 moved them into the
+        head — where they have to be, because two of the three rules are about
+        `html` and `body`.
+        """
         source = self.build(tmp_path, sheet=sheet)
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
         with zipfile.ZipFile(result.output_path) as archive:
             name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
-            html = archive.read(name).decode()
-        return re.search(r"<img[^>]*>", html).group(), result
+            return archive.read(name).decode(), result
 
     def test_an_unsized_cover_is_given_limits(self, tmp_path):
+        """The limits are now a `<style>` block in the head rather than an
+        inline style on the image, and that is WP-8's point rather than a
+        detail: two of the three rules are about `html` and `body`, and inline
+        styles cannot say anything about an ancestor. Without a height there,
+        `max-height: 100%` is a percentage of nothing and does not apply."""
         markup, result = self.cover_markup(tmp_path, sheet=None)
         assert "max-width: 100%" in markup and "max-height: 100%" in markup
+        assert "html, body { height: 100%; }" in markup
         assert any("page-fitting" in f.message for f in result.report.findings)
 
     def test_a_cover_the_publisher_sized_is_left_alone(self, tmp_path):
         markup, result = self.cover_markup(
             tmp_path, sheet="img { max-height: 98%; max-width: 100%; }"
         )
-        assert "style=" not in markup
+        # The claim is that *the cover repair* did nothing, not that nothing in
+        # the document has a style: the image-paragraph centring is a different
+        # rule with its own finding, and it fires here as it always did.
+        assert "nothing in this book sized the cover" not in markup
+        assert "max-height: 100%" not in markup
         assert not any("page-fitting" in f.message for f in result.report.findings)
 
     def test_a_width_attribute_counts_as_sizing(self, tmp_path):
@@ -943,18 +957,30 @@ class TestTheCoverFitsThePage:
         result = rebuild(source, str(tmp_path / "attr.epub"), Policy.preset("preserve"))
         assert not any("page-fitting" in f.message for f in result.report.findings)
 
-    def test_only_one_image_is_touched(self, tmp_path):
-        """Only the cover. An illustration mid-chapter is a different question,
-        and the cover page this tool generates already sizes its own."""
-        import re
+    def test_only_one_document_is_touched(self, tmp_path):
+        """Only the cover page. An illustration mid-chapter is a different
+        question, and the cover page this tool generates already sizes its own.
 
+        Counted per **document** rather than per `<img>` since WP-8: the rules
+        moved from an inline style on the image to a block in the head, because
+        two of the three are about `html` and `body`. The claim is the same one
+        — exactly one page is fitted — measured where it now lives.
+
+        This test is also the one that would have caught EF-024, and did not:
+        it built a book with a single image, so "only the cover" and "every
+        image" were indistinguishable. The fixture in
+        `test_cover_by_manifest.py` carries a decoration as well.
+        """
         source = self.build(tmp_path, sheet=None)
         result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
         with zipfile.ZipFile(result.output_path) as archive:
-            names = [n for n in archive.namelist() if n.endswith(".xhtml")]
-            markup = "".join(archive.read(n).decode() for n in names)
-        styled = [tag for tag in re.findall(r"<img[^>]*>", markup) if "style=" in tag]
-        assert len(styled) == 1, styled
+            pages = [
+                archive.read(name).decode()
+                for name in archive.namelist()
+                if name.endswith(".xhtml")
+            ]
+        fitted = [page for page in pages if "nothing in this book sized the cover" in page]
+        assert len(fitted) == 1, [page[:120] for page in fitted]
 
 
 class TestContainerOnlyModeStillDeclaresWhatTheDocumentsHold:

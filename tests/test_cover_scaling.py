@@ -229,9 +229,15 @@ class TestACoverNothingSizesIsRepaired:
         wrote ourselves has no excuse for arriving unscalable."""
         from epubforge.stages.navigation import COVER_PAGE_TEMPLATE
 
-        assert "max-width: 100%" in COVER_PAGE_TEMPLATE
-        assert "max-height: 100%" in COVER_PAGE_TEMPLATE
-        assert "object-fit: contain" in COVER_PAGE_TEMPLATE
+        # The template holds a placeholder since WP-8; the rules themselves
+        # live in `covers`, shared with the repair of a page the book already
+        # had. Two copies of three rules is how they came to disagree.
+        from epubforge import covers
+
+        assert "{cover_style}" in COVER_PAGE_TEMPLATE
+        assert "max-width: 100%" in covers.COVER_STYLE
+        assert "max-height: 100%" in covers.COVER_STYLE
+        assert "object-fit: contain" in covers.COVER_STYLE
 
 
 class TestARuleThatReachesNoDocument:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import re
 
-from .. import paths
+from .. import covers, paths
 from ..model import Landmark, NavPoint, Resource, SpineItem
 from ..report import Action, Level, Risk
 from ..xhtml import EPUB_NS, XHTML_NS
@@ -23,9 +23,7 @@ COVER_PAGE_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
     <meta charset="utf-8"/>
     <title>{title}</title>
     <style>
-      html, body {{ margin: 0; padding: 0; height: 100%; }}
-      body {{ display: flex; align-items: center; justify-content: center; }}
-      img {{ max-width: 100%; max-height: 100%; object-fit: contain; }}
+      {cover_style}
     </style>
   </head>
   <body epub:type="cover">
@@ -133,6 +131,11 @@ class NavigationStage(Stage):
             title=_escape(book.metadata.title),
             href=paths.relative(page_path, book.cover_path),
             alt=_escape(book.metadata.title),
+            # From `covers`, so that the page this program writes and the page
+            # it repairs are fitted by the same three rules. They were two
+            # copies and they disagreed: this one had a height to resolve
+            # `max-height` against and the other did not.
+            cover_style=covers.COVER_STYLE,
         )
         book.add(
             Resource(

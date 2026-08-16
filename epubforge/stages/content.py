@@ -15,7 +15,7 @@ from collections import Counter
 import cssutils
 from lxml import etree
 
-from .. import cascade as css_cascade
+from .. import covers, cascade as css_cascade
 from .. import fonts_meta, paths, references, stylesheet, typography, watermark, xhtml
 from ..report import Action, Level, Risk
 from .accessibility import is_placeholder_alt
@@ -2010,6 +2010,7 @@ class ContentStage(Stage):
         adjusted = 0
         respected = 0
         unindented = 0
+        unstyled = 0
 
         for element in candidates:
             tag = xhtml.local_name(element).lower()
@@ -2058,15 +2059,33 @@ class ContentStage(Stage):
             # rules leak onto it, or — as on title pages that link no stylesheet
             # at all — the reader's default left-aligns the artwork. Both leave
             # the image off-centre for want of an instruction, not by choice.
+            #
+            # The two are counted apart, because the sentence that describes
+            # them is not the same sentence. EF-034: one message said "their
+            # text indent was removed" for pages that had no indent to remove
+            # — nothing false about the *change*, and untrue about the *book*,
+            # which is the kind of report line that teaches somebody to stop
+            # reading them. The code knew the difference all along; the
+            # catalogue had one entry for both.
             _append_style(element, "text-indent: 0; text-align: center;")
             adjusted += 1
+            if not self._linked_stylesheets(ctx, root, resource):
+                unstyled += 1
 
-        if adjusted:
+        if unstyled:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.image-paragraph-centred-unstyled",
+                location=resource.path,
+                values={"count": unstyled},
+            )
+        if adjusted - unstyled:
             self.note(
                 ctx,
                 Level.FIX,
                 "xhtml.image-paragraph-centred",
-                values={"count": adjusted},
+                values={"count": adjusted - unstyled},
                 location=resource.path,
             )
         if unindented:
@@ -2090,51 +2109,97 @@ class ContentStage(Stage):
         """Keep a cover from being shown at its pixel size for want of a rule.
 
         A cover page normally carries ``img { max-width: 100%; max-height: 100% }``
-        and nothing else. When that rule goes missing — a stylesheet link the
-        publisher's tooling broke, a page that links no stylesheet at all — the
-        reader falls back to the image's own dimensions, and a 1600px cover on a
-        six-inch screen is cropped or shrunk to a stamp depending on the device.
+        and an ancestor with a height. When that goes missing — a stylesheet
+        link the publisher's tooling broke, a page that links no stylesheet at
+        all — the reader falls back to the image's own dimensions, and a 1600px
+        cover on a six-inch screen is cropped or shrunk to a stamp depending on
+        the device.
 
-        Only applied when **nothing** sizes the image: no inline style, no rule
-        of any kind reaching it for width, height or their maxima. Both
-        properties can only ever make an image smaller than its natural size, so
-        the worst case is that a reader ignores them.
+        **Two things were wrong here and both are EF-024 and EF-026.**
+
+        It asked *is this the cover* by resolving `src` against the document's
+        original path — at a point where `src` has already been rewritten to its
+        new one. The result named nothing, `path_map` answered `None` for both
+        sides of the comparison, and `None != None` is false: the guard let
+        everything through. Every unsized image in the book got the cover's
+        rule, twice over on the fixture used by the suite. The question is now
+        asked of the **manifest**, through `covers.is_the_cover`, and a manifest
+        does not move when files do.
+
+        And what it added was two inline declarations, one of which could not
+        work. `max-height: 100%` is a percentage; a percentage height resolves
+        against the containing block, and with no height on `html` and `body`
+        there is nothing to resolve against. So the rule that keeps a tall cover
+        on one page was inert exactly where it was needed. What goes in now is
+        the same block a generated cover page is born with, scoped to this
+        document, from `covers.COVER_STYLE_ADDED`.
+
+        Both properties can still only ever make an image *smaller* than its
+        natural size, so the worst case of being wrong remains that a reader
+        ignores them.
         """
-        cover = ctx.book.cover_path
-        if not cover:
+        if not covers.cover_identities(ctx.book):
             return
 
-        source_path = resource.original_path or resource.path
-        cascade = None
-        adjusted = 0
-
+        wanted = []
+        pixel_sized = []
         for element in root.iter(xhtml.qname("img")):
             source = (element.get("src") or "").strip()
             if not source:
                 continue
-            target = paths.resolve(source_path, source)
-            if target != cover and ctx.path_map.get(target) != ctx.path_map.get(cover):
+            # Resolved against the path this resource has **now**, because that
+            # is what `src` is relative to after the relayout.
+            target = paths.resolve(resource.path, source)
+            if not covers.is_the_cover(ctx.book, target):
+                continue
+            if element.get("width") or element.get("height"):
+                # The publisher pinned the cover in pixels, which is the defect
+                # named in D2 and not something to overwrite silently.
+                pixel_sized.append(source)
                 continue
             inline = (element.get("style") or "").lower()
             if any(prop in inline for prop in ("width", "height")):
                 continue
-            if element.get("width") or element.get("height"):
-                continue
+            wanted.append(element)
 
-            if cascade is None:
-                cascade = self._document_cascade(ctx, root, resource)
+        if pixel_sized:
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.cover-sized-in-pixels",
+                location=resource.path,
+                values={"count": len(pixel_sized)},
+            )
+
+        if not wanted:
+            return
+
+        cascade = self._document_cascade(ctx, root, resource)
+        still_wanted = []
+        for element in wanted:
             chain = _ancestry(element)
             if any(
                 cascade.resolve(prop, chain[:1])[0] is not None
                 for prop in ("width", "height", "max-width", "max-height")
             ):
                 continue
+            still_wanted.append(element)
 
-            _append_style(element, "max-width: 100%; max-height: 100%;")
-            adjusted += 1
+        if not still_wanted:
+            return
 
-        if adjusted:
-            self.note(ctx, Level.FIX, "xhtml.cover-fitted", location=resource.path)
+        head = root.find(xhtml.qname("head"))
+        if head is None:
+            # No head to put a block in, so fall back to what the old code did.
+            # Half a repair, and better than none: `max-width` works without a
+            # containing block even though `max-height` does not.
+            for element in still_wanted:
+                _append_style(element, "max-width: 100%; max-height: 100%;")
+        else:
+            style = etree.SubElement(head, xhtml.qname("style"))
+            style.text = covers.COVER_STYLE_ADDED
+
+        self.note(ctx, Level.FIX, "xhtml.cover-fitted", location=resource.path)
 
     #: What replaces `position: absolute; bottom: 0` on a one-block page.
     #:
