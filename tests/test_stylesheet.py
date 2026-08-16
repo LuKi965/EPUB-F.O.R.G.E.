@@ -435,3 +435,57 @@ class TestASpanThatSaysNothing:
             del self.SHEET
         assert "css.unreachable-rules-found" in self.rules(result)
         assert "css.unreachable-rules-removed" not in self.rules(result)
+
+
+class TestTheStageBoundaryHolds:
+    """EF-031 / WP-14. `stages/content.py` had reached 3865 lines and two
+    unrelated jobs, and `StyleStage` now lives in `stages/style.py`.
+
+    A split is only worth making if it stays split, so the boundary is asserted
+    rather than described: the stylesheet stage takes CSS text in and gives CSS
+    text back, and does not reach into a content document. Without this the two
+    modules drift back together one convenient import at a time — which is how
+    the first one got to 3865 lines.
+    """
+
+    def test_the_two_stages_live_in_two_modules(self):
+        from epubforge.stages import ContentStage, StyleStage
+
+        assert ContentStage.__module__ == "epubforge.stages.content"
+        assert StyleStage.__module__ == "epubforge.stages.style"
+
+    def test_the_package_still_offers_both_from_one_place(self):
+        """Everything outside `stages/` imports from the package, and a refactor
+        that made callers know which file a stage sits in would have moved the
+        problem rather than solved it."""
+        import epubforge.stages as stages
+
+        assert "StyleStage" in stages.__all__ and "ContentStage" in stages.__all__
+
+    def test_the_stylesheet_stage_does_not_parse_documents(self):
+        """The boundary, as a property of the source rather than a promise.
+        `lxml.etree` is how this program opens a content document; a stylesheet
+        stage that needs it is a stylesheet stage doing somebody else's job."""
+        import pathlib
+
+        source = (
+            pathlib.Path(__file__).parent.parent / "epubforge" / "stages" / "style.py"
+        ).read_text(encoding="utf-8")
+        assert "from lxml" not in source and "import lxml" not in source
+
+    def test_and_the_content_stage_no_longer_carries_the_css_repairs(self):
+        """The other direction. These four were measured as reachable only from
+        `StyleStage` before the move, so finding one back in `content.py` means
+        the split has started to leak."""
+        import pathlib
+
+        source = (
+            pathlib.Path(__file__).parent.parent / "epubforge" / "stages" / "content.py"
+        ).read_text(encoding="utf-8")
+        for moved in (
+            "_ABSOLUTE_FONT_SIZE_RE",
+            "_INHERITABLE_EMPHASIS_RE",
+            "_OUT_OF_FLOW_RE",
+            "_DIRECTION_RE",
+        ):
+            assert moved not in source, moved

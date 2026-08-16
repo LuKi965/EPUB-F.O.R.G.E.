@@ -24,9 +24,15 @@ the structural checks cannot see:
 * **everything else**, as a fraction of pixels that differ.
 
 None of it is free. Rendering is about four tenths of a second per page, twice
-per page, so a sixty-five-document book is a minute. It is an opt-in check for
-that reason, like the validator, and it samples rather than rendering everything
-unless asked.
+per page, so a sixty-five-document book is a minute. It samples rather than
+rendering everything unless asked, for that reason.
+
+It is **not** opt-in, and this paragraph used to say it was (EF-037).
+`Policy.render_gate` defaults to `stop`: without a way to see what the pages
+look like, the rebuild does not write. D-016 settled that on 2026-08-14 and the
+sentence here was never brought into line — so the module explaining the check
+was telling the reader the opposite of what the program does. The default is the
+truth; a docstring is not a second place to decide policy.
 """
 
 from __future__ import annotations

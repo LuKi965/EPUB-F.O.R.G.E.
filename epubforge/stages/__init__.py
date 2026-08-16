@@ -22,12 +22,13 @@ Order is load-bearing:
 from .accessibility import AccessibilityStage
 from .base import Context, Stage
 from .compat import CompatibilityStage
-from .content import ContentStage, StyleStage
+from .content import ContentStage
 from .fonts import FontStage
 from .images import ImageStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
 from .profile import ProfileStage
+from .style import StyleStage
 from .structure import StructureStage
 from .hyphens import HyphenStage
 from .typography import TypographyStage
