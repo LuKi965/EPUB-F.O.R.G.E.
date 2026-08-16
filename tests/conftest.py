@@ -11,6 +11,14 @@ from epubforge.stages.fonts import IDPF_PREFIX_LENGTH, deobfuscate, idpf_key
 
 from .factory import ENCRYPTION_XML, fake_ttf, make_legacy_epub
 
+#: Captured at import, before anything is patched, so the tests that are about
+#: drawing can be handed the genuine functions back.
+from epubforge import render as _render
+from epubforge import render_fidelity as _render_fidelity
+
+_REAL_FIND_RENDERER = _render.find_renderer
+_REAL_COMPARE = _render_fidelity.compare
+
 FIXTURE_IDENTIFIER = "urn:uuid:8f2c1b44-9c1e-4f0a-9c2b-3f6b1a7d5e21"
 
 
@@ -43,6 +51,38 @@ def rebuilt_strict(legacy_epub, tmp_path):
 def archive(rebuilt):
     with zipfile.ZipFile(rebuilt.output_path) as handle:
         yield handle
+
+
+@pytest.fixture(scope="session", autouse=True)
+def no_browser_anywhere():
+    """The same emulation, for the whole session rather than per test.
+
+    The function-scoped version below could not reach a fixture built at module
+    or session scope — `test_semantic_roundtrip.py` rebuilds its book in a
+    `scope="module"` fixture — so those rebuilds ran with the real policy and
+    the real browser discovery. On this machine that passed, because Chromium is
+    installed here. On the Windows runner, which has none, 48 fixtures came back
+    `BLOCKED` and the release build failed.
+
+    That is the host-dependence class BA-2026-004 is about, introduced by me
+    while closing it elsewhere: a suite whose answer depends on what the machine
+    happens to have installed. The patch is applied once, before anything is
+    collected, and the function-scoped fixture below hands the real functions
+    *back* to the tests that are about rendering.
+    """
+    from epubforge import render, render_fidelity
+
+    patch = pytest.MonkeyPatch()
+    patch.setattr(render, "find_renderer", lambda: "/nie/ma/mnie")
+    patch.setattr(
+        render_fidelity,
+        "compare",
+        lambda source, candidate, sample=0, browser=None: render_fidelity.RenderFidelity(
+            available=True, engine="podstawiona przeglądarka", pages=[]
+        ),
+    )
+    yield
+    patch.undo()
 
 
 @pytest.fixture(autouse=True)
@@ -80,18 +120,14 @@ def without_the_renderer(request, monkeypatch):
     The files that are about rendering, and the tests marked `renders`, get
     neither substitution and exercise the whole thing for real.
     """
-    if request.node.get_closest_marker("renders"):
-        return
-    if "render" in str(getattr(request.node, "fspath", "")):
-        return
+    from epubforge import render, render_fidelity
 
-    from epubforge import render_fidelity
-
-    monkeypatch.setattr("epubforge.render.find_renderer", lambda: "/nie/ma/mnie")
-    monkeypatch.setattr(
-        render_fidelity,
-        "compare",
-        lambda source, candidate, sample=0, browser=None: render_fidelity.RenderFidelity(
-            available=True, engine="podstawiona przeglądarka", pages=[]
-        ),
-    )
+    if request.node.get_closest_marker("renders") or "render" in str(
+        getattr(request.node, "fspath", "")
+    ):
+        # These are the tests about drawing, so they get the real thing back —
+        # and they are the only ones whose answer is allowed to depend on
+        # whether this machine has a browser. They skip on their own when it
+        # does not.
+        monkeypatch.setattr(render, "find_renderer", _REAL_FIND_RENDERER)
+        monkeypatch.setattr(render_fidelity, "compare", _REAL_COMPARE)
