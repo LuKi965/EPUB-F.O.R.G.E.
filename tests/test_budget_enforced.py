@@ -453,3 +453,53 @@ class TestStoppingInTheMiddleOfABook:
             "the clock is still only asked between them"
         )
         assert len(set(seen)) > 1, "every checkpoint named the same place"
+
+
+class TestTheFallbackHasNoClock:
+    """A budget belongs to one book; the shared fallback belongs to a process.
+
+    Found by a release build. Three tests that construct a `Context` by hand
+    parse without a rebuild around them, so they charge the module-level
+    fallback — which is created once and kept. Its clock therefore measures how
+    long the *process* has been alive, and when the suite got slow for an
+    unrelated reason they failed with `wall clock: 905s where 300s is allowed`.
+
+    The same arithmetic refuses every parse in a window somebody left open for
+    six minutes, which is not a limit anybody chose. Size and depth still apply
+    to the fallback: those are properties of the document in front of it.
+    """
+
+    def test_a_parse_outside_a_rebuild_is_not_charged_for_the_uptime(self, monkeypatch):
+        budget_module._UNBOUND = None
+        fallback = budget_module.current()
+        # As if the process had been running for a day.
+        monkeypatch.setattr(fallback, "started", time.monotonic() - 86_400)
+        fallback.checkpoint("nowhere.xhtml")  # must not raise
+        budget_module._UNBOUND = None
+
+    def test_but_the_size_limits_still_apply_to_it(self, monkeypatch):
+        monkeypatch.setattr(budget_module, "MAX_DEPTH", 5)
+        budget_module._UNBOUND = None
+        with pytest.raises(BudgetExceeded):
+            budget_module.bounded(b"<a>" * 50 + b"</a>" * 50, "nowhere.xhtml")
+        budget_module._UNBOUND = None
+
+    def test_a_rebuild_still_has_one(self, tmp_path, monkeypatch):
+        """The fallback losing its clock must not cost the real budget its own:
+        F-020's whole point is that a rebuild is bounded in time."""
+        monkeypatch.setattr(budget_module, "MAX_SECONDS", 0.05)
+        source = make_modern_epub(str(tmp_path / "in.epub"))
+        destination = tmp_path / "out.epub"
+
+        class SlowStage(Stage):
+            name = "slow-audit-stage"
+
+            def run(self, ctx):
+                time.sleep(0.2)
+
+        result = rebuild(
+            source, str(destination), Policy.preset("preserve"),
+            stages=(SlowStage,),
+        )
+        assert result.status is Status.BLOCKED
+        assert not destination.exists()

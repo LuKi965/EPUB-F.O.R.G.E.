@@ -232,7 +232,23 @@ def current() -> "Budget":
     if active is not None:
         return active
     if _UNBOUND is None:
-        _UNBOUND = Budget()
+        # No deadline on the fallback, and that is not a hole in it.
+        #
+        # A budget belongs to one book: `rebuild` makes a fresh one so the clock
+        # starts when the reading does. This one is shared by everything that
+        # parses *outside* a rebuild — diagnostics, the fidelity harness, a test
+        # — and it is made once and kept, so its clock measures how long the
+        # process has been alive. Charging a parse against that says "this book
+        # took four minutes" about a window somebody left open since breakfast.
+        #
+        # Found by a release build: three tests that build a `Context` by hand
+        # failed with `wall clock: 905s where 300s is allowed` once the suite got
+        # slow for an unrelated reason. The same arithmetic would refuse every
+        # parse in a GUI after five minutes of use.
+        #
+        # Size, depth, entry count and pixels still apply — those are properties
+        # of the document in front of it, and they are what the fallback is for.
+        _UNBOUND = Budget(seconds=float("inf"))
     return _UNBOUND
 
 

@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.25` · alpha · 2435 testów · **Windows**
+`0.2.25` · alpha · 2448 testów · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -198,7 +198,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-2435 testów, w tym cztery niezależne siatki bezpieczeństwa:
+2448 testów, w tym cztery niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;
@@ -214,6 +214,14 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ```bash
 pytest -q
+```
+
+42 z nich rysują strony prawdziwą przeglądarką i **pomijają się domyślnie**:
+mierzą silnik, a nie ten program, więc uruchomione na przypadkowej przeglądarce
+mierzą maszynę. Wskaż silnik jawnie, żeby je wykonać:
+
+```bash
+EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME, jeśli trzeba
 ```
 
 ## Dokumentacja
