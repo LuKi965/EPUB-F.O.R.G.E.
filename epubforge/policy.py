@@ -19,17 +19,10 @@ HYPHEN_REVIEWS = ("confirmed", "grouped", "each")
 
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 #:
-#: `image/webp` belongs here and was missing until 0.2.20. EPUB 3.3 lists it
-#: among the core media types, and this is not a reading of the prose: the
-#: EPUBCheck we ship validates a book containing a bare `image/webp` with no
-#: fallback and reports zero errors, under EPUB 3.3 rules. A foreign resource
-#: used without a fallback is an error, so the validator saying nothing is the
-#: validator saying the type is core.
-#:
-#: Its absence was not cosmetic. Everything outside this set is transcoded to
-#: PNG through a single-frame decode, so a two-frame animated WebP came out a
-#: still picture — measured, not feared — with its ICC profile and its metadata
-#: gone, in a book that needed none of it changed.
+#: **`image/webp` belongs here**, and its absence until 0.2.20 was not cosmetic:
+#: everything outside this set is transcoded to PNG through a single-frame
+#: decode, so an animated WebP came out a still picture with its ICC profile and
+#: metadata gone.
 CORE_IMAGE_TYPES = {
     "image/jpeg",
     "image/png",
@@ -134,31 +127,24 @@ class Policy:
     #: nothing. On in `strict`, where conformance and tidiness are the point;
     #: off everywhere else.
     #:
-    #: It is a switch rather than a consequence of `strict` because the owner
-    #: asked for one, as a standing rule and not about this feature: *whatever
-    #: the application ever deletes should be either optional to untick, or
-    #: something it asks about first.* He is right, and the reason is in this
-    #: file's own history — every removal here looked obviously safe until a
-    #: real book showed it was not. A switch costs one line and gives the person
-    #: holding the book the last word.
+    #: A switch rather than a consequence of `strict`, under the standing rule
+    #: that whatever this program deletes is either optional to untick or asked
+    #: about first (S-02). Every removal here looked obviously safe until a real
+    #: book showed it was not.
     remove_dead: bool = False
 
     #: What the render check does when it finds a page that lost content.
     #:
-    #: F-028, and the owner chose `stop` as the default himself, knowing the
-    #: cost: the check adds about thirty-six seconds to a rebuild, and a book it
-    #: refuses is a book that has to be looked at.
-    #:
     #: * `off` — do not render at all.
-    #: * `report` — render, put what it found in the report, publish anyway.
-    #: * `stop` — render, and where a page lost content, publish nothing; the
+    #: * `report` — render, report what it found, publish anyway.
+    #: * `stop` — render, and where a page lost content publish nothing; the
     #:   file already at that name is left exactly as it was.
     #:
-    #: Measured across the owner's thirty-two books before this became a
-    #: default: zero refusals. Measured with all forty-six of one book's hyphens
-    #: joined — the case he asked about, where the text genuinely reflows — 7 of
-    #: 130 page comparisons moved at all, the largest by 1.64% of pixels, and
-    #: nothing was called a loss. Reflow moves ink; it does not remove it.
+    #: `stop` is the default (D-016) and costs about thirty-six seconds a book.
+    #: Measured before it became one: zero refusals across thirty-two books, and
+    #: with forty-six hyphens joined in one book — the reflow case — 7 of 130
+    #: page comparisons moved at all, the largest by 1.64% of pixels, none
+    #: called a loss. Reflow moves ink; it does not remove it.
     render_gate: str = "stop"
     #: Whether the publication gate asks K1 — is every word of the source still
     #: in the output — before the file takes its name.
@@ -428,44 +414,27 @@ class Policy:
 
     #: Ask EPUBCheck **before** the file is published, and refuse on the answer.
     #:
-    #: The audit's K.2 invariant 12, and the only one of the fourteen left
-    #: unimplemented. The argument against it was cost: a JVM per book, a few
-    #: seconds each. That argument is gone — the JVM was never the cost, and one
-    #: held open validates eight books in 8.4 s instead of 35.3 s.
-    #:
-    #: Three settings, because two would force a bad choice:
-    #:
     #: ``"off"``
-    #:     Validate if somebody asks, after the fact, and report. What this
-    #:     program did until now.
+    #:     Validate only if somebody asks, after the fact, and report.
     #: ``"no-new-errors"``
-    #:     Refuse to publish if the rebuild carries an EPUBCheck error the
-    #:     source did not already have — this program may carry a publisher's
-    #:     defect, but not add one of its own. Costs a second validation, the
-    #:     source's, which is why it needed the shared JVM to be reasonable.
-    #:
-    #:     **Read the answer knowing what it compares.** A 2.0 source is judged
-    #:     by EPUB 2 rules and a 3.3 rebuild by EPUB 3 rules, so "new" here can
-    #:     also mean "EPUB 3 has a rule EPUB 2 did not". Tried as the preserve
-    #:     default and withdrawn within the hour: a chapter linking to a file
-    #:     the book does not contain passes as EPUB 2, fails as EPUB 3, and
-    #:     arrived that way from the publisher. The report names the source's
-    #:     version alongside the refusal so the difference is visible rather
-    #:     than inferred.
+    #:     Refuse if the rebuild carries an error the source did not already
+    #:     have: this program may carry a publisher's defect, not add one.
     #: ``"clean"``
-    #:     Refuse to publish anything EPUBCheck calls an error, whoever made it.
-    #:     The literal invariant, and the default in `strict` — a strict mode
-    #:     that publishes an invalid file is not strict. Wrong as a general
-    #:     default for the same reason as above: it refuses most real books over
-    #:     defects they arrived with.
+    #:     Refuse anything EPUBCheck calls an error, whoever made it. Default in
+    #:     `strict`; wrong as a general default, because it refuses most real
+    #:     books over defects they arrived with.
     #:
-    #: **When the validator is missing**, `"clean"` refuses and `"no-new-errors"`
-    #: warns. That asymmetry is deliberate rather than a compromise: `"clean"` is
-    #: an absolute claim about the file, and a claim nobody checked is not a
-    #: claim — passing it would be the 0.2.19 fail-open defect wearing a gate's
-    #: name. `"no-new-errors"` is a *comparison*, and with no validator there is
-    #: no comparison to make; the invariant gate, the read-back and the
-    #: fidelity checks still ran, so the file is not unexamined.
+    #: **`no-new-errors` compares two different rule sets.** A 2.0 source is
+    #: judged by EPUB 2 and a 3.3 rebuild by EPUB 3, so "new" can also mean
+    #: "EPUB 3 has a rule EPUB 2 did not". Tried as the preserve default and
+    #: withdrawn within the hour: a chapter linking to a file the book does not
+    #: contain passes as EPUB 2 and fails as EPUB 3, and arrived that way from
+    #: the publisher.
+    #:
+    #: **With no validator, `clean` refuses and `no-new-errors` warns.** Not a
+    #: compromise: `clean` is an absolute claim about the file, and a claim
+    #: nobody checked is not a claim. `no-new-errors` is a comparison, and with
+    #: no validator there is nothing to compare.
     validate_before_publish: str = "off"
 
     #: Force a language tag when the source has none or an invalid one.

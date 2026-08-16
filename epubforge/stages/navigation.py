@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import re
 
-from .. import covers, paths
+from .. import covers, paths, xmlchars
 from ..model import Landmark, NavPoint, Resource, SpineItem
 from ..report import Action, Level, Risk
 from ..xhtml import EPUB_NS, XHTML_NS
@@ -44,19 +44,12 @@ def _escape(value: str) -> str:
     default preset, reported as `succeeded`. There is no escape sequence for
     these characters; XML 1.0 simply has no way to hold them, so they go.
 
-    The same set as `writer._XML_FORBIDDEN` and `xhtml._XML_FORBIDDEN`. Three
-    copies of one regular expression is two too many, and it is written this way
-    on purpose: `navigation` importing from `writer` would tie a stage to the
-    thing that runs after every stage. The set is fixed by the XML
-    specification, so it cannot drift the way a shared judgement would.
+    Zbiór mieszka w `xmlchars` — jednym liściu, od którego zależą writer, `xhtml`
+    i ten etap, i który nie zależy od nikogo. Pierwsza wersja miała trzy kopie
+    tego samego wyrażenia, bo `navigation` importujący z `writer` wiązałby etap
+    z tym, co działa po wszystkich etapach.
     """
-    return html.escape(_XML_FORBIDDEN.sub("", value or ""), quote=True)
-
-
-#: See `_escape`. Characters XML 1.0 cannot represent at all.
-_XML_FORBIDDEN = re.compile(
-    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff￾￿]"
-)
+    return html.escape(xmlchars.legal(value), quote=True)
 
 
 #: What the generated navigation calls its own sections, by language.

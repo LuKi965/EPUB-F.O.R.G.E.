@@ -16,41 +16,9 @@ import zipfile
 from xml.sax.saxutils import escape as _escape_only
 from xml.sax.saxutils import quoteattr as _quoteattr_only
 
-from . import compat, paths
+from . import compat, paths, xmlchars
 from .model import Book, CollectionMembership
 from .report import Action, Level, Report
-
-#: Characters XML 1.0 does not permit at all — not "must be escaped", but *have
-#: no representation*. Everything below 0x20 except tab, newline and carriage
-#: return; the surrogate block; and the two non-characters at the end of the BMP.
-#:
-#: **Found by fuzzing the writer, not by the finding that led here** (WP-18).
-#: EF-038 said the package document is built by concatenating strings and
-#: implied that was the risk. It is not: every value goes through `escape` or
-#: `quoteattr`, and hostile input — `<script>`, `]]>`, an XML declaration, a
-#: doubled hyphen inside a comment, five thousand characters, emoji — all come
-#: out as well-formed XML. What does not is a control character, because there
-#: is nothing to escape it *to*.
-#:
-#: Measured before the fix, on the default preset: a book whose title carried
-#: `0x0B` was **written**, and its package document did not parse. An unopenable
-#: book, produced by the mode people actually use, reported as a success. Strict
-#: refused it, which is strict working and is not a defence of the default.
-#:
-#: Rewriting the writer to build a tree — the repair EF-038 asked for — would
-#: **not** have fixed this. lxml raises on these characters instead of writing
-#: them, so the outcome would have moved from "an unopenable book" to "a crash",
-#: which is better and still not right. The fix belongs where it is: the
-#: characters are taken out, and the report says so.
-_XML_FORBIDDEN = re.compile(
-    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff￾￿]"
-)
-
-
-def _legal(value: str) -> str:
-    """*value* with the characters XML cannot carry taken out."""
-    return _XML_FORBIDDEN.sub("", value)
-
 
 def escape(value: str, *args, **kwargs) -> str:
     """`xml.sax.saxutils.escape`, over text XML is able to represent.
@@ -59,17 +27,17 @@ def escape(value: str, *args, **kwargs) -> str:
     the point rather than a shortcut: a rule that has to be remembered at every
     site is a rule that will be missed at the fifty-eighth.
     """
-    return _escape_only(_legal(value), *args, **kwargs)
+    return _escape_only(xmlchars.legal(value), *args, **kwargs)
 
 
 def quoteattr(value: str, *args, **kwargs) -> str:
     """`xml.sax.saxutils.quoteattr`, over text XML is able to represent."""
-    return _quoteattr_only(_legal(value), *args, **kwargs)
+    return _quoteattr_only(xmlchars.legal(value), *args, **kwargs)
 
 
 def forbidden_characters(value: str) -> int:
     """How many characters of *value* XML cannot carry. For the report."""
-    return len(_XML_FORBIDDEN.findall(value or ""))
+    return xmlchars.count(value)
 
 #: A metadata refinement has to name a manifest id, and the manifest is written
 #: after the metadata. The path goes in between these markers and is swapped for
