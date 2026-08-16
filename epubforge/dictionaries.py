@@ -34,9 +34,11 @@ answer, not a broken rebuild.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import pathlib
+import threading
 
 #: Where a dictionary may be pointed at by hand — a checkout, a distribution
 #: that already ships hunspell dictionaries, somebody testing another language.
@@ -89,7 +91,55 @@ def _load(language: str):
 
 def available(language: str = "pl_PL") -> bool:
     """Whether there is a dictionary to ask. Cheap after the first call."""
+    if _is_suppressed():
+        return False
     return _load(_normalise(language)) is not None
+
+
+#: Set while a measurement needs the detector to behave as it does on a machine
+#: with no dictionaries. See :func:`suppressed`.
+#:
+#: **Per thread, and that is not defensive tidiness.** The first version of this
+#: was a plain module global, and the corpus measures books in parallel: two
+#: workers entering the block overlap, the first restores the flag to the value
+#: *it* saw, the second restores it to `True`, and every later caller in the
+#: process is silently told there is no dictionary. It showed up as one test
+#: failing in the full suite and passing on its own — which is the signature of
+#: leaked state and was caught by running the suite the way CI runs it.
+_state = threading.local()
+
+
+def _is_suppressed() -> bool:
+    return getattr(_state, "suppressed", False)
+
+
+@contextlib.contextmanager
+def suppressed():
+    """Behave, for the duration, as though no dictionary were installed.
+
+    For the corpus signature, and it is the third application of one rule
+    (WP-12): **a regression net whose answer changes with the host is not a
+    net.** `epubcheck.*` was the first, `hyphens.no-dictionary` the second, and
+    this is the same thing one level deeper — not a rule that leaks into the
+    signature, but the dictionary changing what the rebuild actually *finds*.
+
+    Filtering a rule name could not fix this one. With a dictionary the detector
+    settles a hyphen it would otherwise leave alone, so `hyphens.left-alone`
+    genuinely differs: the two runs did different work. Recorded on a machine
+    with dictionaries, the corpus could only ever be reproduced on one — which
+    is how a Windows build that had not downloaded them yet came back with a
+    book "changed" that nobody had touched.
+
+    So the signature is measured without one, deliberately, and the dictionary's
+    own effect is tested where it belongs: `test_dictionaries.py` and
+    `test_hyphen_stage.py`, both of which skip when there is nothing to ask.
+    """
+    before = _is_suppressed()
+    _state.suppressed = True
+    try:
+        yield
+    finally:
+        _state.suppressed = before
 
 
 def _normalise(language: str) -> str:
@@ -113,6 +163,8 @@ def is_a_word(word: str, language: str = "pl_PL") -> "bool | None":
     dictionary into a confident claim that nothing is a word — and that claim
     would mark every hyphenated word in the book as a converter's artefact.
     """
+    if _is_suppressed():
+        return None
     dictionary = _load(_normalise(language))
     if dictionary is None:
         return None
@@ -139,7 +191,7 @@ def half_is_not_a_word(left: str, joined: str, language: str = "pl_PL") -> bool:
     the detector's behaviour identical to what it was before this existed.
     """
     tongue = _normalise(language)
-    if _load(tongue) is None:
+    if _is_suppressed() or _load(tongue) is None:
         return False
     if is_a_word(joined, tongue) is not True:
         return False
@@ -148,6 +200,7 @@ def half_is_not_a_word(left: str, joined: str, language: str = "pl_PL") -> bool:
 
 __all__ = [
     "ENV_DICTIONARIES",
+    "suppressed",
     "LANGUAGES",
     "available",
     "half_is_not_a_word",

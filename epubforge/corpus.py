@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from .pipeline import rebuild
 from .policy import Policy
 from .report import Level
+from . import dictionaries
 from .validate import find_epubcheck, validate
 
 #: Pinned, so a signature is a function of the book and not of the day it ran.
@@ -312,7 +313,16 @@ def _measure(
     policy = Policy.preset(
         mode, modified_override=FROZEN_MODIFIED, render_gate="off"
     )
-    result = rebuild(str(book), str(destination), policy)
+    # Without a dictionary, deliberately. The third application of one rule
+    # (WP-12): a regression net whose answer changes with the host is not a net.
+    # A dictionary settles hyphens the detector would otherwise leave alone, so
+    # a corpus recorded on a machine that had one could only be reproduced on
+    # such a machine — and the Windows build, which downloads dictionaries
+    # *after* running the tests, duly reported a book as changed that nobody had
+    # touched. Filtering a rule name cannot fix this one, because the two runs
+    # genuinely did different work. See `dictionaries.suppressed`.
+    with dictionaries.suppressed():
+        result = rebuild(str(book), str(destination), policy)
 
     # Counters by level say a book gained three fixes. Counters by rule say
     # *which* three, so a signature that moves reads as "this book stopped

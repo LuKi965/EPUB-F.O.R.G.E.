@@ -161,3 +161,55 @@ class TestItIsCarriedWithTheRelease:
         )
         assert '"dictionaries"' in spec
         assert "dictionaries" in str(dictionaries._search_paths())
+
+
+class TestSuppressionIsPerThread:
+    """WP-12's rule, and the bug that came with applying it.
+
+    The corpus signature is measured with the dictionary deliberately switched
+    off, so that a recorded corpus does not become reproducible only on a
+    machine that happens to have one. The first version of that switch was a
+    plain module global — and the corpus measures books **in parallel**. Two
+    workers overlap, the first restores the flag to what it saw, the second
+    restores it to `True`, and every later caller in the process is quietly told
+    there is no dictionary.
+
+    It surfaced as one test failing in the full suite and passing alone, which
+    is the signature of leaked state, and it was caught by running the suite the
+    way CI runs it rather than the way it is convenient to run it.
+    """
+
+    def test_it_restores_what_it_found(self):
+        before = dictionaries._is_suppressed()
+        with dictionaries.suppressed():
+            assert dictionaries._is_suppressed() is True
+        assert dictionaries._is_suppressed() is before
+
+    def test_one_thread_suppressing_does_not_reach_another(self):
+        import threading
+
+        seen: list[bool] = []
+        started = threading.Event()
+        may_finish = threading.Event()
+
+        def hold():
+            with dictionaries.suppressed():
+                started.set()
+                may_finish.wait(timeout=5)
+
+        worker = threading.Thread(target=hold)
+        worker.start()
+        started.wait(timeout=5)
+        try:
+            seen.append(dictionaries._is_suppressed())
+        finally:
+            may_finish.set()
+            worker.join(timeout=5)
+        assert seen == [False], "suppression leaked out of the thread that set it"
+
+    def test_and_nesting_does_not_strand_it(self):
+        with dictionaries.suppressed():
+            with dictionaries.suppressed():
+                pass
+            assert dictionaries._is_suppressed() is True
+        assert dictionaries._is_suppressed() is False

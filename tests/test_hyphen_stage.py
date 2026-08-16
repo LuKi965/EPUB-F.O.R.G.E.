@@ -11,6 +11,7 @@ import zipfile
 
 import pytest
 
+from epubforge import dictionaries
 from epubforge.decisions import KEEP, Answer
 from epubforge.pipeline import rebuild
 from epubforge.policy import Policy
@@ -440,8 +441,20 @@ class TestTheClassesWithoutEvidence:
         "<p>Znał savoir-vivre i bia-ły dom.</p>"
     )
 
+    @pytest.mark.skipif(
+        not dictionaries.available("pl_PL"),
+        reason=(
+            "ten test mierzy, co słownik dokłada — bez słownika nie ma czego "
+            "mierzyć; słowniki pobiera się przy budowaniu wydania"
+        ),
+    )
     def test_the_default_asks_about_the_ones_something_can_evidence(self, tmp_path):
         """Two, since WP-10 gave the detector a dictionary.
+
+        Skipped where there is no dictionary — a checkout, and the Windows
+        runner, which downloads them *after* the tests. A test that asserts what
+        a second opinion adds cannot run where nobody can be asked, and turning
+        that into a failure is how a green suite becomes host-dependent.
 
         `obo-jętna` was always evidenced by the book itself, which writes
         `obojętna` elsewhere. `bia-ły` was not — the book uses it once — and it
