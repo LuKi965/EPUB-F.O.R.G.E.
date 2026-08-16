@@ -85,6 +85,16 @@ def _candidates() -> "list[pathlib.Path]":
     override = os.environ.get(ENV_BROWSER)
     if override:
         found.append(pathlib.Path(override))
+    # The bundled headless shell comes before anything installed on the machine
+    # and after the environment variable, which is the right order for both
+    # reasons. It is the engine this release measured its numbers against, so
+    # preferring it makes the check reproducible; and somebody who names a
+    # browser has said which one they mean, which outranks what we shipped.
+    from . import resources
+
+    carried = resources.bundled_renderer()
+    if carried is not None:
+        found.append(carried)
     for name in _NAMES:
         located = shutil.which(name)
         if located:

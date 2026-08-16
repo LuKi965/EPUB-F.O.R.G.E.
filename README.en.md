@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.25` · alpha · 2448 tests · **Windows**
+`0.2.26` · alpha · 2457 tests · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -173,12 +173,17 @@ Things worth knowing before rather than after:
   under `--gate`.
 - **The appearance check can stop a write too, from 0.2.24, and it is
   mandatory.** The program draws the pages before and after the rebuild and
-  compares them; where content is lost it writes nothing by default. It draws
-  with headless Chromium if the machine has it — **a browser is not a
-  dependency of this program** and the installer does not carry one. Without
-  it the rebuild goes ahead and the program says plainly that the verification
-  did not happen and may be **knowingly skipped**. Three states: off / report /
-  stop.
+  compares them; where content is lost it writes nothing by default. Three
+  states: off / report / stop.
+- **From 0.2.26 the installer carries its own drawing engine** —
+  `chrome-headless-shell`, pinned by SHA-256 exactly as EPUBCheck is. It is not
+  a browser: there is no interface compiled into it, so it **has nothing to open
+  a window with**. Until 0.2.25 the program looked for Chrome or Edge on the
+  machine, which was wrong twice over: Edge could open an empty window, and the
+  check's answer depended on which browser you happened to have — measured, Edge
+  and Chromium disagreed about three of four kinds of damage. It costs about
+  110 MB of installer. Your own browser still wins if you name it in
+  `EPUBFORGE_CHROME`.
 - **It does not convert from PDF, MOBI or Word.** That is a different job
   and deliberately out of scope.
 - **No DRM removal**, and there will not be.
@@ -192,7 +197,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-2448 tests, including four independent safety nets:
+2457 tests, including four independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;

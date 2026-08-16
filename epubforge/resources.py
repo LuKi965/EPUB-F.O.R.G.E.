@@ -43,6 +43,33 @@ def epubcheck_jar() -> Path | None:
     return candidate if candidate.is_file() else None
 
 
+def bundled_renderer() -> Path | None:
+    """The headless renderer carried in the bundle, if this is a frozen build.
+
+    From 0.2.26, and it is the answer to a question the owner asked after
+    watching 0.2.25 open an Edge window that displayed nothing: *can we not just
+    bring our own Chromium?* We can, the licence permits it, and it settles more
+    than the window.
+
+    `chrome-headless-shell` has no browser interface compiled into it, so it
+    cannot put anything on a screen — that is a property of the binary rather
+    than a promise about a command-line flag. And because it is pinned by digest
+    in `packaging/build.py`, the appearance check finally compares two
+    renderings made by *the same engine*, which is what it always claimed to be
+    doing. Run against whatever browser a machine happened to have, it measured
+    the browser: Edge disagreed with Chromium about three of four damage shapes
+    and reported no version at all.
+    """
+    root = bundle_root()
+    if root is None:
+        return None
+    for name in ("chrome-headless-shell.exe", "chrome-headless-shell", "chrome"):
+        candidate = root / "chromium" / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _resource_candidates(*names: str) -> list[Path]:
     root = bundle_root()
     packaging = Path(__file__).resolve().parent.parent / "packaging"

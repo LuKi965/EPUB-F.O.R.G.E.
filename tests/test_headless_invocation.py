@@ -55,3 +55,74 @@ class TestWhatTheOwnersOwnRunFound:
             if "TemporaryDirectory" not in source:
                 continue
             assert "ignore_cleanup_errors=True" in source, function.__name__
+
+
+class TestTheRendererWeCarry:
+    """0.2.26 bundles `chrome-headless-shell`, on the owner's suggestion.
+
+    His argument was better than the one I had been working to. I had been
+    treating "no browser" as a situation to handle — ask, consent, refuse — and
+    the situation itself was avoidable: the licence permits redistribution, and
+    a headless-only build has no window code compiled into it at all, so it
+    cannot do the thing he watched Edge do.
+
+    It also closes a defect I had hit three times without naming properly. The
+    appearance check compares two renderings; run against whatever browser a
+    machine has, it measures the browser. Edge disagreed with Chromium about
+    three of the four damage shapes and reported an empty version string.
+    """
+
+    def test_the_order_is_named_first_then_ours_then_the_machine(
+        self, monkeypatch, tmp_path
+    ):
+        """Asserted on `_candidates`, which is where the order lives, rather
+        than on `find_renderer` — `conftest` stubs the latter for the whole
+        session so that two thousand rebuilds do not start a browser.
+
+        The order carries two decisions. Somebody who sets the variable has said
+        which engine they mean and outranks what we shipped. What we shipped
+        outranks whatever is installed, because otherwise the numbers in a report
+        would be about somebody else's Edge.
+        """
+        from epubforge import resources
+
+        mine = tmp_path / "moja-przegladarka"
+        carried = tmp_path / "chrome-headless-shell"
+        for path in (mine, carried):
+            path.write_text("", encoding="utf-8")
+            path.chmod(0o755)
+        monkeypatch.setenv(render.ENV_BROWSER, str(mine))
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+
+        order = render._candidates()
+        assert order[0] == mine
+        assert carried in order
+        assert order.index(carried) < len(order), order
+
+    def test_ours_comes_before_anything_on_the_machine(self, monkeypatch, tmp_path):
+        from epubforge import resources
+
+        carried = tmp_path / "chrome-headless-shell"
+        carried.write_text("", encoding="utf-8")
+        carried.chmod(0o755)
+        monkeypatch.delenv(render.ENV_BROWSER, raising=False)
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: carried)
+        assert render._candidates()[0] == carried
+
+    def test_nothing_bundled_is_not_an_error(self, monkeypatch):
+        """Running from a checkout — which is how it runs here, in CI, and for
+        anybody who installed it with pip."""
+        from epubforge import resources
+
+        monkeypatch.setattr(resources, "bundled_renderer", lambda: None)
+        render._candidates()  # an answer either way, and never a raise
+
+    def test_the_bundled_name_is_the_headless_only_build(self):
+        """`chrome-headless-shell`, not `chrome`. The distinction is the whole
+        point: one of them has no interface compiled into it."""
+        import inspect
+
+        from epubforge import resources
+
+        source = inspect.getsource(resources.bundled_renderer)
+        assert "chrome-headless-shell" in source

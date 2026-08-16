@@ -38,6 +38,109 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.26 — alpha — 2026-08-16
+
+Two defects from the owner's first batch on 0.2.25, and the renderer he was
+right to ask about.
+
+### At a glance
+
+| what it was | the scale of it |
+| --- | --- |
+| The balance reported an error about a removal he had asked for | both books refused; `omit the legacy NCX` is a setting, not a loss |
+| `WinError 145` while deleting a temporary directory | arrived in the report as "the rebuilt book could not be written" |
+| An Edge window opening and displaying nothing | `--headless` is the deprecated spelling; recent builds start normally |
+| The appearance check measured whichever browser the machine had | Edge disagreed with Chromium about 3 of 4 damage shapes and reported no version |
+| The installer now carries `chrome-headless-shell` | pinned by SHA-256; +112 MB, and it has no window to open |
+
+### New / fixed
+
+**New:** the installer bundles its own headless rendering engine, pinned and
+verified exactly as EPUBCheck is. **Fixed:** a false alarm in the input→output
+balance that refused books over a setting the owner had chosen, and a Windows
+crash during temporary-directory cleanup that turned into a lost rebuild.
+
+### Everything, by subject
+
+#### Both defects came in through the same door
+
+0.2.25 fixed browser discovery on Windows. That switched on a code path which
+had **never once run there** — Edge was never found before — and the owner's
+first batch hit two defects in it at once. Neither was in the render code
+itself; both were in what the render path touches.
+
+**The balance cried wolf.** With *omit the legacy NCX* ticked — his setting,
+his choice — the source's `toc.ncx` left the book, the balance saw one resource
+fewer in `other` with nothing accounting for it, and reported an error. Both
+books refused, over a removal he had asked for.
+
+A false alarm from a check like this is worse than no check. It teaches the
+person reading the report to skip past the one message that means something, and
+this program's entire claim is that its messages mean something. The removal is
+now in the change ledger where the balance can see it, and rewriting the NCX
+under a new name is recorded as a move rather than a loss.
+
+**`WinError 145` took the book with it.** *Katalog nie jest pusty*, raised while
+deleting a temporary directory, arrived in the report as *"the rebuilt book
+could not be written"*. Windows will not remove a directory while anything still
+holds a handle inside it — a browser that has just exited, an indexer, a virus
+scanner — and none of those is a reason for somebody to lose their book. The
+three temporary directories in that path now tolerate a failed cleanup.
+
+#### The window that opened and showed nothing
+
+He watched Edge open a blank window during a rebuild and said, correctly, that
+most people would find that suspicious in itself. It is not cosmetic: it is a
+program doing something on somebody's screen that looks like it should not be
+happening, in a tool asking to be trusted with a library.
+
+The cause is a flag. `--headless` is the deprecated spelling and recent Chrome
+and Edge builds no longer honour it that way — the browser simply starts
+normally. It is `--headless=new` now.
+
+#### And then the better question: why not carry our own?
+
+That was his, and it is a better answer than the one this had been working
+towards. Since 0.2.24 the program treated "no browser" as a situation to be
+handled — ask, consent, refuse — and the situation was avoidable. The licence
+(BSD-3-Clause) permits redistribution, and he had checked that before asking.
+
+So the installer now carries **`chrome-headless-shell`**, which is not Chrome:
+it is the headless-only build, with no browser interface compiled into it. It
+*cannot* open a window. That is a property of the binary rather than a promise
+about a flag, which is a stronger thing to be able to say.
+
+It also settles a defect this release had hit three times in three costumes.
+The appearance check compares two renderings; run against whatever browser a
+machine happens to have, it measures the browser. On the Windows runner, Edge
+disagreed with Chromium about **three of the four damage shapes** the check
+exists to catch, reported an empty version string, and took the test suite from
+200 seconds to 961. A check whose answer depends on the reader's machine is not
+a check. A pinned engine is, and it is what the audit asked for by name.
+
+Pinned and verified the same way EPUBCheck is, for the same reason: the archive
+by SHA-256 and size before unpacking, the executable by SHA-256 after. The
+provenance is stated as weaker than EPUBCheck's rather than dressed up —
+Chrome for Testing publishes no signature and no digest sidecar, so the
+corroboration available is Google Cloud Storage's own `x-goog-hash` for the
+object, computed by the storage layer rather than by whoever uploaded it, and it
+matches the bytes that arrived.
+
+**The cost is the installer: about 112 MB more.** He was shown that number
+before choosing, along with the alternative of fetching it on first use the way
+EPUBCheck does, and chose to have it in the box.
+
+Your own browser still wins if you name one in `EPUBFORGE_CHROME`. The order is
+the environment variable, then what we shipped, then what is installed — the
+first because somebody who names an engine has said which one they mean, the
+second because otherwise the numbers in a report are about somebody else's Edge.
+
+The smoke test no longer passes `--accept-unverified-render`. It cannot: the
+whole point of this release is that the check runs from the bundle, and if it
+does not, the build carries 112 MB nothing can reach. The right time to find
+that out is in the build.
+
+
 ## 0.2.25 — alpha — 2026-08-16
 
 The release that came out of pointing the program at the owner's own library and

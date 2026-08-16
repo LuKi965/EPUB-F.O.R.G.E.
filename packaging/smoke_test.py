@@ -86,10 +86,13 @@ def main() -> int:
         # the flag: `find_renderer` searched `PATH` alone, and Edge — which is on
         # every Windows machine — is not on `PATH`. So the released program
         # refused every command-line rebuild on the only platform it ships for.
+        # No `--accept-unverified-render` any more, and that is the point of
+        # this release: the bundle carries its own headless renderer, so the
+        # appearance check *runs*. If it does not, this build has 112 MB of
+        # Chromium in it that nothing can reach, and the right time to discover
+        # that is here rather than on somebody's machine.
         build = run(
-            [str(cli), "build", str(source), "-o", str(output), "--strict",
-             "--accept-unverified-render"],
-            env,
+            [str(cli), "build", str(source), "-o", str(output), "--strict"], env
         )
         if build.returncode != 0 or not output.is_file():
             raise SystemExit(
@@ -104,7 +107,18 @@ def main() -> int:
         if check.returncode != 0 or "valid" not in check.stdout:
             raise SystemExit("the rebuilt book did not validate")
 
-    print("smoke test passed: rebuild and EPUBCheck both ran from the bundle")
+        # Said out loud rather than inferred from the exit code: the check
+        # reports what it did, and "did not run" is a distinct sentence from
+        # "ran and found nothing".
+        if "render.cannot-run" in build.stdout:
+            raise SystemExit(
+                "the bundled renderer was not found by the frozen build:\n"
+                + build.stdout[-2000:]
+            )
+
+    print(
+        "smoke test passed: rebuild, EPUBCheck and the renderer all ran from the bundle"
+    )
     return 0
 
 

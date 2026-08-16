@@ -69,6 +69,46 @@ EPUBCHECK_URL = (
 #: Maven's own digest for that library jar, recorded so the comparison can be
 #: repeated: `0e9e8bc2eb47a58c1254016d7f360646bfe04397b137cac2f4e53e361ed1415b`.
 EPUBCHECK_SHA256 = "6c07e68584b2e2ce2f89fe06e1246dfead3eb36b46b340e7d93524f29dcff6c5"
+
+#: The renderer, bundled since 0.2.26 because the owner asked the right question.
+#:
+#: `chrome-headless-shell` rather than Chrome, and the difference is the point:
+#: it is the headless-only build, with no browser interface compiled into it, so
+#: it **cannot** open a window. He watched 0.2.25 open an Edge window that
+#: displayed nothing, which is a fair thing to find suspicious in a program you
+#: have trusted with your library, and no flag can promise as much as a binary
+#: that has no window code in it.
+#:
+#: It also settles a defect I hit three times: the appearance check compares two
+#: renderings, so run against whatever browser a machine happens to have, it
+#: measures the browser. Edge disagreed with Chromium about three of four damage
+#: shapes and reported an empty version string. A check whose answer depends on
+#: the reader's machine is not a check; a pinned engine is.
+#:
+#: Licence: BSD-3-Clause, which permits redistribution — he checked that before
+#: asking.
+#:
+#: **Provenance, to the same standard as EPUBCheck above.** Downloaded from the
+#: URL below on 2026-08-16; those are its bytes. Corroborated in the one way this
+#: host allows without a second channel: Google Cloud Storage publishes its own
+#: digest for the object in the `x-goog-hash` header, computed by the storage
+#: layer rather than by whoever uploaded it, and the MD5 it declares
+#: (`1388c013fbb31c53c42664cb57a160b0`) matches the bytes that arrived. That is
+#: weaker than EPUBCheck's entry-by-entry comparison against a GPG-signed jar on
+#: a different host, and it is stated as weaker rather than dressed up: Chrome
+#: for Testing publishes no signature and no sha256 sidecar.
+CHROMIUM_VERSION = "141.0.7390.54"
+CHROMIUM_URL = (
+    "https://storage.googleapis.com/chrome-for-testing-public/"
+    f"{CHROMIUM_VERSION}/win64/chrome-headless-shell-win64.zip"
+)
+CHROMIUM_SHA256 = "1264ee192ca001359b4527d195d635c4f33312543a90e31359bac38931d34f81"
+CHROMIUM_SIZE = 111_772_375
+
+#: And the executable once it is out of the archive, checked again after
+#: extraction — the same two questions as EPUBCheck's pair: what arrived over
+#: the wire, and what the unpacking produced.
+CHROMIUM_EXE_SHA256 = "71e23a5445ccabff5c9b595874e067628bb25d7518c5d12be82dd4c44e733bb1"
 EPUBCHECK_SIZE = 33_071_108
 
 #: And the jar once it is out of the archive, checked again after extraction.
@@ -283,6 +323,75 @@ def stage_epubcheck(archive: Path | None) -> None:
     stage_validator_driver(target)
 
 
+def stage_chromium(archive: Path | None = None) -> None:
+    """Put the headless renderer beside the program, pinned and checked twice.
+
+    The same shape as `stage_epubcheck`, deliberately: verify the archive
+    whether it was fetched or handed in, unpack it one entry at a time through
+    `safe_extract`, then check the executable that came out. Two digests because
+    they answer two questions — what arrived over the wire, and what the
+    unpacking produced — and EF-017 is about the second one as much as the first.
+    """
+    target = BUNDLE_DIR / "chromium"
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+
+    if archive is None:
+        archive = BUNDLE_DIR / f"chrome-headless-shell-{CHROMIUM_VERSION}.zip"
+        if not archive.is_file():
+            _download(CHROMIUM_URL, archive)
+    verify_chromium_archive(archive)
+    log(f"extracting {archive.name}")
+
+    raw = Path(tempfile.mkdtemp(prefix="chromium-", dir=BUNDLE_DIR))
+    with zipfile.ZipFile(archive) as handle:
+        safe_extract(handle, raw)
+
+    roots = [p for p in raw.iterdir() if p.is_dir()] or [raw]
+    source = next(
+        (p for p in roots if (p / "chrome-headless-shell.exe").is_file()), None
+    )
+    if source is None:
+        raise SystemExit("chrome-headless-shell.exe not found inside the archive")
+    for item in source.iterdir():
+        destination = target / item.name
+        if item.is_dir():
+            shutil.copytree(item, destination)
+        else:
+            shutil.copy2(item, destination)
+    shutil.rmtree(raw)
+
+    staged = target / "chrome-headless-shell.exe"
+    found = digest_of(staged)
+    if found != CHROMIUM_EXE_SHA256:
+        raise SystemExit(
+            f"chrome-headless-shell.exe hashes to {found} and should hash to "
+            f"{CHROMIUM_EXE_SHA256} — the archive verified and the extraction "
+            f"did not produce the expected binary."
+        )
+    size = sum(f.stat().st_size for f in target.rglob("*") if f.is_file()) >> 20
+    log(f"chromium staged ({size} MiB)")
+
+
+def verify_chromium_archive(path: Path) -> None:
+    """Refuse a renderer this release has not measured. Size first: free, and it
+    names the likelier accident."""
+    size = path.stat().st_size
+    if size != CHROMIUM_SIZE:
+        raise SystemExit(
+            f"{path.name} is {size} bytes and should be {CHROMIUM_SIZE}. "
+            f"Refusing to build against a renderer this release has not measured."
+        )
+    found = digest_of(path)
+    if found != CHROMIUM_SHA256:
+        raise SystemExit(
+            f"{path.name} hashes to {found} and should hash to {CHROMIUM_SHA256}. "
+            f"Refusing to build against a renderer this release has not measured."
+        )
+    log(f"{path.name} verified against the pinned digest")
+
+
 def stage_validator_driver(target: Path) -> None:
     """Compile the one class that lets a JVM validate more than one book.
 
@@ -368,6 +477,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-java", action="store_true", help="build without the JRE and EPUBCheck")
     parser.add_argument("--epubcheck-zip", type=Path, help="use a local EPUBCheck release archive")
+    parser.add_argument(
+        "--chromium-zip", type=Path,
+        help="use a local chrome-headless-shell archive instead of fetching it",
+    )
     parser.add_argument("--clean", action="store_true", help="discard staged bundles and build cache first")
     args = parser.parse_args()
 
@@ -387,6 +500,7 @@ def main() -> int:
         log("skipping Java bundle; the build will have no EPUBCheck")
     else:
         stage_epubcheck(args.epubcheck_zip)
+        stage_chromium(args.chromium_zip)
         stage_jre()
 
     icon = PACKAGING_DIR / "epubforge.ico"

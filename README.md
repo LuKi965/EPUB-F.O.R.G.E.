@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.25` · alpha · 2448 testów · **Windows**
+`0.2.26` · alpha · 2457 testów · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -181,11 +181,16 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   oknie i pod `--gate`.
 - **Sprawdzenie wyglądu od 0.2.24 też potrafi zatrzymać zapis, i jest
   obowiązkowe.** Program rysuje strony przed i po przebudowie i porównuje je;
-  przy wykrytej stracie treści domyślnie nic nie zapisuje. Rysuje headlessowym
-  Chromium, jeśli maszyna go ma — **przeglądarka nie jest zależnością tego
-  programu** i instalator jej nie wozi. Bez niej przebudowa idzie dalej, a
-  program mówi wprost, że weryfikacja się nie odbyła i że można z niej
-  **świadomie zrezygnować**. Trzy stany: wyłączone / raportuj / zatrzymaj.
+  przy wykrytej stracie treści domyślnie nic nie zapisuje. Trzy stany:
+  wyłączone / raportuj / zatrzymaj.
+- **Od 0.2.26 instalator wozi własny silnik do rysowania** — `chrome-headless-shell`,
+  przypięty sumą SHA-256 tak samo jak EPUBCheck. To nie jest przeglądarka: nie ma
+  w nim interfejsu, więc **nie ma czym otworzyć okna**. Do 0.2.25 program szukał
+  Chrome'a albo Edge'a na maszynie, a to znaczyło dwie złe rzeczy: Edge potrafił
+  otworzyć puste okno, i wynik kontroli zależał od tego, jaką przeglądarkę kto
+  ma — zmierzone, Edge i Chromium nie zgadzały się co do trzech z czterech
+  rodzajów uszkodzenia. Instalator jest przez to o jakieś 110 MB większy; własną
+  przeglądarkę nadal można wskazać zmienną `EPUBFORGE_CHROME` i wtedy wygrywa.
 - **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
   zakresem.
 - **Nie zdejmuje DRM** i nie będzie.
@@ -198,7 +203,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-2448 testów, w tym cztery niezależne siatki bezpieczeństwa:
+2457 testów, w tym cztery niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;

@@ -27,6 +27,13 @@ if (BUNDLE_DIR / "jre").is_dir():
 if (BUNDLE_DIR / "epubcheck").is_dir():
     datas.append((str(BUNDLE_DIR / "epubcheck"), "epubcheck"))
 
+# The headless renderer, from 0.2.26. Carried for the same reason EPUBCheck is:
+# a check whose answer depends on what the reader's machine happens to have
+# installed is not a check. `chrome-headless-shell` has no browser interface
+# compiled into it, so unlike Edge it cannot put a window on somebody's screen.
+if (BUNDLE_DIR / "chromium").is_dir():
+    datas.append((str(BUNDLE_DIR / "chromium"), "chromium"))
+
 # The window and taskbar icons are loaded at runtime; the executable's own
 # resource icon (set below) only covers how Explorer draws the file.
 for icon_name in ("epubforge.ico", "epubforge.png"):
