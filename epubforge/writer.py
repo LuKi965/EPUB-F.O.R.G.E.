@@ -384,7 +384,6 @@ def _report_forbidden_characters(metadata, report: Report) -> None:
 def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str, str]]:
     """Render the package document; also returns the path→manifest-id map."""
     metadata = book.metadata
-    identifier = metadata.primary_identifier
     _report_forbidden_characters(metadata, report)
     lines: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
     language = metadata.language or "en"

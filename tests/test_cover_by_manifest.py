@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import zipfile
 
-import pytest
 
 from epubforge import covers
 from epubforge.pipeline import rebuild

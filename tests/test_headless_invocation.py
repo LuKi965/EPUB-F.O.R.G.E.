@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 
-from epubforge import render, render_fidelity
+from epubforge import render
 
 #: `conftest` stubs `render.describe` for the whole session, so that no test's
 #: answer depends on which engine this machine happens to have. The two tests

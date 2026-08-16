@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import zipfile
 
-import pytest
 
 from epubforge.pipeline import rebuild
 from epubforge.policy import Policy

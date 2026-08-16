@@ -143,7 +143,6 @@ class TestItIsCarriedWithTheRelease:
         one detector, and refusing to release over a briefly unreachable file
         would trade a small loss of evidence for a total loss of the release. A
         *wrong* digest still stops it."""
-        import inspect
         import pathlib
 
         build = (pathlib.Path(__file__).parent.parent / "packaging" / "build.py").read_text(

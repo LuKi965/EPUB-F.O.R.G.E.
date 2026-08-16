@@ -28,7 +28,6 @@ ends in the old path rather than in an error.
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 
 import pytest

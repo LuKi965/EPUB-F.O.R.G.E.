@@ -35,7 +35,7 @@ import zipfile
 
 import pytest
 
-from epubforge.pipeline import Status, rebuild
+from epubforge.pipeline import rebuild
 from epubforge.policy import Policy
 from tests.factory import make_modern_epub
 

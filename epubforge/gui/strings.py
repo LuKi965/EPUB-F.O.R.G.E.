@@ -47,7 +47,6 @@ PL: dict[str, str] = {
     "table.issues.tip": "Ostrzeżenia i błędy, których nie dało się naprawić automatycznie.",
 
     "status.queued": "w kolejce",
-    "status.working": "przetwarzanie",
     "status.done": "gotowe",
     "status.issues": "gotowe z uwagami",
     "status.failed": "niepowodzenie",
@@ -903,7 +902,6 @@ EN: dict[str, str] = {
     "table.issues": "Issues",
     "table.issues.tip": "Warnings and errors that could not be fixed automatically.",
     "status.queued": "queued",
-    "status.working": "working",
     "status.done": "done",
     "status.issues": "done with issues",
     "status.failed": "failed",

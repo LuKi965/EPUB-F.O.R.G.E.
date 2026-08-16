@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import pathlib
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -529,7 +529,7 @@ class DiagnosticsPanel(Panel):
         # named is a result about somebody's browser, and the person reading it
         # has no way to know that.
         lines = ["  " + line for line in render.describe().splitlines()] + [""]
-        return lines + Diagnostics._render_pages(book)
+        return lines + DiagnosticsPanel._render_pages(book)
 
     @staticmethod
     def _render_pages(book: str) -> list[str]:

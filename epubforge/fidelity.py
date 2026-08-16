@@ -26,6 +26,7 @@ the book. It reports what changed; the caller decides what that means.
 from __future__ import annotations
 
 import hashlib
+import pathlib
 import re
 import zipfile
 from dataclasses import dataclass, field

@@ -15,7 +15,6 @@ currently checked out or the trunk itself.
 from __future__ import annotations
 
 import subprocess
-import sys
 
 TRUNK = "main"
 

@@ -29,7 +29,6 @@ from __future__ import annotations
 import hashlib
 import zipfile
 
-import pytest
 
 from epubforge.pipeline import rebuild
 from epubforge.policy import Policy

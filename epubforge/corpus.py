@@ -273,7 +273,7 @@ class _Source:
 
 
 def _read_source(book: pathlib.Path) -> _Source:
-    from .inventory import measure as inventory_measure, spine_text
+    from .inventory import measure as inventory_measure
 
     try:
         characters = inventory_measure(book).fields.get("spine_text_characters", 0)

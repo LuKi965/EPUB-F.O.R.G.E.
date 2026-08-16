@@ -36,7 +36,6 @@ from ..pipeline import Status, rebuild_all
 from ..policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_to_json
-from .. import rules
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog

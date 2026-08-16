@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import zipfile
 
-import pytest
 
 from epubforge import fixtures
 from tests.factory import make_legacy_epub, make_modern_epub

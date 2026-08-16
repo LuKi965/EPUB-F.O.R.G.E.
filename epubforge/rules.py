@@ -881,8 +881,6 @@ DETAILS_PL: dict[str, str] = {
         "To opakowanie skaluje grafikę do strony, więc jego usunięcie zmieniłoby układ na każdym czytniku, który radzi sobie z SVG.",
     "compat.specified-fonts-skipped":
         "Zadeklarowanie tego mimo wszystko stwierdzałoby coś, czego książka nie robi.",
-    "css.position-removed":
-        "Objęte bloki płyną teraz razem ze stroną, zamiast być do niej przypięte.",
     "profile.paragraphs-mixed":
         "Książka z jednego źródła nie miesza obu sposobów. Kiedy miesza, ktoś skleił dwa pliki albo przepuścił jeden przez dwa narzędzia — a to warto wiedzieć, zanim jakakolwiek reguła spróbuje ujednolicić akapity.",
     "profile.body-text-inconsistent":

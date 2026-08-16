@@ -31,7 +31,6 @@ Two things came out of writing them, and both are in the code rather than here:
 
 from __future__ import annotations
 
-import os
 import time
 import zipfile
 
@@ -225,7 +224,6 @@ class TestTheClockCoversTheStageAndNotOnlyTheGapBeforeIt:
         """The version this replaces asked before each stage, so whatever the
         last stage spent was never measured at all — and the last stage is the
         one whose output gets published."""
-        from epubforge.stages import DEFAULT_STAGES
 
         class SlowLast(Stage):
             name = "slow-last"

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import io
 
-from ..model import guess_media_type
 from ..policy import CORE_IMAGE_TYPES
 from ..report import Level
 from .base import Context, Stage

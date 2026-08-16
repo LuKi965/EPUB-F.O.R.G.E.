@@ -29,9 +29,7 @@ import zipfile
 # Imported rather than copied, so there is one definition of each book.
 from epubforge.edge_cases import (
     four_hundred_documents,
-    item as _item,
     no_cover,
-    one_huge_image,
     single_document,
 )
 

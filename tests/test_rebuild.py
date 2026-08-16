@@ -379,7 +379,6 @@ class TestPublisherErrorRepair:
 
     def test_fixed_layout_books_keep_their_positioning(self, legacy_epub, tmp_path):
         """Absolute positioning is how fixed-layout books work; never strip it."""
-        from epubforge.pipeline import rebuild
         from epubforge.policy import Policy
         from epubforge.reader import read_epub
         from epubforge.report import Report

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import zipfile
 
-import pytest
 
 from epubforge import decisions
 from epubforge.decisions import KEEP, Answer
@@ -194,7 +193,6 @@ class TestAllThreeClassesShareOneApi:
         answer one can answer all three without knowing which it is."""
         from epubforge import hyphens
         from epubforge.decisions import Option, Question
-        from epubforge.report import Risk
 
         made = [
             Question(

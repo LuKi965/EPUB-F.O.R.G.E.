@@ -27,7 +27,6 @@ commit it was published, and reported as a success.
 from __future__ import annotations
 
 import time
-import zipfile
 
 import pytest
 

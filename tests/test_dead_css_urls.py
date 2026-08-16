@@ -33,7 +33,6 @@ own legacy fixture was one of them.
 
 from __future__ import annotations
 
-import re
 import zipfile
 
 import pytest

@@ -13,7 +13,6 @@ gate asks whether a page **lost** something, not whether it changed.
 
 from __future__ import annotations
 
-import pathlib
 
 import pytest
 

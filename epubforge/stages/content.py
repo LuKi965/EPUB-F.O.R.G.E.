@@ -841,7 +841,6 @@ class ContentStage(Stage):
         if self._watermark_notices:
             emails = watermark.personal_data(" ".join(self._watermark_notices))
             kept = len(self._watermark_notices)
-            message = f"kept {kept} visible watermark notice(s)"
             # Two findings, not one behind a conditional: a notice carrying
             # somebody's e-mail address is a different thing to report than one
             # that does not, and an id chosen by an expression is an id nothing

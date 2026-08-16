@@ -10,7 +10,7 @@ from ..decisions import Queue as DecisionQueue
 from ..model import Book
 from ..policy import Policy
 from ..references import Answers, Decision, Resolver, Unresolved
-from ..report import Level, Report
+from ..report import Action, Automation, Level, Report, Risk
 
 
 @dataclass

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from .. import fingerprint
 from .. import profile as book_profile
-from .. import xhtml
 from ..report import Level
 from .base import Context, Stage
 

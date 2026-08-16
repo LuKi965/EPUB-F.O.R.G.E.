@@ -26,7 +26,7 @@ import os
 import re
 import shutil
 import tempfile
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
 
 from .pipeline import rebuild

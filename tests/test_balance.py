@@ -17,7 +17,6 @@ shown failing is a balance nobody should believe.
 
 from __future__ import annotations
 
-import pytest
 
 from epubforge import balance
 from epubforge.pipeline import rebuild

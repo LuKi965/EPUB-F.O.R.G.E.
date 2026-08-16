@@ -17,7 +17,6 @@ change and exactly when nobody would think to look.
 
 from __future__ import annotations
 
-import pathlib
 
 import pytest
 

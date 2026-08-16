@@ -44,8 +44,8 @@ import pytest
 from epubforge import pipeline
 from epubforge.pipeline import Status, rebuild
 from epubforge.policy import GATES, Policy
-from epubforge.validate import ValidationResult, find_epubcheck
-from tests.factory import make_legacy_epub, make_modern_epub, write_zip
+from epubforge.validate import find_epubcheck
+from tests.factory import make_modern_epub, write_zip
 
 needs_epubcheck = pytest.mark.skipif(
     find_epubcheck() is None, reason="EPUBCheck is not installed here"
