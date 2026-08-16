@@ -103,6 +103,34 @@ CHROMIUM_URL = (
     f"{CHROMIUM_VERSION}/win64/chrome-headless-shell-win64.zip"
 )
 CHROMIUM_SHA256 = "1264ee192ca001359b4527d195d635c4f33312543a90e31359bac38931d34f81"
+
+#: Hunspell dictionaries, pinned exactly as EPUBCheck and Chromium are.
+#:
+#: WP-10. The hyphen detector's second source of evidence: a compound whose
+#: first half is not a word does not exist, so the hyphen came from a converter.
+#: Without these the detector works as it did before and says so — which is why
+#: a failed download here is a warning and not a dead build.
+#:
+#: From LibreOffice's dictionary repository, which is where these live and are
+#: maintained. Polish is Szymon Janc's SJP set under GPL/LGPL/MPL — compatible
+#: with this program's GPL-3 — and English is SCOWL under a BSD-style licence.
+#: Both are data rather than code, and both are carried verbatim.
+DICTIONARY_URL = "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/{where}/{name}"
+
+#: `(language, directory in that repository, {file: (sha256, size)})`.
+#: Size beside the digest for the same reason `verify_archive` checks it first:
+#: it is free and it names the likelier accident, which is a proxy handing back
+#: an error page.
+DICTIONARIES = {
+    "pl_PL": ("pl_PL", {
+        "pl_PL.dic": ("c0848440599eb88e5aca500418d5f389e562ec2c157b63dbe39d354658ffba49", 5_252_096),
+        "pl_PL.aff": ("82973651651aa930335c865b339b98db376ca3dbf3a661b70b9eeb71fdf41dca", 257_542),
+    }),
+    "en_US": ("en", {
+        "en_US.dic": ("f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647", 551_762),
+        "en_US.aff": ("e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e", 3_205),
+    }),
+}
 CHROMIUM_SIZE = 111_772_375
 
 #: And the executable once it is out of the archive, checked again after
@@ -323,6 +351,50 @@ def stage_epubcheck(archive: Path | None) -> None:
     stage_validator_driver(target)
 
 
+def stage_dictionaries() -> None:
+    """Put the hunspell dictionaries beside the program, pinned by digest.
+
+    Same shape as EPUBCheck and Chromium — fetch, check the size, check the
+    digest — with one deliberate difference: **a failure here does not stop the
+    build.** The dictionaries are a second opinion for one detector, and a build
+    without them detects hyphens exactly as every build before 0.2.28 did, and
+    says so in the report. Refusing to produce an installer because a raw file
+    on GitHub was briefly unreachable would trade a small loss of evidence for
+    a total loss of the release.
+
+    A file that arrives with the *wrong* digest is a different matter and is
+    deleted rather than kept: silently shipping a dictionary nobody measured is
+    exactly what EF-017 was about.
+    """
+    target = BUNDLE_DIR / "dictionaries"
+    target.mkdir(parents=True, exist_ok=True)
+
+    for language, (where, files) in DICTIONARIES.items():
+        for name, (expected, size) in files.items():
+            destination = target / name
+            if destination.is_file() and digest_of(destination) == expected:
+                log(f"{name} already staged")
+                continue
+            url = DICTIONARY_URL.format(where=where, name=name)
+            try:
+                _download(url, destination)
+            except SystemExit as exc:
+                log(f"WARNING: {name} could not be fetched ({exc}); "
+                    f"the hyphen detector will work without {language}")
+                destination.unlink(missing_ok=True)
+                continue
+            actual_size = destination.stat().st_size
+            actual = digest_of(destination)
+            if actual_size != size or actual != expected:
+                destination.unlink(missing_ok=True)
+                raise SystemExit(
+                    f"{name} is {actual_size} bytes with digest {actual}; this "
+                    f"release measured {size} bytes and {expected}. Refusing to "
+                    f"ship a dictionary it has not measured."
+                )
+            log(f"staged {name} ({actual_size} bytes)")
+
+
 def stage_chromium(archive: Path | None = None) -> None:
     """Put the headless renderer beside the program, pinned and checked twice.
 
@@ -501,6 +573,7 @@ def main() -> int:
     else:
         stage_epubcheck(args.epubcheck_zip)
         stage_chromium(args.chromium_zip)
+        stage_dictionaries()
         stage_jre()
 
     icon = PACKAGING_DIR / "epubforge.ico"

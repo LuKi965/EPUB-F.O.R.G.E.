@@ -74,6 +74,31 @@ STRANDED_BY_MODE = "xhtml.epub2-only-markup"
 #: could never be green again, for doing exactly what it said it would.
 CARRIES_SOURCE_DEFECTS = frozenset({"minimal"})
 
+#: Rules that describe **the machine running the rebuild** rather than the
+#: rebuild. They are true, they belong in a report, and they must never reach a
+#: signature: a regression net whose answer changes with the host is not a net.
+#:
+#: `epubcheck.*` is the case WP-12 was written for. `epubcheck.clean` appeared
+#: in every strict signature here, so a recorded corpus could only be reproduced
+#: on a machine with Java, and a run without one reported thirteen books as
+#: "changed" when nothing about any book had changed. The verdict itself is kept
+#: separately and honestly in the `epubcheck` field, which is already omitted
+#: when there is nothing to record.
+#:
+#: `hyphens.no-dictionary` (WP-10) is the same shape and arrived the same way:
+#: it says the hyphen detector had no dictionary to ask, which is true of a
+#: checkout and of CI and false of an installed release. Recording it would pin
+#: the corpus to machines without dictionaries — the WP-12 mistake, inverted.
+_MACHINE_RATHER_THAN_BOOK = frozenset({"hyphens.no-dictionary"})
+_MACHINE_PREFIXES = ("epubcheck.",)
+
+
+def describes_the_machine(rule: "str | None") -> bool:
+    """Whether *rule* reports on the host rather than on the book."""
+    if not rule:
+        return False
+    return rule in _MACHINE_RATHER_THAN_BOOK or rule.startswith(_MACHINE_PREFIXES)
+
 
 @dataclass
 class Comparison:
@@ -293,31 +318,18 @@ def _measure(
     # *which* three, so a signature that moves reads as "this book stopped
     # losing its contents page" rather than as "a number went up" — which is
     # the difference between a regression net and a tripwire (EF-018).
-    # `epubcheck.*` is deliberately not among them, and that is WP-12.
+    # What `describes_the_machine` filters out is deliberately not among them,
+    # and that is WP-12.
     #
-    # Those rules do not describe the rebuild — they describe whether the
-    # machine running it had a validator. `epubcheck.clean` appeared in every
-    # strict signature here, so a recorded corpus could only ever be reproduced
-    # on a machine with Java, and a run without one reported thirteen books as
-    # "changed" when nothing about any book had changed. The verdict itself is
-    # kept, separately and honestly, in the `epubcheck` field below — which is
-    # already omitted when there is nothing to record.
-    rules: Counter = Counter(
-        f.rule
-        for f in result.report.findings
-        if f.rule and not f.rule.startswith("epubcheck.")
-    )
-
-    # Counted over the same findings the `rules` above are counted over, and for
-    # the same reason: `report.info` included `epubcheck.clean`, so the totals
-    # moved by one on every strict signature depending on whether the machine
-    # had Java. Two views of one set of findings, filtered two different ways,
-    # is a disagreement waiting to be recorded as a regression.
+    # Counted over the same findings, and filtered the same way, because
+    # `report.info` counting one finding that `rules` does not is a
+    # disagreement waiting to be recorded as a regression.
     counted = [
         finding
         for finding in result.report.findings
-        if not (finding.rule or "").startswith("epubcheck.")
+        if not describes_the_machine(finding.rule)
     ]
+    rules: Counter = Counter(f.rule for f in counted if f.rule)
     levels: Counter = Counter(finding.level.value for finding in counted)
 
     measurement: dict = {

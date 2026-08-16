@@ -33,6 +33,10 @@ if (BUNDLE_DIR / "epubcheck").is_dir():
 # compiled into it, so unlike Edge it cannot put a window on somebody's screen.
 if (BUNDLE_DIR / "chromium").is_dir():
     datas.append((str(BUNDLE_DIR / "chromium"), "chromium"))
+# WP-10: the hyphen detector's second source of evidence. Optional by design —
+# a build without them detects exactly as every build before 0.2.28 did.
+if (BUNDLE_DIR / "dictionaries").is_dir():
+    datas.append((str(BUNDLE_DIR / "dictionaries"), "dictionaries"))
 
 # The window and taskbar icons are loaded at runtime; the executable's own
 # resource icon (set below) only covers how Explorer draws the file.

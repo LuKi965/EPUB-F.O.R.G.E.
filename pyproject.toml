@@ -26,6 +26,12 @@ dependencies = [
     "cssutils>=2.9,<3",
     "Pillow>=10.0,<13",
     "rich>=13.0,<16",
+    # WP-10. Hunspell's algorithm in pure Python, reading the same .dic/.aff
+    # files. Not the C binding: `pip install hunspell` does not build even on a
+    # Linux box with a full toolchain, so it would never have built on the
+    # Windows runner. Optional at runtime — `dictionaries.py` answers "nobody
+    # was asked" when it is absent, and the detector works as it did before.
+    "spylls>=0.1.7,<0.2",
 ]
 
 [project.optional-dependencies]

@@ -28,7 +28,7 @@ library caller change nothing at all.
 
 from __future__ import annotations
 
-from .. import hyphens, typography, xhtml
+from .. import dictionaries, hyphens, typography, xhtml
 from .. import decisions
 from ..decisions import KEEP
 from ..report import Action, Level, Risk
@@ -107,6 +107,17 @@ class HyphenStage(Stage):
             ):
                 found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
                 across.append((resource, candidate))
+
+        # Said whether or not anything was found, and before the counts: a run
+        # without a dictionary saw less than a run with one, and a report that
+        # does not say so lets a weaker answer look like a clean book.
+        if not dictionaries.available(tongue):
+            self.note(
+                ctx,
+                Level.INFO,
+                "hyphens.no-dictionary",
+                values={"language": tongue},
+            )
 
         if not found:
             return

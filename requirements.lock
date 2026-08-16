@@ -340,6 +340,9 @@ rich==15.0.0 \
     --hash=sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb \
     --hash=sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36
     # via epub-forge (pyproject.toml)
+spylls==0.1.7 \
+    --hash=sha256:0c7fa4b66615f390bd12fd37939b85934c012309fd3cce8584844c54270b7776
+    # via epub-forge (pyproject.toml)
 shiboken6==6.11.1 \
     --hash=sha256:1a16867f103ef1c662a5f09dfed03273a9f81688b174555162c58e83650a3f02 \
     --hash=sha256:1bd2f4314414df2d122d9f646e03b731bc6d6b5f77a5f53f99a4fe4e97d84e6f \

@@ -73,6 +73,39 @@ każde `pseudo-`, `eks-` i `pół-` do kolejki jako pytanie. Próg mierzy się n
 korpusie właściciela, nie zgaduje (D-012).
 
 
+### Słownik jedzie z instalatorem — druga połowa
+
+WP-10, część pakująca. Pierwsza połowa nauczyła detektor pytać słownik; ta
+sprawia, że **jest kogo pytać** na maszynie, na której nikt niczego nie
+instalował ręcznie.
+
+`pl_PL` i `en_US` pobierane przy budowaniu wydania i **przypięte sumą SHA-256**,
+tą samą regułą co EPUBCheck i Chromium (EF-017, D-018): nic nie jedzie
+w instalatorze, czego to wydanie nie zmierzyło. Angielski dlatego, że program
+mówi po angielsku i druga półka to 67 książek nl/en.
+
+Jedna świadoma asymetria wobec EPUBCheck i silnika, bo czyta się jak przeoczenie:
+**brak słownika nie zatrzymuje budowania**, zła suma zatrzymuje. Słownik jest
+drugą opinią jednego detektora, a odmowa wydania z powodu chwilowo
+nieosiągalnego pliku wymieniałaby małą stratę dowodu na całkowitą stratę
+wydania. Zła suma to co innego — to nie jest brak dowodu, to jest dowód, którego
+nikt nie sprawdził.
+
+Raport mówi teraz wprost, kiedy zabrakło słownika (`hyphens.no-dictionary`),
+i mówi to **przed** liczbami i niezależnie od tego, czy coś znalazł: przebieg
+bez słownika widział mniej niż przebieg ze słownikiem, a raport, który tego nie
+napisze, pozwala słabszej odpowiedzi wyglądać na czystą książkę.
+
+**Przy okazji, i to jest właściwa treść tej pozycji:** ta sama reguła
+natychmiast wsiąkła do sygnatur korpusu i przesunęła jedną książkę — bo
+`hyphens.no-dictionary` jest prawdą o *maszynie*, nie o książce. To jest błąd
+WP-12 postawiony na głowie: wtedy sygnatury dawały się odtworzyć wyłącznie tam,
+gdzie była Java, teraz dawałyby się odtworzyć wyłącznie tam, gdzie **nie ma**
+słownika. Dlatego filtr przestał być literałem `epubcheck.` w dwóch miejscach
+i został nazwany — `corpus.describes_the_machine` — a test pilnuje kategorii,
+nie pojedynczej reguły. Sygnatury nie były przepisywane: po naprawie zgadzają
+się co do bajtu ze stanem sprzed słownika, bo żadna książka się nie zmieniła.
+
 ### K1 wreszcie stoi w bramie, która decyduje o zapisie
 
 WP-11. Dwie połowy jednego ustalenia, i druga jest ta, która boli.

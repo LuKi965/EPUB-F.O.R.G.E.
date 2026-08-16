@@ -243,3 +243,46 @@ class TestTheLedgerAndTheReportBlameTheSameThings:
         signatures, results = self.shelf(tmp_path)
         assert "RSC-005" in summarise(results, signatures)
         assert "RSC-005 ×6" not in summarise(results, signatures)
+
+
+class TestASignatureDescribesTheBookAndNotTheMachine:
+    """WP-12, generalised. Twice now a rule that reports on the *host* has
+    reached a signature and made a recorded corpus reproducible on one kind of
+    machine only: `epubcheck.clean` on machines with Java, and then
+    `hyphens.no-dictionary` on machines without dictionaries — the same mistake
+    inverted, which is why the test is about the category and not about a rule.
+    """
+
+    def test_the_validator_verdict_is_not_a_rule_in_the_signature(self):
+        from epubforge.corpus import describes_the_machine
+
+        assert describes_the_machine("epubcheck.clean") is True
+        assert describes_the_machine("epubcheck.RSC-005") is True
+
+    def test_nor_is_the_missing_dictionary(self):
+        from epubforge.corpus import describes_the_machine
+
+        assert describes_the_machine("hyphens.no-dictionary") is True
+
+    def test_but_what_the_rebuild_did_still_is(self):
+        """The failure the line above would cause if it were loose: filtering
+        `hyphens.*` would silently drop the joins themselves, and the corpus
+        would stop watching the one stage that edits words."""
+        from epubforge.corpus import describes_the_machine
+
+        for rule in ("hyphens.joined", "hyphens.found", "nav.repointed", None, ""):
+            assert describes_the_machine(rule) is False, rule
+
+    def test_the_counts_and_the_rules_are_filtered_the_same_way(self, tmp_path):
+        """Two views of one set of findings, filtered two different ways, is a
+        disagreement waiting to be recorded as a regression: `report.info`
+        counting one finding that `rules` does not moves the signature by one
+        with no rule to explain it."""
+        from epubforge.corpus import describes_the_machine, signature
+
+        book = tmp_path / "ksiazka.epub"
+        make_modern_epub(str(book))
+        measured = signature(book, tmp_path / "out")
+        for mode in ("minimal", "preserve", "strict"):
+            rules = (measured.get(mode) or {}).get("rules") or {}
+            assert not [rule for rule in rules if describes_the_machine(rule)], mode

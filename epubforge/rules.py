@@ -206,6 +206,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.cover-sized-in-pixels": "the cover image is sized in pixels by an attribute, and was left that way",
     "package.text-lost": "text from the source is missing from the rebuild, so nothing was written",
     "package.text-check-per-rendition": "the container holds more than one publication, so the text invariant was not checked across the whole of it",
+    "hyphens.no-dictionary": "no {language} dictionary was available, so hyphens were judged on this book's own vocabulary alone",
     "package.text-changed-on-request": "text left the book because you asked for it ({rules}), so the character-for-character invariant no longer holds",
     "package.text-check-failed": "the text invariant could not be measured on this book",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
@@ -477,6 +478,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.cover-sized-in-pixels': 'obraz okładki ma rozmiar podany w pikselach atrybutem i został tak zostawiony',
     'package.text-lost': 'w wyniku brakuje tekstu ze źródła, więc nic nie zostało zapisane',
     'package.text-check-per-rendition': 'kontener zawiera więcej niż jedną publikację, więc niezmiennik tekstu nie był sprawdzany na całości',
+    'hyphens.no-dictionary': 'nie było słownika {language}, więc łączniki oceniono wyłącznie na podstawie słownictwa tej książki',
     'package.text-changed-on-request': 'tekst ubył z książki, bo o to poprosiłeś ({rules}), więc niezmiennik znak w znak już nie obowiązuje',
     'package.text-check-failed': 'nie udało się zmierzyć niezmiennika tekstu na tej książce',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
@@ -720,6 +722,8 @@ DETAILS: dict[str, str] = {
         "This page links no stylesheet at all, so there was no indent to remove and no publisher's rule to override — the reader's own default was left-aligning the artwork. Said separately from the paragraph above because the two are different facts about the book, and a message that describes the wrong one is a message somebody learns to skip.",
     "package.text-lost":
         "K1, the rule above every other one in this program: every character of the source's reading order appears in the output, in the same order. Measured at word level, because a rebuild legitimately changes spacing. The file was built, checked and refused before it took its name, so whatever was already there is untouched.",
+    "hyphens.no-dictionary":
+        "The detector has two sources of evidence: whether this book itself writes the word without a hyphen, and whether the word's first half is a word at all. Only the first was available here, and it is the one that says nothing about a word the book uses once — so some broken words will have gone unnoticed. Nothing was joined that should not have been; the run simply saw less.",
     "package.text-changed-on-request":
         "K1 is a statement about losses nobody asked for. Removing a watermark and joining a word a conversion cut in half both take characters out, both happen only after you say so, and both are in the change ledger — so they are named here rather than refused. What the gate still refuses is text going missing with nothing accounting for it.",
     "package.text-check-failed":
@@ -877,6 +881,8 @@ DETAILS_PL: dict[str, str] = {
         "Ta strona nie linkuje żadnego arkusza, więc nie było wcięcia do usunięcia ani reguły wydawcy do nadpisania — grafikę dosuwało do lewej domyślne ustawienie czytnika. Mówione osobno, bo to inny fakt o książce, a komunikat opisujący nie ten fakt uczy przeskakiwać nad komunikatami.",
     "package.text-lost":
         "K1, reguła nadrzędna wobec wszystkich innych w tym programie: każdy znak kolejności czytania źródła jest w wyniku, w tej samej kolejności. Mierzone na poziomie słów, bo przebudowa świadomie zmienia odstępy. Plik został zbudowany, sprawdzony i odrzucony, zanim wziął swoją nazwę — więc to, co leżało pod tą nazwą, jest nietknięte.",
+    "hyphens.no-dictionary":
+        "Detektor ma dwa źródła dowodu: czy ta książka sama pisze to słowo bez łącznika, i czy pierwsza połówka słowa w ogóle jest słowem. Dostępne było tylko pierwsze, a ono milczy akurat przy słowie, które w książce występuje raz — więc część przeciętych słów mogła zostać niezauważona. Nic nie zostało złączone bez podstaw; ten przebieg po prostu widział mniej.",
     "package.text-changed-on-request":
         "K1 mówi o stratach, o które nikt nie prosił. Usunięcie znaku wodnego i złączenie słowa przeciętego przez konwersję zabierają znaki, oba dzieją się dopiero za zgodą czytelnika i oba są w rejestrze zmian — więc są tutaj nazwane, a nie odrzucone. Brama nadal odmawia, gdy tekst znika i nic tego nie tłumaczy.",
     "package.text-check-failed":
