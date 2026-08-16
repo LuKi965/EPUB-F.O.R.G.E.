@@ -38,32 +38,48 @@ jak książka wygląda.**
 
 EPUB to ZIP z dokumentami XHTML, arkuszami CSS i plikiem opisującym całość.
 Przez piętnaście lat produkowało go kilkanaście generatorów, z których każdy
-robił to trochę inaczej i żaden nie robił tego całkiem zgodnie ze standardem.
+robił to trochę inaczej i żaden całkiem zgodnie ze standardem.
 
-To narzędzie **czyta książkę i składa ją na nowo**: czyta, co źródło naprawdę
-deklaruje, buduje z tego model w pamięci i wypisuje z niego świeży, poprawny
-kontener EPUB 3.3. Nie łata pliku wejściowego — pisze nowy. Dzięki temu wynik
-jest poprawny niezależnie od tego, jak zepsute było wejście.
+To narzędzie **czyta książkę i składa ją na nowo.** Nie łata pliku wejściowego:
+buduje z niego model w pamięci i wypisuje świeży kontener EPUB 3.3. Dzięki temu
+wynik jest poprawny niezależnie od tego, jak zepsute było wejście.
 
-Naczelna zasada, sprawdzana testem na każdej książce: **żaden znak tekstu nie
-ginie**. Nie „prawie żaden" i nie „liczba znaków się zgadza" — każdy znak
-kolejności czytania źródła musi znaleźć się w wyniku, w tej samej kolejności.
+Naczelna zasada, sprawdzana na każdej książce: **żaden znak tekstu nie ginie.**
+Nie „prawie żaden" i nie „liczba znaków się zgadza" — każdy znak kolejności
+czytania źródła musi znaleźć się w wyniku, w tej samej kolejności.
+
+Druga zasada, równie ważna i częściej zaskakująca: **utrata ozdobnika też jest
+uszkodzeniem książki.** Kursywa, którą wydawca wybrał, ramka wokół motta,
+odstęp przed rozdziałem — to jest treść, nie dodatek. Dlatego program woli
+zostawić odstępstwo od standardu i je opisać, niż je usunąć i zmienić wygląd.
+
+## Czego ten program nie zrobi
+
+Zebrane na górze, bo to jest szybsza droga do sprawdzenia, czy w ogóle jest dla
+Ciebie:
+
+- **nie zdejmuje DRM** i nie będzie;
+- **nie konwertuje z PDF, MOBI ani Worda** — to inne zadanie, świadomie poza
+  zakresem;
+- **nie usuwa niczego bez pytania albo bez przełącznika.** Wszystko, co ten
+  program kiedykolwiek kasuje, jest albo do odznaczenia, albo poprzedzone
+  pytaniem z konsekwencjami i rekomendacją;
+- **nie zgaduje.** Gdy nie wie, pyta; bez odpowiedzi nie zmienia nic.
 
 ## Trzy tryby
 
 | Tryb | Co robi | Kiedy |
 |---|---|---|
-| **Zachowaj wygląd** (`preserve`) | pełna przebudowa; poprawia to, co jest zepsute, i zostawia to, o czym wydawca zdecydował świadomie | domyślny; do większości książek |
+| **Zachowaj wygląd** (`preserve`) | pełna przebudowa; poprawia to, co zepsute, zostawia to, o czym wydawca zdecydował świadomie | domyślny; do większości książek |
 | **Wymuś standard** (`strict`) | to samo, ale zgodność wygrywa z wyglądem tam, gdzie się kłócą | gdy plik ma trafić do dystrybucji |
-| **Tylko kontener** (`minimal`) | przebudowuje opakowanie, dokumentów nie otwiera | gdy chcesz wyłącznie naprawić strukturę |
+| **Tylko kontener** (`minimal`) | przebudowuje opakowanie, dokumentów nie otwiera | gdy chcesz naprawić wyłącznie strukturę |
 
-Tryb „tylko kontener" robi w treści **dwie** zmiany, obie tego samego rodzaju.
-Wymienia stary DOCTYPE na ten z EPUB 3, przenosząc razem z nim encje
-(`&nbsp;` → `&#160;`), i wypełnia pusty `<title>` nagłówkiem samego dokumentu.
-EPUB 2 dopuszczał jedno i drugie, EPUB 3 nie dopuszcza żadnego — a ten tryb
-przebudowuje pakiet na EPUB-a 3, więc bez tych dwóch poprawek książka wchodzi
-poprawna i wychodzi niepoprawna. Ani DOCTYPE, ani `<title>` nie są wyświetlane
-w treści, więc żadna z tych zmian nie może zmienić tego, co widzi czytelnik.
+Tryb „tylko kontener" robi w treści **dwie** zmiany i obie tego samego rodzaju:
+wymienia stary DOCTYPE na ten z EPUB 3, przenosząc razem z nim encje
+(`&nbsp;` → `&#160;`), i wypełnia pusty `<title>` nagłówkiem dokumentu. EPUB 2
+dopuszczał jedno i drugie, EPUB 3 nie dopuszcza żadnego — a ten tryb buduje
+EPUB-a 3, więc bez tych poprawek książka wchodzi poprawna i wychodzi
+niepoprawna. Żadnej z tych rzeczy czytelnik nie widzi na stronie.
 
 ## Instalacja
 
@@ -74,6 +90,10 @@ Pobierz z [wydań](https://github.com/LuKi965/EPUB-F.O.R.G.E./releases):
 - **`EPUB-FORGE-x.y.z-setup.exe`** — instalator, skrót w menu Start
 - **`EPUB-Forge-x.y.z-portable.zip`** — rozpakuj i uruchom, nic nie instaluje
 
+Instalator wozi wszystko, czego program potrzebuje: walidator EPUBCheck, silnik
+do rysowania stron i słowniki. Każde z nich przypięte sumą SHA-256 — nic nie
+jedzie w instalatorze, czego to wydanie nie zmierzyło.
+
 ### Ze źródeł
 
 ```bash
@@ -82,8 +102,9 @@ cd EPUB-F.O.R.G.E.
 pip install -e .
 ```
 
-Wymaga Pythona 3.10+. EPUBCheck (opcjonalny, do walidacji) potrzebuje Javy 11+
-i pobiera się sam przy pierwszym użyciu.
+Wymaga Pythona 3.10+. EPUBCheck (do walidacji) potrzebuje Javy 11+ i pobiera się
+sam przy pierwszym użyciu. Bez silnika do rysowania i bez słowników program
+działa — robi mniej i **mówi w raporcie, czego nie sprawdził**.
 
 ### O innych systemach, uczciwie
 
@@ -92,10 +113,6 @@ przywiązywało, testy przechodzą na Linuksie i tam powstaje większość tego
 programu — ale **nikt nie sprawdza wyniku na Linuksie ani na macOS-ie na
 prawdziwych książkach i prawdziwym czytniku**, a to jest jedyny rodzaj
 sprawdzenia, który tutaj cokolwiek znaczy.
-
-Do 0.2.21 w tym miejscu stało „Windows / Linux / macOS". To było nieprawdą tego
-rodzaju, którą łatwo napisać i trudno zauważyć: z faktu, że coś się uruchamia,
-zrobiła obietnicę, że jest sprawdzone.
 
 ## Użycie
 
@@ -108,6 +125,9 @@ epubforge-gui
 Przeciągnij pliki, wybierz tryb, uruchom. Raport pojawia się obok kolejki;
 **Zapisz raport zbiorczy…** (Ctrl+Shift+S) zapisuje całą kolejkę do jednego
 pliku JSON, najgorsze książki na górze.
+
+Wszystko, co ten program potrafi, jest osiągalne z okna. To nie jest uproszczony
+front do wiersza poleceń.
 
 ### Wiersz poleceń
 
@@ -122,6 +142,17 @@ epubforge compat                                   # co robią profile zgodnośc
 
 Kod wyjścia mówi, co się stało: `0` — zapisano, `1` — nie zapisano, `2` —
 zapisano, ale są problemy warte przeczytania.
+
+### Przełączniki, które coś usuwają albo zmieniają wygląd
+
+Wszystkie **domyślnie wyłączone**, wszystkie osiągalne z okna:
+
+| przełącznik | co robi |
+|---|---|
+| `--remove-shop-notices` | usuwa widoczne zdania księgarni — numer zamówienia, „zakupione dla", adres kupującego. Raport wypisuje **każde usunięte zdanie co do słowa**, nie liczbę |
+| `--relative-units` | przepisuje rozmiary czcionek z pikseli na `rem`, żeby ustawienie czcionki w czytniku do nich sięgało |
+| `--strict` | zgodność wygrywa z wyglądem tam, gdzie się kłócą |
+| `--remove-dead` | usuwa reguły CSS i `<span>`-y, o których analiza wykazała, że nie robią nic |
 
 ### Profile zgodności
 
@@ -141,98 +172,106 @@ Każdy przebieg kończy się raportem, w którym każda zmiana ma swój wiersz i
 powód. Pięć poziomów: `ERROR`, `WARN`, `PRESERVED` (odstępstwo od standardu
 zachowane celowo, bo jego usunięcie zmieniłoby wygląd), `FIX`, `INFO`.
 
-Znaki wodne i wpisy wydawcy **nie są usuwane** — są porządkowane, gdy powtarzają
-się w każdym rozdziale, i zostają.
+Raport mówi też o tym, **czego nie sprawdził**: brak walidatora, brak silnika do
+rysowania i brak słownika są w nim nazwane. Przebieg, który widział mniej, nie
+ma prawa wyglądać na czystą książkę.
 
-Tam, gdzie program nie wie, **pyta, zamiast zgadywać**. Martwy odnośnik, słowo
-rozcięte łącznikiem przez konwersję (`wybo-rowy`) i metadana, która wyszła z
-domysłu parsera, a nie z pliku — każde z nich to pytanie z opisanymi
-konsekwencjami każdej odpowiedzi, z rekomendacją i z informacją, czy da się to
-cofnąć. **Bez odpowiedzi nie zmienia się nic**, a odpowiedzi zapisują się obok
-książki, więc ta sama książka nie pyta drugi raz. Wsad, korpus i każdy
-wywołujący bibliotekę dostają książkę nietkniętą w tych miejscach.
+### Znaki wodne
+
+Ukryte znaczniki księgarni są domyślnie **porządkowane, nie usuwane**: powtórzone
+style zamieniają się w jedną regułę, a sam znacznik zostaje. Widoczne zdania —
+numer zamówienia, imię kupującego — są domyślnie **zachowywane**, a od 0.2.28
+można je usunąć przełącznikiem, wraz z pełną listą tego, co zniknęło. To
+odwrócenie wcześniejszej zasady i jest świadome: właściciel kupił swoje książki
+i ma paragony, a takie zdanie potrafi siedzieć w biegnącym tekście tuż przed
+pierwszym zdaniem powieści.
+
+Stopka redakcyjna wydawcy — adres, telefon, ISBN — **nie jest** znakiem wodnym
+i nie jest ruszana. Na tym rozróżnieniu ta funkcja stoi albo upada.
+
+### Kiedy program pyta
+
+Martwy odnośnik, słowo rozcięte łącznikiem przez konwersję (`wybo-rowy`),
+metadana, która wyszła z domysłu parsera zamiast z pliku — każde z nich to
+pytanie z opisanymi konsekwencjami, z rekomendacją i z informacją, czy da się to
+cofnąć. Odpowiedzi zapisują się obok książki, więc ta sama książka nie pyta
+drugi raz. Wsad, korpus i każdy wywołujący bibliotekę dostają książkę nietkniętą
+w tych miejscach.
+
+Przy łącznikach program pyta tylko tam, gdzie ma **dowód**: albo ta sama książka
+pisze to słowo bez łącznika gdzie indziej, albo słownik mówi, że pierwsza połowa
+nie jest słowem, więc takie złożenie nie istnieje. `savoir-vivre` i
+`czarno-czerwony` nie są o nic pytane.
 
 ## Ograniczenia
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Wersja to `0.2.x`, a `0.2.x` **jest** alfą — tak mówi tabela
-  dojrzałości w dokumentacji projektu i to samo mówi każdy build
-  od 0.2.0, bo tytuł okna bierze etap z kodu. Ten akapit przez kilka wydań
-  twierdził, że do alfy jeszcze wchodzimy — co było nieprawdą obok binarki
-  podpisanej „alpha". Zakres funkcji jest ustalony, poprawność sprawdzana na
-  93 prawdziwych książkach: to jest definicja alfy z tamtej tabeli.
-- **Do bety brakuje już tylko jednej rzeczy — i nie da się jej napisać.** Beta
-  (`0.3.x`) wymagała profilu książki, sprzątania CSS i konsolidacji spanów: te
-  trzy są wydane w 0.2.11, 0.2.14 i 0.2.14. Zostaje warunek czwarty: **ktoś
-  spoza autora, kto przepuści przez to własną bibliotekę.**
+- **Alpha.** Wersja `0.2.x` **jest** alfą: zakres funkcji ustalony, poprawność
+  sprawdzana na 93 prawdziwych książkach.
+- **Do bety brakuje przebiegu, nie kodu.** Warunki `0.3.x` to półka właściciela,
+  korpus publiczny i fuzzing kontenera przechodzące po każdym wydaniu, z wynikiem
+  zapisanym. Kod jest; przebieg na pełnej półce jeszcze nie.
+- **Tryb ścisły potrafi odmówić wydania pliku.** Pyta EPUBCheck *zanim* plik
+  trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje za niepoprawne —
+  również wtedy, gdy defekt przyszedł razem z książką. Zmierzone na całym
+  korpusie publicznym: **17 książek na 19 wychodzi, 2 są odmówione**, obie za
+  wady, które przyszły ze źródłem. Odmowa **nie rusza** pliku leżącego już pod
+  tą nazwą.
+- **Sprawdzenie wyglądu też potrafi zatrzymać zapis i jest obowiązkowe.**
+  Program rysuje strony przed i po przebudowie i porównuje je; przy wykrytej
+  stracie treści domyślnie nie zapisuje nic. Trzy stany: wyłączone / raportuj /
+  zatrzymaj.
+- **Silnik do rysowania jest tylko ten dołączony.** Program nie szuka
+  przeglądarki na maszynie — ani w PATH, ani w Program Files. Powód: porównanie
+  dwóch rysunków mówi coś o *książce* tylko wtedy, gdy oba zrobił ten sam
+  silnik; puszczone na tym, co maszyna akurat ma, mówi coś o maszynie. Zmierzone:
+  Edge i Chromium nie zgadzały się co do trzech z czterech rodzajów uszkodzenia.
+  Instalator jest przez to o jakieś 110 MB większy. Jedna furtka zostaje dla
+  uruchomienia z kodu źródłowego, gdzie nie ma czego dołączyć: `EPUBFORGE_CHROME`.
 - **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
-  samym językiem, co interfejs; w wierszu poleceń decyduje `--report-language`.
+  samym językiem co interfejs; w wierszu poleceń decyduje `--report-language`.
   Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
-  skryptów. Dotyczy to również akapitu szczegółów pod znaleziskiem. To, co
-  zostaje po angielsku, to dane, a nie zdania: nazwy znaczników, wartości
+  skryptów. Po angielsku zostają dane, nie zdania: nazwy znaczników, wartości
   metadanych i komunikaty samego EPUBCheck-a.
-- **Tryb ścisły od 0.2.23 potrafi odmówić wydania pliku.** Pyta EPUBCheck
-  *zanim* plik trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje
-  za niepoprawne — również wtedy, gdy defekt przyszedł razem z książką i ten
-  program go nie stworzył. Zmierzone na 0.2.27, cały korpus publiczny z
-  walidatorem: **17 książek na 19 wychodzi, 2 są odmówione** — jedna za brak
-  `viewport` w dokumencie o stałym układzie, druga za klasy Media Overlays bez
-  arkusza, i obie wady przyszły razem ze źródłem. Odmowa **nie rusza** pliku,
-  który już leży pod tą nazwą.
-  Tryb zachowawczy i minimalny wydają i opisują, tak jak dotąd; wybór jest w
-  oknie i pod `--gate`.
-- **Sprawdzenie wyglądu od 0.2.24 też potrafi zatrzymać zapis, i jest
-  obowiązkowe.** Program rysuje strony przed i po przebudowie i porównuje je;
-  przy wykrytej stracie treści domyślnie nic nie zapisuje. Trzy stany:
-  wyłączone / raportuj / zatrzymaj.
-- **Od 0.2.26 instalator wozi własny silnik do rysowania** — `chrome-headless-shell`,
-  przypięty sumą SHA-256 tak samo jak EPUBCheck. To nie jest przeglądarka: nie ma
-  w nim interfejsu, więc **nie ma czym otworzyć okna**. Do 0.2.25 program szukał
-  Chrome'a albo Edge'a na maszynie, a to znaczyło dwie złe rzeczy: Edge potrafił
-  otworzyć puste okno, i wynik kontroli zależał od tego, jaką przeglądarkę kto
-  ma — zmierzone, Edge i Chromium nie zgadzały się co do trzech z czterech
-  rodzajów uszkodzenia. Instalator jest przez to o jakieś 110 MB większy.
-  **Od 0.2.28 program nie szuka przeglądarki na maszynie w ogóle** — ani w
-  PATH, ani w Program Files, ani u Playwrighta, i nie ma zmiennej, którą dałoby
-  się postawić przed silnikiem dołączonym. Cały ten aparat istniał z jednego
-  powodu: nie mieliśmy własnego silnika. Porównanie dwóch rysunków mówi coś o
-  *książce* tylko wtedy, gdy oba zrobił ten sam silnik; puszczone na tym, co
-  maszyna akurat ma, mówi coś o maszynie. Zostaje jedna furtka, dla uruchomienia
-  z kodu źródłowego, gdzie nie ma czego dołączyć: `EPUBFORGE_CHROME`.
-- **Nie konwertuje z PDF, MOBI ani Worda.** To inne zadanie i świadomie poza
-  zakresem.
-- **Nie zdejmuje DRM** i nie będzie.
-- **Cała książka trafia do pamięci.** Przy dużej bibliotece i wielu procesach
-  naraz to jest odczuwalne. Od 0.2.24 program **liczy to przed startem** —
-  z katalogu ZIP-a, bez rozpakowywania — i odmawia, zamiast dać się zabić
-  jądru w połowie roboty. Na 32 książkach półki najdroższa wychodzi na
-  104 MiB, więc jest to zabezpieczenie na przypadek patologiczny, a nie próg,
-  który komuś wejdzie w drogę. Wyłączalne, z własnym polem budżetu.
+- **Cała książka trafia do pamięci.** Program **liczy to przed startem** —
+  z katalogu ZIP-a, bez rozpakowywania — i odmawia, zamiast dać się zabić jądru
+  w połowie roboty. Na 32 książkach półki najdroższa wychodzi na 104 MiB, więc
+  jest to zabezpieczenie na przypadek patologiczny, a nie próg, który komuś
+  wejdzie w drogę. Wyłączalne, z własnym polem budżetu.
 
 ## Jak to jest sprawdzane
 
-2475 testów, w tym cztery niezależne siatki bezpieczeństwa:
+Ponad **2700 testów**, z czego kilkadziesiąt pomija się tam, gdzie nie ma czym
+ich wykonać — bez Javy, bez silnika do rysowania albo bez słowników — i
+**mówią, dlaczego**. Pięć niezależnych siatek bezpieczeństwa:
 
+- **niezmiennik K1** — cały tekst źródła musi być w wyniku, w tej samej
+  kolejności;
+- **bilans wejście→wyjście** — co weszło, co wyszło, i czy różnicę tłumaczy wpis
+  w rejestrze zmian. K1 pilnuje tekstu, a to pilnuje wszystkiego innego: obrazek,
+  który zniknął po cichu, nie zabiera ze sobą ani jednej litery i przez to jest
+  dla K1 niewidoczny;
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;
 - **korpus publiczny** — sześć prawdziwych książek z Projektu Gutenberga
-  i dziewięć syntetycznych, z zapisanymi sygnaturami; zmiana wyniku przebudowy
+  i trzynaście syntetycznych, z zapisanymi sygnaturami; zmiana wyniku przebudowy
   wywala test u każdego, nie tylko u autora;
-- **niezmiennik K1** — cały tekst źródła musi być w wyniku, w tej samej
-  kolejności;
-- **bilans wejście→wyjście** — od 0.2.25: co weszło, co wyszło, i czy różnicę
-  tłumaczy wpis w bilansie zmian. K1 pilnuje tekstu, a to pilnuje wszystkiego
-  innego — obrazek, który zniknął po cichu, nie zabiera ze sobą ani jednej
-  litery i przez to jest niewidoczny dla K1.
+- **brak strat funkcjonalnych** — każde ustawienie musi być osiągalne z okna albo
+  z wiersza poleceń, każde pole wyboru w oknie musi coś ustawiać, a każda reguła
+  raportu musi mieć wpis w obu językach.
 
 ```bash
-pytest -q
+pytest -q                    # cała suita
+python tools/jak-ci.py       # to samo w warunkach maszyny budującej wydanie
 ```
 
-42 z nich rysują strony prawdziwą przeglądarką i **pomijają się domyślnie**:
-mierzą silnik, a nie ten program, więc uruchomione na przypadkowej przeglądarce
-mierzą maszynę. Wskaż silnik jawnie, żeby je wykonać:
+Drugie polecenie chowa to, czego maszyna budująca nie ma na etapie testów.
+Powstało po tym, jak wydanie padło na dwóch testach przechodzących lokalnie:
+suita mierzyła maszynę, a nie program.
+
+42 testy rysują strony prawdziwą przeglądarką i **pomijają się domyślnie** —
+mierzą silnik, nie ten program. Wskaż silnik jawnie, żeby je wykonać:
 
 ```bash
 EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME, jeśli trzeba
