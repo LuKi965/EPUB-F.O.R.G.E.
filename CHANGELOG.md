@@ -73,6 +73,86 @@ każde `pseudo-`, `eks-` i `pół-` do kolejki jako pytanie. Próg mierzy się n
 korpusie właściciela, nie zgaduje (D-012).
 
 
+### Piksele przestały być cichą regułą
+
+WP-13, i dwa ustalenia, które przy pisaniu okazały się **tym samym błędem
+widzianym dwa razy**: przepisaniem cudzego arkusza na podstawie tego, co wydawca
+prawdopodobnie miał na myśli, zamiast tego, co strona pokazuje.
+
+**EF-029 — mierzone i nigdy niewypowiadane.** `absolute_font_sizes` było liczone
+w inwentarzu od dnia, w którym przegląd powstał, i **nigdy** nie zamieniało się
+w komunikat ani w naprawę. Najczęstsza pozostałość po składzie do druku na
+półce była pod nosem programu przez całe jego życie. Teraz `css.absolute-units`
+podaje liczbę **per plik**, w każdym trybie, niezależnie od tego, czy cokolwiek
+ma być z tym zrobione.
+
+Naprawa — `--relative-units` i przełącznik w oknie, **domyślnie wyłączone** —
+idzie na **`rem`, nie na `em`**, i to jest cała jej bezpieczność. `em` liczy się
+od rodzica:
+
+```css
+body { font-size: 20px }    p { font-size: 16px }
+```
+
+`16px → 1em` w takim `body` wychodzi jako 20px. Każde zagnieżdżenie w książce
+kumuluje się inaczej i żadna staranność w arytmetyce tego nie ratuje, bo wyrażenie
+regularne nie widzi, która reguła trafia do której. `rem` liczy się od elementu
+głównego, nie kumuluje się i wychodzi dokładnie jako `rozmiar/16` — wszędzie.
+Zmierzone na Chromium 141, wobec wydruku sprzed konwersji:
+
+| konwersja | piksele różne |
+|---|---|
+| `rem` (trzy viewporty) | **0,000000%** |
+| `em`, ta sama arytmetyka | 0,242292% |
+
+I sama obietnica, bo funkcja, której obietnicy nikt nie zmierzył, jest tylko
+opowieścią. Ustawienie czytnika przesunięte z 16 na 24:
+
+| książka | piksele różne |
+|---|---|
+| bez konwersji | **0,0000%** — ustawienie czcionki jej nie dotyczy |
+| po konwersji | 0,1998% — książka za nim idzie |
+
+Druga liczba **nie jest defektem**: poza ustawieniem domyślnym strona celowo
+przestaje wyglądać tak samo, i o to w tym chodzi. Dlatego to jest przełącznik,
+a nie naprawa. Proporcje dobrane przez wydawcę przeżywają — wszystkie rozmiary
+przesuwają się o ten sam czynnik.
+
+Cztery miejsca po przecinku, i to nie jest liczba wzięta z powietrza: 16 jest
+potęgą dwójki, więc każdy całkowity piksel dzieli się na najwyżej cztery miejsca
+i wychodzi **dokładnie** — 11px to 0,6875rem, a nie zaokrąglenie. Arkusz, który
+sam ustala rozmiar elementu głównego w pikselach, zostaje nietknięty i mówi
+dlaczego: `rem` jest tam już przypięty, więc przepisanie reszty przerobiłoby
+arkusz, nie uwalniając ani jednego rozmiaru.
+
+**EF-033 — poprawka, która prostowała kursywę.** `font-style: regular` nie jest
+CSS-em, więc parser odrzuca **całą deklarację** i element dziedziczy. Podmiana
+na `normal` nie przywraca intencji wydawcy — ona **nadpisuje**, a nadpisanie
+i dziedziczenie to to samo wyłącznie dopóki dziedziczona wartość i tak jest
+normalna:
+
+```css
+.list { font-style: italic; }
+.list .name { font-style: regular; }   /* odrzucone: zostaje kursywa */
+```
+
+Nazwiska są pochyłe od dnia wydania książki, a poprawka je prostowała. Wydawca
+prawdopodobnie chciał inaczej; ten program nie odbudowuje książek do tego, co
+wydawca prawdopodobnie chciał, tylko do tego, jak wyglądają (S-03).
+
+Podmiana zachodzi teraz wyłącznie w arkuszu, w którym **nic** nie ustawia
+kursywy ani pogrubienia — łącznie ze skrótem `font: italic 12px serif`, którego
+sprawdzenie samego `font-style` by nie zobaczyło. W pozostałych deklaracja
+zostaje taka, jaka jest, i raport mówi dlaczego. Zostawienie nie kosztuje nic,
+bo i tak była ignorowana.
+
+Świadomie własność **arkusza**, nie selektora: policzenie, do których elementów
+sięga selektor, wymaga rozwiązania kaskady przez wszystkie dokumenty, a odpowiedź
+i tak byłaby nieprawdziwa w chwili, gdy dołączy drugi arkusz albo atrybut
+`style`. Arkusz bez kursywy w ogóle nie może wytworzyć złego przypadku,
+cokolwiek kaskada zrobi — to jest słabsze pytanie, za którym ten program potrafi
+stanąć.
+
 ### Słownik jedzie z instalatorem — druga połowa
 
 WP-10, część pakująca. Pierwsza połowa nauczyła detektor pytać słownik; ta
