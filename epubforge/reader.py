@@ -1261,9 +1261,8 @@ def _parse_guide(package, opf_path: str) -> list[Landmark]:
 #: What becomes of each file OCF reserves a name for in `META-INF/`.
 #:
 #: All of them used to be skipped by one `startswith("META-INF/")`, and skipped
-#: is not a decision — it is the absence of one. A book carrying rights metadata
-#: or an organisation's signature came back without them and without a word,
-#: which is a compliance problem dressed as tidiness.
+#: is not a decision — it is the absence of one: rights metadata and signatures
+#: came back missing, without a word.
 #:
 #: * `carry` — copied through untouched. `rights.xml` and `metadata.xml` say
 #:   things about the publication that the rebuild does not change and has no
@@ -1272,10 +1271,9 @@ def _parse_guide(package, opf_path: str) -> list[Landmark]:
 #:   and this program rewrites the package document even in the mode that leaves
 #:   content byte for byte. There is no way to keep one valid without the
 #:   signer's private key, which we do not have and should not want. Leaving it
-#:   in place is the one genuinely bad option: a tool that checks it reports not
-#:   "unsigned" but *the signature does not match* — true, and reading as an
-#:   accusation of tampering where there was a repair. The owner chose "remove,
-#:   but say so out loud" (2026-08-13) after asking what the thing was.
+#:   in place is the one genuinely bad option: a checker reports not "unsigned"
+#:   but *the signature does not match* — true, and reading as an accusation of
+#:   tampering where there was a repair.
 #: * `rebuilt` — this program writes its own; the source's is not carried.
 #: * `manifest.xml` is OCF's own optional inventory of the container. Ours would
 #:   be wrong the moment anything is renamed, and a stale one is worse than

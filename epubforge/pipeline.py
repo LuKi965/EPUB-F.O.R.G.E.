@@ -115,25 +115,19 @@ def _settle_layout(book: Book, policy: Policy, report: Report) -> Policy:
 #: Findings that mean a member of the source archive never reached the model.
 #:
 #: Not "something went wrong" — specifically *an entry of the input is missing
-#: from what we are about to rebuild from*. The reader raised each of these and
-#: then carried on, on the reasoning that one monstrous entry is skipped and the
-#: rest of the book is still worth reading. That reasoning is written into the
-#: reader beside the archive-wide limit, where it reaches the opposite
-#: conclusion: *for a tool whose first rule is that no character is lost, half a
-#: book is a worse outcome than a refusal.* Both cannot be right, and the
-#: archive-wide one is.
+#: from what we are about to rebuild from*. For a tool whose first rule is that
+#: no character is lost, half a book is a worse outcome than a refusal.
 #:
-#: Measured, on 0.2.19: an EPUB whose only chapter exceeded the per-entry limit
+#: Measured on 0.2.19: an EPUB whose only chapter exceeded the per-entry limit
 #: produced `status = succeeded-with-problems`, a file on disk, and **no
-#: chapter**. That is the failure this project exists to make impossible, sold
-#: as a success.
-#: `reader.name-dropped` is deliberately **not** here, and the first draft of
-#: this set had it. An entry whose name has no usable form — `../outside.bin`,
-#: an absolute path, a `__MACOSX` shadow — is not a publication resource that
-#: went missing; it is an entry no manifest can name and no document can link
-#: to. Refusing a book because its archive carries one would refuse books that
-#: rebuild perfectly today, which is the failure mode this whole change is
-#: against, pointed the other way. The suite caught it within the hour.
+#: chapter** — the failure this project exists to make impossible, sold as
+#: a success.
+#:
+#: `reader.name-dropped` is deliberately **not** here. An entry whose name has
+#: no usable form — `../outside.bin`, an absolute path, a `__MACOSX` shadow —
+#: is not a resource that went missing; it is one no manifest can name. Having
+#: it here refused books that rebuild perfectly, which is this same failure
+#: pointed the other way.
 LOSES_INPUT = frozenset({
     "reader.entry-too-large",
     "reader.entry-unreadable",
@@ -531,22 +525,17 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str, q
 #: Rules whose whole job is to take text out of the book, or move it, each one
 #: only after the person said so.
 #:
-#: This is the same principle the balance runs on: a loss the ledger accounts
-#: for is not an unexplained loss. Watermark removal happens because the owner
-#: ticked a box, and joining a hyphenated word happens because he answered a
-#: question about that exact word — both are consented, both are recorded, and
-#: K1 exists for the loss nobody asked for.
+#: A loss the ledger accounts for is not an unexplained loss; K1 exists for the
+#: loss nobody asked for.
 #:
-#: Two of the four *move* rather than remove, and they belong here for a reason
-#: worth stating: K1 is "every character, **in the same order**", so a watermark
-#: token gathered to the head of its document breaks the subsequence test
-#: without a single character having left the book. Moving the publisher's mark
-#: out of the running text is the owner's own instruction, so the gate names it
-#: instead of refusing it.
+#: Some of these *move* rather than remove, and belong here because K1 is "every
+#: character, **in the same order**": a watermark token gathered to the head of
+#: its document breaks the subsequence test without a character having left the
+#: book.
 #:
 #: Named rather than inferred. A rule added later that removes or moves text and
-#: is not in this list will be refused by the gate, which is the right way
-#: round: the burden is on the change to declare itself.
+#: is not listed here will be refused by the gate — the burden is on the change
+#: to declare itself.
 REMOVES_TEXT_ON_PURPOSE = frozenset({
     "xhtml.shop-notice-removed",
     "xhtml.watermark-removed",
@@ -1239,16 +1228,12 @@ def _rebuild_inside_budget(
     # answer it differently, which is the only place they are allowed to
     # disagree about this at all.
     #
-    # `preserve` publishes the book with the publisher's own broken reference
-    # intact and the finding in the report. `strict` does not: its whole promise
-    # is a file that conforms, and this book does not, so it says so instead of
-    # producing something that validates by having had meaning removed from it.
+    # `preserve` publishes with the publisher's broken reference intact and the
+    # finding in the report; `strict` refuses, because its promise is a file
+    # that conforms and this one does not.
     #
-    # BLOCKED rather than FAILED — nothing went wrong here. The book was refused
-    # on purpose, by a rule the person chose when they chose the mode, and the
-    # report names every reference and the document holding it. If somebody is
-    # at the window, they were asked first: a resolver turns most of these into
-    # answers before this line is reached.
+    # BLOCKED rather than FAILED: nothing went wrong, the book was refused on
+    # purpose by a rule the person chose with the mode.
     if policy.strict and ctx.unresolved:
         report.add(
             "writer",

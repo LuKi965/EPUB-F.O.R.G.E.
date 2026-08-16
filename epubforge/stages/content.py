@@ -1171,28 +1171,19 @@ class ContentStage(Stage):
                     continue
                 new_target = ctx.path_map.get(target)
                 if new_target is None:
-                    # Before this counts as dead: is the thing it names actually
-                    # in the book, under another path?
+                    # **A path miss is not evidence that the target is absent.**
+                    # `images/a.png` written from a document in `text/`, where
+                    # the picture sits at `images/a.png` from the *root*, is one
+                    # missing `../` and a picture the reader can see.
                     #
-                    # The owner asked how this program knows a reference is dead
-                    # rather than merely misdirected, "and the content is
-                    # physically in the document". It did not know. It asked one
-                    # question — does this path resolve to a resource — and a
-                    # path miss is not evidence that the target is absent. A
-                    # link written `images/a.png` from a document in `text/`,
-                    # where the picture sits at `images/a.png` from the *root*,
-                    # is one missing `../` and a picture the reader can see.
-                    #
-                    # Measured before writing this, over twenty books of both
-                    # corpora and the owner's shelf: three dangling references
-                    # in total, and **all three** had a file of that name
-                    # elsewhere in the same book. Strict was unlinking pictures
-                    # that were right there.
+                    # Measured over twenty books of both corpora and the owner's
+                    # shelf: three dangling references in total, and **all
+                    # three** had a file of that name elsewhere in the same
+                    # book. Strict was unlinking pictures that were right there.
                     #
                     # Repointed only where there is exactly one candidate, which
-                    # makes it a derivation rather than a guess. Two candidates
-                    # is a question, and a question this cannot answer is left
-                    # as it was — the same rule F-010 settled for fragments.
+                    # makes it a derivation rather than a guess; two candidates
+                    # is a question this cannot answer, so it is left alone.
                     relocated = _one_candidate_named(ctx, target)
                     if relocated is not None:
                         element.set(attribute, paths.relative(resource.path, relocated))
@@ -1207,30 +1198,20 @@ class ContentStage(Stage):
                     fragment = remapped or fragment
                     if not resolves(new_target, fragment):
                         # The file is there and the anchor is not — what a PDF
-                        # conversion leaves behind when it writes a page-number
-                        # strip and only half the pages get an id.
+                        # conversion leaves behind when only half the pages get
+                        # an id.
                         #
-                        # Dropping the fragment was the answer here for a long
-                        # time, on the reasoning that the right file beats
-                        # nowhere at all. For a footnote it is not: measured, a
-                        # `noteref` to `przypisy.xhtml#fn-17` came out pointing
-                        # at `przypisy.xhtml`, so tapping footnote seventeen
-                        # lands on footnote one. That is not a broken link a
-                        # reader can see; it is a working link to the wrong
-                        # place, which is worse, and this tool called it a
-                        # repair.
-                        #
-                        # The first answer to the audit's F-010 split the modes:
-                        # `preserve` kept it, `strict` still dropped it. That was
-                        # half an answer, and it never shipped. Strict is
-                        # not a licence to invent a meaning — it is a promise
-                        # that the output conforms, and a fragment removed to
-                        # buy a validator's silence keeps the promise by
-                        # breaking the book. So neither mode touches it now:
-                        # the reference is UNRESOLVED, it stays exactly as the
-                        # publisher wrote it, and what the modes disagree about
-                        # is whether the result may be published at all —
-                        # decided at the commit gate, not here.
+                        # **The fragment is never dropped**, in any mode.
+                        # Measured: a `noteref` to `przypisy.xhtml#fn-17` came
+                        # out pointing at `przypisy.xhtml`, so tapping footnote
+                        # seventeen landed on footnote one — a working link to
+                        # the wrong place, which is worse than a broken one a
+                        # reader can see, and this tool called it a repair.
+                        # Strict is no licence either: it promises the output
+                        # conforms, and a fragment removed to buy a validator's
+                        # silence keeps that promise by breaking the book. What
+                        # the modes disagree about is whether the result may be
+                        # published, decided at the commit gate (F-010).
                         answer = unresolvable(element, new_target, fragment)
                         if answer.action == references.REPOINT:
                             fragment = answer.fragment

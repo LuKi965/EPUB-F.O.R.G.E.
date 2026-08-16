@@ -356,22 +356,19 @@ def _measure(
     measurement["output"] = digest(output.read_bytes())
 
     after = inventory_measure(output).fields
-    # Spine text only. The rebuild generates a navigation document when the
-    # source had none, and its chapter titles are text — counting them made
-    # every EPUB 2 book in a corpus report that its text had changed, which is
-    # the one thing this field exists to be believed about.
+    # Spine text only: the generated navigation document's chapter titles are
+    # text too, and counting them made every EPUB 2 book report that its text
+    # had changed.
     #
-    # K1 is "no character is lost", not "no character is added", and the two
-    # are not the same rule. Comparing the counts for equality made this field
-    # false for every book that arrives without a cover page in its spine,
-    # because generating one adds two characters — a deliberate, documented
-    # improvement reported as a broken invariant. The six Project Gutenberg
-    # books added to the corpus were false on all six for that reason alone.
+    # **K1 is "no character is lost", not "no character is added."** Comparing
+    # counts for equality was false for every book arriving without a cover page
+    # in its spine, because generating one adds two characters — all six
+    # Gutenberg books failed on that alone.
     #
-    # Counting is not enough to say K1 holds: two books can carry the same
-    # number of characters and not the same characters. So the source's spine
-    # text has to still be *in* the output's, in order, and the count is kept
-    # beside it as a number a human can read.
+    # Counting cannot say K1 holds anyway: two books can carry the same number
+    # of characters and not the same characters. So the source's spine text has
+    # to still be *in* the output's, in order, and the count is kept beside it
+    # as a number a human can read.
     measurement["text_characters"] = after.get("spine_text_characters", 0)
     measurement["text_added"] = (
         after.get("spine_text_characters", 0) - source.characters
@@ -428,22 +425,15 @@ def signature(
     """
     from . import __version__
 
-    # A directory of this book's own. Books are measured side by side now, and
-    # two threads writing `scratch/preserve.epub` would each be checking a file
-    # the other had just overwritten — a race that produces a plausible wrong
-    # answer rather than a crash, which is the worst kind to introduce.
+    # Unique per **measurement**, not per book. Books are measured side by side,
+    # and two threads sharing a directory check files the other has overwritten
+    # — a race that answers wrongly rather than crashing.
     #
-    # Keyed by the book's *identity* at first, which is its content hash, and
-    # that reopened the same race for the one case where it bites hardest: a
-    # shelf holding the same file twice hands two threads the same room. On the
-    # owner's second shelf — a folder downloaded whole, so four books are exact
-    # duplicates of four others — it surfaced as four `PermissionError`s from
-    # Windows, one thread replacing a file the other still had open. Windows was
-    # the lucky part. The same race on Linux is silent and answers wrongly.
-    #
-    # So the room is unique per measurement, not per book. `compare` no longer
-    # measures identical bytes twice at all, and this is the floor under that:
-    # anything holding this function directly gets a room nobody else is in.
+    # Keying by the book's content hash reopened it for the case that bites
+    # hardest: a shelf holding the same file twice hands two threads one room.
+    # Measured on the owner's second shelf, where four books are exact
+    # duplicates: four `PermissionError`s on Windows. Windows was the lucky
+    # part — the same race on Linux is silent.
     scratch.mkdir(parents=True, exist_ok=True)
     room = pathlib.Path(tempfile.mkdtemp(prefix=identifier_for(book) + "-", dir=scratch))
 
