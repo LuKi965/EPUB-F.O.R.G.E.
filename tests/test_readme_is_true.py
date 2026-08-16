@@ -9,14 +9,21 @@ nie tylko nieaktualne:
 * „Do bety brakuje już tylko jednej rzeczy: ktoś spoza autora" — ten warunek
   został skreślony decyzją D-011 i zastąpiony przebiegami. README nadal
   powoływał się na skreślony warunek.
-* liczba testów sprzed kilku wydań.
+* liczba testów sprzed kilku wydań — od 0.2.28 README nie podaje jej wcale.
 
 Każda z nich to zdanie, które **było prawdziwe, kiedy je pisano**, i żadna nie
 psuła niczego głośno. Dlatego jest tu test: dokument, którego nikt nie sprawdza
 maszynowo, starzeje się dokładnie w tym tempie, w jakim rośnie program.
 
-Sprawdzane jest to, co da się sprawdzić bez zgadywania — liczby i nazwy. Ton,
-układ i to, czy tekst jest dobry, testem nie są i być nie mogą.
+**Czego ten plik celowo nie sprawdza:** liczby testów ani rozmiaru korpusu.
+Pierwsza wersja sprawdzała jedno i drugie, i było to podwójnie złe — liczba
+testów w README nie mówi czytelnikowi nic o programie, a test jej pilnujący
+**sam ją zmieniał**, bo dopisanie testów podnosiło licznik. README nie jest
+kartą wyników.
+
+Sprawdzane są rzeczy, których fałsz kosztuje czytelnika: flaga, której nie ma,
+i zdanie sprzeczne z tym, co program robi. Ton i układ testem nie są i być
+nie mogą.
 """
 
 from __future__ import annotations
@@ -35,44 +42,6 @@ BOTH = {"README.md": POLISH, "README.en.md": ENGLISH}
 
 
 class TestTheNumbersAreThisVersionsNumbers:
-    def test_the_test_count_is_a_floor_the_suite_still_clears(self):
-        """Próg, nie dokładna liczba — i to jest wybór, nie lenistwo.
-
-        Pierwsza wersja tego testu wymagała dokładnej liczby i **sama ją
-        zmieniła**: dopisanie dziewiętnastu testów sprawdzających README
-        podniosło licznik, którego te testy pilnowały. Dokładna liczba w README
-        zmusza do edycji dokumentu przy każdym dopisanym teście, a dokument
-        edytowany mechanicznie przestaje być czytany.
-
-        Więc README podaje próg, a test pilnuje obu stron: że próg jest
-        prawdziwy i że nie odjechał tak daleko, by przestał cokolwiek znaczyć.
-        """
-        collected = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", "--collect-only"],
-            capture_output=True, text=True, cwd=ROOT,
-        ).stdout
-        found = re.search(r"(\d+) tests? collected", collected)
-        assert found, collected[-400:]
-        actual = int(found.group(1))
-        for name, text in BOTH.items():
-            floor = re.search(r"(\d{4})\*{0,2} (?:testów|tests)", text)
-            assert floor, f"{name}: nie podaje liczby testów w ogóle"
-            stated = int(floor.group(1))
-            assert stated <= actual, f"{name}: obiecuje {stated}, jest {actual}"
-            assert actual - stated < 400, (
-                f"{name}: próg {stated} przy {actual} testach przestał cokolwiek "
-                "znaczyć — podnieś go"
-            )
-
-    def test_the_corpus_sizes_match_what_is_on_disk(self):
-        synthetic = len(list((ROOT / "tests" / "corpus_public").glob("*.json")))
-        gutenberg = len(
-            list((ROOT / "tests" / "corpus_gutenberg" / "expected").glob("*.json"))
-        )
-        assert (synthetic, gutenberg) == (13, 6), (synthetic, gutenberg)
-        assert "trzynaście" in POLISH and "sześć" in POLISH
-        assert "thirteen" in ENGLISH and "six" in ENGLISH
-
     def test_the_version_is_the_package_version(self):
         from epubforge import __version__
 

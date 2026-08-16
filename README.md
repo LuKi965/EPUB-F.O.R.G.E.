@@ -58,7 +58,9 @@ zostawić odstępstwo od standardu i je opisać, niż je usunąć i zmienić wyg
 Zebrane na górze, bo to jest szybsza droga do sprawdzenia, czy w ogóle jest dla
 Ciebie:
 
-- **nie zdejmuje DRM** i nie będzie;
+- **nie zdejmuje DRM** i nie będzie — autor nie popiera piractwa, a to narzędzie
+  służy wyłącznie dostosowywaniu **legalnie zakupionych** książek do własnych
+  urządzeń;
 - **nie konwertuje z PDF, MOBI ani Worda** — to inne zadanie, świadomie poza
   zakresem;
 - **nie usuwa niczego bez pytania albo bez przełącznika.** Wszystko, co ten
@@ -178,13 +180,18 @@ ma prawa wyglądać na czystą książkę.
 
 ### Znaki wodne
 
+> **Zastrzeżenie.** Autor tego narzędzia nie popiera piractwa. Program nie
+> zdejmuje DRM i nie służy do obchodzenia zabezpieczeń. Powstał do
+> dostosowywania **legalnie zakupionych** książek do własnych urządzeń
+> i zakłada, że użytkownik ma prawo do plików, które mu podaje.
+
 Ukryte znaczniki księgarni są domyślnie **porządkowane, nie usuwane**: powtórzone
-style zamieniają się w jedną regułę, a sam znacznik zostaje. Widoczne zdania —
-numer zamówienia, imię kupującego — są domyślnie **zachowywane**, a od 0.2.28
-można je usunąć przełącznikiem, wraz z pełną listą tego, co zniknęło. To
-odwrócenie wcześniejszej zasady i jest świadome: właściciel kupił swoje książki
-i ma paragony, a takie zdanie potrafi siedzieć w biegnącym tekście tuż przed
-pierwszym zdaniem powieści.
+style zamieniają się w jedną regułę, a sam znacznik zostaje.
+
+Widoczne zdania — numer zamówienia, dane kupującego — są domyślnie
+**zachowywane**. Przełącznik pozwala je usunąć, wraz z pełną listą tego, co
+zniknęło, co do słowa. Taka wstawka potrafi siedzieć w biegnącym tekście tuż
+przed pierwszym zdaniem powieści albo dokładać całą stronę.
 
 Stopka redakcyjna wydawcy — adres, telefon, ISBN — **nie jest** znakiem wodnym
 i nie jest ruszana. Na tym rozróżnieniu ta funkcja stoi albo upada.
@@ -207,11 +214,11 @@ nie jest słowem, więc takie złożenie nie istnieje. `savoir-vivre` i
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Wersja `0.2.x` **jest** alfą: zakres funkcji ustalony, poprawność
-  sprawdzana na 93 prawdziwych książkach.
-- **Do bety brakuje przebiegu, nie kodu.** Warunki `0.3.x` to półka właściciela,
-  korpus publiczny i fuzzing kontenera przechodzące po każdym wydaniu, z wynikiem
-  zapisanym. Kod jest; przebieg na pełnej półce jeszcze nie.
+- **Alpha.** Wersja `0.2.x` **jest** alfą: zakres funkcji jest ustalony,
+  a poprawność sprawdzana na prawdziwych książkach, nie tylko na atrapach.
+- **Do bety brakuje przebiegów, nie kodu.** Warunkiem `0.3.x` jest prywatna
+  półka, korpus publiczny i fuzzing kontenera przechodzące po każdym wydaniu,
+  z zapisanym wynikiem.
 - **Tryb ścisły potrafi odmówić wydania pliku.** Pyta EPUBCheck *zanim* plik
   trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje za niepoprawne —
   również wtedy, gdy defekt przyszedł razem z książką. Zmierzone na całym
@@ -236,15 +243,13 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   metadanych i komunikaty samego EPUBCheck-a.
 - **Cała książka trafia do pamięci.** Program **liczy to przed startem** —
   z katalogu ZIP-a, bez rozpakowywania — i odmawia, zamiast dać się zabić jądru
-  w połowie roboty. Na 32 książkach półki najdroższa wychodzi na 104 MiB, więc
-  jest to zabezpieczenie na przypadek patologiczny, a nie próg, który komuś
-  wejdzie w drogę. Wyłączalne, z własnym polem budżetu.
+  w połowie roboty. Zmierzone na prawdziwych książkach: najdroższa wychodzi na
+  104 MiB, więc jest to zabezpieczenie na przypadek patologiczny, a nie próg,
+  który komuś wejdzie w drogę. Wyłączalne, z własnym polem budżetu.
 
 ## Jak to jest sprawdzane
 
-Ponad **2700 testów**, z czego kilkadziesiąt pomija się tam, gdzie nie ma czym
-ich wykonać — bez Javy, bez silnika do rysowania albo bez słowników — i
-**mówią, dlaczego**. Pięć niezależnych siatek bezpieczeństwa:
+Pięć niezależnych siatek bezpieczeństwa, poza zwykłymi testami jednostkowymi:
 
 - **niezmiennik K1** — cały tekst źródła musi być w wyniku, w tej samej
   kolejności;
@@ -256,7 +261,7 @@ ich wykonać — bez Javy, bez silnika do rysowania albo bez słowników — i
   pojedynczego egzemplarza, wartości albo krawędzi;
 - **korpus publiczny** — sześć prawdziwych książek z Projektu Gutenberga
   i trzynaście syntetycznych, z zapisanymi sygnaturami; zmiana wyniku przebudowy
-  wywala test u każdego, nie tylko u autora;
+  wywala test u każdego, kto go uruchomi;
 - **brak strat funkcjonalnych** — każde ustawienie musi być osiągalne z okna albo
   z wiersza poleceń, każde pole wyboru w oknie musi coś ustawiać, a każda reguła
   raportu musi mieć wpis w obu językach.
@@ -266,12 +271,13 @@ pytest -q                    # cała suita
 python tools/jak-ci.py       # to samo w warunkach maszyny budującej wydanie
 ```
 
-Drugie polecenie chowa to, czego maszyna budująca nie ma na etapie testów.
-Powstało po tym, jak wydanie padło na dwóch testach przechodzących lokalnie:
-suita mierzyła maszynę, a nie program.
+Drugie polecenie chowa to, czego maszyna budująca nie ma na etapie testów —
+suita, która mierzy maszynę zamiast programu, przechodzi lokalnie i pada
+w wydaniu.
 
-42 testy rysują strony prawdziwą przeglądarką i **pomijają się domyślnie** —
-mierzą silnik, nie ten program. Wskaż silnik jawnie, żeby je wykonać:
+Testy wymagające Javy, silnika do rysowania albo słowników **pomijają się
+domyślnie i mówią, dlaczego**: bez nich mierzyłyby maszynę. Żeby wykonać te,
+które rysują strony:
 
 ```bash
 EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME, jeśli trzeba

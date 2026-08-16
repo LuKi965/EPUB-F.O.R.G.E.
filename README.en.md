@@ -62,7 +62,9 @@ and describe it than remove it and change how the book looks.
 Collected at the top, because it is the quickest way to find out whether it is
 for you at all:
 
-- **it does not remove DRM**, and it will not;
+- **it does not remove DRM**, and it will not — the author does not condone
+  piracy, and this tool exists solely to adapt **legally purchased** books to
+  one's own devices;
 - **it does not convert from PDF, MOBI or Word** — a different job, deliberately
   out of scope;
 - **it removes nothing without a question or a switch.** Anything this program
@@ -181,13 +183,18 @@ no business looking like a clean book.
 
 ### Watermarks
 
+> **Disclaimer.** The author of this tool does not condone piracy. The program
+> does not remove DRM and is not a means of circumventing protection. It exists
+> to adapt **legally purchased** books to one's own devices, and assumes the
+> user is entitled to the files they hand it.
+
 Hidden shop markers are **tidied rather than removed** by default: repeated
-inline styles become one rule and the token itself stays. Visible sentences — an
-order number, the buyer's name — are **kept** by default, and since 0.2.28 can
-be removed with a switch, with the full list of what went. That reverses an
-earlier rule and does so deliberately: these are legally bought books, and such
-a sentence can sit in the running text directly in front of a novel's first
-sentence.
+inline styles become one rule and the token itself stays.
+
+Visible sentences — an order number, the buyer's details — are **kept** by
+default. A switch removes them, with the full list of what went, word for word.
+Such an insert can sit in the running text directly in front of a novel's first
+sentence, or add a page of its own.
 
 A publisher's colophon — address, telephone, ISBN — is **not** a watermark and
 is never touched. That distinction is what the feature stands or falls on.
@@ -210,11 +217,11 @@ first half is not a word, so no such compound exists. `savoir-vivre` and
 
 Things worth knowing before rather than after:
 
-- **Alpha.** `0.2.x` **is** alpha: the feature set is settled and correctness is
-  checked against 93 real books.
-- **Beta needs a run, not code.** The `0.3.x` conditions are the owner's shelf,
-  the public corpus and container fuzzing passing after every release, with the
-  result recorded. The code is there; the run over the full shelf is not.
+- **Alpha.** `0.2.x` **is** alpha: the feature set is settled, and correctness
+  is checked against real books rather than fixtures alone.
+- **Beta needs runs, not code.** `0.3.x` requires a private shelf, the public
+  corpus and container fuzzing to pass after every release, with the result
+  recorded.
 - **Strict mode can refuse to produce a file.** It asks EPUBCheck *before* the
   file takes its name and will not publish something the validator calls invalid
   — including when the defect arrived with the book. Measured over the whole
@@ -239,15 +246,13 @@ Things worth knowing before rather than after:
   metadata values and EPUBCheck's own messages.
 - **The whole book goes into memory.** The program **works this out before it
   starts** — from the ZIP directory, without unpacking — and refuses rather than
-  being killed by the kernel halfway. Across 32 books of the shelf the dearest
-  comes to 104 MiB, so this guards a pathological case rather than getting in
+  being killed by the kernel halfway. Measured on real books, the dearest comes
+  to 104 MiB, so this guards a pathological case rather than getting in
   anybody's way. Switchable, with its own budget field.
 
 ## How it is checked
 
-Over **2700 tests**, a few dozen of which skip where there is nothing to run
-them against — no Java, no drawing engine, no dictionaries — and **say why**.
-Five independent safety nets:
+Five independent safety nets, on top of the ordinary unit tests:
 
 - **the K1 invariant** — all of the source's text must be in the output, in the
   same order;
@@ -259,7 +264,7 @@ Five independent safety nets:
   a single item, value or edge;
 - **the public corpus** — six real Project Gutenberg books and thirteen
   synthetic ones, with recorded signatures; a change to any rebuild fails the
-  test for everybody, not just for the author;
+  test for anybody who runs it;
 - **no functional loss** — every setting must be reachable from the window or
   the command line, every checkbox in the window must set something, and every
   report rule must have an entry in both languages.
@@ -269,12 +274,13 @@ pytest -q                    # the whole suite
 python tools/jak-ci.py       # the same, under the release machine's conditions
 ```
 
-The second hides what the release machine does not have while it runs tests. It
-exists because a release failed on two tests that passed locally: the suite was
-measuring the machine rather than the program.
+The second hides what the release machine does not have while it runs tests — a
+suite that measures the machine rather than the program passes locally and fails
+the release.
 
-42 tests draw pages with a real browser and **skip by default** — they measure
-the engine, not this program. Name an engine to run them:
+Tests needing Java, the drawing engine or dictionaries **skip by default and say
+why**: without them they would be measuring the machine. To run the ones that
+draw pages:
 
 ```bash
 EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME if needed
