@@ -132,6 +132,8 @@ CATALOGUE: dict[str, str] = {
     "xhtml.remote-import-removed": "{count} @import rule(s) fetching a stylesheet over the network were removed from a style element",
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
+    "xhtml.forbidden-characters-removed": "{count} control character(s) that XML cannot represent were removed from this document",
+    "package.forbidden-characters-removed": "control characters that XML cannot represent were removed from: {fields}",
     "xhtml.shop-notice-removed": "{count} shop notice(s) were removed from {documents} document(s), by request: {removed}",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
     "css.invalid-value-inherited": "{count} declaration(s) using the invalid value 'regular' were left alone, because this stylesheet also sets italic or bold",
@@ -409,6 +411,8 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.remote-import-removed': 'usunięto z elementu <style> {count} {count:regułę @import pobierającą arkusz stylów z sieci|reguły @import pobierające arkusz stylów z sieci|reguł @import pobierających arkusz stylów z sieci}',
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
+    'xhtml.forbidden-characters-removed': 'usunięto z tego dokumentu {count} {count:znak sterujący, którego|znaki sterujące, których|znaków sterujących, których} XML nie potrafi zapisać',
+    'package.forbidden-characters-removed': 'usunięto znaki sterujące, których XML nie potrafi zapisać, z pól: {fields}',
     'xhtml.shop-notice-removed': 'usunięto na życzenie {count} {count:zdanie księgarni|zdania księgarni|zdań księgarni} z {documents} {documents:dokumentu|dokumentów|dokumentów}: {removed}',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
     'css.invalid-value-inherited': 'zostawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”, bo ten arkusz ustawia też kursywę albo pogrubienie',
@@ -610,6 +614,10 @@ DETAILS: dict[str, str] = {
         "Known profiles: {known}.",
     "css.font-stack-generic-missing":
         "e.g. {examples} — inherited from the source and left as-is, since guessing serif vs sans-serif could change how the book looks.",
+    "xhtml.forbidden-characters-removed":
+        "The worse half of the same defect: a control character in a title spoils the package, one in a chapter spoils the text of the book. It arrives from the source — a damaged file recovered by the parser keeps it — and was written back out into a document nothing can open. Only the impossible characters go; every letter, digit and mark of punctuation stays, so no character of the book's own text is lost.",
+    "package.forbidden-characters-removed":
+        "Not a matter of escaping: XML 1.0 has no representation for these characters at all, so a package document carrying one does not parse and the book does not open. Measured before this existed: a title carrying 0x0B produced a written, unopenable book in the default mode. Only the offending characters go; every other character of the field is kept.",
     "xhtml.shop-notice-removed":
         "Listed word for word rather than counted, because this is the only setting in the program that deletes text a reader can see. Only sentences naming the sale are taken — an order, a purchase, a licence, a buyer. A publisher's colophon names the publisher rather than the transaction and is never touched, and no page is ever removed: an element left empty stays, and the balance reports it.",
     "css.invalid-value-corrected":
@@ -923,6 +931,10 @@ DETAILS_PL: dict[str, str] = {
         "Zadeklarowanie którejś z nich bez odpowiadających jej znaczników jest samo w sobie błędem zgodności i EPUBCheck zgłasza to wobec źródła.",
     "css.vendor-at-rule-kept":
         "Użyj --strict, żeby je usunąć.",
+    "xhtml.forbidden-characters-removed":
+        "Gorsza połowa tej samej usterki: znak sterujący w tytule psuje pakiet, a w rozdziale psuje tekst książki. Przychodzi ze źródła — uszkodzony plik odzyskany przez parser go zachowuje — i był zapisywany z powrotem do dokumentu, którego nic nie otworzy. Znika wyłącznie znak niemożliwy do zapisania; każda litera, cyfra i znak przestankowy zostają, więc żaden znak własnego tekstu książki nie ginie.",
+    "package.forbidden-characters-removed":
+        "To nie jest kwestia escapowania: XML 1.0 w ogóle nie ma zapisu dla tych znaków, więc dokument pakietu, który je niesie, nie parsuje się i książka się nie otwiera. Zmierzone, zanim to powstało: tytuł ze znakiem 0x0B dawał zapisaną, nieotwieralną książkę w trybie domyślnym. Znika wyłącznie znak sterujący; każdy inny znak pola zostaje.",
     "xhtml.shop-notice-removed":
         "Wypisane co do słowa, a nie policzone, bo to jedyne ustawienie w programie, które kasuje tekst widoczny dla czytelnika. Zabierane są wyłącznie zdania nazywające sprzedaż — zamówienie, zakup, licencję, kupującego. Stopka redakcyjna wydawcy nazywa wydawcę, a nie transakcję, i nie jest ruszana; żadna strona nie jest usuwana — element, który zostanie pusty, zostaje, a bilans to zgłasza.",
     "css.invalid-value-corrected":

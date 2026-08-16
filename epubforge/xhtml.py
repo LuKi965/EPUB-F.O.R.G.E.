@@ -629,8 +629,46 @@ def _with_default_namespace(root):
     return rebuilt
 
 
+#: Characters XML 1.0 cannot represent. The same set the package writer uses
+#: (`writer._XML_FORBIDDEN`) and here for the same reason, found by the same
+#: fuzz run: a document carrying one of these is written and does not parse, so
+#: the chapter does not open.
+#:
+#: This half is the worse of the two. A control character in a title spoils the
+#: package; a control character in a chapter spoils the text of the book, and it
+#: arrives from the source — a damaged file recovered by the parser keeps it, and
+#: the rebuild writes it back out faithfully into a document nothing can read.
+_XML_FORBIDDEN = re.compile(
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff￾￿]"
+)
+
+
+def forbidden_characters(root) -> int:
+    """How many characters of *root*'s text XML cannot carry."""
+    found = 0
+    for element in iter_elements(root):
+        for value in (element.text, element.tail):
+            if value:
+                found += len(_XML_FORBIDDEN.findall(value))
+    return found
+
+
+def _drop_forbidden(root) -> None:
+    """Take those characters out, leaving every other character in place."""
+    for element in iter_elements(root):
+        if element.text and _XML_FORBIDDEN.search(element.text):
+            element.text = _XML_FORBIDDEN.sub("", element.text)
+        if element.tail and _XML_FORBIDDEN.search(element.tail):
+            element.tail = _XML_FORBIDDEN.sub("", element.tail)
+
+
 def serialize(root) -> bytes:
     """Emit well-formed XHTML 5 with a stable namespace declaration set."""
+    # Before anything else, because everything after this assumes the tree can
+    # be written. K1 says no character of the book's text is lost, and these are
+    # not characters of the text: XML has no way to carry them, so the choice is
+    # between a document without them and a document nobody can open.
+    _drop_forbidden(root)
     for element in iter_elements(root):
         if (
             local_name(element).lower() in _NEVER_SELF_CLOSE

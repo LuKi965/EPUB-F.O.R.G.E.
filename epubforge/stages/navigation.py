@@ -36,7 +36,27 @@ COVER_PAGE_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def _escape(value: str) -> str:
-    return html.escape(value or "", quote=True)
+    """Escape for XML, over text XML is able to represent.
+
+    The second half is not decoration. The navigation document and the NCX are
+    *generated*, so they carry whatever the metadata says, and a title carrying a
+    control character produced two written, unopenable files — measured on the
+    default preset, reported as `succeeded`. There is no escape sequence for
+    these characters; XML 1.0 simply has no way to hold them, so they go.
+
+    The same set as `writer._XML_FORBIDDEN` and `xhtml._XML_FORBIDDEN`. Three
+    copies of one regular expression is two too many, and it is written this way
+    on purpose: `navigation` importing from `writer` would tie a stage to the
+    thing that runs after every stage. The set is fixed by the XML
+    specification, so it cannot drift the way a shared judgement would.
+    """
+    return html.escape(_XML_FORBIDDEN.sub("", value or ""), quote=True)
+
+
+#: See `_escape`. Characters XML 1.0 cannot represent at all.
+_XML_FORBIDDEN = re.compile(
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff￾￿]"
+)
 
 
 #: What the generated navigation calls its own sections, by language.

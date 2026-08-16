@@ -715,6 +715,18 @@ class ContentStage(Stage):
                 for element in xhtml.iter_elements(root)
                 if element.get("id")
             }
+            # Counted before serialising, because serialising is what removes
+            # them. Never silent: this is the book's own text, and a character
+            # leaving it is the reader's information rather than their surprise.
+            impossible = xhtml.forbidden_characters(root)
+            if impossible:
+                self.note(
+                    ctx,
+                    Level.FIX,
+                    "xhtml.forbidden-characters-removed",
+                    values={"count": impossible},
+                    location=resource.path,
+                )
             resource.data = xhtml.serialize(root)
 
         self._report_entities(ctx, expanded_entities, refused_entities)
