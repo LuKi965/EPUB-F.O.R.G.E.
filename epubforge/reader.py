@@ -681,7 +681,8 @@ def _parse_metadata(package, report: Report) -> Metadata:
                     metadata.sort_title = sort_as
         elif tag in ("creator", "contributor") and value:
             default_role = "aut" if tag == "creator" else "ctb"
-            role = refinement(child, "role") or attr(child, "role", OPF_NS) or default_role
+            stated_role = refinement(child, "role") or attr(child, "role", OPF_NS)
+            role = stated_role or default_role
             file_as = refinement(child, "file-as") or attr(child, "file-as", OPF_NS)
             metadata.creators.append(
                 Creator(
@@ -692,11 +693,20 @@ def _parse_metadata(package, report: Report) -> Metadata:
                     direction=(child.get("dir") or "").strip().lower() or None,
                     alternate_scripts=alternate_scripts(child),
                     source_id=(child.get("id") or "").strip() or None,
+                    role_declared=bool(stated_role),
+                    file_as_declared=bool(file_as),
                 )
             )
         elif tag == "identifier" and value:
             scheme = refines.get(child.get("id", ""), {}).get("identifier-type") or attr(child, "scheme", OPF_NS)
-            metadata.identifiers.append(Identifier(value, scheme, primary=False))
+            metadata.identifiers.append(
+                Identifier(
+                    value,
+                    scheme,
+                    primary=False,
+                    source_id=(child.get("id") or "").strip() or None,
+                )
+            )
         elif tag == "language" and value:
             if metadata.language is None:
                 metadata.language = value

@@ -17,7 +17,7 @@ from xml.sax.saxutils import escape, quoteattr
 
 from . import compat, paths
 from .model import Book, CollectionMembership
-from .report import Level, Report
+from .report import Action, Level, Report
 
 #: A metadata refinement has to name a manifest id, and the manifest is written
 #: after the metadata. The path goes in between these markers and is swapped for
@@ -327,26 +327,44 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
 
     # --- metadata -----------------------------------------------------------
     lines.append('  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">')
-    if identifier:
-        lines.append(f"    {_element('dc:identifier', identifier.value, id='pub-id')}")
-        if identifier.scheme:
-            code, vocabulary = _identifier_type(identifier)
+    # One pass over the identifiers, and one place that decides each one's id.
+    #
+    # EF-025: there used to be two passes over two different sets. The elements
+    # were numbered over the **non-primary** identifiers and the id map over
+    # **all** of them, so a book with three identifiers wrote its third as
+    # `id-1` while every refinement aimed at it said `id-2`. A refinement whose
+    # target does not exist is not a preserved statement, it is an invalid one
+    # — which is F-011's sentence, and this was the same defect one level down.
+    # Two numberings of one thing will always eventually disagree; the repair is
+    # that there is now one.
+    #
+    # And `identifier-type` is written for **every** identifier that declares a
+    # scheme, not only for the primary one. An ISBN whose number survives while
+    # the statement that it is an ISBN does not has lost the half that a shop
+    # reads.
+    renamed_ids: dict[str, str] = {}
+    identifier_ids: dict[int, str] = {}
+    extra_index = 0
+    for position, entry in enumerate(metadata.identifiers):
+        if entry.primary:
+            node_id = "pub-id"
+        else:
+            node_id = f"id-{extra_index}"
+            extra_index += 1
+        identifier_ids[position] = node_id
+        source_id = getattr(entry, "source_id", None)
+        if source_id:
+            renamed_ids[source_id] = node_id
+
+    for position, entry in enumerate(metadata.identifiers):
+        node_id = identifier_ids[position]
+        lines.append(f"    {_element('dc:identifier', entry.value, id=node_id)}")
+        if entry.scheme:
+            code, vocabulary = _identifier_type(entry)
             lines.append(
-                f'    <meta refines="#pub-id" property="identifier-type" '
+                f'    <meta refines="#{node_id}" property="identifier-type" '
                 f'scheme="{vocabulary}">{escape(code)}</meta>'
             )
-    for index, extra in enumerate(i for i in metadata.identifiers if not i.primary):
-        lines.append(f"    {_element('dc:identifier', extra.value, id=f'id-{index}')}")
-
-    # Source id → the id this document gives that node, so a refinement the
-    # model does not understand can be carried and still refine the right
-    # thing. F-011: a refinement whose target does not exist is not a preserved
-    # statement, it is an invalid one.
-    renamed_ids: dict[str, str] = {}
-    for index, identifier in enumerate(metadata.identifiers):
-        source_id = getattr(identifier, "source_id", None)
-        if source_id:
-            renamed_ids[source_id] = "pub-id" if identifier.primary else f"id-{index}"
     for position, source_id in enumerate(metadata.title_ids):
         if not source_id:
             continue
@@ -395,11 +413,40 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         if creator.direction:
             creator_attributes["dir"] = creator.direction
         lines.append(f"    {_element(tag, creator.name, **creator_attributes)}")
+        # EF-035. `role` is written for every creator, and where the source did
+        # not state one the reader supplied a default — `aut` for `dc:creator`,
+        # `ctb` for `dc:contributor`. That default is this program's claim about
+        # the book, not the book's claim about itself, and until now it appeared
+        # in the output with nothing recording that it had been invented.
+        #
+        # Not a bad default: it is the one EPUB 3 itself implies, and dropping
+        # it would make the package poorer. What was wrong is that somebody
+        # comparing two packages could not tell what the book said from what
+        # this program said about the book. Both go in the ledger as `ADDED`,
+        # reversible, no risk to the reading.
+        if not creator.role_declared:
+            report.changed(
+                "writer",
+                Action.ADDED,
+                "metadata_entries",
+                before="",
+                after=f"{creator.name}: role={creator.role}",
+                rule="metadata.role-generated",
+            )
         lines.append(
             f'    <meta refines="#{creator_id}" property="role" '
             f'scheme="marc:relators">{escape(creator.role)}</meta>'
         )
         if creator.file_as:
+            if not creator.file_as_declared:
+                report.changed(
+                    "writer",
+                    Action.ADDED,
+                    "metadata_entries",
+                    before="",
+                    after=f"{creator.name}: file-as={creator.file_as}",
+                    rule="metadata.file-as-generated",
+                )
             lines.append(
                 f'    <meta refines="#{creator_id}" property="file-as">{escape(creator.file_as)}</meta>'
             )

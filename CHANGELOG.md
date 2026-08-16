@@ -38,6 +38,40 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Każdy identyfikator wychodzi ze schematem, z którym wszedł
+
+WP-9. Trzy defekty w jednym kawałku writera, widoczne dopiero na książce, która
+niesie **więcej niż jeden** identyfikator — czyli nigdy na fixture'ach, bo każdy
+miał jeden.
+
+**`identifier-type` tylko dla identyfikatora głównego.** ISBN zadeklarowany jako
+`opf:scheme="ISBN"` wychodził jako goły `dc:identifier`: numer przeżywał,
+stwierdzenie, że *to jest ISBN*, nie. Teraz pisane dla każdego, który deklaruje
+schemat.
+
+**Dwa numerowania jednej rzeczy.** Elementy numerowane po identyfikatorach
+*niegłównych*, mapa identyfikatorów po *wszystkich* — więc trzeci element
+wychodził jako `id-1`, a refinement celujący w niego mówił `id-2`. Refinement
+bez celu to nie jest zachowane stwierdzenie, to jest niepoprawne. Zostało jedno
+numerowanie.
+
+**`Identifier` nie miał pola `source_id`,** a writer pytał o nie przez
+`getattr(identifier, "source_id", None)` — co odpowiada `None` na zawsze i
+czyta się jak ostrożność. Więc żadnego refinementu przy identyfikatorze nie dało
+się przekierować: `<meta refines="#sklep" property="display-seq">` przy
+identyfikatorze sklepowym był raportowany jako *wskazujący węzeł, który nie
+przetrwał* i **kasowany, na każdej książce, która go miała**.
+
+**`file-as` i `role` w rejestrze zmian.** Gdy źródło ich nie podało, uzupełnia je
+ten program — i to jest jego twierdzenie o książce, nie twierdzenie książki o
+sobie. Domyślne są dobre i zostają; nowe jest to, że wychodzą jako `ADDED`
+w rejestrze, więc porównując dwa pakiety da się odróżnić jedno od drugiego.
+
+Zmierzone na korpusie publicznym: jedna książka zmieniła wynik i zmiana jest
+czystym zyskiem — doszedł `identifier-type` przy ISBN-ie, nic nie ubyło, zero
+refinementów bez celu.
+
+
 ### Okładka rozpoznawana po manifeście, i reguła, która wreszcie działa
 
 WP-8. Trzy ustalenia, które okazały się jednym błędem popełnionym w dwóch

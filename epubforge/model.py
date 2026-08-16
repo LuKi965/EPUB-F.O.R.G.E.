@@ -362,6 +362,15 @@ class Creator:
     #: become the role. Caught while writing it; worth a line so the next
     #: addition goes at the end too.
     source_id: str | None = None
+    #: Whether the source stated the role itself, or the reader supplied a
+    #: default. Both come out of `role`; only the first is the book's own claim.
+    #:
+    #: EF-035: without this the writer had no way to tell them apart, so a
+    #: `role` this program invented was indistinguishable in the output from
+    #: one the publisher wrote. Same for `file_as`. Appended at the end for the
+    #: reason two fields up.
+    role_declared: bool = False
+    file_as_declared: bool = False
 
 
 @dataclass
@@ -370,6 +379,17 @@ class Identifier:
     scheme: str | None = None
     #: Exactly one identifier is the package's ``unique-identifier``.
     primary: bool = False
+    #: The ``id`` this identifier carried in the source package, so a
+    #: refinement this model has no field for can be carried and still point at
+    #: the right node.
+    #:
+    #: EF-025: this field did not exist, and the writer asked for it with
+    #: ``getattr(identifier, "source_id", None)`` — which answers `None`
+    #: forever and reads as careful. So no identifier's refinements could ever
+    #: be re-pointed: `<meta refines="#sklep" property="display-seq">` on a
+    #: vendor identifier was reported as *referring to a node that did not
+    #: survive* and dropped, on every book that had one.
+    source_id: str | None = None
 
 
 @dataclass

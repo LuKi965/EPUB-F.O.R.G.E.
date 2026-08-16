@@ -17,7 +17,7 @@
       "profile.body-text-found": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:4c917ffff56ce20b931f74c2f10e697530974b2d983160962c02eb7a520492cd",
+    "output": "sha256:f90d18320768399bbcdfc64a8fb8ce072efce8f9b18a56e70b63011b4017fc11",
     "text_characters": 14,
     "text_added": 0,
     "text_invariant": true,
@@ -38,7 +38,7 @@
       "profile.body-text-found": 1,
       "structure.relaid-out": 1
     },
-    "output": "sha256:33d326defddd53e9a8a440a90f839d8dc4226aca0f0afbdae7611f2414cb482d",
+    "output": "sha256:fc9c590d18fd101589de48a975b27694dde6d93d12d962fde32d4383be836bca",
     "text_characters": 14,
     "text_added": 0,
     "text_invariant": true,
@@ -60,7 +60,7 @@
       "profile.body-text-found": 1,
       "structure.relaid-out": 1
     },
-    "output": "sha256:33d326defddd53e9a8a440a90f839d8dc4226aca0f0afbdae7611f2414cb482d",
+    "output": "sha256:fc9c590d18fd101589de48a975b27694dde6d93d12d962fde32d4383be836bca",
     "text_characters": 14,
     "text_added": 0,
     "text_invariant": true,
