@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.24` · alpha · 2330 tests · **Windows**
+`0.2.25` · alpha · 2435 tests · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -192,7 +192,7 @@ Things worth knowing before rather than after:
 
 ## How it is checked
 
-2330 tests, including three independent safety nets:
+2435 tests, including four independent safety nets:
 
 - **a semantic oracle** — reads the package as a graph and catches the loss of a
   single instance, value or edge;
@@ -200,7 +200,11 @@ Things worth knowing before rather than after:
   ones with recorded signatures, so a change in what the rebuild produces fails
   for everybody rather than only for the author;
 - **the K1 invariant** — all of the source's text must be in the output, in
-  order.
+  order;
+- **an input→output balance** — from 0.2.25: what went in, what came out, and
+  whether the change ledger accounts for the difference. K1 watches the text;
+  this watches everything else — an image that quietly disappears takes not one
+  letter with it, and is therefore invisible to K1.
 
 ```bash
 pytest -q

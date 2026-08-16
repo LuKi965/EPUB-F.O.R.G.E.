@@ -38,6 +38,180 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.2.25 — alpha — 2026-08-16
+
+The release that came out of pointing the program at the owner's own library and
+reading what it said, rather than at what the suite said about it.
+
+### At a glance
+
+| what it was | the scale of it |
+| --- | --- |
+| `preserve` adding EPUBCheck errors the source did not have | 12 error shapes across 10 of a 67-book collection, with the suite green throughout |
+| The generated navigation linking outside the reading order | 4 books, all with the cover in `<guide>` and never in the spine — legal EPUB 2, invalid EPUB 3 |
+| `<col>` carried straight under `<table>` | legal in XHTML 1.1, an error in XHTML5, and the rebuild is what moved it |
+| An image renamed under a document that was promised not to be touched | container-only mode, where the two promises collide |
+| A removal with no ledger entry | orphan sweeping deleted a file on a finding alone — found by the new balance within a minute of it existing |
+| Nothing measured what went in against what came out | now a balance across resources, spine and metadata, with a loss nothing explains an error |
+| 189 hyphen candidates with no evidence either way | one question per class carrying the words, instead of 189 questions |
+| The supply-chain smoke test had never actually run | 33.1 MB fetched, pin verified, in 1.2 s |
+
+### New / fixed
+
+**New:** an input→output balance that refuses to let a resource disappear
+without a ledger entry, a grouped review for hyphen candidates the book itself
+does not settle, and `Policy.for_measurement()` for the three paths that rebuild
+into a temporary directory and delete the result. **Fixed:** three ways a rebuild
+turned a conforming EPUB 2 into a non-conforming EPUB 3, all three found in the
+owner's corpus data rather than in the test suite.
+
+### Everything, by subject
+
+#### Three defects the corpus found and the suite could not
+
+The owner supplied two corpus runs — 93 books from his library and 67 from a
+separate collection, each rebuilt in all three modes with EPUBCheck on the source
+and on every output. His own summary carried one line worth chasing:
+
+    1 EPUBCheck error(s) in modes that rewrite content
+
+On the 93 that was a defect carried from the source. On the 67 it was twelve
+error shapes across ten books that the sources did not have — and the suite was
+green the whole time, because the invariant "no mode adds an error" was asserted
+on **one fixture**. That is the difference between a claim and a measurement.
+
+The books themselves are not mine to have, only the error shapes. The shapes
+turned out to be precise enough: each was rebuilt as a fixture, and each was then
+asked the only question that matters — *does this program introduce the error, or
+does it carry markup that EPUB 2 tolerated and EPUB 3 does not?* Five of six were
+carried, one of those five the program already repairs, and three were ours.
+
+**`RSC-011`: the navigation pointing outside the reading order.** Four books,
+and all four had the same shape: an EPUB 2 whose cover page sits in the manifest
+and in `<guide>` and deliberately **not** in the spine. That is ordinary and
+legal there. EPUB 3 does not allow a navigation document to link to anything
+outside the spine, so the generated nav turned a conforming book into an invalid
+one.
+
+The mechanism to handle this already existed — a target outside the spine is
+added back as `linear="no"`, which is exactly what that attribute is for, and
+inserted where the contents put it rather than appended. It walked the table of
+contents alone. Landmarks and the page list are navigation too, and EPUBCheck
+does not distinguish: all three end up in the same document. So the fix is one
+line of input, not a second mechanism standing beside the first.
+
+**`RSC-005`: `<col>` directly under `<table>`.** XHTML 1.1 allows it; XHTML5,
+which is what an EPUB 3 content document is, requires it inside a `<colgroup>`.
+The source validated, the output did not, and the version upgrade is what moved
+it — so it is ours to repair. Consecutive `col` elements move together into one
+group, which is what they meant, and the column widths apply exactly as before.
+
+**`RSC-007`: an image renamed under a document promised not to be touched.** An
+image whose bytes were PNG and whose name and manifest entry said JPEG was
+renamed to match — in container-only mode, whose entire promise is that content
+documents come out byte for byte. A document saying `src="cover.jpg"` cannot be
+left untouched *and* have its target renamed. One of the two promises has to
+give, and it is not going to be the one that mode exists for. The manifest is
+this program's to write, so the declared type is still corrected there; only the
+file keeps its name.
+
+**The invariant moved to where it can fail.** Every book of the public corpus,
+every mode, EPUBCheck on the source and on each output, compared by error
+*shape* rather than count — a rebuild that removes one error and adds a different
+one leaves the count alone. A corpus book carrying both repairable shapes went in
+with it, and the test was then checked the only way a test can be: by reverting
+each fix separately and watching it fail.
+
+One asymmetry is written into it rather than smoothed over. The container-only
+mode is judged on what it writes and nothing else, because an EPUB 2 document
+carrying markup XHTML5 rejects comes out still carrying it — by that mode's own
+promise — and holding it to the same rule as the modes that rewrite documents
+would be demanding that it break that promise.
+
+#### The balance: what went in against what came out
+
+BA-2026-003 asked for a machine-readable account of every high-risk change, and
+0.2.24 delivered a ledger. A ledger answers *what did this rebuild do*. It cannot
+answer *did anything go missing*, because reading it for that means trusting
+every removal to have written itself down — which is trusting the thing under
+suspicion.
+
+The balance runs the other way. It counts the source, counts what is about to be
+written, and requires every category that shrank to be explained by an entry in
+the ledger. Documents, images, fonts, stylesheets, other resources, spine items,
+metadata entries. A resource that vanishes with nothing accounting for it stops
+being a quiet omission and becomes a failed reconciliation, reported as an error
+and carried in the JSON. Report schema 3 → 4.
+
+It found a real one within a minute of existing: **sweeping orphans deleted a
+file on the strength of a finding alone**, with no ledger entry. That switch is
+off by default precisely because the reachability graph behind it is knowingly
+incomplete, which makes it exactly the kind of removal the ledger is for.
+
+What it deliberately does not do is balance every element of every document. A
+rebuild rewrites markup by design, and a count of `<div>`s in against `<div>`s
+out would fail on every book while saying nothing about whether a reader lost
+anything.
+
+The test that matters is the one that injects a stage which drops an
+**unreferenced image**. A dropped document is already caught by K1, which sees
+the characters go; a dropped *referenced* image is caught by the invariant gate,
+which sees the dangling reference. An unreferenced image trips neither: no text
+goes, nothing dangles, the book validates. It is the quietest possible loss,
+which makes it the right one to hold a balance to — and it is the owner's own
+rule, twice stated, that losing an ornament is damage to the book too.
+
+#### One question instead of a hundred and eighty-nine
+
+BA-2026-001's remaining half. The detector asks about a hyphenated word when the
+book itself settles it — writes the same word without a hyphen somewhere else.
+Measured across 32 books: 67 like that, against 101 "likely" and 88 "uncertain",
+and reading those two lists nearly every entry is a real compound —
+`marksizm-leninizm`, `savoir-vivre`, `ping-pong`.
+
+Asking about all 189 is a queue nobody finishes, and that over-eagerness is what
+the finding warned about. Dropping them silently is the other failure: some of
+them are real breaks. So the weaker classes are now one question apiece, carrying
+the words themselves — because "101 words might be broken" is not something a
+person can answer and "these 101 words" is. `confirmed` remains the default and
+behaves exactly as 0.2.24 did; `each` goes through them one at a time for
+somebody who wants to.
+
+#### A regression the owner's data caught before he did
+
+0.2.24 made a missing browser mean "do not write" under the default gate. His
+corpus run reported `render.cannot-run` on all 93 books, because his machine has
+no browser — and the survey, the fidelity harness and `render-check` all rebuild
+a book into a temporary directory to measure it and then delete it.
+
+A survey of his library would have come back as 93 refusals and no measurements.
+A tool that refuses to look at a library because it cannot verify an output it is
+about to delete is a tool nobody can run. `Policy.for_measurement()` names that
+situation once — gates off, output discarded — instead of the same four overrides
+copied into four places, which is how many copies of a rule there should never
+be.
+
+#### The supply chain, actually exercised
+
+The EPUBCheck download test has existed since 0.2.24 behind
+`EPUBFORGE_NETWORK_TESTS=1` and had never been run. It has now: **33.1 MB from
+the official release URL in 1.2 s, matching the pinned SHA-256 and size**, and
+the corroborating comparison against Maven Central's signed jar passes entry by
+entry. A pin nobody has ever checked against the thing it pins is a comment.
+
+#### Benchmarks, on three sizes
+
+| book | time | peak RSS | resident afterwards |
+| --- | ---: | ---: | ---: |
+| small synthetic | 0.0 s | 36 MiB | 36 MiB |
+| 1.6 MB purchased | 0.8 s | 48 MiB | 45 MiB |
+| 2.6 MB purchased | 1.8 s | 61 MiB | 56 MiB |
+| 108 MB of text, 601 documents | 39.2 s | 547 MiB | 142 MiB |
+
+The last column is `memory.release()` from 0.2.24 doing its job: without it that
+row ends at 462 MiB resident, none of which is live objects.
+
+
 ## 0.2.24 — alpha — 2026-08-15 — kamień milowy [WP-1] [WP-2] [WP-3]
 
 An external audit read this program on 2026-08-14 and left fifteen findings

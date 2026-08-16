@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.2.24` · alpha · 2330 testów · **Windows**
+`0.2.25` · alpha · 2435 testów · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -198,7 +198,7 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 ## Jak to jest sprawdzane
 
-2330 testów, w tym trzy niezależne siatki bezpieczeństwa:
+2435 testów, w tym cztery niezależne siatki bezpieczeństwa:
 
 - **wyrocznia semantyczna** — czyta pakiet jako graf i wykrywa utratę
   pojedynczego egzemplarza, wartości albo krawędzi;
@@ -206,7 +206,11 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   i dziewięć syntetycznych, z zapisanymi sygnaturami; zmiana wyniku przebudowy
   wywala test u każdego, nie tylko u autora;
 - **niezmiennik K1** — cały tekst źródła musi być w wyniku, w tej samej
-  kolejności.
+  kolejności;
+- **bilans wejście→wyjście** — od 0.2.25: co weszło, co wyszło, i czy różnicę
+  tłumaczy wpis w bilansie zmian. K1 pilnuje tekstu, a to pilnuje wszystkiego
+  innego — obrazek, który zniknął po cichu, nie zabiera ze sobą ani jednej
+  litery i przez to jest niewidoczny dla K1.
 
 ```bash
 pytest -q
