@@ -117,3 +117,57 @@ class TestItStillSaysWhatTheProgramWillNotDo:
     def test_and_that_nothing_is_removed_without_asking(self):
         assert "do odznaczenia" in POLISH
         assert "optional to untick" in ENGLISH
+
+
+class TestADocstringIsNotASecondPlaceToDecidePolicy:
+    """EF-037, i luka znaleziona przez drugi audyt.
+
+    Ustalenie było takie: docstring `render_fidelity` mówił „opt-in check",
+    a domyślna polityka mówiła `stop`. Zdanie poprawiono i na tym stanęło —
+    **bez testu**. Czyli naprawiono jedno wystąpienie choroby i zostawiono
+    warunki, w których wraca: zmiana domyślnej wartości w `policy.py` nie
+    rusza nic w module obok, a rozjazd znowu zobaczy dopiero czytelnik.
+
+    Ten sam docstring kończy się zdaniem *„a docstring is not a second place to
+    decide policy"*. Test jest tym zdaniem powiedzianym maszynie.
+
+    Sprawdzane są dwie rzeczy, obie wyprowadzone z `Policy`, żadna wpisana
+    z palca: że domyślna wartość **pada w tekście** i że tekst nie twierdzi
+    czegoś przeciwnego do tego, co ta wartość znaczy.
+    """
+
+    @staticmethod
+    def _docstring() -> str:
+        from epubforge import render_fidelity
+
+        return (render_fidelity.__doc__ or "").lower()
+
+    @staticmethod
+    def _default() -> str:
+        from epubforge.policy import Policy
+
+        return Policy().render_gate
+
+    def test_the_default_is_the_one_the_finding_settled_on(self):
+        """Kotwica dla dwóch testów niżej. Gdyby D-016 kiedyś odwrócono,
+        mają się posypać razem, a nie cicho zmienić przedmiot."""
+        assert self._default() == "stop"
+
+    def test_the_docstring_names_the_default(self):
+        assert self._default() in self._docstring(), (
+            f"domyślne `render_gate` to {self._default()!r}, a moduł, który tę "
+            "bramę tłumaczy, tej wartości nie wymienia"
+        )
+
+    def test_and_does_not_call_a_refusing_gate_optional(self):
+        """Rdzeń ustalenia. `stop` i `report` to nie są dwa odcienie tego
+        samego: pierwszy odmawia zapisu, drugi wypisuje uwagę i zapisuje.
+        Nazwanie pierwszego „opt-in" jest fałszem o tym, co zrobi program
+        komuś, kto niczego nie ustawiał."""
+        tekst = self._docstring()
+        if self._default() != "stop":
+            pytest.skip("brama nie odmawia domyślnie — to zdanie nie kłamie")
+        for zdanie in ("it is an opt-in check", "this check is opt-in"):
+            assert zdanie not in tekst, (
+                f"docstring mówi {zdanie!r} przy domyślnym {self._default()!r}"
+            )

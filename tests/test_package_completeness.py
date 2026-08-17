@@ -175,6 +175,32 @@ def test_the_deliberate_list_has_no_dead_entries(kitchen_sink, tmp_path):
     assert not stale, f"listed as dropped but never present in the fixture: {sorted(stale)}"
 
 
+def test_the_defect_list_has_no_dead_entries_either(kitchen_sink):
+    """Ta sama zasada, drugi wykaz — i to jest luka z drugiego audytu (EF-046).
+
+    Sprawdzenie „wpis o czymś, czego fixture nigdy nie miał, jest notatką
+    o niczym" istniało **wyłącznie** dla `DROPPED_ON_PURPOSE`. Wykaz otwartych
+    defektów nie miał go wcale, więc `bindings` dało się wyciąć z fixture'u
+    i cała suita kompletności zostawała zielona: 32 przechodzi, 1 pominięty.
+    Odtworzone u siebie co do joty — po wycięciu **33 przechodzi**.
+
+    Znaczyło to, że naprawa EF-046 nie miała strażnika. Całe to ustalenie mówi:
+    *konstrukcja, której fixture nie zawiera, jest dla tego testu niewidzialna,
+    a to jest gorsze niż konstrukcja nieobsługiwana* — i dokładnie ten stan dało
+    się przywrócić jednym skasowaniem, którego nic nie zauważało.
+
+    Asymetria brała się stąd, że kontrola powstała przy EF-047, czyli przy
+    martwym wpisie w **tamtym** wykazie. Zasada była ogólna, zastosowanie —
+    jednostkowe.
+    """
+    present = constructs(kitchen_sink)
+    stale = [name for name in STILL_BROKEN if name not in present]
+    assert not stale, (
+        "wpisane jako otwarty defekt, ale fixture tego nie zawiera, więc nikt "
+        f"nigdy nie zobaczy, że wróciło: {sorted(stale)}"
+    )
+
+
 # --------------------------------------------------- the specific losses found
 class TestConstructsThatUsedToVanish:
     """Named individually so a regression says what broke, not just "something"."""

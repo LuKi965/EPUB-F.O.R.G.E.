@@ -142,6 +142,23 @@ was held by a test injecting its own file-losing stage. The real path — the on
 somebody switches on to sweep a book — was never run with an assertion about the
 entry. It is now, along with the entry naming which file went.
 
+### A rule that was applied once instead of everywhere
+
+A second, stricter verification pass found three fixes with nothing holding
+them. The most instructive is a check that already existed: *an entry for
+something the fixture never had is a note about nothing.* It guarded the list
+of deliberate omissions and not the list of open defects — so a construct added
+to the test fixture precisely because its absence made losses invisible could be
+deleted again with the whole completeness suite staying green.
+
+The check came from a finding about a dead entry in the first list. The rule was
+general; the application was not. Both lists have it now.
+
+Two more of the same family: the summary that describes *this* run rather than
+the last recorded one had no test setting the two in conflict, and a docstring
+corrected to match the default policy had nothing keeping it in step if the
+default moved.
+
 ### Smaller
 
 - `meta http-equiv` and `meta content=` are the fifth and sixth shapes of EPUB 2

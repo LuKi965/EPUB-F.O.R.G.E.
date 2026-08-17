@@ -294,7 +294,7 @@ class TestAModeIsJudgedOnWhatItPromised:
         """One book's signature, written where the ledger will look for it."""
         import json
 
-        from epubforge.corpus import Comparison, _log_run
+        from epubforge.corpus import RUNS, Comparison, _log_run
 
         signatures = tmp_path / "expected"
         signatures.mkdir(parents=True, exist_ok=True)
@@ -766,7 +766,7 @@ class TestWhatTheModeCannotReachIsNotItsFault:
     def entry(self, tmp_path, *, minimal_errors, named: bool):
         import json
 
-        from epubforge.corpus import Comparison, _log_run
+        from epubforge.corpus import RUNS, Comparison, _log_run
 
         signatures = tmp_path / "expected"
         signatures.mkdir(parents=True, exist_ok=True)
@@ -873,3 +873,97 @@ class TestTheRedundantGuardIsRedundantOnPurpose:
                 "człon `or ours` w `clean` przestał być nadmiarowy i jest teraz "
                 "jedyną rzeczą, która łapie dołożony błąd"
             )
+
+
+class TestTheSummaryDescribesThisRunAndNotTheLastOne:
+    """EF-051, i luka znaleziona przez **drugi** audyt.
+
+    Naprawa istniała i działała: `Comparison.measured` niesie to, co zmierzył
+    bieżący przebieg, a `summarise` sięga po plik z dysku dopiero wtedy, gdy
+    pomiaru nie ma. Nie istniał natomiast żaden test, który **ustawia sprzeczne
+    dane** i sprawdza, po którą liczbę program sięgnie. Zmiana w tym pliku
+    zrobiona przy tamtym commicie dotyczyła EF-048, nie tego.
+
+    Odtworzone u siebie: słowo `measured` nie padało w całym katalogu testów
+    ani razu.
+
+    Bez tego cofnięcie naprawy — jedna linijka, „czytaj zawsze z dysku" — nie
+    ruszyłoby ani jednego testu, a raport wróciłby do opisywania **poprzedniego
+    zapisu** zdaniem w czasie teraźniejszym. Ta usterka raz już kosztowała pół
+    godziny: przebieg po naprawie EF-045 wypisał starą liczbę i przez chwilę
+    wyglądało to, jakby naprawa nie zadziałała.
+    """
+
+    OLD = {
+        "source_epubcheck": {"errors": 0, "codes": {}},
+        "minimal": {
+            "written": True,
+            "text_invariant": True,
+            "epubcheck": {"errors": 3, "codes": {"RSC-005": 3}},
+        },
+    }
+    NEW = {
+        "source_epubcheck": {"errors": 0, "codes": {}},
+        "minimal": {
+            "written": True,
+            "text_invariant": True,
+            "epubcheck": {"errors": 0, "codes": {}},
+        },
+    }
+
+    @staticmethod
+    def _signatures(tmp_path, recorded: dict):
+        import json
+
+        folder = tmp_path / "expected"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / ("a" * 16 + ".json")).write_text(
+            json.dumps(recorded), encoding="utf-8"
+        )
+        return folder
+
+    def test_a_clean_run_is_not_described_by_a_dirty_signature(self, tmp_path):
+        """Sedno. Na dysku leży zapis sprzed naprawy — trzy błędy. Przebieg,
+        który właśnie się odbył, jest czysty. Zdanie ma opisywać przebieg."""
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = self._signatures(tmp_path, self.OLD)
+        wynik = Comparison("a.epub", "a" * 16, "unchanged", measured=self.NEW)
+        text = summarise([wynik], signatures)
+        assert "RSC-005" not in text, text
+
+    def test_and_a_dirty_run_is_not_hidden_by_a_clean_signature(self, tmp_path):
+        """Druga strona, i ważniejsza z dwóch: gdyby program czytał dysk,
+        przebieg, który **dołożył** błąd, opisałby się cudzym czystym zapisem."""
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = self._signatures(tmp_path, self.NEW)
+        wynik = Comparison("a.epub", "a" * 16, "changed", measured=self.OLD)
+        text = summarise([wynik], signatures)
+        assert "RSC-005" in text, text
+
+    def test_the_signature_is_still_read_when_there_is_no_measurement(self, tmp_path):
+        """Trzeci przypadek, żeby naprawa nie okazała się skasowaniem czytania
+        z dysku: przy przebiegu, który tej książki nie mierzył, zapis jest
+        jedynym, co jest — i ma być użyty."""
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = self._signatures(tmp_path, self.OLD)
+        text = summarise([Comparison("a.epub", "a" * 16, "unchanged")], signatures)
+        assert "RSC-005" in text, text
+
+    def test_the_run_ledger_writes_what_the_run_measured(self, tmp_path):
+        """`_log_run` ma tę samą wadę do popełnienia i to samo lekarstwo —
+        dziennik przebiegów opisujący poprzedni zapis jest gorszy niż raport,
+        bo zostaje na stałe."""
+        import json
+
+        from epubforge.corpus import RUNS, Comparison, _log_run
+
+        signatures = self._signatures(tmp_path, self.OLD)
+        _log_run(signatures, [Comparison("a.epub", "a" * 16, "unchanged", measured=self.NEW)])
+        # Dziennik leży **obok** katalogu podpisów, nie w nim.
+        wpisy = json.loads((signatures.parent / RUNS).read_text(encoding="utf-8"))
+        ostatni = wpisy[-1] if isinstance(wpisy, list) else wpisy["runs"][-1]
+        assert ostatni.get("errors", 0) == 0, ostatni
+        assert not ostatni.get("codes"), ostatni
