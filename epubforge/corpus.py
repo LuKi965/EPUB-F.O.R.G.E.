@@ -904,6 +904,13 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     }
     errors = introduced = carried = fatal = lost = unwritten = inherent = 0
     blamed: Counter = Counter()
+    #: EF-052. Nazwy reguł **dołożonych przez tryb kontenerowy**, liczone po
+    #: kodach, a nie po sumie. `introduced` jest różnicą liczb i potrafi wyjść
+    #: zerem, gdy przebudowa naprawi jeden błąd źródła i dołoży inny — na
+    #: kolekcji 67 zdarzyło się to trzy razy: znikało `NCX-001`, pojawiało się
+    #: `RSC-005`, suma stała w miejscu i dziennik pisał `introduced: 0`.
+    #: Wymiana błędu na inny błąd nie jest brakiem błędu.
+    ours: Counter = Counter()
     for result in _once_each(results):
         measured = result.measured
         if measured is None:
@@ -933,6 +940,7 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
                 else:
                     introduced += added
                     blamed.update(_new_codes(origin, check))
+                    ours.update(_new_codes(origin, check))
             else:
                 errors += count
                 # Only what the source did **not** already have — the same
@@ -960,11 +968,17 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
         # Which EPUBCheck rules they were. Without this the ledger records that
         # something broke and leaves the reader with no next question to ask.
         entry["codes"] = dict(sorted(blamed.items()))
+    if ours:
+        # EF-052. Kept apart from `codes`, and apart from `introduced`, because
+        # the three answer different questions: what was seen, how much the
+        # total moved, and what this program put there. A run is not clean while
+        # this field has anything in it, whatever the total did.
+        entry["added_codes"] = dict(sorted(ours.items()))
     # `inherent` is deliberately absent from this line. It counts errors the
     # container-only mode is contractually unable to reach, on markup the report
     # names out loud — and a run cannot be held to a promise it kept.
     entry["clean"] = not (
-        errors or introduced or fatal or lost or unwritten or entry["failed"]
+        errors or introduced or fatal or lost or unwritten or entry["failed"] or ours
     )
     copies = len(results) - len(_once_each(results))
     if copies:
@@ -1064,7 +1078,10 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     # the mixed shelf that read as `introduced: 3` beside eight rule names, and
     # a reader had every right to take the eight for the three.
     if ours:
-        line += f"\nIntroduced by the container-only mode: {named(ours)}."
+        # Named by rule rather than counted, and printed even when the total
+        # did not move: `introduced` is a difference of two numbers, and a book
+        # that loses one error and gains another leaves it at zero.
+        line += f"\nRules the container-only mode added: {named(ours)}."
     if blamed:
         rest = Counter(blamed)
         rest.subtract(ours)

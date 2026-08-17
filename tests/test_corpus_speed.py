@@ -528,7 +528,41 @@ class TestARunSaysWhichRuleBroke:
         # EF-048: named under the branch that produced it. The old single
         # heading covered both branches at once, so a rule the source already
         # had could stand under a sentence about what the rebuild added.
-        assert "Introduced by the container-only mode: OPF-014." in text
+        assert "Rules the container-only mode added: OPF-014." in text
+
+    def test_a_swap_is_not_a_clean_run(self, tmp_path):
+        """EF-052, i to jest najciekawsza pułapka w tym pliku.
+
+        `introduced` jest **różnicą dwóch liczb**. Książka, w której przebudowa
+        naprawi jeden błąd źródła i dołoży inny, ma tę różnicę równą zeru — a
+        dołożony błąd jest w niej tak samo, jak gdyby liczba wzrosła. Zmierzone
+        na kolekcji właściciela: trzy książki, w każdej znikało `NCX-001`
+        i pojawiało się `RSC-005`, a dziennik pisał `introduced: 0`.
+
+        Wymiana błędu na inny błąd nie jest brakiem błędu.
+        """
+        import json
+
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True)
+        (signatures / ("b" * 16 + ".json")).write_text(
+            json.dumps(
+                {
+                    "source_epubcheck": {"errors": 1, "codes": {"NCX-001": 1}},
+                    "minimal": {
+                        "written": True,
+                        "text_invariant": True,
+                        "epubcheck": {"errors": 1, "codes": {"RSC-005": 1}},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = summarise([Comparison("b.epub", "b" * 16, "unchanged")], signatures)
+        assert "0 introduced" not in text
+        assert "Rules the container-only mode added: RSC-005." in text, text
 
 
 class TestTheSummaryDoesNotBlameTheBooksOnUs:
