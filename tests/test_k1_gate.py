@@ -168,7 +168,7 @@ class TestACharacterXmlCannotWriteIsNotTextThatCanBeLost:
     stron.
     """
 
-    def _book_with_a_control_character(self, path: str) -> str:
+    def _book_with_a_control_character(self, path: str, character: bytes = b"\xc2\x8f") -> str:
         import zipfile
 
         source = make_modern_epub(path + ".clean")
@@ -185,7 +185,7 @@ class TestACharacterXmlCannotWriteIsNotTextThatCanBeLost:
         # bloku C1: XML 1.0 wpuszcza go do drzewa, więc parser go **zachowuje** —
         # i dlatego dochodzi do etapu treści, w przeciwieństwie do 0x0B, na
         # którym lxml podnosi wyjątek i sprawa kończy się przed bramą.
-        marked = entries[chapter].replace(b"<p>", b"<p>\xc2\x8f", 1)
+        marked = entries[chapter].replace(b"<p>", b"<p>" + character, 1)
         assert marked != entries[chapter], "fixture przestał mieć akapit"
         entries[chapter] = marked
         from tests.factory import write_zip
@@ -212,6 +212,32 @@ class TestACharacterXmlCannotWriteIsNotTextThatCanBeLost:
         )
         rules = {finding.rule for finding in result.report.findings}
         assert "xhtml.forbidden-characters-removed" in rules, sorted(rules)
+
+    def test_a_windows_quotation_mark_is_not_a_control_character(self, tmp_path):
+        """Kontrola, przez której brak przepuściłem książkę gubiącą 18 545 znaków.
+
+        Pierwsza wersja tej poprawki składała K1 przez `xmlchars.legal`, czyli
+        przez zbiór, który obejmuje **cały** blok C1. Na kolekcji właściciela
+        siedzi książka z 18 545 znakami `0x93`, `0x94`, `0x92` i `0x97` — to są
+        „ ” ‘ i —, cudzysłowy i myślniki zapisane w Windows-1252 i odczytane jak
+        Latin-1. K1 słusznie odmawiało tej książki; po złożeniu przestało.
+
+        Zbiór do porównań nazywa się dlatego `NEVER_TEXT` i jest węższy: zostają
+        w nim tylko pozycje, których cp1252 **nie definiuje**. Za resztą stoi
+        znak przestankowy, a znak przestankowy jest treścią (S-03).
+        """
+        source = self._book_with_a_control_character(
+            str(tmp_path / "cudzyslow.epub"), character=b"\xc2\x93"
+        )
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off"),
+        )
+        assert not result.status.wrote_a_file, (
+            "cudzysłów z Windows-1252 zniknął i nikt tego nie zatrzymał:\n"
+            + result.report.to_text()
+        )
 
     def test_a_real_paragraph_still_stops_the_book(self, tmp_path):
         """Kontrola przeciwna. Zwinięcie K1 do „tekstu, który da się zapisać"

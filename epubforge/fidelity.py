@@ -441,15 +441,22 @@ def spine_text_of(book: "str | pathlib.Path") -> str:
     agree about what "the same text" is, instead of the gate forbidding what the
     stage is for.
 
-    The characters in `xmlchars.FORBIDDEN` are folded out too, on both sides,
+    The characters in `xmlchars.NEVER_TEXT` are folded out too, on both sides,
     and that is not an exemption granted to the rebuild — it is the only honest
     reading of the invariant. K1 says no character of the book's *text* is lost.
-    None of these is text: they are control codes with no glyph, no width and no
-    reader that draws them, and the program removes them because a conformant
-    EPUB either cannot carry them at all or is refused for carrying them. So the
-    comparison is made against the text a conformant EPUB *can* hold, and the
-    removal is still said out loud by `xhtml.forbidden-characters-removed`, per
-    document and with a count.
+    None of these is text under any decoding: control codes below the space, the
+    surrogate block, the two non-characters, and the five positions Windows-1252
+    leaves undefined. The removal is still said out loud by
+    `xhtml.forbidden-characters-removed`, per document and with a count.
+
+    **`NEVER_TEXT` and not `FORBIDDEN`, and that distinction cost a gate.** The
+    first version of this fold used `FORBIDDEN`, which covers the whole C1 block
+    — and C1 is where Windows-1252 punctuation lands when it is read as Latin-1.
+    One book on the owner's collection carries 18 545 of them: `0x93`, `0x94`,
+    `0x92`, `0x97`, which are its quotation marks and dashes. K1 was refusing
+    that book correctly, and the fold made it stop. Whatever is folded out of a
+    comparison must be something that cannot be text, not merely something the
+    writer happens to strip.
 
     Measured on a real book from the owner's shelf: one U+008F in each of two
     chapters. Before this fold the gate refused the book — correctly by the
@@ -467,9 +474,9 @@ def spine_text_of(book: "str | pathlib.Path") -> str:
     """
     from .inventory import spine_text
     from .typography import canonical
-    from .xmlchars import legal
+    from .xmlchars import only_text
 
-    return canonical(legal(spine_text(book)))
+    return canonical(only_text(spine_text(book)))
 
 
 def first_character_lost(source_text: str, output_text: str) -> int:
