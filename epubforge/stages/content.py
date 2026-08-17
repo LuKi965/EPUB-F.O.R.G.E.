@@ -1811,10 +1811,33 @@ class ContentStage(Stage):
         names what it found rather than claiming to know the whole class:
         anything not listed here will still show up in a validator, and that is
         the honest limit of a check written from six examples.
+
+        **A fourth shape, from the owner's 67-book collection (EF-045).** Three
+        of those books were counted against this program as errors it had
+        introduced, and none of them was. The construct is the encoding
+        declaration — `<meta http-equiv="content-type" content="application/
+        xhtml+xml; charset=utf-8">` — legal under the old rules, and under the
+        new ones required to read `text/html; charset=utf-8` and nothing else.
+
+        Worth knowing because it is the first shape here that appears in a
+        document the mode **never opened**: raising the package to EPUB 3
+        changes which rules the validator applies to bytes it did not touch. The
+        other three shapes needed the document to be read to matter; this one
+        does not, and it is a reminder that the mode's promise is about *the
+        book*, not about what a validator will say afterwards.
         """
         found: set[str] = set()
         for element in xhtml.iter_elements(root):
             tag = xhtml.local_name(element).lower()
+            if tag == "meta" and (element.get("http-equiv") or "").strip().lower() == (
+                "content-type"
+            ):
+                content = (element.get("content") or "").strip().lower()
+                # Spacing around the semicolon is the author's, not a difference
+                # the rule cares about; the media type and the charset are.
+                normalised = "; ".join(part.strip() for part in content.split(";"))
+                if normalised != "text/html; charset=utf-8":
+                    found.add("meta[http-equiv]")
             if tag in ("img", "table", "td", "th", "object", "iframe"):
                 for name in ("width", "height"):
                     value = (element.get(name) or "").strip()

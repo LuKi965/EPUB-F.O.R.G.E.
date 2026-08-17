@@ -1808,7 +1808,7 @@ class TestWhatContainerOnlyModeCannotReach:
     mode".
     """
 
-    def forge(self, tmp_path, markup: str, mode: str = "minimal"):
+    def forge(self, tmp_path, markup: str, mode: str = "minimal", head: str = ""):
         from .factory import png_bytes, write_zip
 
         package = """<?xml version="1.0" encoding="utf-8"?>
@@ -1827,7 +1827,8 @@ class TestWhatContainerOnlyModeCannotReach:
 """
         chapter = (
             '<?xml version="1.0" encoding="utf-8"?>\n'
-            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Rozdzial</title></head>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Rozdzial</title>'
+            f"{head}</head>\n"
             f"<body><p>Tresc.</p>{markup}</body></html>\n"
         )
         container = (
@@ -1888,6 +1889,62 @@ class TestWhatContainerOnlyModeCannotReach:
         it promised; this is the sentence that connects the two."""
         result = self.forge(tmp_path, '<img src="../Images/pic.png" alt="" width="50%"/>')
         assert self.finding(result).level is Level.WARN
+
+    # ---------------------------------------------------------- EF-045
+    #
+    # The fourth shape, and the first one that does not need the document to be
+    # read to matter. Three books of the owner's 67 were counted as errors this
+    # program had introduced, and none of them was: raising the package to
+    # EPUB 3 changes which rules the validator applies to documents this mode
+    # never opened, and the encoding declaration is the construct that notices.
+
+    ENCODING_META = (
+        '<meta http-equiv="Content-Type" '
+        'content="application/xhtml+xml; charset=utf-8"/>'
+    )
+
+    def test_the_old_encoding_declaration_is_named(self, tmp_path):
+        result = self.forge(tmp_path, "", head=self.ENCODING_META)
+        found = self.finding(result)
+        assert found is not None, "trzy ksiazki z kolekcji 67 mialy dokladnie to"
+        assert "meta[http-equiv]" in found.values["what"]
+
+    def test_the_declaration_epub3_wants_is_left_alone(self, tmp_path):
+        result = self.forge(
+            tmp_path,
+            "",
+            head='<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>',
+        )
+        assert self.finding(result) is None
+
+    def test_spacing_and_case_are_the_authors_business(self, tmp_path):
+        """`Content-Type` against `content-type`, and a semicolon with or
+        without a space, are the same declaration. Warning about them would be
+        warning about nothing."""
+        result = self.forge(
+            tmp_path,
+            "",
+            head='<meta http-equiv="content-type" content="TEXT/HTML;charset=UTF-8"/>',
+        )
+        assert self.finding(result) is None
+
+    def test_the_mode_that_opens_documents_really_does_fix_it(self, tmp_path):
+        """The whole point of naming it is the advice at the end: *use another
+        mode*. So this reads the other mode's **output**, rather than settling
+        for the absence of a warning — the warning is only raised in
+        container-only mode, so its absence here would prove nothing at all.
+        A wrong instruction is worse than none."""
+        import zipfile
+
+        result = self.forge(tmp_path, "", mode="preserve", head=self.ENCODING_META)
+        assert self.finding(result) is None
+        with zipfile.ZipFile(result.output_path) as archive:
+            chapter = next(
+                archive.read(name)
+                for name in archive.namelist()
+                if name.endswith("chapter.xhtml")
+            ).decode("utf-8")
+        assert "application/xhtml+xml; charset=utf-8" not in chapter, chapter
 
 
 class TestADeclaredLanguageTheTextContradicts:

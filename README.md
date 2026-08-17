@@ -53,6 +53,16 @@ uszkodzeniem książki.** Kursywa, którą wydawca wybrał, ramka wokół motta,
 odstęp przed rozdziałem — to jest treść, nie dodatek. Dlatego program woli
 zostawić odstępstwo od standardu i je opisać, niż je usunąć i zmienić wygląd.
 
+**Co tu znaczy „zachowując wygląd".** Nie to, że strona wypadnie identycznie co
+do piksela — zwykła książka nie wygląda tak samo na dwóch czytnikach nawet
+wtedy, gdy nikt jej nie tknął. Stron w niej nie ma; składa je czytnik, u siebie,
+przy swojej szerokości ekranu, swojej czcionce i ustawieniach czytelnika. Znaczy
+to, że **przeżywa każde rozstrzygnięcie wydawcy**: kursywa zostaje kursywą,
+odstęp przed rozdziałem zostaje odstępem, wcięcie zostaje wcięciem, wyśrodkowanie
+zostaje wyśrodkowaniem. Konstrukcje, które wypadły ze standardu, są **tłumaczone**
+na dzisiejsze odpowiedniki, a nie kasowane — bo kasowanie zmienia wygląd,
+a tłumaczenie nie.
+
 ## Czego ten program nie zrobi
 
 Zebrane na górze, bo to jest szybsza droga do sprawdzenia, czy w ogóle jest dla
@@ -110,11 +120,9 @@ działa — robi mniej i **mówi w raporcie, czego nie sprawdził**.
 
 ### O innych systemach, uczciwie
 
-**Wydawany jest tylko Windows.** Kod nie robi niczego, co by go do Windowsa
-przywiązywało, testy przechodzą na Linuksie i tam powstaje większość tego
-programu — ale **nikt nie sprawdza wyniku na Linuksie ani na macOS-ie na
-prawdziwych książkach i prawdziwym czytniku**, a to jest jedyny rodzaj
-sprawdzenia, który tutaj cokolwiek znaczy.
+**Wydawany jest tylko Windows.** Kod nie jest do niego przywiązany i testy
+przechodzą na Linuksie, ale wyniku na Linuksie ani na macOS-ie nikt nie
+sprawdza na prawdziwych książkach i prawdziwym czytniku.
 
 ## Użycie
 
@@ -216,9 +224,6 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 
 - **Alpha.** Wersja `0.2.x` **jest** alfą: zakres funkcji jest ustalony,
   a poprawność sprawdzana na prawdziwych książkach, nie tylko na atrapach.
-- **Do bety brakuje przebiegów, nie kodu.** Warunkiem `0.3.x` jest prywatna
-  półka, korpus publiczny i fuzzing kontenera przechodzące po każdym wydaniu,
-  z zapisanym wynikiem.
 - **Tryb ścisły potrafi odmówić wydania pliku.** Pyta EPUBCheck *zanim* plik
   trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje za niepoprawne —
   również wtedy, gdy defekt przyszedł razem z książką. Zmierzone na całym
@@ -230,22 +235,18 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
   stracie treści domyślnie nie zapisuje nic. Trzy stany: wyłączone / raportuj /
   zatrzymaj.
 - **Silnik do rysowania jest tylko ten dołączony.** Program nie szuka
-  przeglądarki na maszynie — ani w PATH, ani w Program Files. Powód: porównanie
-  dwóch rysunków mówi coś o *książce* tylko wtedy, gdy oba zrobił ten sam
-  silnik; puszczone na tym, co maszyna akurat ma, mówi coś o maszynie. Zmierzone:
-  Edge i Chromium nie zgadzały się co do trzech z czterech rodzajów uszkodzenia.
-  Instalator jest przez to o jakieś 110 MB większy. Jedna furtka zostaje dla
-  uruchomienia z kodu źródłowego, gdzie nie ma czego dołączyć: `EPUBFORGE_CHROME`.
-- **Raport idzie za ustawieniem języka.** Okno, plik JSON i konsola mówią tym
-  samym językiem co interfejs; w wierszu poleceń decyduje `--report-language`.
-  Angielski `message` zostaje w JSON-ie zawsze, bo to on jest interfejsem dla
-  skryptów. Po angielsku zostają dane, nie zdania: nazwy znaczników, wartości
-  metadanych i komunikaty samego EPUBCheck-a.
-- **Cała książka trafia do pamięci.** Program **liczy to przed startem** —
-  z katalogu ZIP-a, bez rozpakowywania — i odmawia, zamiast dać się zabić jądru
-  w połowie roboty. Zmierzone na prawdziwych książkach: najdroższa wychodzi na
-  104 MiB, więc jest to zabezpieczenie na przypadek patologiczny, a nie próg,
-  który komuś wejdzie w drogę. Wyłączalne, z własnym polem budżetu.
+  przeglądarki na maszynie, bo porównanie dwóch rysunków mówi coś o książce
+  tylko wtedy, gdy oba zrobił ten sam silnik — Edge i Chromium nie zgodziły się
+  co do trzech z czterech rodzajów uszkodzenia. Kosztuje to jakieś 110 MB
+  instalatora. Przy uruchomieniu z kodu źródłowego, gdzie nie ma czego dołączyć,
+  silnik wskazuje `EPUBFORGE_CHROME`.
+- **Raport idzie za ustawieniem języka**; w wierszu poleceń decyduje
+  `--report-language`. W JSON-ie angielski `message` zostaje zawsze, bo to on
+  jest interfejsem dla skryptów.
+- **Cała książka trafia do pamięci.** Program liczy to przed startem,
+  z katalogu ZIP-a, i odmawia zamiast paść w połowie roboty. Na prawdziwych
+  książkach najdroższa wychodzi na 104 MiB, więc to zabezpieczenie na przypadek
+  patologiczny. Wyłączalne, z własnym polem budżetu.
 
 ## Jak to jest sprawdzane
 
@@ -271,13 +272,9 @@ pytest -q                    # cała suita
 python tools/jak-ci.py       # to samo w warunkach maszyny budującej wydanie
 ```
 
-Drugie polecenie chowa to, czego maszyna budująca nie ma na etapie testów —
-suita, która mierzy maszynę zamiast programu, przechodzi lokalnie i pada
-w wydaniu.
-
-Testy wymagające Javy, silnika do rysowania albo słowników **pomijają się
-domyślnie i mówią, dlaczego**: bez nich mierzyłyby maszynę. Żeby wykonać te,
-które rysują strony:
+Drugie chowa to, czego nie ma maszyna budująca wydanie. Testy wymagające Javy,
+silnika do rysowania albo słowników **pomijają się i mówią, dlaczego** — bez nich
+mierzyłyby maszynę. Żeby wykonać te, które rysują strony:
 
 ```bash
 EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME, jeśli trzeba
@@ -288,11 +285,8 @@ EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME, jeśli trze
 [`CHANGELOG.md`](CHANGELOG.md) mówi, co się zmieniło i dlaczego — każde wydanie
 z uzasadnieniem, nie z listą commitów.
 
-Reszta dokumentów projektu — roadmapa, opis korpusu, wyniki na prawdziwym
-sprzęcie, archiwum wydań, zasady K1–K12 — jest prowadzona prywatnie. Nie dlatego,
-że jest w nich coś wstydliwego, tylko dlatego, że opisują cudze książki: czyjeś
-kupione egzemplarze, ich usterki i ich zawartość. To repozytorium jest publiczne,
-a tamte pliki nie są dla przechodniów.
+Reszta dokumentów projektu jest prowadzona prywatnie, bo opisuje konkretne
+kupione egzemplarze — ich usterki i ich zawartość.
 
 ## Autorzy i licencja
 

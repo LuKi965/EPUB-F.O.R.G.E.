@@ -733,7 +733,7 @@ DETAILS: dict[str, str] = {
     "xhtml.empty-span-unwrapped":
         "Unwrapped, not deleted — the text inside stays exactly where it was. Only spans with no id, lang, epub:type, role, dir, title or style, and only where a rule reaches them and every declaration in it is the default for an inline box.",
     "xhtml.epub2-only-markup":
-        "Container-only mode edits the head and nothing else, so this stays and the output is an invalid EPUB 3 through no fault of the content. Rebuild in \"preserve\" for a conformant file — that mode moves these into CSS and renders the same. Named as found rather than claimed complete: anything not listed still shows up in a validator.",
+        "Container-only mode edits the head and nothing else, so this stays and the output is an invalid EPUB 3 through no fault of the content. Rebuild in \"preserve\" for a conformant file — that mode rewrites each of these into what EPUB 3 accepts, without changing what the page shows. Named as found rather than claimed complete: anything not listed still shows up in a validator.",
     "xhtml.title-filled":
         "EPUB 2 allowed an empty <title>; EPUB 3 does not, and this rebuild produces EPUB 3. The text is not rendered in the body, so nothing on the page moves. In container-only mode this is the second and last edit made inside a document.",
     "xhtml.doctype-modernised":
@@ -972,7 +972,7 @@ DETAILS_PL: dict[str, str] = {
     "xhtml.empty-span-unwrapped":
         "Rozwinięte, nie skasowane — tekst w środku zostaje dokładnie tam, gdzie był. Tylko spany bez id, lang, epub:type, role, dir, title i style, i tylko tam, gdzie reguła ich dosięga, a każda jej deklaracja jest wartością domyślną dla elementu liniowego.",
     "xhtml.epub2-only-markup":
-        "Tryb kontenerowy zmienia tylko głowę dokumentu, więc to zostaje, a wynik jest niepoprawnym EPUB-em 3 nie z winy treści. Przebuduj w trybie „Zachowaj wygląd” — tam trafia to do CSS-u i renderuje się tak samo. Wypisane jest to, co znaleziono, a nie cała klasa: czego tu nie ma, i tak pokaże walidator.",
+        "Tryb kontenerowy zmienia tylko głowę dokumentu, więc to zostaje, a wynik jest niepoprawnym EPUB-em 3 nie z winy treści. Przebuduj w trybie „Zachowaj wygląd” — tam każde z nich zostaje przepisane na to, co EPUB 3 przyjmuje, bez zmiany tego, co widać na stronie. Wypisane jest to, co znaleziono, a nie cała klasa: czego tu nie ma, i tak pokaże walidator.",
     "xhtml.title-filled":
         "EPUB 2 dopuszczał pusty <title>, EPUB 3 już nie, a ta przebudowa daje EPUB-a 3. Tekst nie jest wyświetlany w treści, więc nic na stronie się nie przesuwa. W trybie kontenerowym to druga i ostatnia zmiana wewnątrz dokumentu.",
     "xhtml.doctype-modernised":

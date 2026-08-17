@@ -57,6 +57,16 @@ around an epigraph, the space before a chapter — that is content, not
 decoration. So the program would rather keep a deviation from the specification
 and describe it than remove it and change how the book looks.
 
+**What "keeping its appearance" means here.** Not that a page will come out
+identical to the pixel — an ordinary book does not look the same on two reading
+devices even when nobody has touched it. There are no pages in it; the reading
+system lays them out, at its own screen width, its own font and the reader's own
+settings. It means that **every decision the publisher made survives**: italics
+stay italic, the space before a chapter stays a space, an indent stays an
+indent, centred text stays centred. Constructs that have fallen out of the
+specification are **translated** into today's equivalents rather than deleted —
+deleting changes the appearance, translating does not.
+
 ## What this program will not do
 
 Collected at the top, because it is the quickest way to find out whether it is
@@ -115,10 +125,9 @@ still works — it does less, and **says in the report what it could not check**
 
 ### About other systems, honestly
 
-**Only Windows is released.** Nothing in the code ties it to Windows, the suite
-passes on Linux and most of this program is written there — but **nobody checks
-the result on Linux or macOS against real books and a real reading device**, and
-that is the only kind of check that means anything here.
+**Only Windows is released.** Nothing in the code ties it to Windows and the
+suite passes on Linux, but nobody checks the result on Linux or macOS against
+real books and a real reading device.
 
 ## Usage
 
@@ -219,9 +228,6 @@ Things worth knowing before rather than after:
 
 - **Alpha.** `0.2.x` **is** alpha: the feature set is settled, and correctness
   is checked against real books rather than fixtures alone.
-- **Beta needs runs, not code.** `0.3.x` requires a private shelf, the public
-  corpus and container fuzzing to pass after every release, with the result
-  recorded.
 - **Strict mode can refuse to produce a file.** It asks EPUBCheck *before* the
   file takes its name and will not publish something the validator calls invalid
   — including when the defect arrived with the book. Measured over the whole
@@ -232,23 +238,18 @@ Things worth knowing before rather than after:
   program draws the pages before and after and compares them; where content is
   lost it writes nothing by default. Three states: off / report / stop.
 - **The drawing engine is the bundled one only.** The program does not look for
-  a browser on the machine — not in PATH, not in Program Files. The reason:
-  comparing two drawings says something about the *book* only when the same
-  engine made both; run against whatever a machine happens to have, it says
-  something about the machine. Measured: Edge and Chromium disagreed about three
-  of four kinds of damage. It costs the installer about 110 MB. One way in
-  remains, for running from source where there is nothing bundled:
-  `EPUBFORGE_CHROME`.
-- **The report follows the interface language.** Window, JSON and console speak
-  the language the interface does; on the command line `--report-language`
-  decides. The English `message` always stays in the JSON, because that is the
-  interface for scripts. What stays English is data, not sentences: tag names,
-  metadata values and EPUBCheck's own messages.
-- **The whole book goes into memory.** The program **works this out before it
-  starts** — from the ZIP directory, without unpacking — and refuses rather than
-  being killed by the kernel halfway. Measured on real books, the dearest comes
-  to 104 MiB, so this guards a pathological case rather than getting in
-  anybody's way. Switchable, with its own budget field.
+  a browser on the machine, because comparing two drawings says something about
+  the book only when the same engine made both — Edge and Chromium disagreed
+  about three of four kinds of damage. It costs the installer about 110 MB. When
+  running from source, where there is nothing bundled, `EPUBFORGE_CHROME` names
+  the engine.
+- **The report follows the interface language**; on the command line
+  `--report-language` decides. The English `message` always stays in the JSON,
+  because that is the interface for scripts.
+- **The whole book goes into memory.** The program works this out before it
+  starts, from the ZIP directory, and refuses rather than dying halfway. On real
+  books the dearest comes to 104 MiB, so this guards a pathological case.
+  Switchable, with its own budget field.
 
 ## How it is checked
 
@@ -274,13 +275,9 @@ pytest -q                    # the whole suite
 python tools/jak-ci.py       # the same, under the release machine's conditions
 ```
 
-The second hides what the release machine does not have while it runs tests — a
-suite that measures the machine rather than the program passes locally and fails
-the release.
-
-Tests needing Java, the drawing engine or dictionaries **skip by default and say
-why**: without them they would be measuring the machine. To run the ones that
-draw pages:
+The second hides what the release machine does not have. Tests needing Java, the
+drawing engine or dictionaries **skip and say why** — without them they would be
+measuring the machine. To run the ones that draw pages:
 
 ```bash
 EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME if needed
@@ -291,11 +288,8 @@ EPUBFORGE_RENDER_TESTS=1 pytest -q          # plus EPUBFORGE_CHROME if needed
 [`CHANGELOG.md`](CHANGELOG.md) says what changed and why — each release with its
 reasoning rather than a list of commits.
 
-The rest of the project's documents — the roadmap, the corpus write-up, results
-on real hardware, the release archive, the K1–K12 rules — are kept privately.
-Not because there is anything embarrassing in them, but because they describe
-other people's books: somebody's paid-for copies, their defects and their
-contents. This repository is public; those files are not for passers-by.
+The rest of the project's documents are kept privately, because they describe
+specific paid-for copies — their defects and their contents.
 
 ## Authors and licence
 
