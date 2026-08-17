@@ -1928,6 +1928,69 @@ class TestWhatContainerOnlyModeCannotReach:
         )
         assert self.finding(result) is None
 
+    def test_a_title_behind_a_wall_of_word_junk_is_still_filled(self, tmp_path):
+        """EF-053, i przyczyna jest zabawna dokładnie do chwili, w której kosztuje.
+
+        Wypełnianie pustego `<title>` szukało go w pierwszych 4096 bajtach —
+        liczbie wziętej z rozsądku i niezmierzonej na niczym. Na kolekcji
+        właściciela siedzi książka wyeksportowana z Worda: jej `<head>` niesie
+        **91 486 bajtów** komentarzy warunkowych `<!--[if gte mso 9]>`,
+        a `<title>` zaczyna się na bajcie 91 469. Dwanaście dokumentów,
+        dwanaście pustych tytułów, i naprawa istniejąca dokładnie na to nie
+        zobaczyła ani jednego — więc tryb kontenerowy produkował na tej książce
+        `RSC-005: Element "title" must not be empty`.
+
+        Granicą jest teraz `</head>`, a to nie jest zgadywanie: tytuł przed nim
+        jest tytułem dokumentu, tytuł za nim należy do czegoś osadzonego.
+        """
+        from epubforge import xhtml
+
+        smiec = b"<!--[if gte mso 9]><xml><o:shapedefaults/></xml><![endif]-->" * 200
+        assert len(smiec) > 4096, "atrapa przestala byc dluzsza niz stare okno"
+        dokument = (
+            b'<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n'
+            b'<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+            + smiec
+            + b"<title></title></head><body><p>Tresc.</p></body></html>"
+        )
+        wynik, wypelnione = xhtml.fill_empty_title(dokument, "Rozdzial")
+        assert wypelnione, "tytul za smieciem Worda znowu jest niewidoczny"
+        assert b"<title>Rozdzial</title>" in wynik
+
+    def test_a_title_past_the_head_is_left_alone(self, tmp_path):
+        """Druga strona tej samej granicy, bo bez niej poprawka byłaby
+        rozszerzeniem zasięgu, a nie jego wyprostowaniem: `<title>` wewnątrz
+        SVG w treści jest etykietą kształtu i nie jest niczyją sprawą."""
+        from epubforge import xhtml
+
+        dokument = (
+            b'<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+            b"<title>Ma tytul</title></head><body>"
+            b"<svg><title></title><rect/></svg></body></html>"
+        )
+        wynik, wypelnione = xhtml.fill_empty_title(dokument, "Nie tykaj")
+        assert not wypelnione
+        assert b"Nie tykaj" not in wynik
+
+    def test_a_named_meta_without_content_is_named(self, tmp_path):
+        """EF-053, kształt drugi. Dwie książki kolekcji niosą w głowie
+        breadcrumb DRM-u Adobe zapisany jako `value` zamiast `content` —
+        i kosztuje to **dwa** błędy pod nowymi regułami, nie jeden."""
+        result = self.forge(
+            tmp_path,
+            "",
+            head='<meta name="Adept.resource" value="urn:uuid:abc"/>',
+        )
+        found = self.finding(result)
+        assert found is not None
+        assert "meta[content]" in found.values["what"]
+
+    def test_a_meta_that_has_its_content_is_fine(self, tmp_path):
+        result = self.forge(
+            tmp_path, "", head='<meta name="generator" content="cokolwiek"/>'
+        )
+        assert self.finding(result) is None
+
     def test_the_mode_that_opens_documents_really_does_fix_it(self, tmp_path):
         """The whole point of naming it is the advice at the end: *use another
         mode*. So this reads the other mode's **output**, rather than settling

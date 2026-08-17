@@ -6,13 +6,14 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 
 from rich.console import Console
 from rich.table import Table
 
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
-from .plan import describe, plan_batch
+from .plan import describe, ledger_lines, plan_batch
 from .policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
@@ -331,8 +332,28 @@ def command_build(args: argparse.Namespace) -> int:
 
     exit_code = 0
     collected: list = []
+    # BA-2026-003. The audit asked for a plan printed *before* anything is
+    # written, and this is that, built on the shape the pipeline already has:
+    # every rebuild goes into a staging file and reaches its own name only after
+    # the gates pass. A plan run does all of it and stops one step short — the
+    # book is rebuilt, K1, the balance, the validator and the appearance check
+    # all run, and the destination is not touched.
+    #
+    # Deliberately not merged into `--dry-run`. That one answers "where would
+    # these go", reads no book and costs nothing; this one rebuilds every book
+    # and costs a full run. Two questions, two flags, and the help for each says
+    # which is which.
+    planning = getattr(args, "plan", False)
+    if planning:
+        console.print(
+            "[cyan]plan[/] — every book is rebuilt and checked, nothing is written"
+        )
+    plan_room = tempfile.TemporaryDirectory(prefix="epubforge-plan-") if planning else None
+
     for job in batch.jobs:
         source, destination = job.source, job.destination
+        if plan_room is not None:
+            destination = os.path.join(plan_room.name, os.path.basename(destination))
 
         console.rule(f"[bold]{os.path.basename(source)}")
         resolver = TerminalAsk(console) if args.ask else None
@@ -369,7 +390,18 @@ def command_build(args: argparse.Namespace) -> int:
         print_report(console, result.report, args.verbose, args.report_language)
         summarize(console, result.report)
 
-        if result.status.wrote_a_file:
+        if planning:
+            # The ledger in full, and the sentence that keeps a plan from
+            # reading like a result: nothing moved.
+            for line in ledger_lines(result.report, args.report_language):
+                console.print(line, highlight=False)
+            if result.status.wrote_a_file:
+                console.print(f"  [bold cyan]plan[/] — would write {job.destination}")
+            else:
+                reason = "refused" if result.status is Status.BLOCKED else "not written"
+                console.print(f"  [bold red]{reason}[/] — see the report above")
+                exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
+        elif result.status.wrote_a_file:
             size = os.path.getsize(result.output_path)
             if result.status is Status.SUCCEEDED:
                 console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
@@ -379,7 +411,7 @@ def command_build(args: argparse.Namespace) -> int:
                 console.print(
                     f"  [bold yellow]written with errors[/] {destination} ({size / 1024:.0f} KiB)"
                 )
-        else:
+        elif not planning:
             reason = "refused" if result.status is Status.BLOCKED else "not written"
             console.print(f"  [bold red]{reason}[/] — see the report above")
             exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
@@ -1178,7 +1210,18 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--dry-run",
         action="store_true",
-        help="print where each book would be written, and write nothing",
+        help=(
+            "print where each book would be written, and write nothing. Reads "
+            "no book — use --plan for what a rebuild would do to one"
+        ),
+    )
+    build.add_argument(
+        "--plan",
+        action="store_true",
+        help=(
+            "rebuild each book, run every gate, print the complete ledger of "
+            "changes, and write nothing to the destination"
+        ),
     )
     build.add_argument(
         "--force",

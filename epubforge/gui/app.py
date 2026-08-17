@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import sys
 
 from PySide6.QtCore import QObject, QSettings, Qt, QThread, Signal
@@ -77,8 +78,24 @@ class Worker(QObject):
         policy: Policy,
         run_check: bool,
         resolver=None,
+        plan_only: bool = False,
     ):
         super().__init__()
+        #: BA-2026-003. A plan run does everything a real one does — every
+        #: stage, K1, the balance, the validator, the appearance check — and
+        #: stops one step short of the destination. Implemented by moving the
+        #: destination rather than by teaching the pipeline a second mode:
+        #: a rebuild that skipped its own final step would be a code path
+        #: nobody exercises, which is the opposite of what a plan is for.
+        self._plan_room = (
+            tempfile.TemporaryDirectory(prefix="epubforge-plan-") if plan_only else None
+        )
+        self.plan_only = plan_only
+        if self._plan_room is not None:
+            jobs = [
+                (source, os.path.join(self._plan_room.name, os.path.basename(target)))
+                for source, target in jobs
+            ]
         self._jobs = jobs
         self._policy = policy
         self._run_check = run_check
@@ -517,6 +534,10 @@ class MainWindow(QMainWindow):
             layout, "policy.shop.notices", checked=False
         )
 
+        # BA-2026-003. Beside the settings rather than beside the button,
+        # because it is a question about this run and not about this book.
+        self.plan_check = self._checkbox(layout, "policy.plan.only", checked=False)
+
         # EF-050. Beside the two above because it is the third setting that
         # touches characters a reader sees — and unlike them it puts the text
         # back rather than taking it away.
@@ -869,6 +890,7 @@ class MainWindow(QMainWindow):
             self._policy(),
             self.validate_check.isChecked(),
             self._ask_resolver(),
+            plan_only=self.plan_check.isChecked(),
         )
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)

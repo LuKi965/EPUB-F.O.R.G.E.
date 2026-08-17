@@ -99,3 +99,39 @@ def describe(plan: Plan) -> list[str]:
         lines.append("")
         lines.append(f"{len(plan.occupied)} destination(s) already exist (marked !)")
     return lines
+
+
+def ledger_lines(report, language: str | None = None) -> list[str]:
+    """Every high-risk transformation this rebuild made, one to a line.
+
+    BA-2026-003's visible half. The finding asks for a machine-readable balance
+    of every high-risk transformation and for it to be readable *before* the
+    book is published; the balance has existed since `40b7fdd`, and until now
+    the only way to see it was to publish the book and read the JSON.
+
+    Each line carries what the ledger carries, in the order somebody reading it
+    needs: what was done, to what, whether it can be undone, and what it risks.
+    A transformation with no entry here is the defect this finding is about, so
+    the count is stated even when it is zero — an empty ledger is an answer,
+    and a missing one is a silence.
+    """
+    changes = list(getattr(report, "changes", ()) or ())
+    if not changes:
+        return ["", "  ledger: no high-risk transformation"]
+
+    lines = ["", f"  ledger: {len(changes)} high-risk transformation(s)"]
+    for change in changes:
+        action = getattr(change.action, "value", change.action)
+        risk = getattr(change.risk, "value", change.risk)
+        mark = "" if change.reversible else "  [!] not reversible"
+        lines.append(f"    {action:<12} {change.subject}{mark}")
+        if change.before or change.after:
+            lines.append(f"        {change.before or '—'}  ->  {change.after or '—'}")
+        detail = f"        risk: {risk}"
+        if change.rule:
+            detail += f" · rule: {change.rule}"
+        lines.append(detail)
+    irreversible = sum(1 for change in changes if not change.reversible)
+    if irreversible:
+        lines.append(f"  {irreversible} of them cannot be undone from the output alone")
+    return lines

@@ -411,6 +411,16 @@ PL: dict[str, str] = {
         "Zaznaczone — rysowane są wszystkie strony. Dla książki o 65 rozdziałach "
         "to kilka minut, ale wtedy nic nie jest zgadywane z próbki."
     ),
+    "policy.plan.only": "Tylko plan — nie zapisuj plików",
+    "policy.plan.only.tip": (
+        "Przebudowuje każdą książkę i przepuszcza ją przez **wszystkie** "
+        "kontrole — tekst, bilans, walidator, wygląd — a na końcu nie zapisuje "
+        "niczego.\n\n"
+        "Raport wypisuje pełny rejestr zmian wysokiego ryzyka: co zostało "
+        "zrobione, z czym, czy da się to cofnąć i czym ryzykuje. To jest "
+        "odpowiedź na pytanie „co ta przebudowa zrobi z moją książką”, udzielona "
+        "**zanim** cokolwiek trafi na dysk."
+    ),
     "policy.repair.encoding": "Przywróć znaki przestankowe zgubione przez konwersję",
     "policy.repair.encoding.tip": (
         "Windows trzyma cudzysłowy, myślniki i wielokropki na pozycjach, które "
@@ -1272,6 +1282,15 @@ EN: dict[str, str] = {
         "spread across the book. About 36 seconds per book.\n\n"
         "Ticked, every page is drawn. For a 65-chapter book that is several "
         "minutes, but then nothing is inferred from a sample."
+    ),
+    "policy.plan.only": "Plan only — write nothing",
+    "policy.plan.only.tip": (
+        "Rebuilds every book and puts it through **every** check — text, "
+        "balance, validator, appearance — and then writes nothing.\n\n"
+        "The report prints the full ledger of high-risk transformations: what "
+        "was done, to what, whether it can be undone, and what it risks. It is "
+        "the answer to “what will this rebuild do to my book”, given **before** "
+        "anything reaches the disk."
     ),
     "policy.repair.encoding": "Restore punctuation a conversion lost",
     "policy.repair.encoding.tip": (

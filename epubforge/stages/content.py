@@ -1843,6 +1843,14 @@ class ContentStage(Stage):
                 normalised = "; ".join(part.strip() for part in content.split(";"))
                 if normalised != "text/html; charset=utf-8":
                     found.add("meta[http-equiv]")
+            if tag == "meta" and element.get("name") and element.get("content") is None:
+                # EF-053. A named `<meta>` carries its payload in `content`, and
+                # the exporters that got this wrong wrote `value` instead. Two
+                # books of the mixed shelf carry Adobe's DRM breadcrumb that way
+                # — `<meta name="Adept.resource" value="urn:uuid:…"/>` — and it
+                # costs **two** errors under the new rules rather than one: the
+                # attribute that is not allowed, and the one that is missing.
+                found.add("meta[content]")
             if tag in ("img", "table", "td", "th", "object", "iframe"):
                 for name in ("width", "height"):
                     value = (element.get(name) or "").strip()

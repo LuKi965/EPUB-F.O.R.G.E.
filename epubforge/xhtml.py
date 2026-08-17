@@ -527,9 +527,31 @@ _EMPTY_TITLE_RE = re.compile(
     rb"<title(\s[^>]*)?\s*(?:/>|>\s*</title\s*>)", re.IGNORECASE
 )
 
-#: How far into the document the `<head>` can reasonably be. A `<title>` after
-#: this is not the document's own; it belongs to something embedded.
+#: The fallback boundary, for a document with no `</head>` at all. Everything
+#: else uses the real one — see `_head_ends_at`.
 _HEAD_WINDOW = 4096
+
+_HEAD_END_RE = re.compile(rb"</head\s*>", re.IGNORECASE)
+
+
+def _head_ends_at(data: bytes) -> int:
+    """Where the head really ends, rather than where it usually does.
+
+    EF-053. This was a fixed 4096 bytes, on the reasoning that a `<title>`
+    further in belongs to something embedded — which is sound, and was measured
+    against nothing. One book on the mixed shelf is a Word export: its `<head>`
+    carries **91 486 bytes** of `<!--[if gte mso 9]>` conditional comments and
+    the `<title>` sits at byte 91 469. Twelve documents, twelve empty titles,
+    and the repair that exists for exactly this never saw one of them — so the
+    container-only mode produced `RSC-005: Element "title" must not be empty`
+    on a book it was supposed to fix.
+
+    `</head>` is not a guess. A `<title>` before it is the document's own; one
+    after it is not. The window stays only for a document that has no `</head>`,
+    where there is nothing better to say.
+    """
+    end = _HEAD_END_RE.search(data)
+    return end.start() if end else min(len(data), _HEAD_WINDOW)
 
 
 def fill_empty_title(data: bytes, title: str) -> tuple[bytes, bool]:
@@ -549,10 +571,10 @@ def fill_empty_title(data: bytes, title: str) -> tuple[bytes, bool]:
     already had — it was creating one, by upgrading the package around markup
     that was legal only under the old rules.
 
-    Only the first `<title>` in the head window, and only when it is empty. An
-    SVG `<title>` is a label on a shape and is nobody's business here.
+    Only the first `<title>` inside the head, and only when it is empty. An SVG
+    `<title>` is a label on a shape and is nobody's business here.
     """
-    match = _EMPTY_TITLE_RE.search(data, 0, _HEAD_WINDOW)
+    match = _EMPTY_TITLE_RE.search(data, 0, _head_ends_at(data))
     if match is None:
         return data, False
     text = re.sub(r"\s+", " ", title).strip()
