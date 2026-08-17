@@ -540,9 +540,27 @@ REMOVES_TEXT_ON_PURPOSE = frozenset({
     "xhtml.shop-notice-removed",
     "xhtml.watermark-removed",
     "xhtml.watermark-relocated",
-    "xhtml.watermark-consolidated",
     "hyphens.joined",
 })
+
+#: **`xhtml.watermark-consolidated` is deliberately not in the set above**, and
+#: taking it out re-armed a gate that had been disarmed on most of a real shelf.
+#:
+#: Consolidation does not touch the text. It pops the inline style, adds a class
+#: and sets `aria-hidden`; the token stays exactly where it was, in the same
+#: order, with the same characters. Nothing about it can break K1.
+#:
+#: Listing it anyway was not merely redundant. The check below asks whether the
+#: report carries **any** consented rule, not whether that rule explains the
+#: loss — and consolidation is the *default* watermark mode, so it appears on
+#: nearly every book that carries a marker at all. A book that consolidated a
+#: watermark and lost two characters somewhere else was therefore warned about
+#: and published, whatever had actually eaten them.
+#:
+#: Found on the owner's 93-book shelf, 0.2.28: one book came out `-2` characters
+#: with `text_invariant: False`, excused by a consolidation that had removed
+#: nothing. The gate that exists to refuse exactly that had been standing down
+#: since the day consolidation became the default.
 
 
 def _more_than_one_rendition(source: str) -> bool:

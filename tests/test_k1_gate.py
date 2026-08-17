@@ -309,3 +309,65 @@ def _one_document(markup: str):
         def get(self, path): return Resource(markup.encode("utf-8"))
 
     return Book()
+
+
+class TestOnlyRulesThatActuallyRemoveTextExcuseALoss:
+    """Znalezione na półce 93 książek, wydanie 0.2.28.
+
+    Bramka K1 pyta, czy w raporcie jest **jakakolwiek** reguła ze zgodą — nie
+    czy ta reguła tłumaczy stratę. Dopóki na liście stała konsolidacja znaku
+    wodnego, która **niczego nie usuwa** i jest domyślnym trybem, bramka była
+    rozbrojona na każdej książce niosącej znacznik: książka, która
+    skonsolidowała znak wodny i zgubiła dwa znaki gdzie indziej, dostawała
+    ostrzeżenie i była zapisywana, cokolwiek te znaki zjadło.
+
+    Jedna książka wyszła `-2` z `text_invariant: False`, usprawiedliwiona
+    konsolidacją, która nie zabrała ani jednego znaku.
+    """
+
+    def test_consolidation_is_not_a_licence_to_lose_text(self):
+        from epubforge.pipeline import REMOVES_TEXT_ON_PURPOSE
+
+        assert "xhtml.watermark-consolidated" not in REMOVES_TEXT_ON_PURPOSE
+
+    def test_the_modes_that_do_move_the_token_are_still_there(self):
+        """Druga strona: `gather` i `remove` naprawdę wyjmują token z przepływu,
+        więc bez nich bramka odmawiałaby książki, o którą ktoś poprosił."""
+        from epubforge.pipeline import REMOVES_TEXT_ON_PURPOSE
+
+        assert "xhtml.watermark-relocated" in REMOVES_TEXT_ON_PURPOSE
+        assert "xhtml.watermark-removed" in REMOVES_TEXT_ON_PURPOSE
+
+    def test_every_excusing_rule_belongs_to_a_stage_that_can_remove_text(self):
+        """Reguła, której kod nigdy nie usuwa ani nie przenosi tekstu, nie ma
+        prawa usprawiedliwiać straty. Sprawdzane przez nazwę etapu, bo to
+        jedyne, co da się sprawdzić bez uruchomienia przebudowy."""
+        from epubforge.pipeline import REMOVES_TEXT_ON_PURPOSE
+
+        for rule in REMOVES_TEXT_ON_PURPOSE:
+            assert any(
+                word in rule
+                for word in ("removed", "relocated", "joined", "notice")
+            ), f"{rule}: nazwa nie mówi, że cokolwiek ubywa albo się przenosi"
+
+    def test_consolidation_really_does_leave_the_token_alone(self):
+        """Dowód na to, na czym stoi cała ta poprawka — czytany z kodu, bo
+        gdyby konsolidacja kiedyś zaczęła ruszać tekst, jej nieobecność na
+        liście stałaby się defektem w drugą stronę."""
+        import pathlib
+        import re
+
+        source = (
+            pathlib.Path(__file__).parent.parent
+            / "epubforge" / "stages" / "content.py"
+        ).read_text(encoding="utf-8")
+        branch = re.search(
+            r'if mode == "consolidate":(.*?)\n            else:', source, re.S
+        )
+        assert branch, "gałąź konsolidacji zmieniła kształt — sprawdź ręcznie"
+        body = branch.group(1)
+        for forbidden in (".text", ".tail", "remove(", "displaced"):
+            assert forbidden not in body, (
+                f"konsolidacja rusza teraz tekst ({forbidden}) — jeśli tak ma "
+                "być, musi wrócić na listę REMOVES_TEXT_ON_PURPOSE"
+            )
