@@ -159,3 +159,70 @@ class TestTheRecordItself:
         data = Report().to_dict()
         assert data["changes"] == []
         assert data["change_summary"]["total"] == 0
+
+
+class TestTheVocabularyIsAllInUse:
+    """Kryterium zamknięcia BA-2026-003 mówi o słowniku **i** o bilansie dla
+    wszystkich transformacji wysokiego ryzyka. Słowo w słowniku, którego nikt
+    nie stawia, spełnia pierwszą połowę i cicho przeczy drugiej.
+
+    `Action.RECONSTRUCTED` było takim słowem przez cały czas istnienia bilansu:
+    zdefiniowane, opisane komentarzem i nieużyte ani razu. Znaczyło to, że
+    odzysk — jedyna transformacja publikująca **odczyt parsera** jako fakt
+    o książce — nie miał w rejestrze żadnego wpisu.
+    """
+
+    @staticmethod
+    def used_in_the_package() -> set[str]:
+        import ast
+        import pathlib
+
+        root = pathlib.Path(__file__).parent.parent / "epubforge"
+        used: set[str] = set()
+        for path in sorted(root.rglob("*.py")):
+            if path.name == "report.py":
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if (
+                    isinstance(node, ast.Attribute)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in ("Action", "_Action")
+                ):
+                    used.add(node.attr)
+        return used
+
+    @pytest.mark.parametrize("verb", sorted(action.name for action in Action))
+    def test_every_verb_is_actually_recorded_somewhere(self, verb):
+        assert verb in self.used_in_the_package(), (
+            f"Action.{verb} stoi w słowniku i nikt go nie stawia — "
+            "albo transformacja jest poza bilansem, albo słowo jest martwe"
+        )
+
+    def test_every_content_risk_rule_has_a_ledger_entry(self):
+        """Druga połowa tego samego: reguła nazwana jako ryzyko dla treści,
+        a nieobecna w bilansie, jest transformacją wysokiego ryzyka poza
+        rejestrem — czyli dokładnie tym, czego to ustalenie zabrania."""
+        import ast
+        import pathlib
+
+        root = pathlib.Path(__file__).parent.parent / "epubforge"
+        z_ryzykiem: set[str] = set()
+        w_bilansie: set[str] = set()
+        for path in sorted(root.rglob("*.py")):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not isinstance(node, ast.Call):
+                    continue
+                nazwa = getattr(node.func, "attr", getattr(node.func, "id", None))
+                if nazwa != "changed":
+                    continue
+                slowa = {k.arg: k.value for k in node.keywords}
+                regula = slowa.get("rule")
+                if not (isinstance(regula, ast.Constant) and isinstance(regula.value, str)):
+                    continue
+                w_bilansie.add(regula.value)
+                ryzyko = slowa.get("risk")
+                if isinstance(ryzyko, ast.Attribute) and ryzyko.attr == "CONTENT":
+                    z_ryzykiem.add(regula.value)
+
+        assert z_ryzykiem <= w_bilansie
+        assert z_ryzykiem, "żadna reguła nie deklaruje ryzyka dla treści"

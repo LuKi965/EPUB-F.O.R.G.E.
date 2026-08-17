@@ -19,7 +19,7 @@ from .policy import Policy
 from .question_texts import say
 from .reader import EpubReadError, read_epub
 from .references import Resolver
-from .report import Level, Report, Risk
+from .report import Action, Automation, Level, Report, Risk
 from .stages import DEFAULT_STAGES, Context
 from .writer import ArchiveVerificationError, PublicationRefused, write_epub
 
@@ -488,6 +488,44 @@ def _ask_about_reconstructed(book, reconstructed, queue, report) -> bool:
                 "package.metadata-corrected",
                 values={"field": label, "before": current, "after": answer.value},
                 location=book.source_opf_path or "",
+            )
+            report.changed(
+                "package",
+                Action.REPLACED,
+                f"metadata:{label}",
+                before=current,
+                after=answer.value,
+                automation=Automation.ASKED,
+                risk=Risk.CONTENT,
+                reversible=True,
+                rule="package.metadata-corrected",
+            )
+        elif answer.source != "unanswered":
+            # BA-2026-003, i ten wpis kosztował najwięcej myślenia, bo tu **nic
+            # się nie zmienia** — i właśnie dlatego ma być w bilansie.
+            #
+            # `Action.RECONSTRUCTED` stało w słowniku od chwili jego powstania
+            # i nie było użyte ani razu. Wartość odczytana z uszkodzonego
+            # pakietu jedzie do książki jako jej tytuł, język albo autor, i po
+            # zapisie nic w wyniku nie mówi, że nie stała tam od początku.
+            # Odzysk jest jedyną transformacją w tym programie, która publikuje
+            # **odczyt parsera** jako fakt o książce; zostawienie go poza
+            # rejestrem znaczyłoby, że bilans milczy dokładnie tam, gdzie
+            # najtrudniej sprawdzić wynik po fakcie.
+            #
+            # Odwracalne: oryginał to uszkodzony pakiet, który wciąż jest na
+            # dysku. Ryzyko `CONTENT`, bo zły tytuł albo zły język to nie jest
+            # kwestia wyglądu — to jest książka opisana cudzym opisem.
+            report.changed(
+                "package",
+                Action.RECONSTRUCTED,
+                f"metadata:{label}",
+                before="pakiet uszkodzony",
+                after=current,
+                automation=Automation.ASKED,
+                risk=Risk.CONTENT,
+                reversible=True,
+                rule="package.metadata-reconstructed",
             )
     return not unanswered
 

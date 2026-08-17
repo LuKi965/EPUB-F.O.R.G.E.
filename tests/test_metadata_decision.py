@@ -217,3 +217,54 @@ class TestAllThreeClassesShareOneApi:
             assert queue.ask(question).option == KEEP
         assert len(queue.given) == 2
         assert len({q.id for q, _ in queue.given}) == 2
+
+
+class TestTheDecisionReachesTheBalanceSheet:
+    """BA-2026-003 na odzysku, i najcichszy przypadek w całym tym ustaleniu.
+
+    `Action.RECONSTRUCTED` stało w słowniku bilansu od dnia jego powstania
+    i nie było użyte **ani razu**. Odzysk jest jedyną transformacją w tym
+    programie, która publikuje **odczyt parsera** jako fakt o książce: po
+    zapisie nic w wyniku nie mówi, że ten tytuł nie stał tam od początku.
+
+    Trudność polega na tym, że przy odpowiedzi „zostaw" nic się nie zmienia —
+    i właśnie dlatego wpis jest potrzebny. Bilans, który milczy tam, gdzie
+    najtrudniej sprawdzić wynik po fakcie, jest bilansem najmniej wartym.
+    """
+
+    @staticmethod
+    def entries(result, rule: str):
+        return [change for change in result.report.changes if change.rule == rule]
+
+    def test_keeping_the_parsers_reading_is_recorded(self, tmp_path):
+        from epubforge.report import Action, Automation, Risk
+
+        result = run(tmp_path, Asks())
+        wpisy = self.entries(result, "package.metadata-reconstructed")
+        assert wpisy, result.report.to_text()
+        assert wpisy[0].action == Action.RECONSTRUCTED
+        assert wpisy[0].automation == Automation.ASKED
+        assert wpisy[0].risk == Risk.CONTENT
+
+    def test_correcting_it_is_recorded_as_a_replacement(self, tmp_path):
+        from epubforge.report import Action
+
+        result = run(tmp_path, Asks(option="write", value="Prawdziwy Tytuł"))
+        wpisy = self.entries(result, "package.metadata-corrected")
+        assert wpisy, result.report.to_text()
+        assert wpisy[0].action == Action.REPLACED
+        assert wpisy[0].after == "Prawdziwy Tytuł"
+
+    def test_silence_puts_nothing_in_the_ledger(self, tmp_path):
+        """Milczenie nie jest zgodą — i nie jest też zdarzeniem. Wpis
+        o czymś, czego nikt nie zatwierdził, byłby bilansem mówiącym
+        nieprawdę o decyzji, której nie było."""
+
+        class Milczy:
+            def ask(self, question):
+                from epubforge.decisions import Answer
+
+                return Answer(option=KEEP, source="unanswered")
+
+        result = run(tmp_path, Milczy())
+        assert not self.entries(result, "package.metadata-reconstructed")

@@ -38,7 +38,104 @@ written; only the current version was reset.
 
 ## Unreleased
 
-_Nic jeszcze._
+### The K1 gate was disarmed, twice, and both times by us
+
+A rule that removes nothing was excusing a loss it had nothing to do with: a
+book carrying a watermark had the gate stood down across the whole file. The
+fix narrowed the excuse to the loss the rule actually names.
+
+The correction to that correction was worse than the fault. Folding both sides
+of the comparison through the whole C1 block let a book come out **18 545
+characters shorter** with the gate silent — those characters were its quotation
+marks and dashes, read as Latin-1 by whoever converted it. The set folded away
+now holds only what cp1252 leaves undefined: five positions, not thirty-two.
+
+The rule that came out of it is wider than the defect: what you fold out of a
+comparison must be something that **cannot be text**, not something the writer
+happens to delete. The two sets look identical. They are not.
+
+### Punctuation a conversion broke is repaired, not deleted
+
+Those characters are not damaged beyond recognition — the cp1252 table is
+one-to-one, `0x93` is always a left quotation mark. Until now every one of them
+was deleted as unwritable. Now they are translated, **after a question**, once
+per document, with a census by character: "1174 dashes" is something a person
+can answer and 1174 separate questions is not. The table is built by the codec
+at import, not transcribed by hand.
+
+Answering *leave them* now actually leaves them. It used to say that and delete
+them anyway further down, which is worse than not offering the option.
+
+### A run's own figures were flattering it
+
+Three separate ways, all found and fixed in one day:
+
+- **A net difference cancelled an added error.** One rule's error disappearing
+  and another appearing in the same book left the total unmoved, so the column
+  meant to catch *newly introduced* errors stayed empty. It counts by code now.
+- **An excuse covered the whole book.** One rule in the report was excusing
+  every error in the file. It now covers only errors of the shape that rule
+  names — and the first attempt at that, a list of six attribute names taken
+  from whatever the sample happened to show, was itself the same mistake in
+  miniature: a control run turned up 42 supposedly introduced errors, 41 of
+  them the same class as the names on the list.
+- **The summary described the file on disk rather than the run.** A rebuild
+  that ran and a signature that was written are not the same event.
+
+### Output no longer differs between machines
+
+Four books in a hundred and sixty came out differently on Windows than on
+Linux, with identical rules, text and validator verdict. The difference was one
+line: `0101-01-01` against `101-01-01`. `strftime("%Y")` hands the year to the
+platform's C library, and the two disagree below the year 1000 — with Linux
+producing the invalid one. Years are formatted directly now.
+
+### Every transformation that changes characters of text goes through a contract
+
+Precondition, mutation, postcondition and undo as data and functions rather
+than as habit. A false precondition is an ordinary answer — this book does not
+have that. A false postcondition costs the transformation its work: the
+document goes back **byte for byte**, because reverting by inverse operation
+needs knowledge of what changed, which is the very thing missing here.
+
+Five rules run through it, and they are not the convenient ones — they are the
+complete set of transformations that alter characters a reader will see:
+encoding repair, hyphen joining, shop-notice removal, and moving or deleting a
+watermark marker. Everything else in the program moves markup, styles and
+metadata, where a mistake is something the validator sees. Here it is something
+the reader sees, and only on that page.
+
+Where the postcondition does not come out, the marker or the sentence **stays in
+the book**. A shop footer you can see and report costs less than a sentence of
+the novel whose absence you notice a page later.
+
+### The balance sheet had been missing its riskiest entries
+
+The ledger — the addable record of what a rebuild did, as opposed to the report
+that describes it — was silent on the three transformations that take
+reader-visible characters away: the shop sentence and the watermark in both its
+modes. They had a sentence in the report and no line in the balance.
+
+Two verbs in its vocabulary turned out never to have been written by anything.
+`reconstructed` covered the one transformation that publishes a *parser's
+reading* as a fact about the book — after a damaged package is recovered,
+nothing in the output says the title was not always there. `carried` covered a
+deliberate keep, and the one that costs something is a visible notice holding
+somebody's e-mail address, which ships in a file that gets sent on. Both are
+entered now, and a test refuses any verb that nothing writes.
+
+### Smaller
+
+- `meta http-equiv` and `meta content=` are the fifth and sixth shapes of EPUB 2
+  markup the detector knows; three books in the mixed collection were passing as
+  clean.
+- The `<head>` window is found by looking for `</head>`, not by reading a fixed
+  4096 bytes — Word exports put more than that in front of the encoding
+  declaration.
+- `--plan` rebuilds a book, runs every gate, prints the full ledger of
+  high-risk changes and **writes nothing**. Distinct from `--dry-run`, which
+  does not read a book at all. Available from the window.
+- The suite no longer needs a JDK, only a JRE.
 
 ## 0.2.28 — alpha — 2026-08-16
 

@@ -16,7 +16,7 @@ from lxml import etree
 
 from .. import covers, cascade as css_cascade
 from .. import mojibake, paths, references, typography, watermark, xhtml
-from ..report import Action, Level, Risk
+from ..report import Action, Automation, Level, Risk
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
 
@@ -812,6 +812,22 @@ class ContentStage(Stage):
                     "name": watermark.META_NAME,
                 },
             )
+            # BA-2026-003: raport mowil o tym zdaniem, bilans milczal. Trzy
+            # transformacje, ktore zabieraja czytelnikowi znaki z oczu, byly
+            # jedynymi poza rejestrem maszynowym — czyli dokladnie te, dla
+            # ktorych to ustalenie powstalo.
+            self.changed(
+                ctx,
+                Action.MOVED,
+                "watermark",
+                before=f"{self._watermarks_relocated} × w tresci",
+                after=f"<meta name={watermark.META_NAME}> w naglowku dokumentu",
+                risk=Risk.CONTENT,
+                # Odwracalne z samego wyniku: token stoi w naglowku i da sie go
+                # z powrotem wstawic. To jest cala roznica wobec usuniecia.
+                reversible=True,
+                rule="xhtml.watermark-relocated",
+            )
         if self._watermarks_removed:
             # A warning rather than a fix, and deliberately so: this is the one
             # place the tool destroys something a publisher put in the file. It
@@ -826,6 +842,18 @@ class ContentStage(Stage):
                     "documents": self._watermark_documents,
                     "tokens": len(self._watermark_tokens),
                 },
+            )
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                "watermark",
+                before=f"{self._watermarks_removed} × w tresci",
+                after="usuniete",
+                automation=Automation.ASKED,
+                risk=Risk.CONTENT,
+                # Nieodwracalne z wyniku: skasowanego znacznika nie ma skad wziac.
+                reversible=False,
+                rule="xhtml.watermark-removed",
             )
         if self._shop_notices_removed:
             # Verbatim, and every one of them. The acceptance for WP-17 said the
@@ -843,6 +871,17 @@ class ContentStage(Stage):
                     "removed": " | ".join(self._shop_notices_removed),
                 },
             )
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                "text",
+                before=f"{len(self._shop_notices_removed)} × zdanie ksiegarni",
+                after="usuniete",
+                automation=Automation.ASKED,
+                risk=Risk.CONTENT,
+                reversible=False,
+                rule="xhtml.shop-notice-removed",
+            )
         if self._watermark_notices:
             emails = watermark.personal_data(" ".join(self._watermark_notices))
             kept = len(self._watermark_notices)
@@ -857,6 +896,25 @@ class ContentStage(Stage):
                     Level.PRESERVED,
                     "xhtml.watermark-kept-personal-data",
                     values={"count": kept, "data": data},
+                )
+                # BA-2026-003, i jedyny wpis w bilansie o czyms, czego program
+                # **nie zrobil**. `Action.CARRIED` istnieje dokladnie na to:
+                # zostawione swiadomie, wbrew regule, ktora mogla to usunac.
+                #
+                # Tutaj zostawienie ma cene, ktorej usuniecie nie ma: w pliku,
+                # ktory ktos komus wysle, jedzie jego adres. Raport mowi o tym
+                # zdaniem od dawna; bilans, ktory ma sie sumowac, milczal — a to
+                # jest rzecz, ktora czlowiek chcialby zobaczyc na liscie „co ta
+                # przebudowa zrobila z moja ksiazka", nie w akapicie.
+                self.changed(
+                    ctx,
+                    Action.CARRIED,
+                    "watermark",
+                    before=f"{kept} × widoczne zdanie z danymi osobowymi",
+                    after="zostawione bez zmian",
+                    risk=Risk.CONTENT,
+                    reversible=True,
+                    rule="xhtml.watermark-kept-personal-data",
                 )
             else:
                 self.note(ctx, Level.PRESERVED, "xhtml.watermark-kept", values={"count": kept})
@@ -2791,19 +2849,108 @@ class ContentStage(Stage):
             self._watermark_documents += 1
 
         if displaced:
-            if mode == "gather":
+            self._displace_tokens(ctx, root, resource, displaced, tokens, mode)
+
+        self._watermark_notices.extend(notices)
+
+    def _displace_tokens(
+        self, ctx: Context, root, resource, displaced: list, tokens: list[str], mode: str
+    ) -> None:
+        """Take the markers out of the text — parked in the head, or gone.
+
+        BA-2026-003, czwarta i piąta transformacja na kontrakcie, i **ostatnie
+        dwie**, które zmieniają znaki tekstu. Reszta programu przestawia
+        znaczniki, style i metadane; tam pomyłkę widzi walidator. Tutaj widzi ją
+        czytelnik, i dopiero na tej stronie.
+
+        Warunek końcowy ma trzy człony, i każdy z nich odpowiada na inną pomyłkę:
+
+        * to, co zostało, jest **podciągiem** tego, co było — nic nie zostało
+          dopisane ani przestawione;
+        * ubyło **dokładnie tyle** znaków, ile niosły znaczniki — czyli nie
+          zabrało przy okazji zdania, które za nimi stało. Ten człon istnieje,
+          bo `_unwrap` z premedytacją zostawia ogon elementu przy rozdziale,
+          a sprawdzenie samym podciągiem przepuściłoby zgubienie tego ogona;
+        * przy przenoszeniu — każdy token **jest** w nagłówku dokumentu.
+          „Przeniesione" bez drugiej połowy to jest usunięcie z ładniejszą
+          nazwą, a raport mówiłby wtedy nieprawdę o czymś nieodwracalnym.
+
+        Trzeci człon zmienia zachowanie w jednym rzadkim przypadku i zmienia je
+        na dobre: dokument bez ``<head>`` gubił dotąd tokeny z treści i nie
+        parkował ich nigdzie, cicho. Teraz taka próba wraca w całości.
+        """
+        from ..transformation import PostconditionFailed, Transformation, carry_out
+
+        relocating = mode == "gather"
+        before = "".join(root.itertext())
+        carried = sum(len(element.text or "") for element in displaced)
+
+        def mutate() -> int:
+            if relocating:
                 self._gather_tokens(root, tokens)
-                self._watermarks_relocated += len(displaced)
-            else:
-                self._watermarks_removed += len(displaced)
             for element in displaced:
                 # Not `parent.remove`: the marker sits at the end of a chapter
                 # and whatever whitespace or text trailed it belongs to the
                 # chapter, not to the marker.
                 self._unwrap(element, keep_children=False)
-            self._watermark_documents += 1
+            return len(displaced)
 
-        self._watermark_notices.extend(notices)
+        def parked() -> bool:
+            if not relocating:
+                return True
+            head = root.find(xhtml.qname("head"))
+            if head is None:
+                return False
+            held = {
+                meta.get("content")
+                for meta in head.iter(xhtml.qname("meta"))
+                if meta.get("name") == watermark.META_NAME
+            }
+            return all(token in held for token in tokens)
+
+        def postcondition() -> bool:
+            after = "".join(root.itertext())
+            return (
+                _is_subsequence(after, before)
+                and len(before) - len(after) == carried
+                and parked()
+            )
+
+        rule = "xhtml.watermark-relocated" if relocating else "xhtml.watermark-removed"
+        krok = Transformation(
+            rule=rule,
+            target=resource.path,
+            precondition=lambda: bool(displaced),
+            postcondition=postcondition,
+            # Przeniesienie da się odwrócić z samego wyniku — token stoi
+            # w nagłówku. Usunięcie nie: skasowanego znacznika nie ma skąd wziąć.
+            reversible=relocating,
+        )
+        try:
+            moved = carry_out(
+                krok,
+                snapshot=lambda: xhtml.serialize(root),
+                restore=lambda data: self._reload(ctx, resource, root, data),
+                mutate=mutate,
+            )
+        except PostconditionFailed as niepowodzenie:
+            # Znacznik zostaje w książce. Widoczny ciąg znaków, który da się
+            # zgłosić, kosztuje mniej niż zdanie powieści zabrane przy okazji —
+            # ta sama asymetria, na której stoi usuwanie stopek księgarni.
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.watermark-reverted",
+                values={"count": len(displaced), "detail": str(niepowodzenie)},
+                location=resource.path,
+            )
+            return
+
+        if relocating:
+            self._watermarks_relocated += moved
+        else:
+            self._watermarks_removed += moved
+        self._watermark_documents += 1
 
     def _gather_tokens(self, root, tokens: list[str]) -> None:
         """Park the tokens in the document's own ``<head>``.
