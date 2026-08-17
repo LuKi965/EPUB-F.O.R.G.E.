@@ -395,3 +395,75 @@ class TestABalanceMayNotCryWolf:
             change for change in result.report.changes
             if change.rule == "nav.ncx-dropped"
         ], "the NCX was kept, so nothing may record it as removed"
+
+
+class TestTheRealOrphanPathLeavesAnEntry:
+    """§4.2 z `RAPORT-FIX-VERIFICATION-001` — druga dziura znaleziona przez
+    audyt, odtworzona u siebie przed napisaniem tego pliku.
+
+    Mechanizm bilansu był strażowany na **etapie syntetycznym**: test wstrzykuje
+    własny etap gubiący plik i sprawdza, że strata bez wpisu jest błędem. To
+    dowodzi, że bilans działa — i nie dowodzi niczego o **produkcyjnej** ścieżce
+    `drop_orphans=True`, która naprawdę kasuje plik z czyjejś książki.
+
+    Odtworzone: wyjęcie wpisu z `structure._drop_orphans` zostawia
+    `test_balance.py` + `test_rebuild.py` zielone, 193 z 193.
+
+    To jest dokładnie klasa z EF-047 — oracle, którego nikt nie sprawdza — więc
+    zamknięcie musi być z tej samej rodziny: uruchomić **tę** ścieżkę i zażądać
+    **tego** wpisu.
+    """
+
+    @staticmethod
+    def _swept(tmp_path):
+        return rebuild(
+            make_legacy_epub(str(tmp_path / "in.epub")),
+            str(tmp_path / "out.epub"),
+            Policy.preset(
+                "preserve", validate_before_publish="off", drop_orphans=True
+            ),
+        )
+
+    def test_the_file_really_goes(self, tmp_path):
+        """Bez tego reszta klasy mogłaby przechodzić na książce, w której nie ma
+        czego usunąć — czyli byłaby tym samym pustym strażnikiem, co poprzednio,
+        tylko w innym miejscu."""
+        import zipfile
+
+        result = self._swept(tmp_path)
+        assert result.status.wrote_a_file, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            assert not any("nieuzywany" in name for name in archive.namelist())
+
+    def test_and_the_ledger_says_who_took_it(self, tmp_path):
+        result = self._swept(tmp_path)
+        removals = [
+            change for change in result.report.changes
+            if change.rule == "structure.orphan-removed"
+        ]
+        assert removals, [change.rule for change in result.report.changes]
+        assert removals[0].action is Action.REMOVED
+        # Nieodwracalne z samego wyniku: skasowanego pliku nie ma skąd wziąć,
+        # a graf osiągalności, na podstawie którego zapadła decyzja, jest
+        # świadomie niepełny — dlatego ten przełącznik jest domyślnie wyłączony.
+        assert removals[0].reversible is False
+
+    def test_and_the_entry_names_the_file_that_went(self, tmp_path):
+        """Wpis mówiący „usunięto zasób" i niemówiący który jest w rejestrze
+        tym samym, czym alarm bez adresu."""
+        result = self._swept(tmp_path)
+        removals = [
+            change for change in result.report.changes
+            if change.rule == "structure.orphan-removed"
+        ]
+        assert any("nieuzywany" in change.before for change in removals), [
+            change.before for change in removals
+        ]
+
+    def test_and_the_balance_closes(self, tmp_path):
+        """Druga połowa tego samego: wpis istnieje **po to**, żeby strata dała
+        się rozliczyć. Test na sam wpis przeszedłby też wtedy, gdyby bilans go
+        nie czytał."""
+        result = self._swept(tmp_path)
+        assert result.report.balance.closes, result.report.balance.as_dict()
+        assert "package.balance-unexplained" not in rules_of(result)

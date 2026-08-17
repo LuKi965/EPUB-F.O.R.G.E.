@@ -40,6 +40,7 @@ from epubforge import budget as budget_module
 from epubforge.budget import Budget, BudgetExceeded
 from epubforge.pipeline import Status, rebuild, rebuild_all
 from epubforge.policy import Policy
+from epubforge.report import Report
 from epubforge.stages import DEFAULT_STAGES
 from epubforge.stages.base import Stage
 from tests.factory import make_modern_epub, write_zip
@@ -501,3 +502,136 @@ class TestTheFallbackHasNoClock:
         )
         assert result.status is Status.BLOCKED
         assert not destination.exists()
+
+
+class TestTheClockActuallyStopsAStageInTheMiddle:
+    """§4.1 z `RAPORT-FIX-VERIFICATION-001` — dziura znaleziona przez audyt
+    i odtworzona u siebie przed napisaniem tego pliku.
+
+    `TestStoppingInTheMiddleOfABook` ma test o nazwie mówiącej dokładnie to, co
+    trzeba: że zegar jest pytany **w środku** etapu, a nie tylko między nimi.
+    Ten test liczy jednak **wywołania** `checkpoint`. Wyjęcie z `checkpoint`
+    linii `self.deadline(where)` — czyli cofnięcie dokładnie tej połowy naprawy,
+    o którą chodzi w residuum F-020 — zostawia wywołania na miejscu, bo
+    anulowanie dalej przez nie idzie, i suita przechodzi w komplecie: 50 z 50.
+    Odtworzone u siebie: ta sama mutacja, ten sam wynik.
+
+    Różnica między „pytany" a „egzekwowany" jest tu całą treścią ustalenia.
+    Poniżej jest **egzekwowanie**: jeden etap, wiele dokumentów, krótki limit,
+    i wymóg, żeby przerwał **nie dokończywszy**. Etap, który dobiegł końca
+    i dopiero potem został sprawdzony, jest dokładnie tym, co F-020 nazywa.
+    """
+
+    COUNT = 40
+
+    @staticmethod
+    def _many_real_documents(path, count: int) -> str:
+        """Książka, której dokumenty naprawdę są w manifeście i grzbiecie.
+
+        Fixture obok dokłada pliki do archiwum bez wpisu w manifeście, więc
+        `content_docs()` widzi jeden dokument — do liczenia wywołań to starczy,
+        do zatrzymania etapu w środku nie.
+        """
+        items = "".join(
+            f'<item id="c{i}" href="c{i}.xhtml" media-type="application/xhtml+xml"/>'
+            for i in range(count)
+        )
+        spine = "".join(f'<itemref idref="c{i}"/>' for i in range(count))
+        package = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+            'unique-identifier="i"><metadata '
+            'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+            '<dc:identifier id="i">urn:uuid:1</dc:identifier><dc:title>T</dc:title>'
+            "<dc:language>pl</dc:language>"
+            '<meta property="dcterms:modified">2020-01-01T00:00:00Z</meta></metadata>'
+            '<manifest><item id="nav" href="nav.xhtml" '
+            'media-type="application/xhtml+xml" properties="nav"/>'
+            f"{items}</manifest><spine>{spine}</spine></package>"
+        )
+        entries = {
+            "META-INF/container.xml": CONTAINER.encode(),
+            "OEBPS/package.opf": package.encode(),
+            "OEBPS/nav.xhtml": NAV.encode(),
+        }
+        for index in range(count):
+            entries[f"OEBPS/c{index}.xhtml"] = (
+                '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+                '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+                '<meta charset="utf-8"/><title>R</title></head>'
+                f"<body><p>Rozdział {index}.</p></body></html>"
+            ).encode()
+        return write_zip(str(path), entries)
+
+    @staticmethod
+    def _stage(touched: list):
+        class WalksEveryDocument(Stage):
+            name = "walks-every-document"
+            mutates = False
+
+            def run(self, ctx):
+                # Przez `ctx.parsed`, bo to jest ta jedna droga, którą
+                # wszystkie etapy chodzą po dokumentach — i jedyne miejsce,
+                # w którym zegar sięga do środka etapu.
+                for resource in ctx.book.content_docs():
+                    ctx.parsed(resource)
+                    touched.append(resource.path)
+                    time.sleep(0.01)
+
+        return WalksEveryDocument
+
+    def _run(self, tmp_path, monkeypatch, touched):
+        """Zwraca wynik i **ile dokumentów książka naprawdę ma**.
+
+        Liczbę bierze z książki, nie ze stałej: `content_docs()` liczy też
+        dokument nawigacyjny, a asercja porównująca ze stałą przepuściłaby
+        przejście wszystkich, myląc się o jeden.
+        """
+        from epubforge.reader import read_epub
+
+        monkeypatch.setattr(budget_module, "MAX_SECONDS", 0.05)
+        source = self._many_real_documents(tmp_path / "in.epub", self.COUNT)
+        wszystkie = len(read_epub(source, Report(source=source)).content_docs())
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve"),
+            stages=[self._stage(touched)],
+        )
+        return result, wszystkie
+
+    def test_the_fixture_really_has_that_many_documents(self, tmp_path):
+        """Bez tego cała klasa mogłaby przechodzić, mierząc jeden dokument —
+        i byłaby drugą wersją dokładnie tej pomyłki, którą naprawia."""
+        from epubforge.reader import read_epub
+
+        source = self._many_real_documents(tmp_path / "in.epub", self.COUNT)
+        book = read_epub(source, Report(source=source))
+        assert len(book.content_docs()) >= self.COUNT
+
+    def test_it_refuses(self, tmp_path, monkeypatch):
+        touched: list = []
+        result, _ = self._run(tmp_path, monkeypatch, touched)
+        assert result.status is Status.BLOCKED, result.report.to_text()
+
+    def test_and_it_had_not_finished_the_stage(self, tmp_path, monkeypatch):
+        """Właściwa asercja, której brakowało. Etap ma czterdzieści dokumentów
+        i limit, którego nie da się w nich zmieścić; jeżeli dotknął wszystkich,
+        to znaczy, że zegar odezwał się dopiero po etapie."""
+        touched: list = []
+        wszystkie = self._run(tmp_path, monkeypatch, touched)[1]
+        assert touched, "etap nie ruszył — test nie mierzy tego, co miał"
+        assert len(touched) < wszystkie, (
+            f"etap przeszedł wszystkie {wszystkie} dokumentów przed odmową: "
+            "zegar pyta między etapami, nie w środku"
+        )
+
+    def test_and_publishes_nothing(self, tmp_path, monkeypatch):
+        touched: list = []
+        self._run(tmp_path, monkeypatch, touched)
+        assert not (tmp_path / "out.epub").exists()
+
+    def test_the_refusal_names_the_wall_clock(self, tmp_path, monkeypatch):
+        touched: list = []
+        result, _ = self._run(tmp_path, monkeypatch, touched)
+        assert budget_findings(result)[0].values["limit"] == "wall clock"

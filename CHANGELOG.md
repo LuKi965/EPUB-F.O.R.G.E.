@@ -124,6 +124,24 @@ deliberate keep, and the one that costs something is a visible notice holding
 somebody's e-mail address, which ships in a file that gets sent on. Both are
 entered now, and a test refuses any verb that nothing writes.
 
+### Two guards that were not guarding anything
+
+An independent verification pass over forty-three findings came back with no
+regressions — and with two places where a test named after a defect did not
+actually hold it.
+
+The clock: a stage walking six hundred documents is supposed to be interruptible
+from inside, not only between stages. The test asserted that `checkpoint` was
+**called** often enough. Take the clock out of `checkpoint` and the calls remain,
+because cancellation still goes through them, and all fifty tests pass. The
+assertion now is that a stage with a short limit **stops without finishing** —
+which is the thing the finding was ever about.
+
+The balance sheet: removing an unreferenced file writes a ledger entry, and that
+was held by a test injecting its own file-losing stage. The real path — the one
+somebody switches on to sweep a book — was never run with an assertion about the
+entry. It is now, along with the entry naming which file went.
+
 ### Smaller
 
 - `meta http-equiv` and `meta content=` are the fifth and sixth shapes of EPUB 2

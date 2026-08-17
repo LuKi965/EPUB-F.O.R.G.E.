@@ -829,3 +829,47 @@ class TestWhatTheModeCannotReachIsNotItsFault:
         from epubforge import rules
 
         assert STRANDED_BY_MODE in rules.CATALOGUES["en"]
+
+
+class TestTheRedundantGuardIsRedundantOnPurpose:
+    """§4.3 z `RAPORT-FIX-VERIFICATION-001`, sprawdzone u siebie i zamienione
+    z uwagi w fakt.
+
+    Audyt zauważył, że człon `or ours` w `entry["clean"]` jest **nieosiągalny
+    jako jedyny powód** nieczystości: `ours` napełnia się wyłącznie w gałęzi,
+    która w tej samej linijce podnosi `introduced`, więc niepuste `ours` zawsze
+    pociąga `introduced > 0`. Zalecił zostawić — obrona w głąb.
+
+    Zgoda co do zostawienia, z jedną poprawką: obrona w głąb, o której nikt nie
+    wie, że jest w głąb, przy najbliższym porządkowaniu wygląda na martwy kod
+    i wypada. Zamiast komentarza stoi tu **niezmiennik**. Dopóki przechodzi,
+    człon jest nadmiarowy i można go zostawić w spokoju; kiedy padnie, znaczy
+    to, że przestał być nadmiarowy — i wtedy jest jedyną rzeczą, która łapie
+    dołożony błąd.
+    """
+
+    def test_a_filled_added_codes_always_comes_with_a_positive_introduced(self):
+        """Sprawdzane na kodzie, nie na przebiegu: obie linijki mają stać
+        w jednej gałęzi. Przebieg pokazałby tylko te przypadki, które akurat
+        wystąpiły."""
+        import ast
+        import pathlib
+
+        source = (pathlib.Path(__file__).parent.parent / "epubforge" / "corpus.py")
+        drzewo = ast.parse(source.read_text(encoding="utf-8"))
+
+        galezie_z_ours = []
+        for node in ast.walk(drzewo):
+            if not isinstance(node, ast.If):
+                continue
+            tresc = ast.unparse(node)
+            if "ours.update" in tresc:
+                galezie_z_ours.append(tresc)
+
+        assert galezie_z_ours, "`ours` nie jest już napełniane — ten test stracił przedmiot"
+        for galaz in galezie_z_ours:
+            assert "introduced +=" in galaz, (
+                "`ours` napełnia się poza gałęzią podnoszącą `introduced` — "
+                "człon `or ours` w `clean` przestał być nadmiarowy i jest teraz "
+                "jedyną rzeczą, która łapie dołożony błąd"
+            )
