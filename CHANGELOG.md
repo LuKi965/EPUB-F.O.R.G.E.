@@ -38,6 +38,10 @@ written; only the current version was reset.
 
 ## Unreleased
 
+_Nic jeszcze._
+
+## 0.2.29 — alpha — 2026-08-17
+
 ### The K1 gate was disarmed, twice, and both times by us
 
 A rule that removes nothing was excusing a loss it had nothing to do with: a
