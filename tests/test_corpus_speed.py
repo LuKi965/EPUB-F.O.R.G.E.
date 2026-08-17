@@ -616,6 +616,42 @@ class TestARunSaysWhichRuleBroke:
         assert "1 introduced by it" in text, text
         assert "1 it cannot reach" in text, text
 
+    def test_an_attribute_nobody_listed_is_classified_anyway(self):
+        """Druga połowa EF-054, i wyszła z przebiegu, nie z lektury.
+
+        Pierwsza wersja wymieniała sześć nazw atrybutów wziętych z tego, co
+        akurat wyszło na dwóch półkach: `valign`, `value`, `clear`, `link`,
+        `vlink`, `target`. Przebieg kontrolny natychmiast pokazał, ile to jest
+        warte — `introduced` skoczyło z zera na **42**, a czterdzieści jeden
+        z tych błędów to `align`, `bordercolor`, `cellpadding`, `cellspacing`:
+        dokładnie ta sama klasa, tylko inne słowa.
+
+        Lista nazw jest tu z założenia przegrana. Tryb kontenerowy **kopiuje
+        dokumenty bajt w bajt** — nie usuwa atrybutów, żadnych — więc każdy błąd
+        tej klasy jest nieosiągalny niezależnie od tego, jak atrybut się nazywa.
+        Ten test używa nazwy, której nie ma w żadnym pliku tego projektu.
+        """
+        from epubforge.corpus import _the_mode_cannot_reach
+
+        assert _the_mode_cannot_reach(
+            'RSC-005: Error while parsing file: attribute "wyzywajaca" not '
+            'allowed here; expected attribute "about", "accesskey"'
+        )
+
+    def test_and_what_this_mode_does_write_is_still_its_own(self):
+        """Kontrola przeciwna, i bez niej poprzedni test byłby rozgrzeszeniem
+        wszystkiego. Ten tryb pisze dokument pakietu, nawigację, NCX-a i dwie
+        rzeczy w głowie dokumentu — błąd w którejkolwiek z nich **jest** jego."""
+        from epubforge.corpus import _the_mode_cannot_reach
+
+        assert not _the_mode_cannot_reach(
+            'RSC-005: Error while parsing file: Element "title" must not be empty.'
+        )
+        assert not _the_mode_cannot_reach(
+            'OPF-014: The property "svg" should be declared in the OPF file'
+        )
+        assert not _the_mode_cannot_reach("RSC-012: Fragment identifier is not defined.")
+
     def test_and_a_shape_it_cannot_reach_is_still_forgiven(self, tmp_path):
         """Kontrola przeciwna: uściślenie miało zawęzić rozgrzeszenie, a nie je
         odebrać. Książka z samą procentową szerokością nadal nie jest niczyją

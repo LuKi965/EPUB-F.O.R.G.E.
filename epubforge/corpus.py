@@ -61,47 +61,58 @@ MODES = ("minimal", "preserve", "strict")
 #: not understand is still counted against it.
 STRANDED_BY_MODE = "xhtml.epub2-only-markup"
 
-#: The EPUBCheck sentences the container-only mode is contractually unable to
-#: reach — matched by fragment, because the rest of the message names the
-#: element and differs from book to book.
+#: Sentences the container-only mode is contractually unable to answer,
+#: described as **classes** rather than as a list of attribute names.
 #:
-#: EF-054, and it is the **third** time in two days that the same shape of
-#: mistake has cost something: an excuse that applies to the whole book rather
-#: than to the error it names. The K1 gate was disarmed by a rule that removed
-#: nothing; one `codes` field answered two questions; and here the presence of
-#: `xhtml.epub2-only-markup` anywhere in a book's report moved *every* error
-#: that book gained into `inherent`. Measured on the mixed shelf: one book went
-#: from 22 errors to 26 and the ledger called all four unreachable, on the
-#: strength of a rule that was talking about `<img width="50%">`.
+#: EF-054, i to jest jego druga połowa. Pierwsza wersja wymieniała `valign`,
+#: `value`, `clear`, `link`, `vlink`, `target` — sześć nazw wziętych z tego, co
+#: akurat wyszło na dwóch półkach. Przebieg kontrolny natychmiast pokazał, ile
+#: to jest warte: `introduced` skoczyło z zera na **42**, a czterdzieści jeden
+#: z tych błędów to `align`, `bordercolor`, `cellpadding`, `cellspacing` —
+#: dokładnie ta sama klasa, tylko inne słowa.
 #:
-#: Classified by shape rather than by "is the rule present", which is the same
-#: lesson as EF-052 from the other side: identity, never a difference of totals.
+#: Lista nazw jest tu z założenia przegrana. Ten tryb **kopiuje dokumenty bajt
+#: w bajt** i zmienia w nich dwie rzeczy w głowie; nie usuwa atrybutów, nie
+#: tyka arkuszy i nie przepisuje treści. Więc każdy błąd tej klasy jest
+#: nieosiągalny niezależnie od tego, jak nazywa się atrybut — i tak to jest
+#: teraz zapisane.
+STRANDED_PATTERNS = (
+    # Atrybut, którego element nie ma prawa nieść. Tryb kontenerowy nie usuwa
+    # atrybutów, więc żaden taki błąd nie może być jego.
+    re.compile(r'attribute "[^"]+" not allowed'),
+    # Wartość atrybutu z czasów, gdy była legalna — `<img width="50%">`.
+    re.compile(r'value of attribute "[^"]+" is invalid'),
+    # Element w miejscu, w którym HTML5 go nie przewiduje.
+    re.compile(r'element "[^"]+" not allowed'),
+    # Arkusze stylów są w tym trybie przepisywane bajt w bajt.
+    re.compile(r"^CSS-\d+"),
+)
+
+#: Zdania spoza klas wyżej, wymienione z nazwy, bo są pojedynczymi kształtami,
+#: a nie rodzinami. Każde ma za sobą pomiar na prawdziwej książce.
 STRANDED_SHAPES = (
-    # `<img width="50%">` and friends: XHTML 1.1 took a percentage, HTML5 wants
-    # a pixel count.
-    "must be an integer",
-    # Attributes HTML5 dropped, on elements that took them under the old rules.
-    'attribute "valign" not allowed',
-    'attribute "value" not allowed',
-    'attribute "clear" not allowed',
-    'attribute "link" not allowed',
-    'attribute "vlink" not allowed',
-    'attribute "target" not allowed',
-    # The encoding declaration — EF-045 — and Adobe's DRM breadcrumb — EF-053.
+    # EF-045: deklaracja kodowania z czasów EPUB 2.
     "meta element in encoding declaration state",
+    # EF-053: breadcrumb DRM-u Adobe, `value` zamiast `content`.
     'element "meta" missing required attribute "content"',
-    # Measured on a real book and it is the honest one of the six: the source
-    # carries six repeated `id` values, in the six documents the validator
-    # complains about. The book was already invalid; EPUB 2's validation path
-    # did not check for it and EPUB 3's does. Container-only mode cannot fix it
-    # without opening the document, which is exactly what it promises not to do.
+    # EF-054: sześć powtórzonych `id` **już w źródle**, w tych samych sześciu
+    # dokumentach, o które przyczepia się walidator. Stara ścieżka walidacji
+    # tego nie sprawdzała, nowa sprawdza.
     "Duplicate ID",
 )
 
 
 def _the_mode_cannot_reach(shape: str) -> bool:
-    """Whether this EPUBCheck sentence is one the container-only mode may not fix."""
-    return any(fragment in shape for fragment in STRANDED_SHAPES)
+    """Whether this EPUBCheck sentence is one the container-only mode may not fix.
+
+    **Nie odwrotność „co ten tryb psuje", tylko odpowiedź na „czego ten tryb
+    dotyka".** Dotyka dokumentu pakietu, nawigacji, NCX-a i kontenera, a wewnątrz
+    dokumentów treści — deklaracji typu i pustego `<title>`. Wszystko inne
+    przepisuje bajt w bajt, więc błąd w treści nie jest jego sprawą.
+    """
+    if any(fragment in shape for fragment in STRANDED_SHAPES):
+        return True
+    return any(pattern.search(shape) for pattern in STRANDED_PATTERNS)
 
 
 def _split_by_reach(origin: dict, check: dict, rules: dict, added: int) -> "tuple[int, int, Counter]":
