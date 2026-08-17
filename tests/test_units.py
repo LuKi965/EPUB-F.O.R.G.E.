@@ -123,6 +123,59 @@ class TestDateNormalisation:
     def test_normalize(self, raw, expected):
         assert normalize_date(raw) == expected
 
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("0101-01-01T00:00:00+00:00", "0101-01-01"),
+            ("0101-01-01", "0101-01-01"),
+            ("0044-03-15", "0044-03-15"),
+            ("0999-12", "0999-12"),
+        ],
+    )
+    def test_a_year_below_a_thousand_still_has_four_digits(self, raw, expected):
+        """EF-049. Ta sama książka wychodziła jako dwa różne pliki zależnie od
+        systemu: `strftime("%Y")` oddaje rok bibliotece systemowej, a glibc
+        pisze `101` tam, gdzie Windows pisze `0101`. ISO 8601 chce czterech
+        cyfr, więc to Linux produkował niepoprawną datę — i zarazem drugi plik
+        wynikowy dla tej samej książki.
+
+        Złapane przez porównanie przebiegu półki właściciela z przebiegiem tych
+        samych 93 książek tutaj: 88 identycznych co do bajtu, cztery różne,
+        wszystkie cztery to konwersje z bezsensownym rokiem w metadanych.
+        """
+        assert normalize_date(raw) == expected
+
+    def test_the_book_s_own_date_is_never_formatted_by_the_platform(self):
+        """Pilnowane w kodzie, bo w wyniku widać to tylko na książce z rokiem
+        poniżej tysiąca — a takich są cztery na sto sześćdziesiąt. `strftime`
+        wróci tu cicho i pierwsza osoba, która to zobaczy, znów będzie
+        porównywać dwie półki.
+
+        Zegar wolno formatować `strftime`-em: rok „teraz" ma cztery cyfry
+        w każdej bibliotece systemowej. Rok wzięty z książki — nie."""
+        import ast
+        import pathlib as _pathlib
+
+        tree = ast.parse(
+            (
+                _pathlib.Path(__file__).parent.parent
+                / "epubforge" / "stages" / "metadata.py"
+            ).read_text(encoding="utf-8")
+        )
+        function = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "normalize_date"
+        )
+        calls = [
+            node.func.attr
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        ]
+        assert "strftime" not in calls, (
+            "normalize_date znowu oddaje rok bibliotece systemowej"
+        )
+
 
 class TestXhtmlRecovery:
     def test_unclosed_tags_recover(self):

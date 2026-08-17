@@ -30,6 +30,21 @@ _ISBN_RE = re.compile(r"^(?:97[89])?[\d-]{9,17}[\dXx]$")
 
 
 def normalize_date(raw: str) -> str | None:
+    """A `dc:date` in the one form EPUB 3 takes, or `None` if it is not a date.
+
+    **Formatted by hand rather than by `strftime`, and that is the whole point
+    of this comment.** `strftime("%Y")` hands the year to the platform's C
+    library, and the platforms disagree below the year 1000: glibc writes `101`
+    where Windows writes `0101`. ISO 8601 wants four digits, so Linux was the
+    one producing an invalid date — and, worse for a program that measures
+    itself against recorded signatures, the same book came out as two different
+    files depending on which machine rebuilt it.
+
+    Found by comparing the owner's shelf run against a run of the same 93 books
+    here: 88 identical to the byte, and four different — every one of them a
+    format conversion carrying a nonsense year like 101. Nothing in any report
+    differed, because nothing about the book had.
+    """
     value = raw.strip()
     if not value:
         return None
@@ -40,10 +55,10 @@ def normalize_date(raw: str) -> str | None:
         except ValueError:
             continue
         if fmt == "%Y":
-            return parsed.strftime("%Y")
+            return f"{parsed.year:04d}"
         if fmt == "%Y-%m":
-            return parsed.strftime("%Y-%m")
-        return parsed.strftime("%Y-%m-%d")
+            return f"{parsed.year:04d}-{parsed.month:02d}"
+        return f"{parsed.year:04d}-{parsed.month:02d}-{parsed.day:02d}"
     match = re.search(r"\b(1\d{3}|20\d{2})\b", value)
     return match.group(1) if match else None
 
