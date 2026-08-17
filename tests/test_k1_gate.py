@@ -151,12 +151,13 @@ class TestACharacterXmlCannotWriteIsNotTextThatCanBeLost:
     """Znaleziona na prawdziwej książce z półki właściciela, po tym jak brama
     K1 została uszczelniona.
 
-    `Preludium Fundacji` niesie po jednym znaku sterującym w dwóch rozdziałach —
-    przyszły ze źródła, uratowane przez parser odzysku z uszkodzonego pliku.
-    Etap treści je usuwa, bo XML 1.0 **nie ma dla nich żadnego zapisu**, i mówi
-    o tym w raporcie z liczbą i nazwą dokumentu. Do dnia uszczelnienia bramy
+    Book 8 z półki właściciela (odcisk `ed66165ab304a4f6`) niesie po jednym
+    znaku sterującym w dwóch rozdziałach — przyszły ze źródła.
+    Etap treści je usuwa — nie są tekstem, XML 1.1 wymaga dla nich escapowania
+    a walidator zgłasza je na dokumentach treści — i mówi o tym w raporcie
+    z liczbą i nazwą dokumentu. Do dnia uszczelnienia bramy
     książka wychodziła z ostrzeżeniem; po uszczelnieniu została **odmówiona** —
-    zgodnie z literą K1 i wbrew jej celowi, bo z 776 555 znaków Asimova nie
+    zgodnie z literą K1 i wbrew jej celowi, bo z 776 555 znaków jej tekstu nie
     zginął ani jeden.
 
     Poprawka nie dopisuje kolejnej nazwy do listy reguł, którym wolno usuwać
