@@ -564,6 +564,93 @@ class TestARunSaysWhichRuleBroke:
         assert "0 introduced" not in text
         assert "Rules the container-only mode added: RSC-005." in text, text
 
+    def test_one_named_construct_does_not_excuse_the_error_beside_it(self, tmp_path):
+        """EF-054, i **trzeci raz ten sam kształt pomyłki w dwa dni**.
+
+        Poprzednie dwa: brama K1 usprawiedliwiana przez regułę, która nic nie
+        usuwała, oraz jedno pole `codes` odpowiadające na dwa pytania. Wzór jest
+        za każdym razem ten sam — obecność czegoś **gdziekolwiek** w raporcie
+        usprawiedliwia coś zupełnie innego **gdzie indziej**.
+
+        Tutaj: dopóki pytanie brzmiało „czy w regułach jest
+        `xhtml.epub2-only-markup`", książka z jedną procentową szerokością
+        obrazka dostawała rozgrzeszenie na wszystko, co jeszcze w niej doszło.
+        Zmierzone na kolekcji: jedna książka poszła z 22 błędów na 26 i dziennik
+        nazwał wszystkie cztery nieosiągalnymi, na podstawie reguły mówiącej
+        o `<img width="50%">`.
+
+        Ten fixture niesie **jedno i drugie naraz**: kształt, którego tryb
+        kontenerowy faktycznie nie umie dosięgnąć, i kształt, którego dosięga.
+        Pierwszy ma iść do `inherent`, drugi do `introduced`.
+        """
+        import json
+
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True)
+        (signatures / ("c" * 16 + ".json")).write_text(
+            json.dumps(
+                {
+                    "source_epubcheck": {"errors": 0, "codes": {}, "shapes": {}},
+                    "minimal": {
+                        "written": True,
+                        "text_invariant": True,
+                        "rules": {"xhtml.epub2-only-markup": 1},
+                        "epubcheck": {
+                            "errors": 2,
+                            "codes": {"RSC-005": 2},
+                            "shapes": {
+                                'RSC-005: value of attribute "width" is invalid; '
+                                "must be an integer": 1,
+                                "RSC-005: Error while parsing file: something "
+                                "this mode really did do": 1,
+                            },
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = summarise([Comparison("c.epub", "c" * 16, "unchanged")], signatures)
+        assert "1 introduced by it" in text, text
+        assert "1 it cannot reach" in text, text
+
+    def test_and_a_shape_it_cannot_reach_is_still_forgiven(self, tmp_path):
+        """Kontrola przeciwna: uściślenie miało zawęzić rozgrzeszenie, a nie je
+        odebrać. Książka z samą procentową szerokością nadal nie jest niczyją
+        winą."""
+        import json
+
+        from epubforge.corpus import Comparison, summarise
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir(parents=True)
+        (signatures / ("d" * 16 + ".json")).write_text(
+            json.dumps(
+                {
+                    "source_epubcheck": {"errors": 0, "codes": {}, "shapes": {}},
+                    "minimal": {
+                        "written": True,
+                        "text_invariant": True,
+                        "rules": {"xhtml.epub2-only-markup": 1},
+                        "epubcheck": {
+                            "errors": 1,
+                            "codes": {"RSC-005": 1},
+                            "shapes": {
+                                'RSC-005: value of attribute "width" is invalid; '
+                                "must be an integer": 1
+                            },
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        text = summarise([Comparison("d.epub", "d" * 16, "unchanged")], signatures)
+        assert "introduced by it" not in text, text
+        assert "1 it cannot reach" in text, text
+
 
 class TestTheSummaryDoesNotBlameTheBooksOnUs:
     """A shelf of 67 books came back with `introduced: 3` in its ledger and six

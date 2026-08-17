@@ -61,6 +61,88 @@ MODES = ("minimal", "preserve", "strict")
 #: not understand is still counted against it.
 STRANDED_BY_MODE = "xhtml.epub2-only-markup"
 
+#: The EPUBCheck sentences the container-only mode is contractually unable to
+#: reach — matched by fragment, because the rest of the message names the
+#: element and differs from book to book.
+#:
+#: EF-054, and it is the **third** time in two days that the same shape of
+#: mistake has cost something: an excuse that applies to the whole book rather
+#: than to the error it names. The K1 gate was disarmed by a rule that removed
+#: nothing; one `codes` field answered two questions; and here the presence of
+#: `xhtml.epub2-only-markup` anywhere in a book's report moved *every* error
+#: that book gained into `inherent`. Measured on the mixed shelf: one book went
+#: from 22 errors to 26 and the ledger called all four unreachable, on the
+#: strength of a rule that was talking about `<img width="50%">`.
+#:
+#: Classified by shape rather than by "is the rule present", which is the same
+#: lesson as EF-052 from the other side: identity, never a difference of totals.
+STRANDED_SHAPES = (
+    # `<img width="50%">` and friends: XHTML 1.1 took a percentage, HTML5 wants
+    # a pixel count.
+    "must be an integer",
+    # Attributes HTML5 dropped, on elements that took them under the old rules.
+    'attribute "valign" not allowed',
+    'attribute "value" not allowed',
+    'attribute "clear" not allowed',
+    'attribute "link" not allowed',
+    'attribute "vlink" not allowed',
+    'attribute "target" not allowed',
+    # The encoding declaration — EF-045 — and Adobe's DRM breadcrumb — EF-053.
+    "meta element in encoding declaration state",
+    'element "meta" missing required attribute "content"',
+    # Measured on a real book and it is the honest one of the six: the source
+    # carries six repeated `id` values, in the six documents the validator
+    # complains about. The book was already invalid; EPUB 2's validation path
+    # did not check for it and EPUB 3's does. Container-only mode cannot fix it
+    # without opening the document, which is exactly what it promises not to do.
+    "Duplicate ID",
+)
+
+
+def _the_mode_cannot_reach(shape: str) -> bool:
+    """Whether this EPUBCheck sentence is one the container-only mode may not fix."""
+    return any(fragment in shape for fragment in STRANDED_SHAPES)
+
+
+def _split_by_reach(origin: dict, check: dict, rules: dict, added: int) -> "tuple[int, int, Counter]":
+    """Added errors, split into what the mode could not reach and what is ours.
+
+    By **shape** where the measurement has shapes, which is every signature this
+    program has recorded since it learned to keep them. Older ones — and any
+    caller handing in counts alone — fall back to the previous question: is the
+    stranded rule present. The fallback is deliberately the *old* behaviour and
+    not a refusal to answer: a signature that predates a field is not a book
+    that changed, and treating it as one is the host-dependence mistake in
+    another costume.
+    """
+    gained = _new_shapes(origin, check)
+    if not (check.get("shapes") or {}):
+        # Three levels, poorest measurement last. By code where there are codes
+        # — never by the net total, which is EF-052 and would have come straight
+        # back in the one path nothing on the shelves exercises. By the total
+        # only where the measurement holds neither, which is a signature older
+        # than both fields.
+        by_code = _new_codes(origin, check)
+        if by_code or (check.get("codes") or {}):
+            if STRANDED_BY_MODE in (rules or {}):
+                return sum(by_code.values()), 0, Counter()
+            return 0, sum(by_code.values()), by_code
+        if STRANDED_BY_MODE in (rules or {}):
+            return added, 0, Counter()
+        return 0, added, Counter()
+
+    unreachable = sum(
+        number for shape, number in gained.items() if _the_mode_cannot_reach(shape)
+    )
+    mine = Counter(
+        {
+            shape: number
+            for shape, number in gained.items()
+            if not _the_mode_cannot_reach(shape)
+        }
+    )
+    return unreachable, sum(mine.values()), mine
+
 #: The mode that promises *not* to fix things. A container-only rebuild leaves
 #: every content document byte for byte, so a source whose XHTML is invalid
 #: stays invalid — deliberately, because the alternative is touching content in
@@ -932,15 +1014,22 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
                 # Judged on what it added, not on what it declined to fix.
                 added = max(0, count - source)
                 carried += min(count, source)
-                if STRANDED_BY_MODE in (found.get("rules") or {}):
-                    # The book carries markup EPUB 2 allowed and EPUB 3 does
-                    # not, in a document this mode promises not to open, and the
-                    # report says so by name. That is the contract, not a fault.
-                    inherent += added
-                else:
-                    introduced += added
+                # EF-054. Split by **shape**, not by whether the report
+                # happens to carry the stranded rule: an error the mode cannot
+                # reach is one whose sentence it cannot answer, and the presence
+                # of one such sentence says nothing about the next.
+                unreachable, mine, shapes = _split_by_reach(
+                    origin, check, found.get("rules") or {}, added
+                )
+                inherent += unreachable
+                if mine:
+                    introduced += mine
+                    ours.update(
+                        Counter(
+                            {shape.split(":")[0]: number for shape, number in shapes.items()}
+                        )
+                    )
                     blamed.update(_new_codes(origin, check))
-                    ours.update(_new_codes(origin, check))
             else:
                 errors += count
                 # Only what the source did **not** already have — the same
@@ -1034,13 +1123,16 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
             if mode in CARRIES_SOURCE_DEFECTS:
                 added = max(0, count - source)
                 carried += min(count, source)
-                if STRANDED_BY_MODE in ((measured.get(mode) or {}).get("rules") or {}):
-                    inherent += added
-                else:
-                    introduced += added
+                unreachable, mine, shapes = _split_by_reach(
+                    origin, check, (measured.get(mode) or {}).get("rules") or {}, added
+                )
+                inherent += unreachable
+                if mine:
+                    introduced += mine
                     blamed.update(_new_codes(origin, check))
-                    said.update(_new_shapes(origin, check))
-                    ours.update(_new_codes(origin, check))
+                    for shape, number in shapes.items():
+                        said[shape] += number
+                        ours[shape.split(":")[0]] += number
             else:
                 errors += count
                 # Only what the source did **not** already have. This branch
@@ -1110,4 +1202,5 @@ __all__ = [
     "summarise",
     "workers_for",
     "CARRIES_SOURCE_DEFECTS",
+    "STRANDED_SHAPES",
 ]
