@@ -1891,6 +1891,7 @@ class ContentStage(Stage):
         """
         from ..decisions import ENCODING, KEEP, Answer, Option, Question
         from ..question_texts import say
+        from ..transformation import PostconditionFailed, Transformation, carry_out
 
         census = mojibake.census(root)
         if not census:
@@ -1946,7 +1947,41 @@ class ContentStage(Stage):
                 location=resource.path,
             )
             return
-        changed = mojibake.apply(root)
+        # BA-2026-003. Pierwsza transformacja w tym programie, która przechodzi
+        # przez kontrakt zamiast mutować wprost — i wybrana nieprzypadkowo: jest
+        # najnowsza, zmienia **znaki tekstu** i jest nieodwracalna z samego
+        # wyniku. Jeżeli kontrakt ma gdziekolwiek zarobić na siebie, to tutaj.
+        #
+        # Warunek końcowy jest mocniejszy niż „nie wywróciło się": po naprawie
+        # w dokumencie nie ma zostać **ani jeden** znak z tego bloku. Nierówna
+        # liczba znaczy, że tłumaczenie ominęło jakieś miejsce w drzewie — a to
+        # jest dokładnie ta cicha połowiczna zmiana, przed którą ustalenie
+        # ostrzega.
+        krok = Transformation(
+            rule="xhtml.mojibake-translated",
+            target=resource.path,
+            precondition=lambda: mojibake.census(root) == census,
+            postcondition=lambda: not mojibake.census(root),
+            reversible=False,
+        )
+        try:
+            changed = carry_out(
+                krok,
+                snapshot=lambda: xhtml.serialize(root),
+                restore=lambda data: self._reload(ctx, resource, root, data),
+                mutate=lambda: mojibake.apply(root),
+            )
+        except PostconditionFailed as niepowodzenie:
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.mojibake-reverted",
+                values={"count": count, "detail": str(niepowodzenie)},
+                location=resource.path,
+            )
+            return
+        if not changed:
+            return
         self.note(
             ctx,
             Level.FIX,
@@ -1966,6 +2001,27 @@ class ContentStage(Stage):
             reversible=False,
             rule="xhtml.mojibake-translated",
         )
+
+    def _reload(self, ctx: Context, resource, root, data: bytes) -> None:
+        """Odłóż dokument taki, jaki był — bajt w bajt, przez to samo drzewo.
+
+        Wycofanie przez podmianę zawartości drzewa, a nie przez zbudowanie
+        nowego: wołający trzyma referencję do `root` i pracuje na niej dalej,
+        więc podmiana obiektu zostawiłaby go z drzewem, którego nikt już nie
+        zapisze. Ta pułapka kosztowała już raz — patrz `ctx.take`.
+        """
+        from lxml import etree
+
+        odzyskane, _ = xhtml.parse(data)
+        root.clear()
+        root.tag = odzyskane.tag
+        for key, value in odzyskane.attrib.items():
+            root.set(key, value)
+        root.text = odzyskane.text
+        root.tail = odzyskane.tail
+        for child in list(odzyskane):
+            root.append(child)
+        del etree
 
     def _census(self, ctx: Context, root) -> None:
         """Note every class and id this document carries, for the CSS stage.
