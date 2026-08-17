@@ -147,6 +147,86 @@ class TestAnOrdinaryBookIsNotRefusedByThis:
         assert result.status.wrote_a_file, result.report.to_text()
 
 
+class TestACharacterXmlCannotWriteIsNotTextThatCanBeLost:
+    """Znaleziona na prawdziwej książce z półki właściciela, po tym jak brama
+    K1 została uszczelniona.
+
+    `Preludium Fundacji` niesie po jednym znaku sterującym w dwóch rozdziałach —
+    przyszły ze źródła, uratowane przez parser odzysku z uszkodzonego pliku.
+    Etap treści je usuwa, bo XML 1.0 **nie ma dla nich żadnego zapisu**, i mówi
+    o tym w raporcie z liczbą i nazwą dokumentu. Do dnia uszczelnienia bramy
+    książka wychodziła z ostrzeżeniem; po uszczelnieniu została **odmówiona** —
+    zgodnie z literą K1 i wbrew jej celowi, bo z 776 555 znaków Asimova nie
+    zginął ani jeden.
+
+    Poprawka nie dopisuje kolejnej nazwy do listy reguł, którym wolno usuwać
+    tekst. Ta lista ma dokładnie tę wadę, przez którą brama była rozbrojona:
+    obecność reguły gdziekolwiek w raporcie usprawiedliwia stratę gdziekolwiek
+    indziej. Zamiast tego K1 porównuje **tekst, który poprawny EPUB może
+    unieść** — i znak bez reprezentacji do tego zbioru nie należy po żadnej ze
+    stron.
+    """
+
+    def _book_with_a_control_character(self, path: str) -> str:
+        import zipfile
+
+        source = make_modern_epub(path + ".clean")
+        entries: dict[str, bytes] = {}
+        with zipfile.ZipFile(source) as archive:
+            for name in archive.namelist():
+                if name == "mimetype":
+                    continue  # write_zip kładzie go sam, pierwszy i bez kompresji
+                entries[name] = archive.read(name)
+        chapter = next(
+            name for name in entries if name.endswith(".xhtml") and b"<p>" in entries[name]
+        )
+        # U+008F, dokładnie ten, który niesie prawdziwa książka. Należy do
+        # bloku C1: XML 1.0 wpuszcza go do drzewa, więc parser go **zachowuje** —
+        # i dlatego dochodzi do etapu treści, w przeciwieństwie do 0x0B, na
+        # którym lxml podnosi wyjątek i sprawa kończy się przed bramą.
+        marked = entries[chapter].replace(b"<p>", b"<p>\xc2\x8f", 1)
+        assert marked != entries[chapter], "fixture przestał mieć akapit"
+        entries[chapter] = marked
+        from tests.factory import write_zip
+
+        return write_zip(path, entries)
+
+    def test_the_book_is_still_published(self, tmp_path):
+        source = self._book_with_a_control_character(str(tmp_path / "sterujacy.epub"))
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off"),
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+
+    def test_and_the_report_still_says_the_character_went(self, tmp_path):
+        """Cichej straty tu nie ma i nie może być: brama przestaje pytać o ten
+        znak dokładnie dlatego, że mówi o nim etap treści."""
+        source = self._book_with_a_control_character(str(tmp_path / "sterujacy.epub"))
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off"),
+        )
+        rules = {finding.rule for finding in result.report.findings}
+        assert "xhtml.forbidden-characters-removed" in rules, sorted(rules)
+
+    def test_a_real_paragraph_still_stops_the_book(self, tmp_path):
+        """Kontrola przeciwna. Zwinięcie K1 do „tekstu, który da się zapisać"
+        byłoby warte tyle, ile jego zdolność do dalszego odmawiania — więc ta
+        sama książka, z tym samym znakiem sterującym, **plus** etapem gubiącym
+        akapit, ma zostać odmówiona."""
+        source = self._book_with_a_control_character(str(tmp_path / "sterujacy.epub"))
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", validate_before_publish="off"),
+            stages=[*DEFAULT_STAGES, DropsAParagraph],
+        )
+        assert not result.status.wrote_a_file, result.report.to_text()
+
+
 class TestTheCharactersAreActuallyCounted:
     """EF-027's first half. The field was declared, serialised and never
     assigned, so every balance this program has produced says the book contains

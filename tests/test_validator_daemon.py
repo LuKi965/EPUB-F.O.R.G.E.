@@ -40,6 +40,27 @@ pytestmark = pytest.mark.skipif(
     find_epubcheck() is None, reason="EPUBCheck is not installed here"
 )
 
+#: AUD-001. A machine with a JRE and no JDK cannot build the driver, so the
+#: shared process cannot exist there — and five tests below said so by failing.
+#: They are not defects: the runtime falls back to a JVM per book, which is the
+#: behaviour this program had before the daemon and still has, and the tests
+#: that prove *that* path keep running here without a compiler.
+#:
+#: Deliberately per test rather than on the module or the class. A blanket skip
+#: would take the fallback tests down with it, and the fallback is exactly what
+#: a JRE-only machine runs — hiding it would be the shortcut this is not.
+#:
+#: Not solved by committing a compiled class either, and the reason is not its
+#: size. The release already compiles one at packaging time and ships it beside
+#: `epubcheck.jar` (`packaging/build.py`), so nobody using the installer needs a
+#: compiler; a class in the source tree would be a second copy of
+#: `ForgeValidator.java` with nothing forcing the two to agree, and its bytecode
+#: version would pin the very JRE it was meant to support.
+needs_the_daemon = pytest.mark.skipif(
+    validate_module._driver_class() is None,
+    reason="the validator driver is not built and no javac was found to build it",
+)
+
 
 def verdict(result) -> tuple:
     """Everything a caller can see, so "the same answer" means all of it."""
@@ -128,6 +149,7 @@ class TestEveryWayItCanFailEndsInTheOldPath:
         assert ENV_SHARED in shared.reason
         assert validate(books["good"]).available
 
+    @needs_the_daemon
     def test_a_process_that_dies_between_books_is_replaced(self, books):
         shared = SharedValidator()
         try:
@@ -140,6 +162,7 @@ class TestEveryWayItCanFailEndsInTheOldPath:
         finally:
             shared.stop()
 
+    @needs_the_daemon
     def test_an_answer_that_is_not_a_number_drops_the_process(self, books, monkeypatch):
         shared = SharedValidator()
         try:
@@ -151,6 +174,7 @@ class TestEveryWayItCanFailEndsInTheOldPath:
         finally:
             shared.stop()
 
+    @needs_the_daemon
     def test_silence_past_the_timeout_kills_it(self, books, monkeypatch):
         shared = SharedValidator()
         try:
@@ -170,6 +194,7 @@ class TestEveryWayItCanFailEndsInTheOldPath:
         # And the caller still gets a verdict, because the fallback is the point.
         assert validate(books["good"]).available
 
+    @needs_the_daemon
     def test_a_process_started_for_another_jar_is_not_reused(self, books, monkeypatch):
         """Found by accident, and the accident is the point.
 
@@ -200,6 +225,7 @@ class TestEveryWayItCanFailEndsInTheOldPath:
 class TestItIsActuallyFaster:
     """A shared process that is not faster is complexity for nothing."""
 
+    @needs_the_daemon
     def test_the_second_book_costs_a_fraction_of_the_first(self, books):
         shared = SharedValidator()
         try:

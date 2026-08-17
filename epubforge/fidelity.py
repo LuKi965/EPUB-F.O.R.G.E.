@@ -440,11 +440,36 @@ def spine_text_of(book: "str | pathlib.Path") -> str:
     together all still fail. Using it here means K1 and the typography stage
     agree about what "the same text" is, instead of the gate forbidding what the
     stage is for.
+
+    The characters in `xmlchars.FORBIDDEN` are folded out too, on both sides,
+    and that is not an exemption granted to the rebuild — it is the only honest
+    reading of the invariant. K1 says no character of the book's *text* is lost.
+    None of these is text: they are control codes with no glyph, no width and no
+    reader that draws them, and the program removes them because a conformant
+    EPUB either cannot carry them at all or is refused for carrying them. So the
+    comparison is made against the text a conformant EPUB *can* hold, and the
+    removal is still said out loud by `xhtml.forbidden-characters-removed`, per
+    document and with a count.
+
+    Measured on a real book from the owner's shelf: one U+008F in each of two
+    chapters. Before this fold the gate refused the book — correctly by the
+    letter of K1 and wrongly by its purpose, because the two characters it was
+    protecting are invisible control codes and every one of the 776 555
+    characters of the book's own text was present.
+
+    **Why the fold and not another name on `REMOVES_TEXT_ON_PURPOSE`.** That
+    list carries the defect that left the gate disarmed for a release: a rule
+    appearing anywhere in the report excuses a loss anywhere else in the book.
+    Adding a fifth name would have published this book for a reason that
+    happens to be true rather than for the reason it is true. Folding both
+    sides through the same filter cannot be wrong about *which* loss it
+    forgives, because after it there is no loss to forgive.
     """
     from .inventory import spine_text
     from .typography import canonical
+    from .xmlchars import legal
 
-    return canonical(spine_text(book))
+    return canonical(legal(spine_text(book)))
 
 
 def first_character_lost(source_text: str, output_text: str) -> int:

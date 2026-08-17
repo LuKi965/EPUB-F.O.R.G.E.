@@ -1,8 +1,16 @@
 """Znaki, których XML nie potrafi zapisać — jedna definicja na cały program.
 
-XML 1.0 nie ma dla nich **żadnego** zapisu: to nie jest kwestia escapowania,
-tylko tego, że nie da się ich wyrazić. Dokument, który któryś z nich niesie, nie
+Dla większości z nich — sterujące poniżej 0x20, surogaty, dwa nie-znaki na końcu
+BMP — XML 1.0 nie ma **żadnego** zapisu: to nie jest kwestia escapowania, tylko
+tego, że nie da się ich wyrazić. Dokument, który któryś z nich niesie, nie
 parsuje się i książka się nie otwiera.
+
+Blok C1 (`0x7f-0x9f`) jest tu z innego powodu i warto, żeby to było napisane, bo
+inaczej ktoś słusznie zarzuci temu plikowi kłamstwo: te znaki XML 1.0 **wpuszcza**
+do drzewa. Są tu, bo nie są tekstem — nie mają glifu, nie mają szerokości i żaden
+czytnik ich nie rysuje — a XML 1.1 wymaga dla nich escapowania i walidator
+zgłasza je na dokumentach treści. Prawdziwa książka z półki właściciela niosła
+`U+008F` w dwóch rozdziałach i to jest ten przypadek, nie hipoteza.
 
 Znalezione fuzzingiem writera (WP-18/EF-040). Zmierzone na domyślnym presecie:
 książka z `0x0B` w tytule była **zapisywana**, ze statusem `succeeded`, a jej
