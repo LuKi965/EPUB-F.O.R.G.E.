@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from .. import dictionaries, hyphens, typography, xhtml
 from .. import decisions
+from ..transformation import PostconditionFailed, Transformation, carry_out
 from ..decisions import KEEP
 from ..report import Action, Level, Risk
 from .base import Context, Stage
@@ -218,24 +219,60 @@ class HyphenStage(Stage):
             tree = ctx.take(resource)
             root = tree.root
             before = "".join(root.itertext())
-            changed = 0
-            for element, attribute in typography.text_nodes(root):
-                text = getattr(element, attribute)
-                if not text:
-                    continue
-                for candidate, replacement in planned:
-                    if candidate.word in text:
-                        text = text.replace(candidate.word, replacement)
-                        changed += 1
-                setattr(element, attribute, text)
-            if not changed:
-                continue
-            after = "".join(root.itertext())
-            if not self._only_the_hyphens_went(before, after, planned):
+
+            def mutate(root=root, planned=planned, resource=resource) -> int:
+                changed = 0
+                for element, attribute in typography.text_nodes(root):
+                    text = getattr(element, attribute)
+                    if not text:
+                        continue
+                    for candidate, replacement in planned:
+                        if candidate.word in text:
+                            text = text.replace(candidate.word, replacement)
+                            changed += 1
+                    setattr(element, attribute, text)
+                if changed:
+                    resource.data = xhtml.serialize(root)
+                return changed
+
+            # BA-2026-003. Druga transformacja przeniesiona na kontrakt, i
+            # przeniesiona **bez zmiany zachowania** — bo ta akurat miała już
+            # własną, ręczną wersję tego samego: mutację, sprawdzenie i powrót.
+            # Tym właśnie jest migracja, o którą prosi ustalenie: nie dokładaniem
+            # kontroli, tylko nazwaniem tej, która i tak tam była.
+            #
+            # Jedna rzecz **jest** mocniejsza niż była. Poprzednio powrót polegał
+            # na tym, że nikt nie zapisał `resource.data`; działało, bo `ctx.take`
+            # oddaje drzewo z cache'u, więc porzucona mutacja nie wracała bokiem.
+            # Zależność od tego, żeby ktoś pamiętał o **niezapisaniu**, jest
+            # dokładnie tym rodzajem cichej umowy, przez którą powstaje ustalenie
+            # takie jak to. Teraz zapis jest częścią mutacji, a powrót odkłada
+            # bajty.
+            krok = Transformation(
+                rule="hyphens.joined",
+                target=resource.path,
+                precondition=lambda: bool(planned),
+                postcondition=lambda root=root, before=before, planned=planned: (
+                    self._only_the_hyphens_went(
+                        before, "".join(root.itertext()), planned
+                    )
+                ),
+                reversible=False,
+            )
+            try:
+                joined += carry_out(
+                    krok,
+                    snapshot=lambda resource=resource: resource.data,
+                    restore=lambda data, resource=resource: setattr(
+                        resource, "data", data
+                    ),
+                    mutate=mutate,
+                )
+            except PostconditionFailed:
+                # Liczona, nie zgłaszana z osobna: `_report_changes` mówi o tym
+                # jednym zdaniem dla całej książki, i mówiło tak, zanim kontrakt
+                # powstał.
                 reverted += 1
-                continue
-            resource.data = xhtml.serialize(root)
-            joined += changed
 
         self._report_changes(ctx, joined, reverted)
 

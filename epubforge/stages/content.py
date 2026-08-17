@@ -2678,11 +2678,46 @@ class ContentStage(Stage):
           text a person can read, and "3 fragments removed" is not something
           anybody can check.
         """
+        from ..transformation import PostconditionFailed, Transformation, carry_out
+
         text = element.text or ""
         kept, removed = watermark.without_shop_notices(text)
         if not removed:
             return False
-        element.text = kept
+
+        # BA-2026-003, trzecia transformacja na kontrakcie — i jedyna w całym
+        # programie, która kasuje tekst **widoczny dla czytelnika**. Jeżeli
+        # gdziekolwiek warunek końcowy ma zarobić na siebie, to tutaj.
+        #
+        # Warunek jest dwuczłonowy i oba człony są potrzebne: to, co zostało,
+        # musi być **podciągiem** tego, co było — czyli nic nie zostało dopisane
+        # ani przestawione — a każde zdanie, o którym raport powie „usunięte",
+        # musi w oryginale faktycznie być. Pierwszy człon łapie pomyłkę
+        # w składaniu, drugi łapie raport mówiący o czymś, czego nie było.
+        krok = Transformation(
+            rule="xhtml.shop-notice-removed",
+            target=resource.path,
+            precondition=lambda: bool(removed),
+            postcondition=lambda: (
+                _is_subsequence(kept, text)
+                and all(sentence in text for sentence in removed)
+            ),
+            reversible=False,
+        )
+        try:
+            carry_out(
+                krok,
+                snapshot=lambda: element.text,
+                restore=lambda data: setattr(element, "text", data),
+                mutate=lambda: _set_text(element, kept),
+            )
+        except PostconditionFailed:
+            # Zdanie zostaje w książce. Wolę stopkę księgarni, którą widać
+            # i można zgłosić, niż zdanie powieści, którego brak można zauważyć
+            # dopiero na tej stronie — to jest ta sama asymetria, na której stoi
+            # cała ta funkcja.
+            return False
+
         self._shop_notices_removed.extend(removed)
         self._shop_notice_documents.add(resource.path)
         return True
@@ -3172,3 +3207,23 @@ class ContentStage(Stage):
         resource.properties = properties
 
 
+def _set_text(element, value: str) -> int:
+    """Podmień tekst elementu; zwróć, ile rzeczy zmieniono. Do kontraktu."""
+    element.text = value
+    return 1
+
+
+def _is_subsequence(kept: str, whole: str) -> bool:
+    """Czy *kept* da się przeczytać z *whole* bez przestawiania i dopisywania.
+
+    Ta sama zasada, co przy K1, w miniaturze: usunięcie zabiera znaki i nie ma
+    prawa dodać ani jednego. Sprawdzenie samą długością przepuściłoby podmianę
+    znaku na znak, a to nie jest usunięciem.
+    """
+    position = 0
+    for character in kept:
+        position = whole.find(character, position)
+        if position < 0:
+            return False
+        position += 1
+    return True
