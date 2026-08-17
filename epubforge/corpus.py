@@ -109,6 +109,15 @@ class Comparison:
     identifier: str
     status: str  # "new" | "unchanged" | "changed" | "duplicate" | "failed"
     differences: list[str] = field(default_factory=list)
+    #: What *this* run measured, as opposed to what the signature file holds.
+    #:
+    #: EF-051. Without it the ledger and the summary read the recorded files,
+    #: which without `--record` are the previous run — so one line answered two
+    #: questions from two different moments: "14 changed" about now and
+    #: "3 introduced" about last time. Caught by disbelieving a fix: the run
+    #: after EF-045 still printed the old three, and for a minute that looked
+    #: like the repair had not worked.
+    measured: "dict | None" = None
 
     @property
     def ok(self) -> bool:
@@ -777,7 +786,7 @@ def compare(
                     json.dumps(current, indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
                 )
-            outcome = Comparison(label, identifier, status, changes)
+            outcome = Comparison(label, identifier, status, changes, current)
 
         # Reported on completion rather than on start: with several books in
         # flight, "starting number 40" while 33 to 39 are still running is a
@@ -896,10 +905,12 @@ def _log_run(signatures: pathlib.Path, results: "list[Comparison]") -> None:
     errors = introduced = carried = fatal = lost = unwritten = inherent = 0
     blamed: Counter = Counter()
     for result in _once_each(results):
-        record_path = signatures / f"{result.identifier}.json"
-        if not record_path.is_file():
-            continue
-        measured = json.loads(record_path.read_text(encoding="utf-8"))
+        measured = result.measured
+        if measured is None:
+            record_path = signatures / f"{result.identifier}.json"
+            if not record_path.is_file():
+                continue
+            measured = json.loads(record_path.read_text(encoding="utf-8"))
         origin = measured.get("source_epubcheck") or {}
         source = origin.get("errors", 0)
         for mode in MODES:
@@ -989,11 +1000,18 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     errors = introduced = carried = inherent = 0
     blamed: Counter = Counter()
     said: Counter = Counter()
+    #: EF-048. `blamed` is fed by **both** branches — the container-only one
+    #: whose additions count as `introduced`, and the document-opening one whose
+    #: errors count as `errors`. Printing it beside `introduced` therefore read
+    #: as "these are the three", and on the mixed shelf it read as eight.
+    ours: Counter = Counter()
     for result in _once_each(results):
-        path = signatures / f"{result.identifier}.json"
-        if not path.is_file():
-            continue
-        measured = json.loads(path.read_text(encoding="utf-8"))
+        measured = result.measured
+        if measured is None:
+            path = signatures / f"{result.identifier}.json"
+            if not path.is_file():
+                continue
+            measured = json.loads(path.read_text(encoding="utf-8"))
         origin = measured.get("source_epubcheck") or {}
         source = origin.get("errors", 0)
         for mode in MODES:
@@ -1008,6 +1026,7 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
                     introduced += added
                     blamed.update(_new_codes(origin, check))
                     said.update(_new_shapes(origin, check))
+                    ours.update(_new_codes(origin, check))
             else:
                 errors += count
                 # Only what the source did **not** already have. This branch
@@ -1031,12 +1050,27 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     if introduced:
         parts.append(f"{introduced} introduced by it")
     line += "\n" + "; ".join(parts) + "."
-    if blamed:
-        named = ", ".join(
+    def named(counter: "Counter") -> str:
+        return ", ".join(
             f"{code} ×{count}" if count > 1 else code
-            for code, count in sorted(blamed.items())
+            for code, count in sorted(counter.items())
         )
-        line += f"\nNot in the source, by EPUBCheck rule: {named}."
+
+    # EF-048. Two headings rather than one, because the counters answer two
+    # questions and one of them was standing under the other's title. `ours`
+    # holds only what the container-only mode added — the same figure as
+    # `introduced` — while `blamed` holds every rule not present in the source,
+    # including the ones the document-opening modes count under `errors`. On
+    # the mixed shelf that read as `introduced: 3` beside eight rule names, and
+    # a reader had every right to take the eight for the three.
+    if ours:
+        line += f"\nIntroduced by the container-only mode: {named(ours)}."
+    if blamed:
+        rest = Counter(blamed)
+        rest.subtract(ours)
+        rest = Counter({code: count for code, count in rest.items() if count > 0})
+        if rest:
+            line += f"\nNot in the source, seen in any mode: {named(rest)}."
     if said:
         line += "\n" + "\n".join(
             f"  {shape}" + (f" ×{count}" if count > 1 else "")

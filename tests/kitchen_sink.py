@@ -89,6 +89,12 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
     <meta property="media:active-class">-epub-media-overlay-active</meta>
 
     <link rel="record" href="https://example.invalid/onix.xml" media-type="application/xml"/>
+
+    <!-- EF-046, z audytu zewnętrznego: element w cudzej przestrzeni nazw.
+         EPUB 3 na to pozwala i model tego nie zna — więc albo przechodzi,
+         albo jest na liście świadomych pominięć. Trzeciej możliwości,
+         cichego zniknięcia, ten fixture ma nie dopuszczać. -->
+    <dcterms:audience xmlns:dcterms="http://purl.org/dc/terms/">dorośli</dcterms:audience>
   </metadata>
 
   <manifest>
@@ -115,6 +121,15 @@ PACKAGE = """<?xml version="1.0" encoding="utf-8"?>
     <itemref idref="ch1"/>
     <itemref idref="ch2" properties="rendition:layout-pre-paginated page-spread-left"/>
   </spine>
+
+  <!-- EF-046. `bindings` jest w EPUB 3.3 przestarzałe i **nadal opisane**,
+       a audyt wskazał je jako sztandarowy przykład: nie ma go w kodzie i nie
+       było go tutaj, więc test kompletności nie mógł zobaczyć jego utraty.
+       Konstrukcja, której fixture nie zawiera, jest dla tego testu niewidzialna
+       — i to jest gorsze niż konstrukcja nieobsługiwana. -->
+  <bindings>
+    <mediaType handler="ch2" media-type="application/x-epubforge-widget"/>
+  </bindings>
 
   <guide>
     <reference type="cover" title="Okładka" href="cover.xhtml"/>

@@ -51,13 +51,6 @@ DROPPED_ON_PURPOSE: dict[str, str] = {
         "bookkeeping is deliberately not carried over"
     ),
     "meta/@content": "same as meta/@name",
-    "link": (
-        "external metadata records are not read into the model, so re-emitting "
-        "them would mean copying a reference this tool cannot verify"
-    ),
-    "link/@rel": "same as link",
-    "link/@href": "same as link",
-    "link/@media-type": "same as link",
     "meta/@display-seq": "not modelled; title ordering is the model's own",
     "dc:format": "always application/epub+zip for the output, so restating it is noise",
     "itemref/@linear": (
@@ -75,7 +68,21 @@ DROPPED_ON_PURPOSE: dict[str, str] = {
 #: two tests around it are what force an entry to be deleted rather than left
 #: standing, and the next defect of this shape should land here rather than in
 #: the list above.
-STILL_BROKEN: dict[str, str] = {}
+STILL_BROKEN: dict[str, str] = {
+    # EF-046, z audytu zewnętrznego z 2026-08-17. Nie jest to prośba
+    # o obsługę `bindings` — element jest w EPUB 3.3 przestarzały i nikt go tu
+    # nie potrzebuje. Jest to odmowa czwartej możliwości: konstrukcja albo
+    # przechodzi, albo jest tłumaczona, albo przebudowa jest odmawiana. Znika
+    # po cichu **nie wolno**, a do dziś znikała, bo fixture jej nie zawierał
+    # i test nie miał czego porównać.
+    "bindings": "handlery obcych typów mediów nie są wczytywane do modelu",
+    "mediaType": "same as bindings",
+    "mediaType/@handler": "same as bindings",
+    "mediaType/@media-type": "same as bindings",
+    # Ta sama klasa, drugi kształt: element w cudzej przestrzeni nazw wewnątrz
+    # `<metadata>`. EPUB 3 na to pozwala i model tego nie zna.
+    "audience": "elementy metadanych spoza słownika DC i OPF nie są modelowane",
+}
 
 
 def constructs(path: str) -> set[str]:

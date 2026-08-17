@@ -525,7 +525,10 @@ class TestARunSaysWhichRuleBroke:
             encoding="utf-8",
         )
         text = summarise([Comparison("a.epub", "a" * 16, "unchanged")], signatures)
-        assert "Not in the source, by EPUBCheck rule: OPF-014." in text
+        # EF-048: named under the branch that produced it. The old single
+        # heading covered both branches at once, so a rule the source already
+        # had could stand under a sentence about what the rebuild added.
+        assert "Introduced by the container-only mode: OPF-014." in text
 
 
 class TestTheSummaryDoesNotBlameTheBooksOnUs:
