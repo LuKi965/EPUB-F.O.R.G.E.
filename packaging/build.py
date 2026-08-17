@@ -104,6 +104,35 @@ CHROMIUM_URL = (
 )
 CHROMIUM_SHA256 = "1264ee192ca001359b4527d195d635c4f33312543a90e31359bac38931d34f81"
 
+#: The same engine for linux64. **Not shipped** — the installer is Windows-only
+#: and this never enters a build. It is pinned because of EF-055, which is the
+#: sharpest illustration of the paragraph above that this project has produced.
+#:
+#: The renderer tests were being run here on the full Chromium that happened to
+#: sit in a Playwright cache, because that is what was at hand. It renders
+#: differently from the shell we ship: on the same book, the same viewport and
+#: the same code, content shoved off the bottom of the page loses 33.8%, 50.1%
+#: and 66.8% of its ink under full Chromium and **0.0%, 0.0% and 0.5%** under
+#: `chrome-headless-shell`. The gate's threshold is ten per cent, so three of
+#: the four damage shapes it exists to catch were not caught on the engine a
+#: reader actually gets — and every test said green.
+#:
+#: "Chromium" is not the name of one thing. Whoever measures this program's
+#: appearance checks — us, a CI runner, an outside audit — has to measure them
+#: on the **kind** of binary that ships, and now there is a pinned one to reach
+#: for on the platform those measurements are usually taken.
+CHROMIUM_LINUX_URL = (
+    "https://storage.googleapis.com/chrome-for-testing-public/"
+    f"{CHROMIUM_VERSION}/linux64/chrome-headless-shell-linux64.zip"
+)
+CHROMIUM_LINUX_SHA256 = (
+    "cba167189d1e676a10bb0a1d52b43a26eb7d6c15dd6f05ae76cff100c30d547a"
+)
+#: And the executable inside it, checked after unpacking like the Windows one.
+CHROMIUM_LINUX_EXE_SHA256 = (
+    "ecb960b4e33ec9b4819619434fc7668401d6ac9208124ae651530b7150a8a84f"
+)
+
 #: Hunspell dictionaries, pinned exactly as EPUBCheck and Chromium are.
 #:
 #: WP-10. The hyphen detector's second source of evidence: a compound whose

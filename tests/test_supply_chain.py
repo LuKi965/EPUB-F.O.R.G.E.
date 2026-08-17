@@ -72,6 +72,29 @@ class TestTheArchiveMustBeTheOneThisReleaseMeasured:
         assert len(build.EPUBCHECK_JAR_SHA256) == 64
         assert build.EPUBCHECK_SIZE > 1_000_000
 
+    def test_both_renderer_pins_name_the_same_version(self):
+        """EF-055. The Windows build ships one engine and audits measure on
+        another platform, so there are two pinned archives — and the one thing
+        that must never drift between them is the version.
+
+        Two engines called "Chromium" that are not the same build is exactly how
+        the appearance gate came to pass every test while missing three of the
+        four damage shapes on the binary a reader gets. A pin per platform is
+        only worth something while both pins say the same number.
+        """
+        assert build.CHROMIUM_VERSION in build.CHROMIUM_URL
+        assert build.CHROMIUM_VERSION in build.CHROMIUM_LINUX_URL
+        for digest in (build.CHROMIUM_LINUX_SHA256, build.CHROMIUM_LINUX_EXE_SHA256):
+            assert len(digest) == 64
+            assert set(digest) <= set("0123456789abcdef")
+
+    def test_the_linux_pin_is_the_shell_and_not_a_whole_browser(self):
+        """The distinction EF-055 turned on. `chrome-headless-shell` has no
+        window code in it; full Chromium renders differently and was what the
+        renderer tests were accidentally being measured against."""
+        assert "chrome-headless-shell" in build.CHROMIUM_LINUX_URL
+        assert "chrome-headless-shell" in build.CHROMIUM_URL
+
     def test_a_file_of_the_wrong_size_is_refused_before_it_is_hashed(self, tmp_path):
         path = tmp_path / "epubcheck.zip"
         path.write_bytes(b"nie ten plik")
