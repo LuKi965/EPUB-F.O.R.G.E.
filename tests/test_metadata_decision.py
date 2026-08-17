@@ -186,6 +186,11 @@ class TestAllThreeClassesShareOneApi:
             # place in the book: whether a rebuild nobody could check may be
             # written at all.
             decisions.VERIFICATION,
+            # EF-050's fifth: punctuation a conversion turned into codes with
+            # no shape. Its own kind rather than a hyphen, because the two are
+            # answered by different judgements — one needs the sentence, the
+            # other needs only the count.
+            decisions.ENCODING,
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):

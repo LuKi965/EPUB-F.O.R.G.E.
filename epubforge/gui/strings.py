@@ -411,6 +411,21 @@ PL: dict[str, str] = {
         "Zaznaczone — rysowane są wszystkie strony. Dla książki o 65 rozdziałach "
         "to kilka minut, ale wtedy nic nie jest zgadywane z próbki."
     ),
+    "policy.repair.encoding": "Przywróć znaki przestankowe zgubione przez konwersję",
+    "policy.repair.encoding.tip": (
+        "Windows trzyma cudzysłowy, myślniki i wielokropki na pozycjach, które "
+        "Unikod rezerwuje dla kodów sterujących. Konwerter, który odczyta taki "
+        "tekst złym kodowaniem, zamienia każdy z tych znaków w kod bez "
+        "kształtu — żadna czcionka go nie rysuje, więc w czytniku zostaje "
+        "puste miejsce.\n\n"
+        "Wyłączone — program **pyta** przy każdej książce, w której to znajdzie, "
+        "i pokazuje, ilu znaków i jakich to dotyczy.\n\n"
+        "Włączone — odpowiada „napraw” za Ciebie, dla całej kolejki. Przydatne "
+        "przy wielu książkach naraz; odwzorowanie jest jednoznaczne i nic w nim "
+        "nie jest zgadywane.\n\n"
+        "**To jest zmiana tekstu** i nie da się jej cofnąć z samego wyniku — "
+        "dlatego domyślnie program pyta, zamiast robić."
+    ),
     "policy.shop.notices": "Usuń widoczne ślady księgarni",
     "policy.shop.notices.tip": (
         "Niektóre księgarnie wstawiają w treść zdanie o zamówieniu: numer "
@@ -1257,6 +1272,20 @@ EN: dict[str, str] = {
         "spread across the book. About 36 seconds per book.\n\n"
         "Ticked, every page is drawn. For a 65-chapter book that is several "
         "minutes, but then nothing is inferred from a sample."
+    ),
+    "policy.repair.encoding": "Restore punctuation a conversion lost",
+    "policy.repair.encoding.tip": (
+        "Windows keeps quotation marks, dashes and ellipses on the positions "
+        "Unicode reserves for control codes. A converter reading such text "
+        "with the wrong encoding turns every one of them into a code with no "
+        "shape — no font draws it, so a reading system shows a blank.\n\n"
+        "Off, the program **asks** for every book it finds this in, and shows "
+        "how many characters and which ones.\n\n"
+        "On, it answers “repair” on your behalf, for the whole queue. Useful "
+        "across many books at once; the mapping is one-to-one and nothing "
+        "about it is guessed.\n\n"
+        "**This changes the text** and cannot be undone from the output alone, "
+        "which is why asking is the default."
     ),
     "policy.shop.notices": "Remove the shop's visible traces",
     "policy.shop.notices.tip": (

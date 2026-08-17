@@ -57,7 +57,14 @@ METADATA = "metadata"
 #: whether a book nobody was able to check may be written at all, and it exists
 #: because the alternative was the program answering it silently.
 VERIFICATION = "verification"
-KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION)
+#: Punctuation that a conversion turned into an unprintable code — EF-050. Its
+#: own kind rather than a `HYPHEN`, because the two are answered by different
+#: judgements: a hyphen candidate asks *is this one word or two*, which needs
+#: the sentence; this asks *were these quotation marks*, which needs nothing but
+#: the count. Keeping them apart also keeps the ledger's per-kind tally
+#: meaningful.
+ENCODING = "encoding"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that
@@ -360,6 +367,7 @@ def answers_path(source: "str | pathlib.Path") -> pathlib.Path:
 __all__ = [
     "Answer",
     "Asker",
+    "ENCODING",
     "HYPHEN",
     "KEEP",
     "KINDS",

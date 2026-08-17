@@ -474,9 +474,9 @@ def spine_text_of(book: "str | pathlib.Path") -> str:
     """
     from .inventory import spine_text
     from .typography import canonical
-    from .xmlchars import only_text
+    from .xmlchars import legal
 
-    return canonical(only_text(spine_text(book)))
+    return canonical(legal(spine_text(book)))
 
 
 def first_character_lost(source_text: str, output_text: str) -> int:

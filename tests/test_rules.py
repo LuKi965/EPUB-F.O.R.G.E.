@@ -31,7 +31,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: wrong about, deleted along with the finding that reported it. What it may
 #: never do is fall because a `note()` lost its identifier, and every call site
 #: carrying one is what the two tests below actually check.
-TAGGED_TODAY = 262
+TAGGED_TODAY = 264
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -143,7 +143,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 180
+TEMPLATED_TODAY = 182
 
 
 class TestTheTranslationCannotStall:

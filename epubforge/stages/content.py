@@ -15,7 +15,7 @@ import cssutils
 from lxml import etree
 
 from .. import covers, cascade as css_cascade
-from .. import paths, references, typography, watermark, xhtml
+from .. import mojibake, paths, references, typography, watermark, xhtml
 from ..report import Action, Level, Risk
 from .accessibility import is_placeholder_alt
 from .base import Context, Stage
@@ -733,6 +733,11 @@ class ContentStage(Stage):
                 for element in xhtml.iter_elements(root)
                 if element.get("id")
             }
+            # Before the count, because most of what that count would find is
+            # not a control character at all — it is punctuation a conversion
+            # mislaid, and deleting it is the wrong answer to it (EF-050).
+            self._mojibake(ctx, root, resource)
+
             # Counted before serialising, because serialising is what removes
             # them. Never silent: this is the book's own text, and a character
             # leaving it is the reader's information rather than their surprise.
@@ -1856,6 +1861,103 @@ class ContentStage(Stage):
                     # nowhere else.
                     found.add("li[value]")
         return found
+
+    def _mojibake(self, ctx: Context, root, resource) -> None:
+        """Punctuation a conversion turned into unprintable codes — EF-050.
+
+        Asked, never assumed. The mapping back is one-to-one and deterministic,
+        which is what makes it a repair rather than a guess — but it changes
+        characters of somebody's text, and S-02 does not have an exception for
+        changes that are obviously right.
+
+        **Why it runs before the removal below and not after.** Until this
+        existed, every one of these characters was deleted as unwritable, and
+        the K1 gate refused the book for losing them — correctly, and with the
+        result that a book whose only fault was somebody else's encoding could
+        not be rebuilt at all. One book on the mixed shelf carries 18 545 of
+        them; they are its quotation marks and dashes.
+
+        The question is put **once per document** with a census by character,
+        because "1174 dashes" is something a person can answer and 1174
+        separate questions is not.
+        """
+        from ..decisions import ENCODING, KEEP, Answer, Option, Question
+        from ..question_texts import say
+
+        census = mojibake.census(root)
+        if not census:
+            return
+        count = sum(census.values())
+        shown = "\n".join(
+            say("encoding.mojibake.line", count=number, character=character)
+            for character, number in sorted(
+                census.items(), key=lambda pair: (-pair[1], pair[0])
+            )
+        )
+        question = Question(
+            kind=ENCODING,
+            where=resource.path,
+            summary=say("encoding.mojibake.summary", count=count),
+            detail=say("encoding.mojibake.detail", shown=shown),
+            options=(
+                Option(
+                    KEEP,
+                    say("encoding.mojibake.keep"),
+                    say("encoding.mojibake.keep.why"),
+                ),
+                Option(
+                    "repair",
+                    say("encoding.mojibake.repair"),
+                    say("encoding.mojibake.repair.why", count=count),
+                ),
+            ),
+            # An opinion, and the queue never acts on one by itself.
+            recommended="repair",
+            # The characters are gone from the output as characters; nothing
+            # in the result says what they used to be.
+            reversible=False,
+            risk=Risk.CONTENT,
+            group="encoding:mojibake",
+            subject=resource.path,
+        )
+        # A standing answer is somebody having answered this in advance for the
+        # whole queue, not a fifth way of changing text unasked. Same shape as
+        # the hyphen rule settling a whole confidence class in one go.
+        answer = (
+            Answer(option="repair")
+            if ctx.policy.repair_encoding
+            else ctx.decide(question)
+        )
+        what = ", ".join(sorted(census))
+        if answer.option != "repair":
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.mojibake-found",
+                values={"count": count, "what": what},
+                location=resource.path,
+            )
+            return
+        changed = mojibake.apply(root)
+        self.note(
+            ctx,
+            Level.FIX,
+            "xhtml.mojibake-translated",
+            values={"count": changed, "what": what},
+            location=resource.path,
+        )
+        # Irreversible from the output alone: a restored quotation mark carries
+        # nothing saying it used to be an unprintable code.
+        self.changed(
+            ctx,
+            Action.REPLACED,
+            "text",
+            before=f"{changed} × kod bez kształtu",
+            after=f"{what}, wskazane przez człowieka",
+            risk=Risk.CONTENT,
+            reversible=False,
+            rule="xhtml.mojibake-translated",
+        )
 
     def _census(self, ctx: Context, root) -> None:
         """Note every class and id this document carries, for the CSS stage.

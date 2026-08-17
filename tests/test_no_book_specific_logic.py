@@ -295,6 +295,10 @@ class TestTheRulesThemselvesNameConstructsAndNotWorks:
         "Polish",
         # Polish `Twoje`, capitalised after a colon in one rule's second half.
         "Twoje",
+        # Character sets, which a rule about a mis-decoded character must name.
+        # `Latin` comes from Latin-1 and `Unikod`/`Windowsa` are the Polish
+        # forms — the list already carries inflections for the same reason.
+        "Latin", "Unikod", "Windowsa",
     })
 
     def test_no_rule_text_names_anything_this_program_should_not_know(self):

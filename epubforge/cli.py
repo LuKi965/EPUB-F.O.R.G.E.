@@ -103,6 +103,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.relative_units = True
     if getattr(args, "remove_shop_notices", False):
         policy.remove_shop_notices = True
+    if getattr(args, "repair_encoding", False):
+        policy.repair_encoding = True
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1043,6 +1045,15 @@ def build_parser() -> argparse.ArgumentParser:
             "'confirmed' asks only about words the book writes without a hyphen "
             "elsewhere (default), 'grouped' adds one question per confidence "
             "class carrying the words, 'each' asks about every candidate"
+        ),
+    )
+    build.add_argument(
+        "--repair-encoding",
+        action="store_true",
+        help=(
+            "answer the encoding question with 'repair' instead of asking: put "
+            "back quotation marks, dashes and ellipses a conversion turned into "
+            "unprintable codes. Off by default, and the mapping is one-to-one"
         ),
     )
     build.add_argument(

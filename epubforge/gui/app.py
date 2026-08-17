@@ -517,6 +517,13 @@ class MainWindow(QMainWindow):
             layout, "policy.shop.notices", checked=False
         )
 
+        # EF-050. Beside the two above because it is the third setting that
+        # touches characters a reader sees — and unlike them it puts the text
+        # back rather than taking it away.
+        self.encoding_check = self._checkbox(
+            layout, "policy.repair.encoding", checked=False
+        )
+
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
         # BA-2026-001's remaining half. 67 evidenced candidates against 189
         # that the book itself does not settle — so the weaker classes are one
@@ -784,6 +791,7 @@ class MainWindow(QMainWindow):
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.relative_units = self.relative_units_check.isChecked()
         policy.remove_shop_notices = self.shop_notices_check.isChecked()
+        policy.repair_encoding = self.encoding_check.isChecked()
         policy.remember_decisions = self.remember_check.isChecked()
         policy.check_memory = self.memory_check.isChecked()
         typed = self.memory_limit_edit.text().strip()

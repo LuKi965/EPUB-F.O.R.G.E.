@@ -131,6 +131,29 @@ TEXTS_PL: dict[str, str] = {
     "metadata.reconstructed.keep.why": "W książce zostanie to, co odczytał parser",
     "metadata.reconstructed.write": "Wpisz poprawną wartość",
     "metadata.reconstructed.write.why": "W książce będzie to, co wpiszesz",
+    # --- punctuation a conversion turned into unprintable codes -------------
+    "encoding.mojibake.summary": (
+        "{count} znaków przestankowych zamienionych przez konwersję w kody bez kształtu"
+    ),
+    "encoding.mojibake.detail": (
+        "Konwerter, którym zrobiono ten plik, odczytał tekst z Windowsa złym "
+        "kodowaniem. Cudzysłowy i myślniki wylądowały na pozycjach, które w "
+        "Unikodzie są kodami sterującymi — żadna czcionka ich nie rysuje, więc w "
+        "czytniku są dziś pustymi miejscami.\n\n{shown}\n\n"
+        "Odwzorowanie jest jednoznaczne i idzie w jedną stronę: każda z tych "
+        "pozycji ma dokładnie jeden odpowiednik, nie ma tu zgadywania."
+    ),
+    "encoding.mojibake.line": "{count} × {character}",
+    "encoding.mojibake.keep": "Zostaw jak jest",
+    "encoding.mojibake.keep.why": (
+        "Znaki zostaną w książce takie, jakie są — niewidoczne. Tekst nie zmieni "
+        "się o żaden znak"
+    ),
+    "encoding.mojibake.repair": "Przywróć znaki przestankowe",
+    "encoding.mojibake.repair.why": (
+        "{count} kodów bez kształtu zamieni się w cudzysłowy, myślniki i "
+        "wielokropki. To zmiana treści; z samego wyniku nie da się jej cofnąć"
+    ),
 }
 
 TEXTS_EN: dict[str, str] = {
@@ -204,6 +227,28 @@ TEXTS_EN: dict[str, str] = {
     "metadata.reconstructed.keep.why": "The book keeps what the parser read",
     "metadata.reconstructed.write": "Type the correct value",
     "metadata.reconstructed.write.why": "The book will carry whatever you type",
+    "encoding.mojibake.summary": (
+        "{count} punctuation marks a conversion turned into codes with no shape"
+    ),
+    "encoding.mojibake.detail": (
+        "The converter that produced this file read Windows text with the wrong "
+        "encoding. Quotation marks and dashes landed on positions that Unicode "
+        "uses for control codes — no font draws them, so today they are blank "
+        "spaces in a reading system.\n\n{shown}\n\n"
+        "The mapping is unambiguous and one-way: each of these positions has "
+        "exactly one counterpart, and nothing here is guessed."
+    ),
+    "encoding.mojibake.line": "{count} × {character}",
+    "encoding.mojibake.keep": "Leave them as they are",
+    "encoding.mojibake.keep.why": (
+        "The characters stay in the book exactly as they are — invisible. Not one "
+        "character of the text changes"
+    ),
+    "encoding.mojibake.repair": "Restore the punctuation",
+    "encoding.mojibake.repair.why": (
+        "{count} shapeless codes become quotation marks, dashes and ellipses. "
+        "This changes the text and cannot be undone from the output alone"
+    ),
 }
 
 CATALOGUES: dict[str, dict[str, str]] = {"pl": TEXTS_PL, "en": TEXTS_EN}

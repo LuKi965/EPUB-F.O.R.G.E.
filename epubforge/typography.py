@@ -92,6 +92,18 @@ _FOLD = {
     "­": "", "​": "", "‌": "", "‍": "",         # soft hyphen, zero width
     "﻿": "",
 }
+#: The same shapes again, from the byte positions Windows-1252 uses for them.
+#: EF-050: turning `U+0093` into a left double quote is not a text change in the
+#: sense K1 forbids — it is the same quotation mark, written the way a working
+#: converter would have written it. Folding both to one form is what lets the
+#: gate tell that repair apart from a loss. Built from the codec rather than
+#: typed out, so the two tables cannot drift apart.
+for _position in range(0x80, 0xA0):
+    _character = bytes([_position]).decode("cp1252", "ignore")
+    if _character:
+        _FOLD[chr(_position)] = _FOLD.get(_character, _character)
+del _position, _character
+
 _FOLD_TABLE = str.maketrans(_FOLD)
 
 #: Quote marks by **shape**, never by language. The inventory used to name them

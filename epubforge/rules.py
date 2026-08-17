@@ -133,6 +133,8 @@ CATALOGUE: dict[str, str] = {
     "css.vendor-at-rule-kept": "{count} vendor-specific at-rule(s) targeting particular readers were kept",
     "css.kindle-media-removed": "Kindle-specific @media blocks were removed",
     "xhtml.forbidden-characters-removed": "{count} control character(s) that XML cannot represent were removed from this document",
+    "xhtml.mojibake-translated": "{count} punctuation mark(s) a conversion had turned into unprintable codes were restored: {what}",
+    "xhtml.mojibake-found": "{count} punctuation mark(s) sit here as unprintable codes and were left alone: {what}",
     "package.forbidden-characters-removed": "control characters that XML cannot represent were removed from: {fields}",
     "xhtml.shop-notice-removed": "{count} shop notice(s) were removed from {documents} document(s), by request: {removed}",
     "css.invalid-value-corrected": "{count} declaration(s) using the invalid value 'regular' were corrected",
@@ -412,6 +414,8 @@ CATALOGUE_PL: dict[str, str] = {
     'css.vendor-at-rule-kept': 'zachowano {count} {count:regułę @|reguły @|reguł @} charakterystyczną dla konkretnych czytników',
     'css.kindle-media-removed': 'usunięto bloki @media przeznaczone dla Kindle',
     'xhtml.forbidden-characters-removed': 'usunięto z tego dokumentu {count} {count:znak sterujący, którego|znaki sterujące, których|znaków sterujących, których} XML nie potrafi zapisać',
+    'xhtml.mojibake-translated': 'przywrócono {count} {count:znak przestankowy zamieniony|znaki przestankowe zamienione|znaków przestankowych zamienionych} przez konwersję w kod bez kształtu: {what}',
+    'xhtml.mojibake-found': '{count} {count:znak przestankowy siedzi|znaki przestankowe siedzą|znaków przestankowych siedzi} tu jako kod bez kształtu i {count:został|zostały|zostało} nietknięte: {what}',
     'package.forbidden-characters-removed': 'usunięto znaki sterujące, których XML nie potrafi zapisać, z pól: {fields}',
     'xhtml.shop-notice-removed': 'usunięto na życzenie {count} {count:zdanie księgarni|zdania księgarni|zdań księgarni} z {documents} {documents:dokumentu|dokumentów|dokumentów}: {removed}',
     'css.invalid-value-corrected': 'poprawiono {count} {count:deklarację|deklaracje|deklaracji} z niepoprawną wartością „regular”',
@@ -616,6 +620,10 @@ DETAILS: dict[str, str] = {
         "e.g. {examples} — inherited from the source and left as-is, since guessing serif vs sans-serif could change how the book looks.",
     "xhtml.forbidden-characters-removed":
         "The worse half of the same defect: a control character in a title spoils the package, one in a chapter spoils the text of the book. It arrives from the source — a damaged file recovered by the parser keeps it — and was written back out into a document nothing can open. Only the impossible characters go; every letter, digit and mark of punctuation stays, so no character of the book's own text is lost.",
+    "xhtml.mojibake-translated":
+        "Windows-1252 keeps punctuation on the byte positions Unicode reserves for control codes, so a converter reading Windows text as Latin-1 turns every quotation mark and dash into a code no font draws. The damage is in the file rather than in this program's reading: the documents this was found on declare UTF-8 and are valid UTF-8. The mapping back is one-to-one over twenty-seven defined positions and nothing about it is guessed, which is why it is offered as a repair rather than as a heuristic — but it changes characters of the text, so it happens only when somebody says so.",
+    "xhtml.mojibake-found":
+        "The same damage, left alone because that is what was chosen. Said out loud rather than passed over, because these characters are invisible in a reading system: the book is missing its quotation marks on the page whether or not anybody notices in the file.",
     "package.forbidden-characters-removed":
         "Not a matter of escaping: XML 1.0 has no representation for these characters at all, so a package document carrying one does not parse and the book does not open. Measured before this existed: a title carrying 0x0B produced a written, unopenable book in the default mode. Only the offending characters go; every other character of the field is kept.",
     "xhtml.shop-notice-removed":
@@ -931,6 +939,10 @@ DETAILS_PL: dict[str, str] = {
         "Użyj --strict, żeby je usunąć.",
     "xhtml.forbidden-characters-removed":
         "Gorsza połowa tej samej usterki: znak sterujący w tytule psuje pakiet, a w rozdziale psuje tekst książki. Przychodzi ze źródła — uszkodzony plik odzyskany przez parser go zachowuje — i był zapisywany z powrotem do dokumentu, którego nic nie otworzy. Znika wyłącznie znak niemożliwy do zapisania; każda litera, cyfra i znak przestankowy zostają, więc żaden znak własnego tekstu książki nie ginie.",
+    "xhtml.mojibake-translated":
+        "Windows-1252 trzyma znaki przestankowe na pozycjach, które Unikod rezerwuje dla kodów sterujących — więc konwerter czytający tekst z Windowsa jak Latin-1 zamienia każdy cudzysłów i myślnik w kod, którego żadna czcionka nie rysuje. Uszkodzenie jest w pliku, a nie w naszym odczycie: dokumenty, na których to znaleziono, deklarują UTF-8 i są poprawnym UTF-8. Droga powrotna jest jeden do jednego po dwudziestu siedmiu zdefiniowanych pozycjach i nic w niej nie jest zgadywane — dlatego jest naprawą, a nie heurystyką. Zmienia jednak znaki tekstu, więc dzieje się wyłącznie wtedy, gdy ktoś tak zdecyduje.",
+    "xhtml.mojibake-found":
+        "To samo uszkodzenie, zostawione, bo tak wybrano. Powiedziane głośno, a nie przemilczane, bo te znaki są w czytniku niewidoczne: książka nie ma na stronie swoich cudzysłowów niezależnie od tego, czy ktoś to zauważy w pliku.",
     "package.forbidden-characters-removed":
         "To nie jest kwestia escapowania: XML 1.0 w ogóle nie ma zapisu dla tych znaków, więc dokument pakietu, który je niesie, nie parsuje się i książka się nie otwiera. Zmierzone, zanim to powstało: tytuł ze znakiem 0x0B dawał zapisaną, nieotwieralną książkę w trybie domyślnym. Znika wyłącznie znak sterujący; każdy inny znak pola zostaje.",
     "xhtml.shop-notice-removed":

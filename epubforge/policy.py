@@ -363,6 +363,16 @@ class Policy:
     #: something anybody can check, and this is a person's book.
     remove_shop_notices: bool = False
 
+    #: Answer the encoding question with "repair" instead of asking — EF-050.
+    #:
+    #: Not a fifth way of changing text behind somebody's back. The question is
+    #: still the mechanism; this is how a person answers it for sixty-seven
+    #: books at once, exactly as the hyphen rule lets a whole confidence class
+    #: be settled in one go. Off by default, so an unattended run changes
+    #: nothing — and an unattended run is what the corpus and every library
+    #: caller are.
+    repair_encoding: bool = False
+
     #: Repair the typography of the text itself — roadmap [7].
     #:
     #: Off everywhere, reached by no preset, and that is the point rather than
