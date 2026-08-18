@@ -11,15 +11,18 @@ tidy; read as a description of what the book gets, it meant a book's CSS was
 repaired in one place and left alone in another. A `<style>` block got exactly
 two things — remote `@import` stripping and url repointing — and none of the
 repairs below: no dead-url neutralisation, no `font-style: regular`, no vendor
-hacks, no unreachable rules, no font stacks. Measured on the owner's shelf, two
-of nine refusals came out of that gap, one of them the very defect F-017 exists
-to prevent.
+hacks, no font stacks. Measured on the owner's shelf, two of nine refusals came
+out of that gap, one of them the very defect F-017 exists to prevent.
 
 So this stage now reaches into documents for one purpose: their `<style>`
-elements go through the same chain as a stylesheet file, `_mend`. It has to
-happen **here** rather than next door, and not for tidiness: `_unreachable_rules`
-asks which classes the book uses, and that census is finished by `ContentStage`
-— asking mid-way would answer with half a book.
+elements go through the chain a stylesheet file goes through, `_mend` — every
+repair but one. The exception is the unreachable-rule sweep, and `_inline_blocks`
+says why: at this scale it is a change of a different kind, and it needs its own
+decision rather than a lift on somebody else's.
+
+It has to happen **here** rather than next door, and not for tidiness: the
+repairs that ask what the book uses need a census `ContentStage` only finishes at
+the end of its own run — asking mid-way would answer with half a book.
 
 The split moved code and changed none of it. The proof required by WP-14 is that
 the corpus signatures come out byte-identical, which is a stronger claim than a
@@ -276,7 +279,14 @@ class StyleStage(Stage):
         self._inline_blocks(ctx)
 
     def _mend(
-        self, ctx: Context, css_text: str, source_path: str, resource, unresolved: int
+        self,
+        ctx: Context,
+        css_text: str,
+        source_path: str,
+        resource,
+        unresolved: int,
+        *,
+        sweep_unreachable: bool = True,
     ) -> tuple[str, int]:
         """Every repair this stage knows, in order, whatever the CSS lives in.
 
@@ -285,6 +295,10 @@ class StyleStage(Stage):
         in `run` because a book's CSS being repaired in one place and untouched
         in another is the whole of EF-059, and two copies of this order would
         drift apart the same way.
+
+        `sweep_unreachable` is the one difference between the two callers, and
+        it is a difference on purpose rather than an oversight — see
+        `_inline_blocks`.
         """
         if unresolved and ctx.policy.remove_dead:
             css_text, neutralised = self._neutralise_dead_urls(
@@ -296,7 +310,8 @@ class StyleStage(Stage):
         css_text = self._malformed_declarations(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
-        css_text = self._unreachable_rules(ctx, css_text, resource)
+        if sweep_unreachable:
+            css_text = self._unreachable_rules(ctx, css_text, resource)
         css_text = self._font_stacks(ctx, css_text, resource)
         return css_text, unresolved
 
@@ -311,6 +326,23 @@ class StyleStage(Stage):
         it for these blocks, relative to the document, which is the right frame
         of reference. What comes in is therefore already repointed, and
         `_neutralise_dead_urls` asks its question of both layouts anyway.
+
+        **And one repair is deliberately left out: the unreachable-rule sweep.**
+        Not because it would be wrong here — the question it asks, "can this
+        selector match anything in this book", is the same question — but
+        because of what it does at this scale. Measured over the owner's 160
+        books, running it on `<style>` blocks takes the shelf from **6 303
+        removed rules to 72 219**, with one book contributing 49 545: a
+        converter writes the same boilerplate block into all 135 of its
+        documents, and almost none of it is reachable.
+
+        That may well be the right thing to do. It is not something to start
+        doing as a side effect of a fix for two dead urls. The owner's standing
+        rule is that whatever this program removes is either optional or asked
+        about, and a change of that size arrives with its own decision to make,
+        its own measurement and its own audit. Until then a `<style>` block gets
+        every repair except this one, and the difference is written down here
+        rather than left for somebody to find in a diff.
         """
         for resource in ctx.book.content_docs():
             # Asked of the bytes before the tree, and not as an optimisation for
@@ -344,7 +376,10 @@ class StyleStage(Stage):
                 # A dead url here is dead in the same sense as in a sheet, and
                 # the count exists only so `_mend` knows whether to look.
                 unresolved = 1 if "url(" in before else 0
-                after, _ = self._mend(ctx, before, source_path, resource, unresolved)
+                after, _ = self._mend(
+                    ctx, before, source_path, resource, unresolved,
+                    sweep_unreachable=False,
+                )
                 if after != before:
                     element.text = after
                     touched = True
