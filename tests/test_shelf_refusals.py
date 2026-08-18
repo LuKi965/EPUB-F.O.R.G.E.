@@ -552,3 +552,31 @@ class TestASignatureDoesNotCarryASomebodysTitle:
         if isinstance(node, list):
             return [s for item in node for s in cls._shapes(item)]
         return []
+
+
+def test_the_content_stage_writes_every_document_back(tmp_path):
+    """The coupling `_inline_blocks` rests on, stated as a test.
+
+    That filter reads `resource.data` rather than the parse tree, to avoid
+    evicting the cached parse of every document in the book. It is correct only
+    while `ContentStage` writes each document back before `StyleStage` runs — if
+    that ever became conditional, a `<style>` element inserted by the content
+    stage would be invisible to the CSS repairs, silently.
+    """
+    import inspect
+
+    from epubforge.stages.content import ContentStage
+
+    source = inspect.getsource(ContentStage.run)
+    write_back = "resource.data = xhtml.serialize(root)"
+    assert write_back in source
+    # Unconditional: at the loop's own indentation, not nested inside an `if`.
+    line = next(l for l in source.splitlines() if write_back in l)
+    indent = len(line) - len(line.lstrip())
+    for previous in reversed(source[: source.index(line)].splitlines()):
+        if not previous.strip():
+            continue
+        depth = len(previous) - len(previous.lstrip())
+        if depth < indent:
+            assert not previous.strip().startswith(("if ", "elif ", "else")), previous
+            break

@@ -51,6 +51,11 @@ GENERIC_FAMILIES = {
 #: dropped by every parser, so the publisher's intent never applied at all.
 _REGULAR_VALUE_RE = re.compile(r"(font-(?:style|weight)\s*:\s*)regular\b", re.IGNORECASE)
 
+#: Whether a document is worth opening for its CSS at all, asked of the bytes.
+#: See `_inline_blocks` for why this is a correctness question and not a
+#: micro-optimisation.
+_STYLE_ELEMENT = re.compile(rb"<\s*style[\s>]", re.IGNORECASE)
+
 #: A declaration written the way an HTML attribute is written: `text-align=
 #: "center"` where CSS wants a colon. The lead is `{` or `;` on purpose — it is
 #: what keeps this away from an attribute selector (`a[href="x"]`), from a
@@ -308,6 +313,21 @@ class StyleStage(Stage):
         `_neutralise_dead_urls` asks its question of both layouts anyway.
         """
         for resource in ctx.book.content_docs():
+            # Asked of the bytes before the tree, and not as an optimisation for
+            # its own sake: `ctx.take` **evicts** the parse from the cache,
+            # because a tree about to be mutated must not stay under a key that
+            # says "this is what those bytes parse to". Taking every document
+            # here would therefore make every later stage parse the book a
+            # second time — for the documents, the large majority, that have no
+            # `<style>` element at all.
+            #
+            # This reads the bytes rather than the tree, so it is only true
+            # while `ContentStage` writes every document back before this stage
+            # runs — which it does, unconditionally, at the end of its own loop.
+            # If that ever becomes conditional, a `<style>` element *inserted*
+            # by that stage would be invisible here.
+            if not _STYLE_ELEMENT.search(resource.data):
+                continue
             blocks = []
             tree = ctx.take(resource)
             root = tree.root
