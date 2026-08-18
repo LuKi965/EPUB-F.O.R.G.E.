@@ -40,6 +40,103 @@ written; only the current version was reset.
 
 _Nic jeszcze._
 
+## 0.2.30 — alpha — 2026-08-18
+
+The first release whose entire content came from **running the program over the
+owner's whole shelf** rather than from reading its code. One strict run over 160
+books, nine refusals, and six of the nine were this program's doing. All six are
+below.
+
+### Content in the head was being made visible
+
+A `<p>` where only a `<meta>` belongs cannot stay there — XHTML5 does not allow
+it — so this program moved it to the top of the body, on the stated grounds that
+"a browser starts the body at the first thing that does not belong in the head,
+so it was already the first thing on the page".
+
+That is true of an **HTML** parser. These documents are XHTML and parse as XML,
+where the paragraph stays in the head and the head is not drawn. It was on no
+page at all. On *Book 10* three such paragraphs came out of the head and pushed
+eighteen pages down by about 105 px each, dropping the last paragraph of each
+off the bottom of the screen. The render gate refused the book, which is how
+this was found.
+
+Content moved out of an XML document's head is now taken out of the drawing
+rather than into it: the text stays in the file, in reading order, and the page
+looks exactly as it did. A document the book declares as HTML keeps the old
+behaviour, because there the paragraph really was being shown.
+
+### The cover repair was pushing the cover off the bottom
+
+The block of CSS added to a cover page that had none gave `html, body` a height
+of 100% and left the browser's default 8px body margin in place — which makes
+the page taller than the window, so the centred cover sits below the fold and
+its bottom edge is cut. Two books, `91.2% → 82.0%` and `56.2% → 44.5%` of the
+page's ink, both refused by the render gate.
+
+The comment above those rules claimed they "can only ever make the image smaller
+than it already is". Measured, they also moved it. The generated cover page had
+`margin: 0` from the start; the block added to an existing page now has it too,
+which is what the two paths were supposed to share.
+
+### A table of contents naming one place several times made the book invalid
+
+`playOrder` is a property of the place, not of the entry, and the NCX
+specification says so: entries naming the same target must carry the same
+number. Written as a running counter they did not, and EPUBCheck answered
+`different playOrder values … refer to same target`.
+
+It surfaces on a book that arrives with the same `id` on several headings —
+a converter's doing, older than this program. Numbering now follows the target.
+Repointing those entries at the headings they were *probably* meant for is a
+different question and deliberately not answered here: it is a guess about the
+source, and this program does not repair by guessing.
+
+### CSS inside a document is repaired like CSS in a file
+
+A `<style>` element got two things — remote `@import` stripping and url
+repointing — and none of the stylesheet repairs. So a dead `url()` in a
+`<style>` block stayed dead, which is the exact defect the dead-url work exists
+to prevent, in the one place it never looked. Two of the nine refusals came out
+of that gap.
+
+Both now go through the same chain.
+
+### A declaration written like an HTML attribute is dropped, not corrected
+
+`p.sgc-1 {text-align="center"}`, from a converter. EPUBCheck: `Token "=" not
+allowed here, expecting :`.
+
+Dropped rather than corrected, and that is the careful choice: every reader
+already discards the declaration, so removing it changes nothing anybody has
+seen, while turning the `=` into a `:` would start centring text that has never
+been centred. Which the publisher wanted is a question about their intent, and
+the answer that happens with nobody there to ask is the one that changes
+nothing. Gated like every other removal: `preserve` keeps it and says so.
+
+### A recorded signature was carrying somebody's title
+
+Not from the shelf run — from the gate that guards it. The private name scanner
+was taught the seven books behind the findings above and failed immediately, on
+a file that had been in this repository for releases: a corpus signature holding
+an EPUBCheck sentence with a package identifier of the form
+`Author_Title_9789024531790` still in it.
+
+Signatures mask every quoted string that is not "a plain markup name", and the
+pattern for that allowed underscores and forty characters — under which a
+publisher's identifier is a markup name. It is not: no HTML, SVG or EPUB element,
+attribute or property name contains an underscore. Four signatures were carrying
+a title; all four have been re-masked, and a test now reads every recorded
+signature and fails on the shape rather than on the particular title.
+
+### An old-style anchor counts as an anchor again
+
+`<a name="fn1">` is how a document written before XHTML 1.1 spells an anchor,
+and this program converts it to `id="fn1"` — but *after* it has already decided
+which links resolve. So a live link into such an anchor was reported as pointing
+at nothing, and in strict mode that report is what decides whether the book may
+be published at all.
+
 ## 0.2.29 — alpha — 2026-08-17
 
 ### The K1 gate was disarmed, twice, and both times by us

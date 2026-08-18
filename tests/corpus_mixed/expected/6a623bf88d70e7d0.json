@@ -11,8 +11,8 @@
       "RSC-005": 1
     },
     "shapes": {
-      "NCX-001: NCX identifier (\"c08beab2-9767-47ec-9bfa-568eecd230d3\") does not match OPF identifier (\"…\").": 1,
-      "RSC-005: Error while parsing file: element \"u\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet\", ": 1
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
+      "RSC-005: Error while parsing file: element \"u\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet\",": 1
     }
   },
   "minimal": {

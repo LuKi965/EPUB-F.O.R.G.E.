@@ -10,11 +10,11 @@
       "RSC-005": 5
     },
     "shapes": {
-      "RSC-005: Error while parsing file: attribute \"border\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"ismap\", \"lang\", \"longdesc\", \"src\", ": 1,
+      "RSC-005: Error while parsing file: attribute \"border\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"ismap\", \"lang\", \"longdesc\", \"src\",": 1,
       "RSC-005: Error while parsing file: element \"blockquote\" incomplete; expected element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", \"h2\", \"h3\", \"": 1,
       "RSC-005: Error while parsing file: element \"br\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\"": 1,
       "RSC-005: Error while parsing file: element \"i\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\",": 1,
-      "RSC-005: Error while parsing file: text not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", ": 1
+      "RSC-005: Error while parsing file: text not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\",": 1
     }
   },
   "minimal": {

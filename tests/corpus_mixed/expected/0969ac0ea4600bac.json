@@ -12,7 +12,7 @@
     },
     "shapes": {
       "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
-      "RSC-005: Error while parsing file: Duplicate \"heading_id_5\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"…\"": 1,
       "RSC-005: Error while parsing file: different playOrder values for navPoint/navTarget/pageTarget that refer to same target": 1
     }
   },
@@ -52,7 +52,7 @@
         "RSC-005": 2
       },
       "shapes": {
-        "RSC-005: Error while parsing file: Duplicate ID \"heading_id_5\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"…\"": 1,
         "RSC-005: Error while parsing file: different playOrder values for navPoint/navTarget/pageTarget that refer to same target": 1
       }
     }
@@ -97,7 +97,7 @@
         "RSC-005": 2
       },
       "shapes": {
-        "RSC-005: Error while parsing file: Duplicate ID \"heading_id_5\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"…\"": 1,
         "RSC-005: Error while parsing file: different playOrder values for navPoint/navTarget/pageTarget that refer to same target": 1
       }
     }
@@ -142,7 +142,7 @@
         "RSC-005": 2
       },
       "shapes": {
-        "RSC-005: Error while parsing file: Duplicate ID \"heading_id_5\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"…\"": 1,
         "RSC-005: Error while parsing file: different playOrder values for navPoint/navTarget/pageTarget that refer to same target": 1
       }
     }

@@ -418,7 +418,24 @@ MAX_SHAPES = 12
 #: A plain markup name: what an element or an attribute is called. Short, no
 #: spaces, no slashes. Everything else quoted in a message is treated as
 #: possibly the book's own and masked.
-_MARKUP_NAME = re.compile(r"^[A-Za-z_][\w:.-]{0,39}$")
+#: What may be kept unmasked inside an EPUBCheck sentence: a name that belongs
+#: to a *vocabulary* — an element, an attribute, a property — rather than to a
+#: book. The old pattern allowed leading underscores, `\w` (so underscores and
+#: any Unicode letter) and forty characters, and on that reading a package
+#: identifier of the form `Author_Title_9789024531790` counted as a markup name.
+#: One did: it sat unmasked inside a recorded signature in the **public**
+#: repository, carrying an author and a title, and was found only when the
+#: private name scanner was taught that book.
+#:
+#: The rule that separates the two, and the reason it holds: **no HTML, SVG or
+#: EPUB element, attribute or property name contains an underscore.** They are
+#: hyphenated (`http-equiv`), namespaced (`ns1:file-as`, `xml:lang`) or
+#: camel-cased (`viewBox`); publishers' identifiers are none of those things and
+#: reach for `_` constantly. The length cap is the second half: the longest name
+#: in any of those vocabularies is well under it, and an identifier is usually
+#: well over.
+_MARKUP_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:[-:.][A-Za-z0-9]+)*$")
+_MARKUP_NAME_MAX = 24
 
 _QUOTED = re.compile(r"""(["\u201c\u201d'])(.*?)\1""", re.DOTALL)
 
@@ -430,6 +447,11 @@ def message_shape(text: str) -> str:
     word and not the publisher's. `value of attribute "id" is invalid: "rozdz-Å›wit"`
     loses the value, because that one came out of somebody's book.
 
+    Getting that line wrong is not a cosmetic mistake: these shapes are recorded
+    into signature files that live in the **public** repository, so a quoted
+    string kept by accident is a title published on purpose. One was —
+    see `_MARKUP_NAME`.
+
     Truncated, because the tail of a schema error is a list of every element
     that would have been allowed instead, and it is very long and says nothing
     the head has not already said.
@@ -439,7 +461,10 @@ def message_shape(text: str) -> str:
 
     def mask(match: "re.Match") -> str:
         inner = match.group(2)
-        return f'"{inner}"' if _MARKUP_NAME.match(inner) else '"…"'
+        looks_like_markup = (
+            len(inner) <= _MARKUP_NAME_MAX and _MARKUP_NAME.match(inner) is not None
+        )
+        return f'"{inner}"' if looks_like_markup else '"…"'
 
     cleaned = " ".join(_QUOTED.sub(mask, text).split())
     return cleaned[:140]

@@ -32,6 +32,15 @@ from __future__ import annotations
 #: it the `max-height` below has no containing block to be a percentage of.
 #: `object-fit: contain` keeps the aspect ratio when the limits do bite, which
 #: is what stops a tall cover being squashed rather than shrunk.
+#:
+#: `margin: 0` is load-bearing too, and its absence from the *other* block cost
+#: two books on the owner's shelf (EF-057). A body with `height: 100%` and the
+#: browser's default 8px margin makes a page **taller than the window**; the
+#: flex centring below then centres against that taller box, so the cover sits
+#: lower than the window and its bottom edge falls off. The comment on the
+#: other block claimed these rules "can only ever make the image smaller".
+#: Measured, without this line they also **move** it — `91.2% → 82.0%` and
+#: `56.2% → 44.5%` of the page's ink, and the render gate refused both books.
 COVER_STYLE = """html, body { margin: 0; padding: 0; height: 100%; }
       body { display: flex; align-items: center; justify-content: center; }
       img { max-width: 100%; max-height: 100%; object-fit: contain; }"""
@@ -44,9 +53,9 @@ COVER_STYLE = """html, body { margin: 0; padding: 0; height: 100%; }
 COVER_STYLE_ADDED = """
       /* EPUB-Forge: nothing in this book sized the cover, so it was shown at
          its own pixel size — cropped on a small screen, a stamp on a large
-         one. These are the same rules a generated cover page is born with.
-         They can only ever make the image smaller than it already is. */
-      html, body { height: 100%; }
+         one. These are the same rules a generated cover page is born with,
+         margin included — see the note on `margin: 0` below. */
+      html, body { margin: 0; padding: 0; height: 100%; }
       body { display: flex; align-items: center; justify-content: center; }
       img { max-width: 100%; max-height: 100%; object-fit: contain; }
     """

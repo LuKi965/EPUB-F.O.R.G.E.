@@ -597,7 +597,7 @@ class ContentStage(Stage):
                 self.note(ctx, Level.INFO, "xhtml.untouched")
             return
 
-        documents: list[tuple[object, object, dict[str, str]]] = []
+        documents: list[tuple[object, object, dict[str, str], str]] = []
 
         expanded_entities: dict[str, list[str]] = {}
         refused_entities: dict[str, list[str]] = {}
@@ -686,12 +686,12 @@ class ContentStage(Stage):
                 self.note(ctx, Level.FIX, "xhtml.entities-rewritten", location=resource.path)
 
             id_map = self._fix_identifiers(ctx, root, resource.path)
-            documents.append((resource, root, id_map))
+            documents.append((resource, root, id_map, mode))
 
         # Fragment targets can point across documents, so every id rename must be
         # known before any href is rewritten.
         global_ids = {
-            resource.path: id_map for resource, _, id_map in documents if id_map
+            resource.path: id_map for resource, _, id_map, _ in documents if id_map
         }
         ctx.id_map = global_ids
         # And which ids each document actually *has*, for the same reason: a
@@ -699,18 +699,20 @@ class ContentStage(Stage):
         # EPUBCheck reports, and the only way to know is to have read every
         # document first. `global_ids` cannot answer it — it holds renames.
         present_ids = {
-            resource.path: {
-                element.get("id")
-                for element in xhtml.iter_elements(root)
-                if element.get("id")
-            }
-            for resource, root, _ in documents
+            resource.path: self._anchors_of(root) for resource, root, _, _ in documents
         }
 
-        for resource, root, _ in documents:
+        for resource, root, _, mode in documents:
             self._skeleton(ctx, root, resource)
             self._rewrite_references(ctx, root, resource, global_ids, present_ids)
-            self._modernise(ctx, root, resource)
+            # Not `mode == "html"` alone. `mode` says which parser *this*
+            # program used, and a `.html` document can be well-formed XML and
+            # come back through the XML path — while the reading system, going
+            # by the media type the book declares, drew it as HTML. What decides
+            # whether content in `<head>` was ever on the page is how the
+            # **source** was read, and `_declared_html` is that question.
+            drawn_as_html = mode == "html" or self._declared_html(resource)
+            self._modernise(ctx, root, resource, drawn_as_html=drawn_as_html)
             # Before anything that reads the cascade: a rule restored here
             # is a rule those must see. The cover repair below is the one
             # that matters — four of the seven books this found are covers,
@@ -989,6 +991,35 @@ class ContentStage(Stage):
                 location=path,
             )
         return renamed
+
+    @staticmethod
+    def _anchors_of(root) -> set[str]:
+        """Every name a fragment in this document can land on, after the rebuild.
+
+        Not the same set as "elements carrying `id`", and the difference cost a
+        book. `<a name="fn1">` is how a document written before XHTML 1.1 spells
+        an anchor, and `_modernise` turns it into `id="fn1"` — but that runs
+        *after* references are resolved, so a map built from `id` alone reports
+        every link into such an anchor as pointing at nothing. Measured on the
+        owner's shelf (EF-060): a live link called dead, and in strict mode that
+        list is what decides whether the book may be published at all.
+
+        The `name` counts only when it is a name the conversion will actually
+        keep — `_modernise` drops the ones that are not NCNames rather than
+        writing an invalid `id`, and an anchor that will not exist must not be
+        promised here.
+        """
+        anchors = set()
+        for element in xhtml.iter_elements(root):
+            identifier = element.get("id")
+            if identifier:
+                anchors.add(identifier)
+            if xhtml.local_name(element).lower() != "a":
+                continue
+            name = element.get("name")
+            if name and not identifier and _NCNAME_RE.match(name):
+                anchors.add(name)
+        return anchors
 
     def _skeleton(self, ctx: Context, root, resource) -> None:
         """Guarantee html/head/title/body with the right namespace and language."""
@@ -1516,9 +1547,15 @@ class ContentStage(Stage):
 
         return re.sub(r"url\(\s*(['\"]?)(.*?)\1\s*\)", replace, css_text, flags=re.IGNORECASE)
 
-    def _modernise(self, ctx: Context, root, resource) -> None:
-        """Translate legacy presentational markup into equivalent CSS."""
+    def _modernise(self, ctx: Context, root, resource, drawn_as_html: bool = True) -> None:
+        """Translate legacy presentational markup into equivalent CSS.
+
+        `drawn_as_html` says how the source was read, and it is not a detail: it
+        decides whether content found in `<head>` was ever on the page. See
+        `_move_flow_out_of_the_head`.
+        """
         changed: set[str] = set()
+        hidden_from_head = 0
 
         for element in list(root.iter()):
             if not isinstance(element.tag, str):
@@ -1569,8 +1606,10 @@ class ContentStage(Stage):
             if self._foster_out_of_a_table(element, tag):
                 changed.add(f"table>{tag}")
 
-            if self._move_flow_out_of_the_head(element, tag, root):
+            if self._move_flow_out_of_the_head(element, tag, root, drawn_as_html):
                 changed.add(f"head>{tag}")
+                if not drawn_as_html:
+                    hidden_from_head += 1
 
             self._presentational_attributes(element, tag, changed)
 
@@ -1581,6 +1620,18 @@ class ContentStage(Stage):
                 "xhtml.presentational-markup-converted",
                 location=resource.path,
                 detail=", ".join(sorted(changed)),
+            )
+        if hidden_from_head:
+            # Its own line in the report, not a word inside the sentence above.
+            # This is the only repair in this method that leaves the document
+            # carrying something the reader will not see, and a person reading
+            # the report has to be able to find that without reading the diff.
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.head-flow-hidden",
+                values={"count": hidden_from_head},
+                location=resource.path,
             )
 
 
@@ -1628,13 +1679,37 @@ class ContentStage(Stage):
         return True
 
     @classmethod
-    def _move_flow_out_of_the_head(cls, element, tag: str, root) -> bool:
-        """Move flow content out of `<head>` and to the top of `<body>`.
+    def _move_flow_out_of_the_head(cls, element, tag: str, root, drawn_as_html: bool) -> bool:
+        """Move flow content out of `<head>`, to where it was already drawn.
 
-        A `<p>` inside `<head>`, from the same shelf. A browser starts the body
-        at the first thing that does not belong in the head, so the paragraph
-        was already the first thing on the page — moving it to the top of
-        `<body>` writes down where it was already being shown.
+        A `<p>` inside `<head>`, from the owner's shelf. It cannot stay there —
+        XHTML5 does not allow it and the book leaves invalid — so the only
+        question is where it goes, and the answer depends on **how the source
+        was read**, which is what `drawn_as_html` carries.
+
+        *Read as HTML.* A browser starts the body at the first thing that does
+        not belong in the head, so the paragraph was already the first thing on
+        the page. Moving it to the top of `<body>` writes down where it was
+        already being shown, and nothing moves.
+
+        *Read as XML.* Nothing of the sort happens: `<p>` in `<head>` is
+        well-formed XML, it stays in `<head>`, and **the head is not drawn**. So
+        the paragraph was not "already the first thing on the page" — it was on
+        no page at all. Moving it visibly would put something on the page that
+        the reader has never seen, which is a change of appearance this program
+        does not make on its own (D-023).
+
+        That distinction was missing, and this method's old docstring stated the
+        HTML rule as though it were the only one. Measured on one book
+        (EF-056): three empty paragraphs came out of `<head>`, pushed eighteen
+        pages down by about 105 px, and the last paragraph of each fell off the
+        bottom. The render gate refused the book — correctly, and that refusal
+        is how this was found.
+
+        So for an XML document the content moves and is **taken out of the
+        drawing**, not out of the book: the text is still there, in reading
+        order, in the file (K1), and the page looks exactly as it did. A person
+        who wants it visible now has a document that says where it is.
         """
         parent = element.getparent()
         if parent is None or xhtml.local_name(parent).lower() != "head":
@@ -1647,6 +1722,12 @@ class ContentStage(Stage):
         )
         if body is None:
             return False
+        if not drawn_as_html:
+            # Inline rather than a class or the `hidden` attribute: both of
+            # those can be overridden by a stylesheet this program did not
+            # write, and the one thing this must not do is start drawing the
+            # element in some books and not others.
+            _append_style(element, "display: none;")
         body.insert(0, element)
         return True
 

@@ -12,7 +12,7 @@
     },
     "shapes": {
       "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
-      "RSC-005: Error while parsing file: Duplicate \"heading_id_3\"": 1,
+      "RSC-005: Error while parsing file: Duplicate \"…\"": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"id\", \"style\" or \"title\"": 1
     }
   },
@@ -54,7 +54,7 @@
         "RSC-005": 2
       },
       "shapes": {
-        "RSC-005: Error while parsing file: Duplicate ID \"heading_id_3\"": 1,
+        "RSC-005: Error while parsing file: Duplicate ID \"…\"": 1,
         "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1
       }
     }
@@ -102,7 +102,7 @@
         "RSC-005": 1
       },
       "shapes": {
-        "RSC-005: Error while parsing file: Duplicate ID \"heading_id_3\"": 1
+        "RSC-005: Error while parsing file: Duplicate ID \"…\"": 1
       }
     }
   },
@@ -149,7 +149,7 @@
         "RSC-005": 1
       },
       "shapes": {
-        "RSC-005: Error while parsing file: Duplicate ID \"heading_id_3\"": 1
+        "RSC-005: Error while parsing file: Duplicate ID \"…\"": 1
       }
     }
   }

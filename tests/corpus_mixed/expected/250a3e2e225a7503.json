@@ -16,7 +16,7 @@
       "RSC-005: Error while parsing file: attribute \"name\" not allowed here; expected attribute \"accesskey\", \"charset\", \"class\", \"coords\", \"dir\", \"href\", \"h": 1,
       "RSC-005: Error while parsing file: attribute \"text\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
       "RSC-005: Error while parsing file: attribute \"width\" not allowed here; expected attribute \"abbr\", \"align\", \"axis\", \"char\", \"charoff\", \"class\", \"colsp": 1,
-      "RSC-005: Error while parsing file: element \"u\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet\", ": 1,
+      "RSC-005: Error while parsing file: element \"u\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet\",": 1,
       "RSC-005: Error while parsing file: value of attribute \"dir\" is invalid; must be equal to \"ltr\" or \"rtl\"": 1,
       "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be an XML name without colons": 1,
       "RSC-005: Error while parsing file: value of attribute \"valign\" is invalid; must be equal to \"baseline\", \"bottom\", \"middle\" or \"top\"": 1,
@@ -74,7 +74,7 @@
         "RSC-005: Error while parsing file: attribute \"valign\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomi": 1,
         "RSC-005: Error while parsing file: attribute \"width\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-activedescendant\", \"aria-atomic": 2,
         "RSC-005: Error while parsing file: attribute \"width\" not allowed here; expected attribute \"about\", \"accesskey\", \"aria-atomic\", \"aria-busy\", \"aria-con": 1,
-        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
+        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\",": 1,
         "RSC-005: Error while parsing file: value of attribute \"id\" is invalid; must be a string matching the regular expression \"…\"": 1
       }
     }
@@ -123,7 +123,7 @@
       },
       "shapes": {
         "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
-        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
+        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\",": 1,
         "RSC-005: Error while parsing file: value of attribute \"name\" is invalid; must be a string matching the regular expression \"…\"": 1
       }
     }
@@ -173,7 +173,7 @@
       },
       "shapes": {
         "CSS-001: The \"direction\" property must not be included in an EPUB Style Sheet.": 1,
-        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\", ": 1,
+        "RSC-005: Error while parsing file: element \"col\" not allowed here; expected the element end-tag or element \"caption\", \"colgroup\", \"script\", \"tbody\",": 1,
         "RSC-005: Error while parsing file: value of attribute \"name\" is invalid; must be a string matching the regular expression \"…\"": 1
       }
     }

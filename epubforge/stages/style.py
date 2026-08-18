@@ -2,9 +2,24 @@
 
 Split out of `stages/content.py` (EF-031), which had reached 3865 lines and two
 unrelated jobs. The boundary is the one the tests already drew: everything here
-takes CSS text in and gives CSS text back, and nothing here touches a content
-document. `ContentStage` next door does the opposite — it edits documents, and
-the only CSS it looks at is what it finds inside a `<style>` element.
+takes CSS text in and gives CSS text back.
+
+**Where that boundary had to move, and why (EF-059).** It used to say that
+nothing here touches a content document, and that a `<style>` element inside a
+document was `ContentStage`'s business. Read as a division of labour it was
+tidy; read as a description of what the book gets, it meant a book's CSS was
+repaired in one place and left alone in another. A `<style>` block got exactly
+two things — remote `@import` stripping and url repointing — and none of the
+repairs below: no dead-url neutralisation, no `font-style: regular`, no vendor
+hacks, no unreachable rules, no font stacks. Measured on the owner's shelf, two
+of nine refusals came out of that gap, one of them the very defect F-017 exists
+to prevent.
+
+So this stage now reaches into documents for one purpose: their `<style>`
+elements go through the same chain as a stylesheet file, `_mend`. It has to
+happen **here** rather than next door, and not for tidiness: `_unreachable_rules`
+asks which classes the book uses, and that census is finished by `ContentStage`
+— asking mid-way would answer with half a book.
 
 The split moved code and changed none of it. The proof required by WP-14 is that
 the corpus signatures come out byte-identical, which is a stronger claim than a
@@ -19,7 +34,7 @@ from collections import Counter
 
 import cssutils
 
-from .. import fonts_meta, paths, stylesheet, watermark
+from .. import fonts_meta, paths, stylesheet, watermark, xhtml
 from ..report import Action, Level, Risk
 from .base import Context, Stage
 from .content import strip_remote_imports
@@ -35,6 +50,16 @@ GENERIC_FAMILIES = {
 #: `regular` is not a CSS value for either property; the whole declaration is
 #: dropped by every parser, so the publisher's intent never applied at all.
 _REGULAR_VALUE_RE = re.compile(r"(font-(?:style|weight)\s*:\s*)regular\b", re.IGNORECASE)
+
+#: A declaration written the way an HTML attribute is written: `text-align=
+#: "center"` where CSS wants a colon. The lead is `{` or `;` on purpose — it is
+#: what keeps this away from an attribute selector (`a[href="x"]`), from a
+#: media query, and from an `=` inside a `url()` string, none of which can be
+#: preceded by the start of a declaration.
+_MALFORMED_DECL_RE = re.compile(
+    r"(?P<lead>[{;]\s*)(?P<prop>-?[A-Za-z][A-Za-z0-9-]*)\s*=\s*"
+    r"(?P<quote>['\"])(?P<value>[^'\"]*)(?P=quote)\s*;?"
+)
 
 #: What the element would have to be inheriting for correcting `regular` to
 #: change the page (EF-033). `regular` is dropped, so the element inherits; the
@@ -214,17 +239,9 @@ class StyleStage(Stage):
             rewritten, unresolved = self._rewrite_urls(
                 ctx, rewritten, source_path, resource.path
             )
-            if unresolved and ctx.policy.remove_dead:
-                rewritten, neutralised = self._neutralise_dead_urls(
-                    ctx, rewritten, source_path, resource.path, resource
-                )
-                unresolved -= neutralised
-            rewritten = self._strip_vendor_hacks(ctx, rewritten, resource)
-            rewritten = self._repair(ctx, rewritten, resource)
-            rewritten = self._absolute_font_sizes(ctx, rewritten, resource)
-            rewritten = self._vendor_properties(ctx, rewritten, resource)
-            rewritten = self._unreachable_rules(ctx, rewritten, resource)
-            rewritten = self._font_stacks(ctx, rewritten, resource)
+            rewritten, unresolved = self._mend(
+                ctx, rewritten, source_path, resource, unresolved
+            )
             resource.data = rewritten.encode("utf-8")
 
             # EPUB 3 wants `remote-resources` on the manifest item of *any*
@@ -250,6 +267,69 @@ class StyleStage(Stage):
                     location=resource.path,
                 )
             self._validate(ctx, resource)
+
+        self._inline_blocks(ctx)
+
+    def _mend(
+        self, ctx: Context, css_text: str, source_path: str, resource, unresolved: int
+    ) -> tuple[str, int]:
+        """Every repair this stage knows, in order, whatever the CSS lives in.
+
+        One chain and one caller apiece: a stylesheet file, and a `<style>`
+        element inside a document. Written as a method rather than left inline
+        in `run` because a book's CSS being repaired in one place and untouched
+        in another is the whole of EF-059, and two copies of this order would
+        drift apart the same way.
+        """
+        if unresolved and ctx.policy.remove_dead:
+            css_text, neutralised = self._neutralise_dead_urls(
+                ctx, css_text, source_path, resource.path, resource
+            )
+            unresolved -= neutralised
+        css_text = self._strip_vendor_hacks(ctx, css_text, resource)
+        css_text = self._repair(ctx, css_text, resource)
+        css_text = self._malformed_declarations(ctx, css_text, resource)
+        css_text = self._absolute_font_sizes(ctx, css_text, resource)
+        css_text = self._vendor_properties(ctx, css_text, resource)
+        css_text = self._unreachable_rules(ctx, css_text, resource)
+        css_text = self._font_stacks(ctx, css_text, resource)
+        return css_text, unresolved
+
+    def _inline_blocks(self, ctx: Context) -> None:
+        """Put every `<style>` element in the book through the same chain.
+
+        Runs after the stylesheet loop, and after `ContentStage` has finished,
+        for the reason in the module docstring: the repairs that ask what the
+        book uses need the whole book to have been read.
+
+        The url rewriting is **not** repeated here — `ContentStage` already did
+        it for these blocks, relative to the document, which is the right frame
+        of reference. What comes in is therefore already repointed, and
+        `_neutralise_dead_urls` asks its question of both layouts anyway.
+        """
+        for resource in ctx.book.content_docs():
+            blocks = []
+            tree = ctx.take(resource)
+            root = tree.root
+            for element in root.iter(xhtml.qname("style")):
+                text = element.text or ""
+                if text.strip():
+                    blocks.append(element)
+            if not blocks:
+                continue
+            source_path = resource.original_path or resource.path
+            touched = False
+            for element in blocks:
+                before = element.text or ""
+                # A dead url here is dead in the same sense as in a sheet, and
+                # the count exists only so `_mend` knows whether to look.
+                unresolved = 1 if "url(" in before else 0
+                after, _ = self._mend(ctx, before, source_path, resource, unresolved)
+                if after != before:
+                    element.text = after
+                    touched = True
+            if touched:
+                resource.data = xhtml.serialize(root)
 
     def _add_watermark_rule(self, ctx: Context) -> None:
         """Define, once, the class the content stage put on watermark markers."""
@@ -457,6 +537,68 @@ class StyleStage(Stage):
         repaired = self._repair_positioning(ctx, repaired, resource)
         repaired = self._repair_direction(ctx, repaired, resource)
         return repaired
+
+    def _malformed_declarations(self, ctx: Context, css_text: str, resource) -> str:
+        """Drop a declaration written `property="value"` instead of `property: value`.
+
+        From the owner's shelf, in a `<style>` block a converter wrote:
+        `p.sgc-1 {text-align="center"}`. EPUBCheck answers `Token "=" not
+        allowed here, expecting :` and strict will not publish the book, which
+        is one of nine refusals measured on 160 books (EF-059).
+
+        **Dropped rather than corrected, and the choice is the careful one.**
+        Every reader already discards this declaration, so removing it changes
+        nothing anybody has ever seen; turning the `=` into a `:` would start
+        centring text that has never been centred. Which of the two the
+        publisher wanted is a question about their intent, not a fact about the
+        file — the same shape as D-022, where the answer that changes nothing is
+        what happens when nobody is there to ask.
+
+        Gated on `remove_dead` for the same reason `_neutralise_dead_urls` is:
+        `preserve` keeps the book as the publisher wrote it and says so in the
+        report, `strict` was chosen by somebody who wants a file that conforms.
+        """
+        if not ctx.policy.remove_dead:
+            return css_text
+        dropped: list[str] = []
+
+        def cut(match: "re.Match[str]") -> str:
+            dropped.append(f'{match.group("prop")}="{match.group("value")}"')
+            return match.group("lead")
+
+        rewritten = _MALFORMED_DECL_RE.sub(cut, css_text)
+        if not dropped:
+            return css_text
+        # The same guard the other removals use: a repair that leaves behind
+        # something which is no longer a stylesheet is worse than the error it
+        # was repairing.
+        if not _parses_as_css(rewritten):
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "css.malformed-declaration-kept",
+                values={"count": len(dropped)},
+                location=resource.path,
+            )
+            return css_text
+        self.note(
+            ctx,
+            Level.FIX,
+            "css.malformed-declaration-dropped",
+            values={"count": len(dropped), "names": ", ".join(sorted(set(dropped))[:3])},
+            location=resource.path,
+        )
+        self.changed(
+            ctx,
+            Action.REMOVED,
+            resource.path,
+            before=", ".join(sorted(set(dropped))[:3]),
+            after="nothing — no reader ever applied it",
+            risk=Risk.NONE,
+            reversible=False,
+            rule="css.malformed-declaration-dropped",
+        )
+        return rewritten
 
     def _repair_invalid_emphasis(self, ctx: Context, css_text: str, resource) -> str:
         """`font-style: regular` → `normal`, but only where that is the same page.

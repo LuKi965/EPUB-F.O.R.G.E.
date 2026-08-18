@@ -19,8 +19,8 @@
       "RSC-005: Error while parsing file: element \"img\" missing required attribute \"alt\"": 1,
       "RSC-005: Error while parsing file: element \"img\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl": 1,
       "RSC-005: Error while parsing file: element \"span\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"d": 1,
-      "RSC-005: Error while parsing file: element \"strong\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", ": 1,
-      "RSC-005: Error while parsing file: text not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\", ": 1,
+      "RSC-005: Error while parsing file: element \"strong\" not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\",": 1,
+      "RSC-005: Error while parsing file: text not allowed here; expected the element end-tag or element \"address\", \"blockquote\", \"del\", \"div\", \"dl\", \"h1\",": 1,
       "RSC-020: \"…\" is not a valid URL (Illegal character in path segment: space is not allowed)": 8
     }
   },

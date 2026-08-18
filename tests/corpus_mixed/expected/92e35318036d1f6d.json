@@ -13,7 +13,7 @@
     },
     "shapes": {
       "CSS-008: An error occurred while parsing the CSS: Token \"…\" not allowed here, expecting :.": 1,
-      "NCX-001: NCX identifier (\"c657c1a8-b28b-40a8-9de3-dae7a8e440a1\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"content\", \"dir\", \"http-equiv\", \"lang\", \"scheme\" or \"xml:la": 1
     }
   },

@@ -16,11 +16,11 @@
       "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"class\", \"id\", \"style\" or \"title\"": 1,
       "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"abbr\", \"axis\", \"char\", \"charoff\", \"class\", \"colspan\", \"di": 1,
-      "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1,
-      "RSC-005: Error while parsing file: attribute \"hspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1,
+      "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\",": 1,
+      "RSC-005: Error while parsing file: attribute \"hspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\",": 1,
       "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
       "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"title\" or \"xml:lang\"": 1,
-      "RSC-005: Error while parsing file: attribute \"vspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1,
+      "RSC-005: Error while parsing file: attribute \"vspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\",": 1,
       "RSC-005: Error while parsing file: element \"font\" not allowed anywhere; expected the element end-tag, text or element \"a\", \"abbr\", \"acronym\", \"applet": 1
     }
   },

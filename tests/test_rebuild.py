@@ -929,7 +929,10 @@ class TestTheCoverFitsThePage:
         `max-height: 100%` is a percentage of nothing and does not apply."""
         markup, result = self.cover_markup(tmp_path, sheet=None)
         assert "max-width: 100%" in markup and "max-height: 100%" in markup
-        assert "html, body { height: 100%; }" in markup
+        # The margin joined the height in EF-057: a body given `height: 100%`
+        # while it still carries the browser's 8px default makes a page taller
+        # than the window, and the cover then sits below the fold.
+        assert "html, body { margin: 0; padding: 0; height: 100%; }" in markup
         assert any("page-fitting" in f.message for f in result.report.findings)
 
     def test_a_cover_the_publisher_sized_is_left_alone(self, tmp_path):

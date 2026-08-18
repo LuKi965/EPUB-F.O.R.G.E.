@@ -841,12 +841,26 @@ class NavigationStage(Stage):
 
         identifier = book.metadata.primary_identifier
         counter = [0]
+        # `playOrder` is a property of the *place*, not of the entry, and the
+        # NCX specification says so: two navPoints that name the same target
+        # must carry the same number. Written as a running counter it does not,
+        # and EPUBCheck answers `different playOrder values for
+        # navPoint/navTarget/pageTarget that refer to same target` — which in
+        # strict mode is a refusal to publish.
+        #
+        # It shows up when a book arrives with the same `id` on several
+        # headings: every table-of-contents entry then names one anchor, this
+        # program numbers them 6…16, and the file it wrote is invalid even
+        # though the one it read was not (EF-058, one book of the owner's 160).
+        # Repointing those entries at the headings they were probably *meant*
+        # for is a different question and not this one — it is a guess about the
+        # source, and `references.py` is where the rule about guessing lives.
+        # Numbering is not a guess: the same place gets the same number.
+        given: dict[str, int] = {}
 
         def render(nodes: list[NavPoint], indent: str) -> str:
             lines = []
             for node in nodes:
-                counter[0] += 1
-                order = counter[0]
                 target = node.target
                 if not target:
                     # NCX has no heading-only node; borrow the first child's target.
@@ -858,7 +872,12 @@ class NavigationStage(Stage):
                 src = paths.relative(ncx_path, target_path)
                 if fragment:
                     src = f"{src}#{fragment}"
-                lines.append(f'{indent}<navPoint id="navPoint-{order}" playOrder="{order}">')
+                counter[0] += 1
+                identifier = counter[0]
+                if src not in given:
+                    given[src] = len(given) + 1
+                order = given[src]
+                lines.append(f'{indent}<navPoint id="navPoint-{identifier}" playOrder="{order}">')
                 lines.append(f"{indent}  <navLabel><text>{_escape(node.label or '—')}</text></navLabel>")
                 lines.append(f'{indent}  <content src="{src}"/>')
                 if node.children:

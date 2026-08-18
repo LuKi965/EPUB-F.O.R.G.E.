@@ -11,7 +11,7 @@
       "RSC-005": 1
     },
     "shapes": {
-      "NCX-001: NCX identifier (\"e7e775a7-68d9-4c4b-9964-472f4d795adb\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"id\", \"style\" or \"title\"": 1
     }
   },

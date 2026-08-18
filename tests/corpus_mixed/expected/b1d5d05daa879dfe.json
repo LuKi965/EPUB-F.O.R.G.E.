@@ -13,7 +13,7 @@
       "RSC-020": 1
     },
     "shapes": {
-      "NCX-001: NCX identifier (\"b9b8bab0-44a0-4178-81e4-45c2b280e0d1\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: attribute \"link\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang\"": 1,
       "RSC-005: Error while parsing file: attribute \"target\" not allowed here; expected attribute \"charset\", \"class\", \"dir\", \"hreflang\", \"id\", \"lang\", \"medi": 1,
       "RSC-005: Error while parsing file: attribute \"vlink\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"title\" or \"xml:lang\"": 1,

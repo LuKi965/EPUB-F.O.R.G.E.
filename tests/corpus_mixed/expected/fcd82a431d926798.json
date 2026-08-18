@@ -12,7 +12,7 @@
       "RSC-012": 1
     },
     "shapes": {
-      "NCX-001: NCX identifier (\"e9ea276a-161c-4202-be8f-a1ad8d5cbe68\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: Duplicate \"bookmark63\"": 1,
       "RSC-005: Error while parsing file: Duplicate \"bookmark68\"": 1,
       "RSC-005: Error while parsing file: Duplicate \"bookmark70\"": 1,
@@ -23,7 +23,7 @@
       "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"class\", \"dir\", \"id\", \"lang\", \"style\", \"title\" or \"xml:lang": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"class\", \"id\", \"style\" or \"title\"": 1,
       "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"abbr\", \"axis\", \"char\", \"charoff\", \"class\", \"colspan\", \"di": 1,
-      "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1
+      "RSC-005: Error while parsing file: attribute \"height\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\",": 1
     }
   },
   "minimal": {

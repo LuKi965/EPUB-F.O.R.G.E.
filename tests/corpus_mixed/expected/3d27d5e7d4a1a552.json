@@ -11,7 +11,7 @@
       "RSC-005": 2
     },
     "shapes": {
-      "NCX-001: NCX identifier (\"b9c9cbbd-1e5d-40d3-972e-091d82ab1e53\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"id\", \"style\" or \"title\"": 1,
       "RSC-005: Error while parsing file: element \"metadata\" incomplete; missing required element \"dc:language\"": 1
     }

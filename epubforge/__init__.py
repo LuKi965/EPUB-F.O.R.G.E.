@@ -8,7 +8,7 @@ from .pipeline import Result, Status, rebuild
 from .policy import Policy
 from .report import Level, Report
 
-__version__ = "0.2.29"
+__version__ = "0.2.30"
 
 #: Maturity, stated outright because the version number is not a proxy for it.
 #: A number climbing towards 1.0 reads as progress towards release whether or

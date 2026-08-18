@@ -15,8 +15,8 @@
       "RSC-005: Error while parsing file: attribute \"align\" not allowed here; expected attribute \"border\", \"cellpadding\", \"cellspacing\", \"class\", \"dir\", \"fr": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"class\", \"id\", \"style\" or \"title\"": 1,
       "RSC-005: Error while parsing file: attribute \"clear\" not allowed here; expected attribute \"id\", \"style\" or \"title\"": 1,
-      "RSC-005: Error while parsing file: attribute \"hspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1,
-      "RSC-005: Error while parsing file: attribute \"vspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\", ": 1
+      "RSC-005: Error while parsing file: attribute \"hspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\",": 1,
+      "RSC-005: Error while parsing file: attribute \"vspace\" not allowed here; expected attribute \"border\", \"class\", \"dir\", \"frame\", \"id\", \"lang\", \"rules\",": 1
     }
   },
   "minimal": {

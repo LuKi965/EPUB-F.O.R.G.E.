@@ -13,7 +13,7 @@
     },
     "shapes": {
       "HTM-004: Irregular DOCTYPE: found \"…\", expected \"…\"-//W3C//DTD XHTML 1.1//EN\"…\"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"…\".": 1,
-      "NCX-001: NCX identifier (\"King_Mijl_81_9789024552290\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: attribute \"role\" not allowed here; expected attribute \"id\", \"ns1:file-as\", \"ns1:role\" or \"xml:lang\"": 1,
       "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"content\", \"dir\", \"http-equiv\", \"lang\", \"scheme\" or \"xml:la": 1
     }

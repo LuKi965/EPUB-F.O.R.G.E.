@@ -11,7 +11,7 @@
       "RSC-005": 1
     },
     "shapes": {
-      "NCX-001: NCX identifier (\"King_Eenmalige_zonde_9789024533299\") does not match OPF identifier (\"…\").": 1,
+      "NCX-001: NCX identifier (\"…\") does not match OPF identifier (\"…\").": 1,
       "RSC-005: Error while parsing file: attribute \"value\" not allowed here; expected attribute \"content\", \"dir\", \"http-equiv\", \"lang\", \"scheme\" or \"xml:la": 1
     }
   },
