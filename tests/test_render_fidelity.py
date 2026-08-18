@@ -130,27 +130,72 @@ class TestTheFourShapesOfDamage:
         assert not result.ok
         assert "mniej treści" in problems_of(result)
 
-    @pytest.mark.parametrize("padding", [620, 640, 660, 680])
-    def test_content_pushed_off_the_bottom_of_the_page(self, tmp_path, padding):
+    #: Ile tekstu ma zostać zepchnięte poza dolną krawędź. Ułamki, nie piksele,
+    #: i to jest cała nauka z EF-055.
+    #:
+    #: Stały tu wcześniej `620, 640, 660, 680` — piksele zmierzone na pełnym
+    #: Chromium z podręcznego katalogu. Na `chrome-headless-shell`, czyli na
+    #: silniku, który wozi instalator, trzy z nich **nie spychają niczego**:
+    #: tekst ma około 134 px, więc przy 620 kończy się na 0,954 wysokości strony.
+    #: Brama mówiła wtedy „nic nie ubyło" i **miała rację** — to test twierdził
+    #: uszkodzenie, którego nie było, i oskarżał bramę o przeoczenie.
+    #:
+    #: Liczba pikseli jest własnością silnika. Ułamek zepchniętego tekstu jest
+    #: własnością uszkodzenia, o które w tym teście chodzi.
+    PUSHED_OFF = [0.25, 0.50, 0.75]
+
+    @pytest.mark.parametrize("fraction", PUSHED_OFF)
+    def test_content_pushed_off_the_bottom_of_the_page(self, tmp_path, fraction):
         """A dedication composed against the bottom edge, shoved past it.
 
-        Parametrised over how far it is shoved, because the first version of
-        this test passed at one offset and the check it was testing turned out
-        to fire by luck. Measured across these four: the drawn area falls to
-        66%, 50%, 33% and 17% of what it was, and the bottom edge of the ink sits
-        at 0.891, 0.889, 0.884 and 0.879 — never at the page edge, because a
-        clipped block leaves its last visible glyph row wherever that row falls.
-        The edge test was removed; the loss is what catches all four.
+        Odsunięcie **wyliczane z pomiaru tego silnika**, nie wpisane z pamięci:
+        strona źródłowa jest najpierw rysowana i mierzona, a dopiero z tego
+        wychodzi, o ile przesunąć tekst, żeby zniknął zadany ułamek. Dzięki temu
+        ten sam test opisuje to samo uszkodzenie na silniku, który rysuje
+        inaczej — a nie cudzą przeglądarkę sprzed roku.
         """
         dedication = "".join(
             f"<p>Wiersz dedykacji numer {n}, dla tych, którzy zostali.</p>"
             for n in range(1, 7)
         )
         source = book(tmp_path / "a.epub", dedication, style="body{padding-top:500px}")
-        output = book(
-            tmp_path / "b.epub", dedication, style=f"body{{padding-top:{padding}px}}"
+
+        # Gdzie ten silnik naprawdę stawia tekst. Bez tego kroku każda liczba
+        # niżej jest zgadywaniem o cudzej maszynie.
+        measured = render_fidelity.compare(source, source, viewports=((600, 800),), sample=0)
+        ink = next(page.source_ink for page in measured.pages if page.source_ink)
+        height, top = (ink.bottom - ink.top) * 800, ink.top * 800
+
+        # Ile dołożyć do 500, żeby zniknął zadany ułamek tekstu — z geometrii,
+        # a potem sprawdzone. Przewidywanie zakłada, że silnik po prostu
+        # przesuwa treść w dół; pełne Chromium przycina o jakieś 80 px wcześniej,
+        # więc pierwsze trafienie potrafi zepchnąć **całość**. Trzy próby wstecz
+        # po ćwierci wysokości tekstu wystarczają na obu silnikach, a jeżeli nie
+        # wystarczą, test powie o **swoim** założeniu, nie o bramie.
+        padding = round(500 + (800 - top) - height * (1 - fraction))
+        for _ in range(3):
+            output = book(
+                tmp_path / "b.epub", dedication, style=f"body{{padding-top:{padding}px}}"
+            )
+            result = gate(source, output)
+            widoczne = next(
+                (p.output_ink.coverage for p in result.pages if p.output_ink), 0
+            )
+            if widoczne > 0:
+                break
+            padding -= round(height / 4)
+
+        # Założenie testu, sprawdzane zamiast zakładane. Test twierdzący
+        # uszkodzenie tam, gdzie na tym silniku nic nie ubywa, oskarża bramę
+        # o przeoczenie czegoś, czego nie ma — i tak wyglądało EF-055.
+        page = next(p for p in result.pages if p.source_ink and p.output_ink)
+        before, after = page.source_ink.coverage, page.output_ink.coverage
+        assert before > after > 0, (
+            f"odsunięcie {padding} px (cel: {fraction:.0%} poza stroną) daje na "
+            f"tym silniku ({render.version()}) tusz {before:.4f} → {after:.4f}. "
+            "To jest złe założenie testu, nie przeoczenie bramy."
         )
-        result = gate(source, output)
+
         assert not result.ok
         assert "mniej treści" in problems_of(result)
 
