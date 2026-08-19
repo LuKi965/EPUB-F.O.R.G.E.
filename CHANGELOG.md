@@ -143,6 +143,17 @@ Measured before it was allowed in: the full shelf several times over, the two bo
 with the largest cuts (49 545 and 8 525 rules) redrawn page by page on the
 pinned engine — 334 measurements, not one pixel of content lost.
 
+### Word's print plumbing is taken out of the styles
+
+`div.Section2 { page: Section2 }` — measured at 7 694 live rules across 160
+books. The `page` property maps a block onto a named print page; no EPUB
+reading system applies it to reflowing text, so it draws nothing anywhere and
+never has. It is removed now, in both modes, behind the same opt-out as the
+rest of the sweep; a rule left empty by the removal goes whole. Two boundaries
+hold: `page-break-*` is real styling readers honour and is never touched, and
+a pre-paginated publication keeps its `page:` — there it is paged media and
+the property is in its element.
+
 ### The hidden paragraph is now hidden without CSS too
 
 The fifth audit took apart the reasoning behind hiding head-content with an

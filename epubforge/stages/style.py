@@ -140,6 +140,16 @@ _INITIAL_FONT_SIZE_PX = 16.0
 #: One CSS point, in pixels. Fixed by the specification, not by the device.
 _PX_PER_PT = 4.0 / 3.0
 
+#: Word's paged-media plumbing: `page: Section2` names an `@page` rule the
+#: block was meant to print on. No EPUB reading system applies it to
+#: reflowing text — it is print-composition machinery that survived the
+#: conversion, not styling. Measured on the owner's shelf before the decision
+#: (D-031 conversation, 2026-08-19): 7 694 live rules of exactly this shape,
+#: none of which draws anything on any reader. The lead `[{;]` is what keeps
+#: this away from `page-break-*`, which readers *do* honour — the hyphen
+#: after `page` fails the `\s*:` that must follow.
+_PAGE_PLUMBING_RE = re.compile(r"(?P<lead>[{;]\s*)page\s*:\s*[^;}]+;?", re.IGNORECASE)
+
 #: Out-of-flow positioning in a reflowable book. Legitimate in fixed-layout,
 #: where the viewport is known; in reflowable it detaches content from
 #: pagination and readers clip, overlap or lose it.
@@ -345,6 +355,7 @@ class StyleStage(Stage):
         css_text = self._strip_vendor_hacks(ctx, css_text, resource)
         css_text = self._repair(ctx, css_text, resource)
         css_text = self._malformed_declarations(ctx, css_text, resource)
+        css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
         if sweep_unreachable:
@@ -546,6 +557,60 @@ class StyleStage(Stage):
             self.note(ctx, Level.INFO, "css.style-unmatched-kept",
                       values={"count": unmatched}, location=resource.path)
         return css_text
+
+    def _page_plumbing(self, ctx: Context, css_text: str, resource) -> str:
+        """Remove Word's `page: SectionN` declarations — print plumbing, not style.
+
+        Pillar 2 of the 0.3 plan; the owner's decision in the D-031
+        conversation was one word: eliminate.
+        The `page` property selects a named `@page` box for paged media; in
+        reflowing text every reading system ignores it, so removing it cannot
+        change a pixel — which the render gate still verifies per book, as it
+        does for everything. A rule left empty by the removal goes whole.
+
+        Three deliberate boundaries: a **pre-paginated** publication keeps it
+        (there the property is in its element); the same opt-out as the sweep
+        (`--keep-style-junk`, the window's tick) keeps it and only counts; and
+        `@page` *definitions* are not entered — at-rules stay untouched here
+        as everywhere in this stage, orphaned or not. No scripted-book guard,
+        on purpose: the sweep's guard exists because a script can add a class
+        and change what is *dead*, but no script can make `page:` mean
+        something in reflow.
+        """
+        found = list(_PAGE_PLUMBING_RE.finditer(css_text))
+        if not found:
+            return css_text
+        if ctx.book.rendition.get("layout") == "pre-paginated":
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.page-plumbing-found",
+                      values={"count": len(found)}, location=resource.path)
+            return css_text
+        cleaned = _PAGE_PLUMBING_RE.sub(lambda m: m.group("lead"), css_text)
+        rules_before = len(stylesheet.top_level_rules(css_text))
+        emptied = [
+            span for span in stylesheet.top_level_rules(cleaned)
+            if not cleaned[cleaned.index("{", span.start) + 1:span.end].strip("} \t\r\n")
+        ]
+        if emptied:
+            cleaned = stylesheet.without(cleaned, emptied)
+        if not _parses_as_css(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned)) != rules_before - len(emptied)
+        ):
+            self.note(ctx, Level.WARN, "css.page-plumbing-unverified",
+                      values={"count": len(found)}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.page-plumbing-removed",
+                  values={"count": len(found), "rules": len(emptied)},
+                  location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{len(found)} print-plumbing declaration(s) `page: …`",
+            after="removed; no reading system applies them to reflowing text",
+            risk=Risk.NONE, reversible=False,
+            rule="css.page-plumbing-removed",
+        )
+        return cleaned
 
     def _add_watermark_rule(self, ctx: Context) -> None:
         """Define, once, the class the content stage put on watermark markers."""
