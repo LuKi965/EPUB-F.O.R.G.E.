@@ -191,10 +191,10 @@ class TestAllThreeClassesShareOneApi:
             # answered by different judgements — one needs the sentence, the
             # other needs only the count.
             decisions.ENCODING,
-            # D-028's sixth: a dead CSS rule whose name is one edit away from
-            # a used one — converter's counter or human's typo, and only a
-            # human can tell which.
-            decisions.STYLE,
+            # D-028 briefly added a sixth ("style", the possible-typo rule);
+            # D-030 removed it with the question itself — a dead rule draws
+            # nothing, and the only repair the question offered would change
+            # the book's look against the program's own promise.
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):

@@ -123,21 +123,23 @@ removed now, in **both modes** — the owner's line, verbatim: preserve keeps th
 book's layout, not the converter's litter. Unticking one box (or
 `--keep-style-junk`) keeps everything and only counts.
 
-What is removed is narrower than the sheet sweep, on purpose: only rules whose
-dead names are a converter's (`sgc-`, `calibre`, `mso`, `kix`…) or whose whole
-block is stamped verbatim into three or more chapters. A dead name one edit
-away from a name the book *uses* may be somebody's typo — that one becomes a
-question (keep / drop / correct it), and nothing happens without an answer.
-Anything else dead is kept and counted, which is what makes the prefix list
-safe to be incomplete. Machine counters — `font0` beside `font1` — are never
-mistaken for typos: a human slips letters, a generator increments. That rule
-is enforced in full: a typo candidate must carry the same digits, in the same
-order, as the name it resembles — measured on the shelf, `Hoofdtekst2` beside
-a used `Hoofdtekst9a` is a converter counting its style variants (30 224 rules
-across three books said so), while `sgc-1` beside `sgd-1` differs by a letter
-and is still a question.
+What is removed is narrow on purpose: only rules whose dead names are a
+converter's (`sgc-`, `calibre`, `mso`, `kix`…) or whose whole block is stamped
+verbatim into three or more chapters. Anything else dead is kept and counted,
+which is what makes the prefix list safe to be incomplete. The same broom now
+reaches the separate stylesheet files too, in both modes — the litter is the
+same litter wherever the converter left it.
 
-Measured before it was allowed in: the full shelf twice over, the two books
+For a while during development there was a third bucket: a dead name one edit
+away from a name the book *uses* became a "possible typo" question. The owner
+asked the question that removed it — why hunt for typos in a book being
+rebuilt? — and the arithmetic agreed: a dead rule draws nothing, so keeping or
+removing it looks identical; the only thing the question could *do* is make
+the rule start applying, which changes how the book looks, against this
+program's own promise. Across 160 books it asked exactly zero questions while
+its machinery produced two real defects. It never shipped.
+
+Measured before it was allowed in: the full shelf several times over, the two books
 with the largest cuts (49 545 and 8 525 rules) redrawn page by page on the
 pinned engine — 334 measurements, not one pixel of content lost.
 

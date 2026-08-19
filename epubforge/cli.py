@@ -1151,8 +1151,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep-style-junk",
         action="store_true",
         help=(
-            "keep <style> blocks exactly as the converter left them; the "
-            "report still counts what a sweep would have removed"
+            "keep <style> blocks and stylesheets exactly as the converter "
+            "left them; the report still counts what a sweep would have "
+            "removed"
         ),
     )
     build.add_argument(

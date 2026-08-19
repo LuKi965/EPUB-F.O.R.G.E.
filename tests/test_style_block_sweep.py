@@ -13,11 +13,18 @@ whole design:
 * **generator-named** rules (`sgc-`, `calibre`, `mso`, `kix`…) and rules in a
   block **stamped verbatim into ≥3 documents** are code errors — removed, with
   a report line and a ledger entry;
-* a dead name **one edit away from a name the book uses** may be a human's
-  typo — it becomes a question (keep / drop / correct), and nothing happens
-  without an answer;
 * everything else dead is **kept and counted**, which is what makes the
   generator-prefix list safe to be incomplete.
+
+There used to be a third bucket — a dead name one edit away from a used one
+became a "possible typo" question. D-030 removed it on the owner's own
+challenge: a dead rule draws nothing, so keeping or removing it looks
+identical, and the only thing the question could do — make the rule apply —
+changes the book's look against the program's own promise. The shelf asked
+zero such questions across 160 books while the machinery produced two real
+defects (EF-064). Since D-030 the sweep asks nobody anything, ever — and the
+same broom now reaches stylesheet *files* in preserve (generator-named bucket
+only; a sheet cannot be "stamped into" anything).
 
 First shipped off by default per the fifth audit's condition; **on by default
 in both modes since D-029**, the owner's second decision of 2026-08-19, made
@@ -115,11 +122,18 @@ class TestTheThreeBuckets:
         assert result.status.wrote_a_file, result.report.to_text()
         assert "szablonowa" not in style_of(result)
 
-    def test_a_typo_candidate_is_kept_and_asked_about(self, tmp_path):
-        result = forge(shelf(tmp_path), tmp_path, sweep=True)
+    def test_a_near_name_is_kept_and_nobody_is_asked(self, tmp_path):
+        """`rozdzia` is one letter from the used `rozdzial` — the shape the
+        removed typo question existed for. D-030: it is kept and counted like
+        any other unmatched dead rule, and no question reaches anybody."""
+        chooser = _Chooser("drop")
+        result = forge(shelf(tmp_path), tmp_path, sweep=True, resolver=chooser)
         css = style_of(result)
-        assert "rozdzia" in css  # the suspect rule survived unanswered
-        assert "css.style-typo-kept" in rules_of(result)
+        assert "rozdzia" in css
+        assert "css.style-unmatched-kept" in rules_of(result)
+        assert not [q for q in chooser.asked if q.kind == "style"], [
+            q.summary for q in chooser.asked
+        ]
 
     def test_an_unmatched_rule_is_kept_and_counted(self, tmp_path):
         result = forge(shelf(tmp_path), tmp_path, sweep=True)
@@ -143,26 +157,16 @@ class _Chooser:
         return Answer(option=self.option)
 
 
-class TestTheQuestionHasTeeth:
-    def test_drop_removes_the_suspect(self, tmp_path):
+class TestTheSweepNeverAsks:
+    def test_no_question_of_any_kind_leaves_the_sweep(self, tmp_path):
+        """D-030's teeth: one book carrying all the old shapes at once — a
+        generator name, a near-name, an unmatched name — produces not a single
+        question. The mutation that reintroduces a `ctx.decide` in the sweep
+        fails here."""
         chooser = _Chooser("drop")
         result = forge(shelf(tmp_path), tmp_path, sweep=True, resolver=chooser)
-        assert chooser.asked, "no question reached the resolver"
-        assert "p.rozdzia " not in style_of(result)
-
-    def test_rename_makes_the_rule_apply(self, tmp_path):
-        chooser = _Chooser("rename")
-        result = forge(shelf(tmp_path), tmp_path, sweep=True, resolver=chooser)
-        css = style_of(result)
-        assert "p.rozdzial { text-align: center; }" in css
-
-    def test_the_question_carries_both_names(self, tmp_path):
-        chooser = _Chooser("keep")
-        forge(shelf(tmp_path), tmp_path, sweep=True, resolver=chooser)
-        question = next(q for q in chooser.asked if q.kind == "style")
-        assert "rozdzia" in question.summary and "rozdzial" in question.summary
-        assert {o.id for o in question.options} == {"keep", "drop", "rename"}
-        assert question.recommended == "keep"
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert not chooser.asked, [q.summary for q in chooser.asked]
 
 
 class TestPreserveSweepsTheJunkToo:
@@ -246,14 +250,12 @@ class TestAMachineCounterIsNotATypo:
         ]
         assert "css.style-unmatched-kept" in rules_of(result)
 
-    def test_a_digit_edit_is_an_increment_not_a_typo(self, tmp_path):
-        """`Hoofdtekst2` beside a used `Hoofdtekst9a` — the shelf's shape the
-        day the typo question moved in front of the stamp bucket. The
-        skeletons differ, the edit distance fits the cap, and the edit changes
-        a digit: a converter counting its style variants, 30 224 rules across
-        three books. A typo candidate must carry the same digits as the name
-        it resembles — only letters may err (`sgc-1` beside `sgd-1` still
-        asks) — so this one is swept with its stamped block, unasked."""
+    def test_a_numbered_variant_in_a_stamped_block_is_swept_unasked(self, tmp_path):
+        """`Hoofdtekst2` beside a used `Hoofdtekst9a` — EF-064's shape: a
+        converter counting its style variants, 30 224 rules across three
+        books, briefly mistaken for "possible typos". Since D-030 there is no
+        typo question to mistake them for: the stamped block sweeps them, and
+        nobody is asked."""
         word = (
             "p.Hoofdtekst2 { color: green; } "
             "p.Hoofdtekst9a { margin: 0; } "
@@ -325,12 +327,13 @@ class TestTheProgramsOwnBlockIsSafeByConstruction:
         assert "max-height: 100vh" in cover
 
 
-class TestTheStampDoesNotSilenceTheQuestion:
-    def test_a_typo_in_a_stamped_block_is_still_asked_about(self, tmp_path):
-        """The sixth audit measured the first ordering: the same human typo was
-        asked about in a block copied twice and silently removed in a block
-        copied three times. A stamp is a fact about the block; the question is
-        about one rule inside it, and copies do not answer it."""
+class TestTheStampDecidesTheWholeBlock:
+    def test_a_near_name_in_a_stamped_block_is_swept_unasked(self, tmp_path):
+        """Inverted from the sixth audit's ordering fix, deliberately, by
+        D-030: with the typo question gone, a stamped block is a converter's
+        block and every dead rule in it goes — including one whose name is an
+        edit away from a used name. The near-name outside a stamp stays (the
+        unmatched bucket), so nothing but converter output is ever touched."""
         stamped = (
             "p.rozdzia { text-align: center; } "
             "p.szablonowa { color: green; } "
@@ -342,11 +345,65 @@ class TestTheStampDoesNotSilenceTheQuestion:
             sweep=True, resolver=chooser,
         )
         assert result.status.wrote_a_file, result.report.to_text()
-        asked = [q for q in chooser.asked if q.kind == "style"]
-        assert asked, "three copies silenced the typo question"
+        assert not chooser.asked, [q.summary for q in chooser.asked]
         css = style_of(result)
-        assert "p.rozdzia " in css        # kept, as answered
-        assert "szablonowa" not in css    # the stamp still sweeps the rest
+        assert "p.rozdzia " not in css
+        assert "szablonowa" not in css
+        assert "p.rozdzial { margin: 0; }" in css
+
+
+class TestPreserveSweepsSheetsToo:
+    """D-030's second half, the owner's alignment of the two brooms: a
+    stylesheet *file* in preserve gets the generator-name bucket of the block
+    sweep, behind the same opt-out. Strict keeps its old, broader cut."""
+
+    SHEET = (
+        "p.sgc-1 { color: red; } "
+        "p.balonik { color: blue; } "
+        "p.rozdzial { margin-top: 1em; }"
+    )
+
+    def linked_book(self, tmp_path):
+        page = (
+            '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            '<meta charset="utf-8"/><title>R</title>'
+            '<link rel="stylesheet" type="text/css" href="s.css"/></head>'
+            '<body><p class="rozdzial">Tekst rozdziału.</p></body></html>'
+        )
+        return make_book(
+            tmp_path / "in.epub",
+            {"c0.xhtml": page},
+            extra_items='<item id="s" href="s.css" media-type="text/css"/>',
+            extra_files={"OEBPS/s.css": self.SHEET.encode()},
+        )
+
+    def sheet_of(self, result) -> str:
+        with zipfile.ZipFile(result.output_path) as archive:
+            for name in archive.namelist():
+                if name.endswith(".css") and "rozdzial" in archive.read(name).decode("utf-8"):
+                    return archive.read(name).decode("utf-8")
+        raise AssertionError("no stylesheet in the rebuild")
+
+    def test_preserve_removes_generator_rules_from_a_sheet(self, tmp_path):
+        result = forge(self.linked_book(tmp_path), tmp_path, sweep=True, mode="preserve")
+        assert result.status.wrote_a_file, result.report.to_text()
+        sheet = self.sheet_of(result)
+        assert "sgc-1" not in sheet
+        assert "balonik" in sheet
+        assert "rozdzial" in sheet
+        assert "css.sheet-junk-removed" in rules_of(result)
+        assert "css.unreachable-rules-found" in rules_of(result)
+
+    def test_the_opt_out_reaches_the_sheet_too(self, tmp_path):
+        """`--keep-style-junk` must keep the sheet's junk as well — the same
+        switch, both places. The mutation that drops the gate fails here."""
+        result = forge(self.linked_book(tmp_path), tmp_path, sweep=False, mode="preserve")
+        assert result.status.wrote_a_file, result.report.to_text()
+        sheet = self.sheet_of(result)
+        assert "sgc-1" in sheet
+        assert "css.sheet-junk-removed" not in rules_of(result)
+        assert "css.unreachable-rules-found" in rules_of(result)
 
 
 class TestTheUntickedBoxStillCounts:

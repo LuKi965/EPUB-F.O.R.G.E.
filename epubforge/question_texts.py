@@ -132,27 +132,6 @@ TEXTS_PL: dict[str, str] = {
     "metadata.reconstructed.write": "Wpisz poprawną wartość",
     "metadata.reconstructed.write.why": "W książce będzie to, co wpiszesz",
     # --- punctuation a conversion turned into unprintable codes -------------
-    # --- a dead CSS rule one edit away from a used name ---------------------
-    "style.typo.summary": "Reguła „.{dead}” nie trafia w nic, a książka używa „.{near}”",
-    "style.typo.detail": (
-        "W bloku <style> dokumentu {where} stoi reguła:\n\n{rule}\n\n"
-        "Klasa „.{dead}” nie występuje w żadnym dokumencie tej książki, więc "
-        "reguła dziś niczego nie rysuje. Ale nazwa „.{near}” — o {distance} "
-        "znak(i) inna — jest w książce używana. To może być licznik generatora, "
-        "a może czyjaś literówka; z pliku nie da się tego rozstrzygnąć."
-    ),
-    "style.typo.keep": "Zostaw jak jest",
-    "style.typo.keep.why": "Nic się nie zmienia; reguła dalej niczego nie rysuje",
-    "style.typo.drop": "Usuń regułę",
-    "style.typo.drop.why": (
-        "Reguła zniknie z dokumentu. Wygląd się nie zmieni, bo i tak niczego "
-        "nie rysowała"
-    ),
-    "style.typo.rename": "Popraw na „.{near}”",
-    "style.typo.rename.why": (
-        "Reguła zacznie działać na elementy z klasą „.{near}” — wygląd książki "
-        "może się zmienić, dokładnie tak, jak (być może) chciał wydawca"
-    ),
     "encoding.mojibake.summary": (
         "{count} znaków przestankowych zamienionych przez konwersję w kody bez kształtu"
     ),
@@ -248,27 +227,6 @@ TEXTS_EN: dict[str, str] = {
     "metadata.reconstructed.keep.why": "The book keeps what the parser read",
     "metadata.reconstructed.write": "Type the correct value",
     "metadata.reconstructed.write.why": "The book will carry whatever you type",
-    # --- a dead CSS rule one edit away from a used name ---------------------
-    "style.typo.summary": "Rule \u201e.{dead}\u201d matches nothing, and the book uses \u201e.{near}\u201d",
-    "style.typo.detail": (
-        "A <style> block in {where} carries the rule:\n\n{rule}\n\n"
-        "The class \u201e.{dead}\u201d appears in no document of this book, so the "
-        "rule draws nothing today. But \u201e.{near}\u201d \u2014 {distance} character(s) "
-        "different \u2014 is used. That may be a converter's counter or somebody's "
-        "typo; the file alone cannot tell."
-    ),
-    "style.typo.keep": "Leave it as it is",
-    "style.typo.keep.why": "Nothing changes; the rule keeps drawing nothing",
-    "style.typo.drop": "Remove the rule",
-    "style.typo.drop.why": (
-        "The rule disappears from the document. The look does not change, "
-        "because it drew nothing anyway"
-    ),
-    "style.typo.rename": "Correct it to \u201e.{near}\u201d",
-    "style.typo.rename.why": (
-        "The rule starts applying to elements with class \u201e.{near}\u201d \u2014 the "
-        "book's look may change, exactly as the publisher (perhaps) intended"
-    ),
     "encoding.mojibake.summary": (
         "{count} punctuation marks a conversion turned into codes with no shape"
     ),
