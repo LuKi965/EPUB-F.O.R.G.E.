@@ -418,6 +418,77 @@ class TestTheCoverRepairMeasuredInInk:
     measurement that refused two of the owner's books, replayed on purpose.
     """
 
+    @staticmethod
+    def tall_cover_book(tmp_path, tall: bytes) -> str:
+        cover_page = (
+            '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            '<meta charset="utf-8"/><title>Cover</title></head>'
+            '<body><div style="text-align:center">'
+            '<img src="cover.png" alt="Okładka"/></div></body></html>'
+        ).encode()
+        package = PACKAGE.format(
+            extra='<item id="okl" href="cover.xhtml" media-type="application/xhtml+xml"/>'
+            '<item id="cov" href="cover.png" media-type="image/png" properties="cover-image"/>'
+        ).replace(
+            '<spine><itemref idref="c"/></spine>',
+            '<spine><itemref idref="okl"/><itemref idref="c"/></spine>'
+            '<guide><reference type="cover" title="Cover" href="cover.xhtml"/></guide>',
+        )
+        return write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": CONTAINER.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/cover.xhtml": cover_page,
+                "OEBPS/r.xhtml": page(PARAGRAPHS),
+                "OEBPS/cover.png": tall,
+            },
+        )
+
+    def test_a_photographic_cover_is_fitted_and_accepted(self, tmp_path):
+        """The sixth audit's finding beside EF-062, replayed on purpose. The
+        solid-colour case below has teeth for a reason that does not
+        generalise: fitting a solid cover flips the measured "paper" from the
+        cover's colour to white and the ink share *rises*. On a photographic
+        cover the share falls — fitting a picture that overflowed must show
+        less ink — and the gate read that fall as loss: 22 of 82 real cover
+        images, correctly fitted, were refused in the default mode. The gate
+        now reads the program's own refit marker out of the page instead of
+        guessing direction from pixels, and judges the *fit*: outline inside
+        the window, no one-sided cut, not blank."""
+        import io
+        import random
+
+        from PIL import Image
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        random.seed(7)
+        picture = Image.new("RGB", (390, 1300))
+        picture.putdata(
+            [(random.randint(0, 255),) * 3 for _ in range(390 * 1300)]
+        )
+        packed = io.BytesIO()
+        picture.save(packed, "PNG")
+        source = self.tall_cover_book(tmp_path, packed.getvalue())
+        # The gate itself is the assertion this time: `stop` must publish.
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.status.wrote_a_file, result.report.to_text()
+
+        measured = render_fidelity.compare(
+            source, result.output_path, viewports=((390, 640),), sample=0
+        )
+        check = next(c for c in measured.pages if "cover" in c.document)
+        assert check.refit_marked, "the refit marker did not survive into the output"
+        assert check.ok, str(check)
+        ink = check.output_ink
+        assert ink is not None and not ink.blank
+        # The fit, stated as an outline: the free axis inside the window with
+        # margins, the constrained axis allowed to touch both its edges.
+        assert ink.left > 0.02 and ink.right < 0.98, ink
+
     def test_an_unsized_tall_cover_loses_no_ink(self, tmp_path):
         from tests.factory import png_bytes
 

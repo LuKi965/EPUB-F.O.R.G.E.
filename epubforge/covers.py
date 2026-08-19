@@ -101,9 +101,19 @@ def is_the_cover(book, candidate: str) -> bool:
     return bool(candidate) and candidate in cover_identities(book)
 
 
+#: The first line of the comment `COVER_STYLE_ADDED` carries — and, since
+#: EF-063, a *signal*: it is how the render gate recognises, from the output
+#: file alone, that this program refitted this cover page on purpose. A fact
+#: the program wrote down beats a fact guessed back out of pixels — the same
+#: principle `references.py` states for `REPAIRED`.
+REFIT_MARK = "EPUB-Forge: nothing in this book sized the cover"
+
+assert REFIT_MARK in COVER_STYLE_ADDED
+
 __all__ = [
     "COVER_STYLE",
     "COVER_STYLE_ADDED",
+    "REFIT_MARK",
     "cover_identities",
     "is_the_cover",
 ]

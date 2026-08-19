@@ -293,3 +293,40 @@ class TestTheProgramsOwnBlockIsSafeByConstruction:
             )
         assert "object-fit: contain" in cover
         assert "max-height: 100vh" in cover
+
+
+class TestTheStampDoesNotSilenceTheQuestion:
+    def test_a_typo_in_a_stamped_block_is_still_asked_about(self, tmp_path):
+        """The sixth audit measured the first ordering: the same human typo was
+        asked about in a block copied twice and silently removed in a block
+        copied three times. A stamp is a fact about the block; the question is
+        about one rule inside it, and copies do not answer it."""
+        stamped = (
+            "p.rozdzia { text-align: center; } "
+            "p.szablonowa { color: green; } "
+            "p.rozdzial { margin: 0; }"
+        )
+        chooser = _Chooser("keep")
+        result = forge(
+            shelf(tmp_path, css=stamped, copies=3), tmp_path,
+            sweep=True, resolver=chooser,
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+        asked = [q for q in chooser.asked if q.kind == "style"]
+        assert asked, "three copies silenced the typo question"
+        css = style_of(result)
+        assert "p.rozdzia " in css        # kept, as answered
+        assert "szablonowa" not in css    # the stamp still sweeps the rest
+
+
+class TestTheUntickedBoxStillCounts:
+    def test_keep_style_junk_reports_what_it_kept(self, tmp_path):
+        """`--keep-style-junk` promises in its help text that the report still
+        counts what a sweep would have removed — and the sixth audit measured
+        the promise unkept: with the switch off, no `css.*` line at all. The
+        unticked box now emits the same found-not-removed line the sheet sweep
+        uses."""
+        result = forge(shelf(tmp_path), tmp_path, sweep=False)
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "css.unreachable-rules-found" in rules_of(result)
+        assert "css.style-junk-removed" not in rules_of(result)

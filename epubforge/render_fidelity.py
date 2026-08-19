@@ -93,6 +93,10 @@ class PageCheck:
     output_ink: "render.Ink | None" = None
     problems: list = field(default_factory=list)
     notes: list = field(default_factory=list)
+    #: The output document carries this program's own cover-refit marker
+    #: (`covers.REFIT_MARK`) — a fact the rebuild wrote down, read back from
+    #: the artifact, so it holds for a standalone comparison too. See EF-063.
+    refit_marked: bool = False
 
     @property
     def ok(self) -> bool:
@@ -302,6 +306,81 @@ def _refitted(before: "render.Ink", after: "render.Ink") -> bool:
     )
 
 
+#: Reading an edge of the viewport as "touched" and as "clear", as fractions.
+#: Calibrated on the three shapes EF-063 has to tell apart (see `_fitted_cover`),
+#: and `_CLEAR` was measured, not chosen: the EF-057 shape — the 8px default
+#: margin pushing a fitted cover down — leaves the top of the ink at 6px of a
+#: 640px window, which is 0.0094. A first draft put "clear" at 0.01 and read
+#: that cut cover as a fit. A correctly fitted cover touches its constrained
+#: edges at 0.000, so the band between 0.005 and 0.008 stays undecided on
+#: purpose — undecided means "not a cut", which errs toward accepting.
+_TOUCHED = 0.005
+_CLEAR = 0.008
+
+
+def _refit_marked(document: "pathlib.Path") -> bool:
+    """Did this program refit this page's cover, said by the page itself?"""
+    from . import covers
+
+    try:
+        return covers.REFIT_MARK.encode("utf-8") in document.read_bytes()
+    except OSError:
+        return False
+
+
+def _fitted_cover(check: PageCheck) -> "str | None":
+    """Judge a page whose cover this program refitted, without guessing.
+
+    The sixth audit measured what coverage-based judgement does to the cover
+    repair: 22 of 82 real cover images, put in the commonest cover-page shape
+    and correctly fitted by EF-062, were **refused** in the default mode —
+    fitting a picture that used to overflow shows *less* ink, and `_refitted`'s
+    top-left argument does not hold for an image that already touched the
+    top-left corner. The program turned a silent flaw into a loud refusal of a
+    correct book.
+
+    But the program does not need to guess here: it wrote its own marker into
+    the page it refitted, and a fact it created it may use — the same rule
+    `references.py` states for `REPAIRED`. So on a marked page the question is
+    not "did ink decrease" (it must decrease — that is the repair working) but
+    **"is the fit actually a fit"**, asked of the output alone:
+
+    * a blank page is a loss, marker or no marker;
+    * an outline spanning **both** axes edge-to-edge is the old overflow — the
+      limits did not bite (this is what the pre-EF-062 `100%` looked like);
+    * an outline **touching one edge of an axis while the other edge of the
+      same axis has a clear margin** is a cut, not a fit — the EF-057 shape,
+      the cover pushed down and clipped at the bottom;
+    * everything else — the constrained axis touching both its edges, the free
+      axis inside — is `object-fit: contain` doing what it says.
+
+    Returns the problem sentence, or `None` when the fit is a fit.
+    """
+    after = check.output_ink
+    if after is None or after.blank:
+        return "strona wyszła pusta, a w źródle coś na niej było"
+
+    def spans(low: float, high: float) -> bool:
+        return low <= _TOUCHED and high >= 1 - _TOUCHED
+
+    def cut(low: float, high: float) -> bool:
+        touched_low, touched_high = low <= _TOUCHED, high >= 1 - _TOUCHED
+        clear_low, clear_high = low >= _CLEAR, high <= 1 - _CLEAR
+        return (touched_low and clear_high) or (touched_high and clear_low)
+
+    if spans(after.left, after.right) and spans(after.top, after.bottom):
+        return (
+            "okładka dalej wychodzi poza stronę mimo dopasowania: obrys tuszu "
+            "wypełnia całe okno w obu osiach"
+        )
+    if cut(after.top, after.bottom) or cut(after.left, after.right):
+        return (
+            "dopasowana okładka jest ucięta: obrys tuszu dotyka jednej "
+            "krawędzi okna, a po przeciwnej stronie ma margines"
+        )
+    return None
+
+
 def _judge(check: PageCheck) -> None:
     """Name what changed, and hold only *loss* against the book.
 
@@ -330,6 +409,17 @@ def _judge(check: PageCheck) -> None:
     """
     before, after = check.source_ink, check.output_ink
     if before is None or after is None:
+        return
+    if check.refit_marked and not before.blank:
+        verdict = _fitted_cover(check)
+        if verdict is not None:
+            check.problems.append(verdict)
+        else:
+            check.notes.append(
+                "okładka dopasowana przez przebudowę jest w całości na stronie "
+                f"({before.coverage:.1%} → {after.coverage:.1%} tuszu — spadek "
+                "jest dopasowaniem, nie stratą)"
+            )
         return
     if after.blank and not before.blank:
         check.problems.append("strona wyszła pusta, a w źródle coś na niej było")
@@ -460,6 +550,7 @@ def compare(
                 check.source_ink = render.ink_of(one)
                 check.output_ink = render.ink_of(two)
                 check.difference = render.difference(one, two)
+                check.refit_marked = _refit_marked(output_page)
                 _judge(check)
                 result.pages.append(check)
     return result

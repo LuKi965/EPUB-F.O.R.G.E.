@@ -439,6 +439,28 @@ class StyleStage(Stage):
                         ctx, after, resource,
                         boilerplate=stamped.get(_block_key(before), 0) >= 3,
                     )
+                else:
+                    # The unticked box still counts — `--keep-style-junk`
+                    # promised it in its help text before the code kept the
+                    # promise, and the sixth audit caught the difference. The
+                    # same line the sheet sweep uses for "found, not removed".
+                    found = [
+                        span
+                        for span in stylesheet.top_level_rules(after)
+                        if stylesheet.names_nothing_here(
+                            span.selector, ctx.used_classes, ctx.used_ids
+                        )
+                    ]
+                    if found:
+                        self.note(
+                            ctx, Level.INFO, "css.unreachable-rules-found",
+                            values={
+                                "count": len(found),
+                                "share": round(100 * sum(s.end - s.start for s in found) / max(len(after), 1)),
+                                "total": len(stylesheet.top_level_rules(after)),
+                            },
+                            location=resource.path,
+                        )
                 if after != before:
                     element.text = after
                     touched = True
@@ -506,9 +528,13 @@ class StyleStage(Stage):
         * anything else dead is kept and counted, because a list of generator
           prefixes is safe only while matching none of them means keeping.
 
-        The same guards as the sheet sweep, in the same order: a scripted book
-        is left alone entirely, `preserve` reports instead of removing, and the
-        cut is verified by re-parsing before it is kept.
+        The same guards as the sheet sweep where they still apply: a scripted
+        book is left alone entirely, and the cut is verified by re-parsing
+        before it is kept. One guard deliberately does **not** apply since
+        D-029: this sweep is not gated on `remove_dead`, because that switch
+        divides preserve from strict over deviations a reader can see, and a
+        rule no selector reaches is visible nowhere. The sweep's own switch is
+        the opt-out.
         """
         from ..decisions import KEEP, STYLE, Option, Question
         from ..question_texts import say
@@ -539,8 +565,15 @@ class StyleStage(Stage):
         for span in dead:
             missing = {n for n in set(_SEL_NAME.findall(span.selector)) if n not in used}
             generator_named = any(_GENERATOR_NAME.match(n) for n in missing)
+            # The typo question comes **before** the stamp bucket, not instead
+            # of it — the sixth audit measured the first ordering: the same
+            # human typo was asked about in a block copied twice and silently
+            # removed in a block copied three times. A stamp says "a converter
+            # pasted this block", which is true of the block; it says nothing
+            # about one rule inside it whose dead name is an edit away from a
+            # name the book uses. The stamp decides only what is not a question.
             near = None
-            if not boilerplate and not generator_named:
+            if not generator_named:
                 for name in sorted(missing):
                     found = self._one_edit_away(name, used)
                     if found:
@@ -1098,11 +1131,16 @@ class StyleStage(Stage):
 
         None of it changes a pixel, which is exactly why removing it needs the
         care it gets here rather than the care it looks like it needs.
-        `preserve` reports and keeps; `strict` removes. That split was written
-        into the roadmap before any of this existed, against a source document
-        that wanted the removal in `preserve` too, and the reasoning has not
-        aged: a selector that matches nothing *in the documents we parsed* is
-        not the same claim as a selector that matches nothing.
+        `preserve` reports and keeps; `strict` removes. That split predates
+        D-029, which decided the opposite for `<style>` blocks — and the sixth
+        audit is right that the old defence written here ("a selector that
+        matches nothing in the documents we parsed is not the same claim as a
+        selector that matches nothing") cannot be true for a sheet and false
+        for a block. What actually separates the two paths today is the
+        buckets: the block sweep cuts only generator names and stamped
+        boilerplate, this one cuts everything dead. Whether sheets should get
+        the same three buckets in preserve is an open decision for 0.3
+        (D-029's recorded asymmetry), not something this docstring settles.
 
         Four things narrow it, and each one is a case that would otherwise be
         got wrong:
