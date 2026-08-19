@@ -345,7 +345,7 @@ def _judge(check: PageCheck) -> None:
     before, after = check.source_ink, check.output_ink
     if before is None or after is None:
         return
-    if check.refit_marked and not before.blank:
+    if check.refit_marked and not before.blank and not after.blank:
         # EF-063, third and final shape of this judgement — the first two are
         # a lesson worth the space they take. The gate used to read the fit's
         # ink drop as loss and refused 22 of 82 real covers the program had
@@ -366,7 +366,8 @@ def _judge(check: PageCheck) -> None:
         # cover, and the mutations that break it (`100vh → 100%`, dropping
         # `margin: 0`) fail those tests. What remains for the gate here is
         # the one verdict pixels can still give safely: a blank page is a
-        # loss, marker or no marker — and that check ran above.
+        # loss, marker or no marker — `not after.blank` in the condition is
+        # what hands that page to the blank check below instead of this note.
         check.notes.append(
             "okładka dopasowana przez przebudowę — spadek tuszu jest "
             f"dopasowaniem, nie stratą ({before.coverage:.1%} → {after.coverage:.1%}); "

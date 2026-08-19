@@ -489,6 +489,46 @@ class TestTheCoverRepairMeasuredInInk:
         # margins, the constrained axis allowed to touch both its edges.
         assert ink.left > 0.02 and ink.right < 0.98, ink
 
+    def test_a_marked_cover_that_came_out_blank_still_refuses(self, tmp_path):
+        """The marker says "this program refitted this page on purpose" — it
+        must never come to mean "so whatever happened to it is fine". Blank is
+        the one verdict pixels still give safely on a marked page, so a marked
+        cover whose image comes out white is a problem, not a note. The
+        mutation this bites on: dropping `not after.blank` from the marker
+        branch in `_judge`."""
+        import zipfile
+
+        from tests.factory import png_bytes
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        tall = png_bytes(size=(390, 1300), color=(40, 40, 160))
+        source = self.tall_cover_book(tmp_path, tall)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.status.wrote_a_file, result.report.to_text()
+
+        # Blank the cover image inside the output — marker left untouched.
+        blank = png_bytes(size=(390, 1300), color=(255, 255, 255))
+        damaged = str(tmp_path / "damaged.epub")
+        with zipfile.ZipFile(result.output_path) as whole, zipfile.ZipFile(
+            damaged, "w"
+        ) as broken:
+            for entry in whole.infolist():
+                data = whole.read(entry.filename)
+                if entry.filename.endswith(".png"):
+                    data = blank
+                broken.writestr(entry, data)
+
+        measured = render_fidelity.compare(
+            source, damaged, viewports=((390, 640),), sample=0
+        )
+        assert measured.available, measured.reason
+        check = next(c for c in measured.pages if "cover" in c.document)
+        assert check.refit_marked, "the fixture no longer exercises the marker"
+        assert not check.ok, str(check)
+        assert any("pusta" in problem for problem in check.problems), check.problems
+
     def test_an_unsized_tall_cover_loses_no_ink(self, tmp_path):
         from tests.factory import png_bytes
 
