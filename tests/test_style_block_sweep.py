@@ -237,3 +237,51 @@ class TestAMachineCounterIsNotATypo:
             q.summary for q in chooser.asked
         ]
         assert "css.style-unmatched-kept" in rules_of(result)
+
+
+class TestTheProgramsOwnBlockIsSafeByConstruction:
+    def test_the_cover_block_survives_the_sweep(self, tmp_path):
+        """The fifth audit's fifth measurement: a block this program inserts
+        (the cover repair) must be exempt from the sweep by *construction*,
+        not by luck. It is — `COVER_STYLE_ADDED` styles only bare elements
+        (`html`, `body`, `img`), and a bare-element selector is never called
+        dead. This test pins the dependency, because the first block with a
+        class that this program ever inserts will change the situation."""
+        import re as _re
+
+        from epubforge import covers
+        from tests.factory import png_bytes
+
+        assert not _re.search(r"[.#]", _re.sub(r"/\*.*?\*/", "", covers.COVER_STYLE_ADDED, flags=_re.S)), (
+            "COVER_STYLE_ADDED gained a class or id selector; the sweep "
+            "exemption below is no longer by construction"
+        )
+        documents = {
+            "cover.xhtml": (
+                '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+                '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+                '<meta charset="utf-8"/><title>Okładka</title></head>'
+                '<body><div style="text-align:center">'
+                '<img src="cover.png" alt="Okładka"/></div></body></html>'
+            ),
+            "c0.xhtml": PAGE.format(css=CSS, n=0),
+        }
+        result = forge(
+            make_book(
+                tmp_path / "in.epub",
+                documents,
+                extra_items='<item id="cov" href="cover.png" media-type="image/png" properties="cover-image"/>',
+                extra_files={"OEBPS/cover.png": png_bytes(size=(200, 700))},
+            ),
+            tmp_path,
+            sweep=True,
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            cover = next(
+                archive.read(n).decode("utf-8")
+                for n in archive.namelist()
+                if n.endswith(".xhtml") and "<img" in archive.read(n).decode("utf-8")
+            )
+        assert "object-fit: contain" in cover
+        assert "max-height: 100vh" in cover
