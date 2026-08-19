@@ -81,6 +81,26 @@ _SEL_NAME = re.compile(r"[.#]([A-Za-z_-][\w-]*)")
 #: census must not pay for a parse of every document.
 _STYLE_TEXT = re.compile(rb"<\s*style[^>]*>(.*?)</\s*style\s*>", re.S | re.I)
 
+
+#: `None` is a meaningful cached answer ("measured, nothing close"), so the
+#: cache needs a distinct "never measured" mark.
+_UNMEASURED = object()
+
+
+def _block_key(text: str) -> bytes:
+    """One normalisation for the boilerplate census and for the block itself.
+
+    The census reads serialised bytes, where an XML writer has escaped `<`,
+    `>` and `&`; the block arrives as an element's *text*, where they are
+    literal. Word's stylesheets open with `<!--`, so on the shelf the two
+    spellings never matched, every stamped Word block missed the boilerplate
+    bucket, and 52 121 machine counters were mistaken for typo candidates —
+    one book of 135 documents then blew its time budget searching them. Both
+    sides now go through this one function, so they cannot disagree again.
+    """
+    literal = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    return " ".join(literal.split()).encode("utf-8", "replace")
+
 #: A declaration written the way an HTML attribute is written: `text-align=
 #: "center"` where CSS wants a colon. The lead is `{` or `;` on purpose — it is
 #: what keeps this away from an attribute selector (`a[href="x"]`), from a
@@ -251,6 +271,9 @@ class StyleStage(Stage):
     name = "css"
 
     def run(self, ctx: Context) -> None:
+        #: The typo-verdict cache is per book; a stage instance is per rebuild,
+        #: but the reset does not rely on that.
+        self._typo_verdicts = {}
         if not ctx.policy.rewrite_content:
             return
         self._add_watermark_rule(ctx)
@@ -373,7 +396,7 @@ class StyleStage(Stage):
         if ctx.policy.sweep_style_blocks:
             for resource in ctx.book.content_docs():
                 for found in _STYLE_TEXT.finditer(resource.data):
-                    stamped[b" ".join(found.group(1).split())] += 1
+                    stamped[_block_key(found.group(1).decode("utf-8", "replace"))] += 1
 
         for resource in ctx.book.content_docs():
             # Asked of the bytes before the tree, and not as an optimisation for
@@ -412,9 +435,9 @@ class StyleStage(Stage):
                     sweep_unreachable=False,
                 )
                 if ctx.policy.sweep_style_blocks:
-                    key = b" ".join(before.encode("utf-8", "replace").split())
                     after = self._sweep_style_block(
-                        ctx, after, resource, boilerplate=stamped.get(key, 0) >= 3
+                        ctx, after, resource,
+                        boilerplate=stamped.get(_block_key(before), 0) >= 3,
                     )
                 if after != before:
                     element.text = after
@@ -422,8 +445,13 @@ class StyleStage(Stage):
             if touched:
                 resource.data = xhtml.serialize(root)
 
-    @staticmethod
-    def _one_edit_away(dead: str, used: "set[str]") -> "tuple[str, int] | None":
+    #: Digits are a machine's voice. `font0`/`font1`, `Kop11`/`Kop12`,
+    #: `lst-kix_list_1-3`/`…-0` are counters, not typos — a human's slip swaps
+    #: letters, a generator increments. Two names whose digit-free skeletons
+    #: agree are the same counter and never a question.
+    _DIGITS = re.compile(r"\d+")
+
+    def _one_edit_away(self, dead: str, used: "set[str]") -> "tuple[str, int] | None":
         """The used name closest to *dead*, if any is close enough to be a typo.
 
         Distance 1, or 2 for names of eight characters and more — tight on
@@ -431,8 +459,14 @@ class StyleStage(Stage):
         of `lst-kix_list_1-0`, which it is not; those never reach this check
         anyway (generator-named), but the cap should not depend on that.
         """
+        cached = self._typo_verdicts.get(dead, _UNMEASURED)
+        if cached is not _UNMEASURED:
+            return cached
         best = None
+        skeleton = self._DIGITS.sub("", dead)
         for candidate in used:
+            if self._DIGITS.sub("", candidate) == skeleton:
+                continue
             cap = 1 if min(len(dead), len(candidate)) < 8 else 2
             if abs(len(dead) - len(candidate)) > cap:
                 continue
@@ -446,6 +480,10 @@ class StyleStage(Stage):
             distance = previous[-1]
             if 0 < distance <= cap and (best is None or distance < best[1]):
                 best = (candidate, distance)
+        # Per book, not per block: the same dead name repeats across a book's
+        # documents — 52 121 times on one shelf — and the answer is a function
+        # of the book's names, which do not change inside one run.
+        self._typo_verdicts[dead] = best
         return best
 
     def _sweep_style_block(

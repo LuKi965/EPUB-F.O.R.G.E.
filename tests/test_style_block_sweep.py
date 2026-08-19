@@ -190,3 +190,50 @@ class TestAScriptedBookIsLeftAlone:
         assert "sgc-1" in style_of(result)
         assert "css.style-junk-removed" not in rules_of(result)
         assert "css.unreachable-rules-scripted" in rules_of(result)
+
+
+class TestTheCensusSurvivesSerialisation:
+    def test_a_word_comment_wrapped_block_counts_as_stamped(self, tmp_path):
+        """The shelf's shape that broke the first census: Word opens every
+        stylesheet with `<!--`, which an XML writer escapes in the stored bytes
+        while the element's text keeps it literal. The two spellings of one
+        block must land on one census key — on the shelf they did not, every
+        stamped Word block missed its bucket, and 52 121 machine counters were
+        mistaken for typo candidates."""
+        # The shelf's exact shape: Word-made XHTML wraps the stylesheet in
+        # CDATA, inside which the old-browser comment markers are *text*. An
+        # XML writer then escapes the `<` — the stored bytes say `&lt;!--`
+        # while the element's text says `<!--`, and a census that compares
+        # the two spellings raw never matches.
+        word = (
+            "/*<![CDATA[*/\n<!--\n"
+            "p.szablonowa { color: green; } p.rozdzial { margin: 0; }\n"
+            "-->\n/*]]>*/"
+        )
+        result = forge(shelf(tmp_path, css=word, copies=3), tmp_path, sweep=True)
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "szablonowa" not in style_of(result)
+
+
+class TestAMachineCounterIsNotATypo:
+    def test_numbered_names_are_never_asked_about(self, tmp_path):
+        """`font0` beside a used `font1` is a generator incrementing, not a
+        person slipping — and there were 52 121 of these on the shelf, which
+        as questions would bury every real one."""
+        counters = (
+            "span.font0 { color: red; } "
+            'p.rozdzial { margin: 0; } '
+            "span.font1 { color: blue; }"
+        )
+        page = PAGE.replace('class="rozdzial"', 'class="rozdzial font1"')
+        documents = {"c0.xhtml": page.format(css=counters, n=0)}
+        chooser = _Chooser("drop")
+        result = forge(
+            make_book(tmp_path / "in.epub", documents), tmp_path,
+            sweep=True, resolver=chooser,
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert not [q for q in chooser.asked if q.kind == "style"], [
+            q.summary for q in chooser.asked
+        ]
+        assert "css.style-unmatched-kept" in rules_of(result)
