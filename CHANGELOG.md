@@ -130,7 +130,12 @@ away from a name the book *uses* may be somebody's typo — that one becomes a
 question (keep / drop / correct it), and nothing happens without an answer.
 Anything else dead is kept and counted, which is what makes the prefix list
 safe to be incomplete. Machine counters — `font0` beside `font1` — are never
-mistaken for typos: a human slips letters, a generator increments.
+mistaken for typos: a human slips letters, a generator increments. That rule
+is enforced in full: a typo candidate must carry the same digits, in the same
+order, as the name it resembles — measured on the shelf, `Hoofdtekst2` beside
+a used `Hoofdtekst9a` is a converter counting its style variants (30 224 rules
+across three books said so), while `sgc-1` beside `sgd-1` differs by a letter
+and is still a question.
 
 Measured before it was allowed in: the full shelf twice over, the two books
 with the largest cuts (49 545 and 8 525 rules) redrawn page by page on the

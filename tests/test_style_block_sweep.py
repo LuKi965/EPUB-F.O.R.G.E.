@@ -246,6 +246,36 @@ class TestAMachineCounterIsNotATypo:
         ]
         assert "css.style-unmatched-kept" in rules_of(result)
 
+    def test_a_digit_edit_is_an_increment_not_a_typo(self, tmp_path):
+        """`Hoofdtekst2` beside a used `Hoofdtekst9a` — the shelf's shape the
+        day the typo question moved in front of the stamp bucket. The
+        skeletons differ, the edit distance fits the cap, and the edit changes
+        a digit: a converter counting its style variants, 30 224 rules across
+        three books. A typo candidate must carry the same digits as the name
+        it resembles — only letters may err (`sgc-1` beside `sgd-1` still
+        asks) — so this one is swept with its stamped block, unasked."""
+        word = (
+            "p.Hoofdtekst2 { color: green; } "
+            "p.Hoofdtekst9a { margin: 0; } "
+            "p.rozdzial { margin: 0; }"
+        )
+        page = PAGE.replace('class="rozdzial"', 'class="rozdzial Hoofdtekst9a"')
+        documents = {
+            f"c{n}.xhtml": page.format(css=word, n=n) for n in range(3)
+        }
+        chooser = _Chooser("keep")
+        result = forge(
+            make_book(tmp_path / "in.epub", documents), tmp_path,
+            sweep=True, resolver=chooser,
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert not [q for q in chooser.asked if q.kind == "style"], [
+            q.summary for q in chooser.asked
+        ]
+        swept = style_of(result)
+        assert "Hoofdtekst2" not in swept
+        assert "Hoofdtekst9a" in swept
+
 
 class TestTheProgramsOwnBlockIsSafeByConstruction:
     def test_the_cover_block_survives_the_sweep(self, tmp_path):

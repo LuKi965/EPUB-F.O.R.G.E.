@@ -471,7 +471,23 @@ class StyleStage(Stage):
     #: `lst-kix_list_1-3`/`…-0` are counters, not typos — a human's slip swaps
     #: letters, a generator increments. Two names whose digit-free skeletons
     #: agree are the same counter and never a question.
+    #:
+    #: And the symmetric case, measured on the shelf the day the typo question
+    #: was moved in front of the stamp bucket: `Hoofdtekst2` beside a used
+    #: `Hoofdtekst9a`, `Hoofdtekst210` beside `Hoofdtekst31b` — 30 224 rules
+    #: across three books, every one a converter's numbered style variant,
+    #: every one within the edit cap because the *skeletons* differ while the
+    #: edit itself changes a digit. Those had been swept as stamps before the
+    #: reorder and became "possible typos" after it. So the rule is stated
+    #: whole: a typo candidate must carry the **same digits in the same
+    #: order** as the name it resembles — only letters may err. `sgc-1` beside
+    #: `sgd-1` still asks; anything whose difference includes a digit is an
+    #: increment, and an increment is never a question.
     _DIGITS = re.compile(r"\d+")
+
+    @staticmethod
+    def _digits_of(name: str) -> str:
+        return "".join(ch for ch in name if ch.isdigit())
 
     def _one_edit_away(self, dead: str, used: "set[str]") -> "tuple[str, int] | None":
         """The used name closest to *dead*, if any is close enough to be a typo.
@@ -486,8 +502,11 @@ class StyleStage(Stage):
             return cached
         best = None
         skeleton = self._DIGITS.sub("", dead)
+        digits = self._digits_of(dead)
         for candidate in used:
             if self._DIGITS.sub("", candidate) == skeleton:
+                continue
+            if self._digits_of(candidate) != digits:
                 continue
             cap = 1 if min(len(dead), len(candidate)) < 8 else 2
             if abs(len(dead) - len(candidate)) > cap:
