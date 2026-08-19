@@ -19,8 +19,12 @@ whole design:
 * everything else dead is **kept and counted**, which is what makes the
   generator-prefix list safe to be incomplete.
 
-Off by default, everywhere including strict — its own switch, per the fifth
-audit's condition and the owner's decision of 2026-08-19.
+First shipped off by default per the fifth audit's condition; **on by default
+in both modes since D-029**, the owner's second decision of 2026-08-19, made
+after the whole measurement programme ran clean: the preserve promise is about
+the book's look, and a rule no selector can reach draws nothing anywhere —
+"tryb preserve nie ma na celu zachować syfu, tylko zachować układ". The tick
+(and `--keep-style-junk`) is the opt-out S-02 requires of every removal.
 """
 
 from __future__ import annotations
@@ -77,21 +81,22 @@ def style_of(result) -> str:
     raise AssertionError("no swept <style> block in the rebuild")
 
 
-class TestTheSwitchIsOffEverywhere:
-    def test_strict_alone_does_not_sweep(self, tmp_path):
+class TestTheSwitchIsOnByDefaultAndTickable:
+    def test_both_presets_sweep_by_default(self):
+        """D-029. Preserve too, and that is the owner's argument verbatim:
+        preserve keeps the book's layout, not the converter's litter."""
+        for name in ("strict", "preserve"):
+            assert Policy.preset(name).sweep_style_blocks is True
+
+    def test_unticking_keeps_everything(self, tmp_path):
+        """The opt-out S-02 requires: with the tick off, nothing is removed
+        and nothing is asked — the report is the only trace."""
         result = forge(shelf(tmp_path), tmp_path, sweep=False)
         assert result.status.wrote_a_file, result.report.to_text()
         css = style_of(result)
         for selector in ("p.sgc-1", "p.rozdzia ", "p.balonik", "p.rozdzial"):
             assert selector in css, css
         assert "css.style-junk-removed" not in rules_of(result)
-
-    def test_it_is_a_field_of_its_own_and_not_a_consequence(self):
-        """`Policy.preset("strict")` flips `remove_dead`; it must not flip
-        this. The fifth audit's condition was a separate door, and a door
-        that strict opens by itself is not separate."""
-        for name in ("strict", "preserve"):
-            assert Policy.preset(name).sweep_style_blocks is False
 
 
 class TestTheThreeBuckets:
@@ -160,14 +165,17 @@ class TestTheQuestionHasTeeth:
         assert question.recommended == "keep"
 
 
-class TestPreserveReportsInsteadOfRemoving:
-    def test_the_switch_in_preserve_counts_and_keeps(self, tmp_path):
+class TestPreserveSweepsTheJunkToo:
+    def test_preserve_removes_generator_leftovers(self, tmp_path):
+        """D-029's substance. `remove_dead` still divides preserve from strict
+        over deviations a reader can see; a rule no selector reaches is
+        visible nowhere, so it is not that kind of deviation."""
         result = forge(shelf(tmp_path), tmp_path, sweep=True, mode="preserve")
         assert result.status.wrote_a_file, result.report.to_text()
         css = style_of(result)
-        assert "sgc-1" in css
-        assert "css.unreachable-rules-found" in rules_of(result)
-        assert "css.style-junk-removed" not in rules_of(result)
+        assert "sgc-1" not in css
+        assert "p.rozdzial { margin-top: 1em; }" in css
+        assert "css.style-junk-removed" in rules_of(result)
 
 
 class TestAScriptedBookIsLeftAlone:

@@ -142,7 +142,13 @@ class Policy:
     #: across documents. A dead name one edit away from a name the book uses is
     #: a possible human typo and becomes a question; anything else dead is only
     #: reported. Decided with the owner 2026-08-19 (D-028).
-    sweep_style_blocks: bool = False
+    #: **On by default in both modes since D-029** (owner, 2026-08-19): the
+    #: preserve promise is about the book's look, and a rule no selector can
+    #: reach draws nothing anywhere — "tryb preserve nie ma na celu zachować
+    #: syfu, tylko zachować układ". Still optional to untick, which is what
+    #: S-02 requires of every removal; the tick is in the window and
+    #: `--keep-style-junk` is the same choice on the command line.
+    sweep_style_blocks: bool = True
 
     #: What the render check does when it finds a page that lost content.
     #:

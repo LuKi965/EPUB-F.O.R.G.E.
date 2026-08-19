@@ -605,7 +605,9 @@ PL: dict[str, str] = {
         "Usuwane są wyłącznie pozostałości generatorów (sgc-, calibre, mso, "
         "kix…) i bloki powtórzone żywcem w wielu rozdziałach. Reguła o nazwie "
         "o jedną literę od używanej może być czyjąś literówką — o tę program "
-        "zapyta. Reszta zostaje i jest tylko policzona w raporcie."
+        "zapyta. Reszta zostaje i jest tylko policzona w raporcie.\n\n"
+        "Włączone domyślnie w obu trybach: preserve zachowuje układ książki, "
+        "nie śmieci konwertera. Odznaczenie zostawia wszystko i tylko liczy."
     ),
     "policy.typography": "Popraw typografię tekstu",
     "policy.typography.tip": (
@@ -1484,7 +1486,9 @@ EN: dict[str, str] = {
         "Only generator leftovers (sgc-, calibre, mso, kix…) and blocks "
         "repeated verbatim across chapters are removed. A rule named one "
         "letter away from a name the book uses may be somebody's typo — that "
-        "one becomes a question. Everything else stays and is only counted."
+        "one becomes a question. Everything else stays and is only counted.\n\n"
+        "On by default in both modes: preserve keeps the book's layout, not "
+        "the converter's litter. Unticking keeps everything and only counts."
     ),
     "policy.typography": "Repair the text's typography",
     "policy.typography.tip": (

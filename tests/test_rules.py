@@ -31,7 +31,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: wrong about, deleted along with the finding that reported it. What it may
 #: never do is fall because a `note()` lost its identifier, and every call site
 #: carrying one is what the two tests below actually check.
-TAGGED_TODAY = 275
+TAGGED_TODAY = 274
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.

@@ -420,7 +420,7 @@ class MainWindow(QMainWindow):
         # Not folded into the tick above: the fifth audit measured this sweep
         # an order of magnitude larger than the sheets', so it enters through
         # its own door (D-028).
-        self.style_sweep_check = self._checkbox(layout, "policy.style-sweep", checked=False)
+        self.style_sweep_check = self._checkbox(layout, "policy.style-sweep", checked=True)
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
         watermark_label = QLabel(tr("policy.watermark.label"))

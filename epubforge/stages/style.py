@@ -525,11 +525,11 @@ class StyleStage(Stage):
                       values={"count": len(dead)}, location=resource.path)
             return css_text
         share = round(100 * sum(s.end - s.start for s in dead) / max(len(css_text), 1))
-        if not ctx.policy.remove_dead:
-            self.note(ctx, Level.INFO, "css.unreachable-rules-found",
-                      values={"count": len(dead), "share": share, "total": len(spans)},
-                      location=resource.path)
-            return css_text
+        # Not gated on `remove_dead`, on purpose (D-029): that switch divides
+        # preserve from strict over deviations a reader can *see*, and a rule
+        # no selector reaches is visible nowhere. The owner's line draws the
+        # boundary at the book versus the converter's litter — preserve keeps
+        # the book. The sweep's own switch is the opt-out S-02 requires.
 
         used = ctx.used_classes | ctx.used_ids
         #: `(span, action, replacement)`; applied back to front so offsets hold.

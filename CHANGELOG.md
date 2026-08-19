@@ -114,6 +114,28 @@ been centred. Which the publisher wanted is a question about their intent, and
 the answer that happens with nobody there to ask is the one that changes
 nothing. Gated like every other removal: `preserve` keeps it and says so.
 
+### The dead-rule sweep reaches the styles written into chapters — by default
+
+Converters leave most of their litter not in stylesheets but in `<style>`
+blocks pasted into every chapter: measured across 160 books, 66 116 rules that
+no selector in the book can ever reach, against 6 303 in the sheets. They are
+removed now, in **both modes** — the owner's line, verbatim: preserve keeps the
+book's layout, not the converter's litter. Unticking one box (or
+`--keep-style-junk`) keeps everything and only counts.
+
+What is removed is narrower than the sheet sweep, on purpose: only rules whose
+dead names are a converter's (`sgc-`, `calibre`, `mso`, `kix`…) or whose whole
+block is stamped verbatim into three or more chapters. A dead name one edit
+away from a name the book *uses* may be somebody's typo — that one becomes a
+question (keep / drop / correct it), and nothing happens without an answer.
+Anything else dead is kept and counted, which is what makes the prefix list
+safe to be incomplete. Machine counters — `font0` beside `font1` — are never
+mistaken for typos: a human slips letters, a generator increments.
+
+Measured before it was allowed in: the full shelf twice over, the two books
+with the largest cuts (49 545 and 8 525 rules) redrawn page by page on the
+pinned engine — 334 measurements, not one pixel of content lost.
+
 ### The hidden paragraph is now hidden without CSS too
 
 The fifth audit took apart the reasoning behind hiding head-content with an

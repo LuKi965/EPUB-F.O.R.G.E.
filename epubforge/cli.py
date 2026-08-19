@@ -108,6 +108,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.repair_encoding = True
     if getattr(args, "sweep_style_blocks", False):
         policy.sweep_style_blocks = True
+    if getattr(args, "keep_style_junk", False):
+        policy.sweep_style_blocks = False
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1141,9 +1143,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--sweep-style-blocks",
         action="store_true",
         help=(
-            "extend the dead-rule sweep into <style> elements inside chapters; "
-            "removes only converter leftovers and repeated boilerplate, asks "
-            "about names one letter away from a used one"
+            "sweep converter leftovers out of <style> elements inside chapters "
+            "(the default since D-029; kept for scripts written before it)"
+        ),
+    )
+    build.add_argument(
+        "--keep-style-junk",
+        action="store_true",
+        help=(
+            "keep <style> blocks exactly as the converter left them; the "
+            "report still counts what a sweep would have removed"
         ),
     )
     build.add_argument(
