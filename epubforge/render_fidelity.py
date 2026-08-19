@@ -97,10 +97,6 @@ class PageCheck:
     #: (`covers.REFIT_MARK`) — a fact the rebuild wrote down, read back from
     #: the artifact, so it holds for a standalone comparison too. See EF-063.
     refit_marked: bool = False
-    #: Where the fitted cover's ink must be, `(left, top, right, bottom)` in
-    #: viewport fractions, computed from the image itself. `None` when the
-    #: image could not be read — then the ordinary judgement applies.
-    predicted_box: "tuple | None" = None
 
     @property
     def ok(self) -> bool:
@@ -310,15 +306,6 @@ def _refitted(before: "render.Ink", after: "render.Ink") -> bool:
     )
 
 
-#: How far a measured edge of the fitted cover's ink may sit from the predicted
-#: one, as a fraction of the viewport. Two per cent: anti-aliasing and the ink
-#: detector's paper heuristic move an edge by a pixel or two, a cut or an
-#: overflow moves it by far more.
-_FIT_TOLERANCE = 0.02
-
-_IMG_SRC = re.compile(rb"<img[^>]*\ssrc=[\"']([^\"']+)[\"']", re.IGNORECASE)
-
-
 def _refit_marked(document: "pathlib.Path") -> bool:
     """Did this program refit this page's cover, said by the page itself?"""
     from . import covers
@@ -327,82 +314,6 @@ def _refit_marked(document: "pathlib.Path") -> bool:
         return covers.REFIT_MARK.encode("utf-8") in document.read_bytes()
     except OSError:
         return False
-
-
-def _predicted_cover_box(document: "pathlib.Path", viewport) -> "tuple | None":
-    """Where the fitted cover's ink *must* be, computed rather than guessed.
-
-    The first version of this judgement read direction out of the output's ink
-    edges alone — "touching one edge with a margin opposite is a cut" — and it
-    lasted forty book covers: artwork with white of its own (a pale sky, a
-    light border) pulls the ink edge off the image edge, and seventeen
-    correctly fitted covers read as cut. The sixth audit predicted exactly
-    this: a purely pixel-side rule is the weaker instrument.
-
-    But nothing here needs guessing. The image is in the output, its intrinsic
-    size is a fact, `object-fit: contain` with the block's centring is a pure
-    function of that size and the viewport, and where the ink sits *inside the
-    image* can be measured off the image file itself. Composing the two gives
-    the box the page's ink must occupy if the fit really happened — cut, shift
-    and overflow all leave it, each in its own direction.
-
-    Returns `(left, top, right, bottom)` in viewport fractions, or `None` when
-    the page or its image cannot be read (the caller then falls back to the
-    ordinary judgement, which errs toward reporting).
-    """
-    try:
-        found = _IMG_SRC.search(document.read_bytes())
-        if not found:
-            return None
-        source = (document.parent / found.group(1).decode("utf-8", "replace")).resolve()
-        art = render.ink_of(source)
-        from PIL import Image
-
-        with Image.open(source) as image:
-            width, height = image.size
-    except Exception:
-        return None
-    if width <= 0 or height <= 0:
-        return None
-    # A solid-colour cover is all "paper" to the ink detector, so its own ink
-    # box degenerates — but the image itself is the content then, whole. The
-    # same holds for any art box too thin to mean anything.
-    if art.blank or art.width < 0.01 or art.height < 0.01:
-        art = render.Ink(coverage=1.0, left=0.0, top=0.0, right=1.0, bottom=1.0)
-    view_w, view_h = viewport
-    scale = min(1.0, view_w / width, view_h / height)
-    shown_w, shown_h = width * scale, height * scale
-    x0, y0 = (view_w - shown_w) / 2, (view_h - shown_h) / 2
-    return (
-        (x0 + art.left * shown_w) / view_w,
-        (y0 + art.top * shown_h) / view_h,
-        (x0 + art.right * shown_w) / view_w,
-        (y0 + art.bottom * shown_h) / view_h,
-    )
-
-
-def _fitted_cover(check: PageCheck) -> "str | None":
-    """Judge a refitted cover by prediction against measurement.
-
-    The problem sentence, or `None` when the fit is a fit. See
-    `_predicted_cover_box` for why this computes instead of reading edges.
-    """
-    after = check.output_ink
-    if after is None or after.blank:
-        return "strona wyszła pusta, a w źródle coś na niej było"
-    predicted = check.predicted_box
-    if predicted is None:
-        return None  # nothing to compare against; the caller falls back
-    measured = (after.left, after.top, after.right, after.bottom)
-    off = max(abs(a - b) for a, b in zip(measured, predicted))
-    if off > _FIT_TOLERANCE:
-        edges = ", ".join(f"{a:.3f}→{b:.3f}" for b, a in zip(measured, predicted))
-        return (
-            "dopasowana okładka nie leży tam, gdzie wynika z jej rozmiaru "
-            f"i dopasowania (L,G,P,D przewidziane→zmierzone: {edges}) — "
-            "część obrazu jest ucięta albo ograniczenia nie zadziałały"
-        )
-    return None
 
 
 def _judge(check: PageCheck) -> None:
@@ -434,16 +345,33 @@ def _judge(check: PageCheck) -> None:
     before, after = check.source_ink, check.output_ink
     if before is None or after is None:
         return
-    if check.refit_marked and not before.blank and check.predicted_box is not None:
-        verdict = _fitted_cover(check)
-        if verdict is not None:
-            check.problems.append(verdict)
-        else:
-            check.notes.append(
-                "okładka dopasowana przez przebudowę jest w całości na stronie "
-                f"({before.coverage:.1%} → {after.coverage:.1%} tuszu — spadek "
-                "jest dopasowaniem, nie stratą)"
-            )
+    if check.refit_marked and not before.blank:
+        # EF-063, third and final shape of this judgement — the first two are
+        # a lesson worth the space they take. The gate used to read the fit's
+        # ink drop as loss and refused 22 of 82 real covers the program had
+        # just fitted correctly. Attempt one replaced that with edge reading
+        # ("touching one side with a margin opposite is a cut") and fell to
+        # artwork carrying white of its own: 17 of 40 fitted covers read as
+        # cut. Attempt two *predicted* the ink box from the image file and
+        # fell deeper: a dark cover dominating the page flips what the ink
+        # detector calls paper, and 37 of 82 predictions disagreed with
+        # measurements of correct fits. Every pixel-side judgement of this
+        # page stands on that moving ground.
+        #
+        # So the judgement is the one the sixth audit proposed in the first
+        # place: the marker is a fact this program wrote, and a fact it wrote
+        # it may accept — `references.py`'s own rule for `REPAIRED`. Whether
+        # the fitting CSS itself works is not re-litigated per book: the
+        # render suite measures it with ink on a solid and a photographic
+        # cover, and the mutations that break it (`100vh → 100%`, dropping
+        # `margin: 0`) fail those tests. What remains for the gate here is
+        # the one verdict pixels can still give safely: a blank page is a
+        # loss, marker or no marker — and that check ran above.
+        check.notes.append(
+            "okładka dopasowana przez przebudowę — spadek tuszu jest "
+            f"dopasowaniem, nie stratą ({before.coverage:.1%} → {after.coverage:.1%}); "
+            "poprawności reguł dopasowania pilnuje suita renderowa, nie ta brama"
+        )
         return
     if after.blank and not before.blank:
         check.problems.append("strona wyszła pusta, a w źródle coś na niej było")
@@ -575,8 +503,6 @@ def compare(
                 check.output_ink = render.ink_of(two)
                 check.difference = render.difference(one, two)
                 check.refit_marked = _refit_marked(output_page)
-                if check.refit_marked:
-                    check.predicted_box = _predicted_cover_box(output_page, viewport)
                 _judge(check)
                 result.pages.append(check)
     return result

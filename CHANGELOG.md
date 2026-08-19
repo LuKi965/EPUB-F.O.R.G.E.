@@ -161,6 +161,29 @@ from anywhere. The page-with-text fallback keeps its old inline rule on
 purpose — capping an in-flow image to the window there would change how the
 book looks, and that decision is not this program's to make.
 
+### The gate no longer reads that repair as damage
+
+The direct consequence of the fix above, found by the sixth audit before any
+user could: a cover that overflowed two screens shows *fewer pixels* once it
+fits on one, the gate measures that as lost ink, and 22 of 82 real covers in
+the most common shape (`div` + `img`, nothing sized) were **refused for being
+repaired**. The louder the repair, the harder the refusal.
+
+The page the repair touches carries a marker sentence — it always has, as a
+comment for whoever opens the file — and the gate now reads it back: on a page
+this program refitted on purpose, the only thing still held against the book is
+coming out *blank*. A fact the program wrote down beats a fact guessed back out
+of pixels — the same principle the reference repairs already state.
+
+Two cleverer versions were built first and measured out of existence on the
+same 82 covers: reading cut-vs-fit out of the ink's edges fell to artwork with
+white of its own (17 of 40), and predicting where the ink must sit from the
+image file fell to dark covers, whose "paper" is the cover's own colour (37 of
+82). Every pixel-side rule inherits that limit of the ink measure itself. The
+CSS the marker vouches for is guarded where guarding works: by the render
+suite's ink tests and their mutations, once, rather than per book by a gate
+that cannot tell fitting from losing.
+
 ### A recorded signature was carrying somebody's title
 
 Not from the shelf run — from the gate that guards it. The private name scanner
