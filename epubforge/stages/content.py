@@ -1723,10 +1723,22 @@ class ContentStage(Stage):
         if body is None:
             return False
         if not drawn_as_html:
-            # Inline rather than a class or the `hidden` attribute: both of
-            # those can be overridden by a stylesheet this program did not
-            # write, and the one thing this must not do is start drawing the
-            # element in some books and not others.
+            # Both signals, not one — the fifth audit's correction to this
+            # repair's first version, which used the inline style alone on the
+            # ground that the `hidden` attribute can be overridden by a book's
+            # stylesheet. True — but `p { display: block !important }` overrides
+            # the inline style just as surely, so neither is the safer one;
+            # they are vulnerable to *different* overrides, and carrying both
+            # means neither override alone shows the element.
+            #
+            # And `hidden` says something CSS cannot: it is visible to receivers
+            # that never apply a stylesheet — text extraction, conversion,
+            # braille lines, read-aloud modes. To those, an element hidden only
+            # by CSS is *content*, and this paragraph was never content anywhere:
+            # `<head>` is invisible to every one of them. Without the attribute,
+            # this repair would hand exactly those readers text that no page has
+            # ever shown.
+            element.set("hidden", "hidden")
             _append_style(element, "display: none;")
         body.insert(0, element)
         return True

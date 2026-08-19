@@ -407,7 +407,16 @@ class TestTheVerdictIsAskedForOnce:
         """
         import inspect
 
+        import pytest
+
         from epubforge import cli
+
+        # PySide6 is an *optional* dependency (`[project.optional-dependencies]
+        # gui`), and this test failed on a clean machine that installed only the
+        # core — a result that depends on what the host has installed, which is
+        # the BA-2026-004 family. Found by the fifth audit. Skipping states the
+        # reason; failing stated nothing true about the code.
+        pytest.importorskip("PySide6", reason="gui extra not installed")
         from epubforge.gui import app
 
         for module in (cli, app):

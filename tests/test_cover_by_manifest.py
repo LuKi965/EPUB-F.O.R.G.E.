@@ -172,7 +172,11 @@ class TestOneTemplateForBothCoverPages:
         assert "height: 100%" in covers.COVER_STYLE
         assert "height: 100%" in covers.COVER_STYLE_ADDED
         for style in (covers.COVER_STYLE, covers.COVER_STYLE_ADDED):
-            assert "max-height: 100%" in style
+            # `100vh`, not `100%`, since EF-062: a percentage resolves against
+            # the containing block, and with the image wrapped in an
+            # auto-height `<div>` — the shape real cover pages have — it
+            # computes to none. The viewport is definite from anywhere.
+            assert "max-height: 100vh" in style
             assert "object-fit: contain" in style
 
     def test_the_repair_lands_in_the_document_head(self, tmp_path):

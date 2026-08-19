@@ -130,7 +130,13 @@ class TestContentInTheHeadKeepsBeingInvisible:
         body = body_of(result, "Nigdy tego nie widziałeś")
         moved = re.search(r"<p[^>]*>Nigdy tego nie widziałeś\.</p>", body)
         assert moved, body
+        # Both signals, on the fifth audit's argument: `display: none` for
+        # everything that applies CSS, the `hidden` attribute for every
+        # receiver that does not — text extraction, braille, read-aloud. To
+        # those the head was never content, and CSS-only hiding would hand
+        # them text no page has ever shown.
         assert "display: none" in moved.group()
+        assert "hidden" in moved.group()
 
     def test_the_report_says_it_out_loud(self, tmp_path):
         result = rebuild(
@@ -160,6 +166,7 @@ class TestContentInTheHeadKeepsBeingInvisible:
         moved = re.search(r"<p[^>]*>Nigdy tego nie widziałeś\.</p>", body)
         assert moved, body
         assert "display: none" not in moved.group()
+        assert "hidden" not in moved.group()
         assert "xhtml.head-flow-hidden" not in rules_of(result)
 
 
@@ -199,7 +206,7 @@ class TestTheCoverRulesDoNotMoveTheCover:
         """The margin is not a substitute for the limits — a test that only
         watched the margin would pass on a block that had stopped fitting the
         cover at all."""
-        assert "max-height: 100%" in covers.COVER_STYLE_ADDED
+        assert "max-height: 100vh" in covers.COVER_STYLE_ADDED
         assert "object-fit: contain" in covers.COVER_STYLE_ADDED
 
 
@@ -554,14 +561,50 @@ class TestASignatureDoesNotCarryASomebodysTitle:
         return []
 
 
-def test_the_content_stage_writes_every_document_back(tmp_path):
-    """The coupling `_inline_blocks` rests on, stated as a test.
+#: Deliberately not well-formed XML (`size=5` unquoted), so the document goes
+#: through the **HTML** parse path — the first behavioural version of the test
+#: below quoted the attribute, parsed as XML, and never exercised the branch it
+#: was written to guard.
+DIRTY_HTML = (
+    "<html><head><title>R</title>"
+    "<style>body { background-image: url(nie-ma-takiego.png); color: black; }</style>"
+    "</head><body><p><font size=5>Tekst rozdziału.</font></p></body></html>"
+)
 
-    That filter reads `resource.data` rather than the parse tree, to avoid
-    evicting the cached parse of every document in the book. It is correct only
-    while `ContentStage` writes each document back before `StyleStage` runs — if
-    that ever became conditional, a `<style>` element inserted by the content
-    stage would be invisible to the CSS repairs, silently.
+
+def test_style_repairs_see_what_the_content_stage_wrote(tmp_path):
+    """The coupling `_inline_blocks` rests on, tested as behaviour.
+
+    The filter in `_inline_blocks` reads `resource.data` rather than the parse
+    tree, to avoid evicting the cached parse of every document in the book. That
+    is correct only while `ContentStage` writes each document back before
+    `StyleStage` runs. The fifth audit showed the source-shape test below can be
+    fooled by a `continue` inside the loop — so this test checks the behaviour
+    instead: one document that needs *both* stages, and both results must be in
+    the same output file. If the write-back ever becomes conditional,
+    `_inline_blocks` re-parses stale bytes and its serialisation resurrects the
+    markup `ContentStage` had already repaired — which is exactly what this
+    asserts cannot happen.
+    """
+    result = rebuild(
+        make_book(tmp_path / "in.epub", {"chapter.html": DIRTY_HTML}),
+        str(tmp_path / "out.epub"),
+        Policy.preset("strict"),
+    )
+    assert result.status.wrote_a_file, result.report.to_text()
+    markup = next(m for m in documents_of(result).values() if "Tekst rozdziału" in m)
+    assert "<font" not in markup           # ContentStage's repair survived
+    assert "nie-ma-takiego.png" not in markup  # and StyleStage's happened at all
+
+
+def test_the_content_stage_writes_every_document_back(tmp_path):
+    """The same coupling, as a source-shape tripwire — second line of defence.
+
+    Tightened after the fifth audit measured the first version passing under
+    `if mode == "html": continue` inserted into the loop: it only inspected the
+    header of the enclosing block, and a `continue` conditions the write without
+    creating a block. Now nothing at the loop-body's own indentation between the
+    loop header and the write-back may skip an iteration or leave the function.
     """
     import inspect
 
@@ -570,13 +613,22 @@ def test_the_content_stage_writes_every_document_back(tmp_path):
     source = inspect.getsource(ContentStage.run)
     write_back = "resource.data = xhtml.serialize(root)"
     assert write_back in source
-    # Unconditional: at the loop's own indentation, not nested inside an `if`.
-    line = next(l for l in source.splitlines() if write_back in l)
-    indent = len(line) - len(line.lstrip())
-    for previous in reversed(source[: source.index(line)].splitlines()):
-        if not previous.strip():
-            continue
-        depth = len(previous) - len(previous.lstrip())
-        if depth < indent:
-            assert not previous.strip().startswith(("if ", "elif ", "else")), previous
-            break
+    lines = source.splitlines()
+    at = next(i for i, l in enumerate(lines) if write_back in l)
+    indent = len(lines[at]) - len(lines[at].lstrip())
+    header = next(
+        i for i in range(at, -1, -1)
+        if lines[i].strip() and (len(lines[i]) - len(lines[i].lstrip())) < indent
+    )
+    assert lines[header].lstrip().startswith("for "), lines[header]
+    body = lines[header + 1 : at]
+    # At *any* depth, not just the loop-body's own indentation: the audit's
+    # demonstration hid the `continue` one level deeper, inside an `if` block,
+    # and the first tightening looked straight past it. Nothing between the
+    # loop header and the write-back legitimately skips an iteration today, so
+    # a flat scan has no false positives to worry about.
+    escapes = [
+        l for l in body
+        if l.strip() and l.strip().split()[0].rstrip(":") in ("continue", "return", "break", "raise")
+    ]
+    assert not escapes, escapes

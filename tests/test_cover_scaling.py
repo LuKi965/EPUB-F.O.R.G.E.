@@ -210,7 +210,7 @@ class TestACoverNothingSizesIsRepaired:
         result = forge(book, tmp_path / "out.epub")
         assert "xhtml.cover-fitted" in {f.rule for f in result.report.findings}
         cover = cover_document(contents(result.output_path))
-        assert "max-width: 100%" in cover and "max-height: 100%" in cover
+        assert "max-width: 100%" in cover and "max-height: 100vh" in cover
 
     def test_the_limits_can_only_shrink_the_image_never_stretch_it(self):
         """Why this is safe to apply unasked. `max-width` and `max-height` have
@@ -236,7 +236,7 @@ class TestACoverNothingSizesIsRepaired:
 
         assert "{cover_style}" in COVER_PAGE_TEMPLATE
         assert "max-width: 100%" in covers.COVER_STYLE
-        assert "max-height: 100%" in covers.COVER_STYLE
+        assert "max-height: 100vh" in covers.COVER_STYLE
         assert "object-fit: contain" in covers.COVER_STYLE
 
 

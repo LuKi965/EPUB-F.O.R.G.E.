@@ -405,3 +405,76 @@ class TestNothingIsLookedForOnTheMachine:
         assert picked.path == mine
         assert picked.origin == "named"
 
+
+
+class TestTheCoverRepairMeasuredInInk:
+    """EF-057's last gap, named by the fifth audit: every guard on the cover
+    rules read the *text* of the CSS, and the finding was born from a
+    measurement of ink (`91.2% → 82.0%`). A declaration can sit in the right
+    rule and still not apply — overridden by a later rule, or undone by
+    something nobody greps for. So the final guard stops reading anything:
+    it rebuilds a book whose tall cover nothing sizes, draws both, and demands
+    that the page with the cover on it lost no ink. This is precisely the
+    measurement that refused two of the owner's books, replayed on purpose.
+    """
+
+    def test_an_unsized_tall_cover_loses_no_ink(self, tmp_path):
+        from tests.factory import png_bytes
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        tall = png_bytes(size=(390, 1300), color=(40, 40, 160))
+        # The shape of both refused books: the cover is its own spine document,
+        # a centred `<img>` that nothing sizes. It must exist in the source —
+        # a cover page the rebuild *generates* is reported as an arrival and
+        # the comparison has no source side to measure it against.
+        cover_page = (
+            '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            '<meta charset="utf-8"/><title>Cover</title></head>'
+            '<body><div style="text-align:center">'
+            '<img src="cover.png" alt="Okładka"/></div></body></html>'
+        ).encode()
+        package = PACKAGE.format(
+            extra='<item id="okl" href="cover.xhtml" media-type="application/xhtml+xml"/>'
+            '<item id="cov" href="cover.png" media-type="image/png" properties="cover-image"/>'
+        ).replace(
+            '<spine><itemref idref="c"/></spine>',
+            # The guide entry is what marks the page as *the* cover page — both
+            # refused books carried one. Without it the rebuild would not
+            # recognise ours and would generate a second cover page beside it.
+            '<spine><itemref idref="okl"/><itemref idref="c"/></spine>'
+            '<guide><reference type="cover" title="Cover" href="cover.xhtml"/></guide>',
+        )
+        source = write_zip(
+            str(tmp_path / "in.epub"),
+            {
+                "META-INF/container.xml": CONTAINER.encode(),
+                "OEBPS/package.opf": package.encode(),
+                "OEBPS/cover.xhtml": cover_page,
+                "OEBPS/r.xhtml": page(PARAGRAPHS),
+                "OEBPS/cover.png": tall,
+            },
+        )
+        result = rebuild(
+            source,
+            str(tmp_path / "out.epub"),
+            # The render gate is off so the comparison below is the judgement:
+            # a gated rebuild would refuse before this test could measure why.
+            Policy.preset("preserve", render_gate="off"),
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+
+        # 390×640 rather than the default: both refused books lost their ink at
+        # the narrowest viewport, where the 8px default margin is the largest
+        # fraction of the page.
+        measured = render_fidelity.compare(
+            source, result.output_path, viewports=((390, 640),), sample=0
+        )
+        assert measured.available, measured.reason
+        checks = [c for c in measured.pages if "cover" in c.document or "okladka" in c.document.lower()]
+        assert checks, [c.document for c in measured.pages]
+        for check in checks:
+            assert check.ok, str(check)
+            assert check.output_ink is not None and not check.output_ink.blank

@@ -418,22 +418,23 @@ MAX_SHAPES = 12
 #: A plain markup name: what an element or an attribute is called. Short, no
 #: spaces, no slashes. Everything else quoted in a message is treated as
 #: possibly the book's own and masked.
-#: What may be kept unmasked inside an EPUBCheck sentence: a name that belongs
-#: to a *vocabulary* — an element, an attribute, a property — rather than to a
-#: book. The old pattern allowed leading underscores, `\w` (so underscores and
-#: any Unicode letter) and forty characters, and on that reading a package
-#: identifier of the form `Author_Title_9789024531790` counted as a markup name.
-#: One did: it sat unmasked inside a recorded signature in the **public**
-#: repository, carrying an author and a title, and was found only when the
-#: private name scanner was taught that book.
+#: What may be kept unmasked inside an EPUBCheck sentence. **This is a
+#: precautionary gate, deliberately too narrow — not a classifier of markup.**
+#: The distinction matters, because the first version of this comment claimed
+#: "no HTML, SVG or EPUB name contains an underscore", and the fifth audit
+#: disproved it with legal counterexamples: `data-page_number` is a valid
+#: custom attribute, `ns_1:file-as` a valid namespaced name (XML NCNames allow
+#: `_`, even leading), `--kolor_tla` a valid CSS custom property — and the
+#: 24-character cap masks real vocabulary like `schema:accessibilityFeature`.
 #:
-#: The rule that separates the two, and the reason it holds: **no HTML, SVG or
-#: EPUB element, attribute or property name contains an underscore.** They are
-#: hyphenated (`http-equiv`), namespaced (`ns1:file-as`, `xml:lang`) or
-#: camel-cased (`viewBox`); publishers' identifiers are none of those things and
-#: reach for `_` constantly. The length cap is the second half: the longest name
-#: in any of those vocabularies is well under it, and an identifier is usually
-#: well over.
+#: The gate stays narrow anyway, because the costs are wildly asymmetric.
+#: A false *mask* costs a slightly less distinguishable signature. A false
+#: *pass* costs an author, a title and an ISBN sitting in the public repository
+#: for releases — which is precisely what happened: the old pattern (leading
+#: underscores, `\w`, forty characters) read `Author_Title_9789024531790` as a
+#: markup name, and three recorded signatures carried somebody's book until the
+#: private name scanner was taught those titles. When this pattern is wrong, it
+#: must be wrong in the direction that masks too much.
 _MARKUP_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:[-:.][A-Za-z0-9]+)*$")
 _MARKUP_NAME_MAX = 24
 

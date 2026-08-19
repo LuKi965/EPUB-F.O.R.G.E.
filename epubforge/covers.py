@@ -33,6 +33,16 @@ from __future__ import annotations
 #: `object-fit: contain` keeps the aspect ratio when the limits do bite, which
 #: is what stops a tall cover being squashed rather than shrunk.
 #:
+#: `max-height: 100vh`, not `100%`, and the unit is the repair (EF-062). A
+#: percentage max-height resolves against the containing block, and when the
+#: image sits inside a `<div>` whose height is `auto` — the shape both refused
+#: books actually have — the percentage computes to *none* and the limit never
+#: applies. Nobody saw it, because the gate compares against the source and the
+#: source overflowed identically. It took the ink-measuring test the fifth
+#: audit asked for to catch the promise not being kept: the fitted cover it
+#: demanded came out blank-measured, a full-bleed overflow. `vh` resolves
+#: against the viewport, which is always definite, wrapper or no wrapper.
+#:
 #: `margin: 0` is load-bearing too, and its absence from the *other* block cost
 #: two books on the owner's shelf (EF-057). A body with `height: 100%` and the
 #: browser's default 8px margin makes a page **taller than the window**; the
@@ -43,7 +53,7 @@ from __future__ import annotations
 #: `56.2% → 44.5%` of the page's ink, and the render gate refused both books.
 COVER_STYLE = """html, body { margin: 0; padding: 0; height: 100%; }
       body { display: flex; align-items: center; justify-content: center; }
-      img { max-width: 100%; max-height: 100%; object-fit: contain; }"""
+      img { max-width: 100%; max-height: 100vh; object-fit: contain; }"""
 
 #: The same rules, scoped to the images of a page that already exists, as a
 #: `<style>` this program adds to that document's head. Written as a block
@@ -57,7 +67,7 @@ COVER_STYLE_ADDED = """
          margin included — see the note on `margin: 0` below. */
       html, body { margin: 0; padding: 0; height: 100%; }
       body { display: flex; align-items: center; justify-content: center; }
-      img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      img { max-width: 100%; max-height: 100vh; object-fit: contain; }
     """
 
 

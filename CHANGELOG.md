@@ -114,6 +114,31 @@ been centred. Which the publisher wanted is a question about their intent, and
 the answer that happens with nobody there to ask is the one that changes
 nothing. Gated like every other removal: `preserve` keeps it and says so.
 
+### The hidden paragraph is now hidden without CSS too
+
+The fifth audit took apart the reasoning behind hiding head-content with an
+inline `display: none` alone: a book's stylesheet can override that just as it
+can override the `hidden` attribute — they are vulnerable to *different*
+overrides, not more and less. And the attribute says something CSS cannot: to
+receivers that never apply a stylesheet — text extraction, braille lines,
+read-aloud — a CSS-hidden element is content, and this content was never on any
+page. The moved element now carries both signals.
+
+### The cover limit now actually limits
+
+Found by the new test the audit asked for — the one that measures the cover
+page's ink instead of reading the CSS. `max-height: 100%` is a percentage of
+the containing block, and the cover image in real books sits inside a `<div>`
+whose height is auto — against which the percentage computes to **no limit at
+all**. The rule this program has been adding since the cover findings was inert
+on exactly the shape it was written for, and nobody saw it because the gate
+compares against the source and the source overflowed identically.
+
+It is `max-height: 100vh` now, in both cover blocks: the viewport is definite
+from anywhere. The page-with-text fallback keeps its old inline rule on
+purpose — capping an in-flow image to the window there would change how the
+book looks, and that decision is not this program's to make.
+
 ### A recorded signature was carrying somebody's title
 
 Not from the shelf run — from the gate that guards it. The private name scanner
