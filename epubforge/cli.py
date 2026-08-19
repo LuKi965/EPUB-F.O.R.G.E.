@@ -106,6 +106,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.remove_shop_notices = True
     if getattr(args, "repair_encoding", False):
         policy.repair_encoding = True
+    if getattr(args, "sweep_style_blocks", False):
+        policy.sweep_style_blocks = True
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1134,6 +1136,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--remove-dead",
         action="store_true",
         help="delete CSS rules and <span>s that have no effect (default in --strict)",
+    )
+    build.add_argument(
+        "--sweep-style-blocks",
+        action="store_true",
+        help=(
+            "extend the dead-rule sweep into <style> elements inside chapters; "
+            "removes only converter leftovers and repeated boilerplate, asks "
+            "about names one letter away from a used one"
+        ),
     )
     build.add_argument(
         "--keep-dead",

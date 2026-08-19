@@ -64,7 +64,12 @@ VERIFICATION = "verification"
 #: the count. Keeping them apart also keeps the ledger's per-kind tally
 #: meaningful.
 ENCODING = "encoding"
-KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING)
+#: A CSS rule that matches nothing, but whose dead name is one edit away from a
+#: name the book does use — which may be a converter's counter or a person's
+#: typo, and only a person can tell. Its own kind because the judgement is
+#: unlike the others: it needs the two names side by side, not a sentence.
+STYLE = "style"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that

@@ -417,6 +417,10 @@ class MainWindow(QMainWindow):
         # feature: whatever the application ever deletes must be optional to
         # untick, or asked about first.
         self.dead_check = self._checkbox(layout, "policy.dead", checked=False)
+        # Not folded into the tick above: the fifth audit measured this sweep
+        # an order of magnitude larger than the sheets', so it enters through
+        # its own door (D-028).
+        self.style_sweep_check = self._checkbox(layout, "policy.style-sweep", checked=False)
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
         watermark_label = QLabel(tr("policy.watermark.label"))
@@ -798,6 +802,7 @@ class MainWindow(QMainWindow):
             policy.reorganize_files = self.layout_check.isChecked()
             policy.strip_scripts = self.scripts_check.isChecked()
             policy.remove_dead = self.dead_check.isChecked()
+            policy.sweep_style_blocks = self.style_sweep_check.isChecked()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()

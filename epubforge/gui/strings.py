@@ -598,6 +598,15 @@ PL: dict[str, str] = {
         "kotwicy nie da się zastosować do całej książki, bo każdy odnośnik "
         "wskazywałby wtedy to samo miejsce."
     ),
+    "policy.style-sweep": "Sprzątaj też style wpisane w rozdziały",
+    "policy.style-sweep.tip": (
+        "To samo usuwanie martwych reguł CSS, ale w blokach <style> wewnątrz "
+        "rozdziałów — tam, gdzie konwertery zostawiają najwięcej śmieci.\n\n"
+        "Usuwane są wyłącznie pozostałości generatorów (sgc-, calibre, mso, "
+        "kix…) i bloki powtórzone żywcem w wielu rozdziałach. Reguła o nazwie "
+        "o jedną literę od używanej może być czyjąś literówką — o tę program "
+        "zapyta. Reszta zostaje i jest tylko policzona w raporcie."
+    ),
     "policy.typography": "Popraw typografię tekstu",
     "policy.typography.tip": (
         "Jedyne miejsce, w którym narzędzie zmienia sam tekst, a nie znaczniki "
@@ -1467,6 +1476,15 @@ EN: dict[str, str] = {
         "answers that mean the same thing everywhere — pointing at one "
         "particular anchor cannot be applied to a whole book, because every "
         "link would then lead to the same place."
+    ),
+    "policy.style-sweep": "Sweep styles written into chapters too",
+    "policy.style-sweep.tip": (
+        "The same dead-rule removal, extended into <style> blocks inside "
+        "chapters — where converters leave most of their litter.\n\n"
+        "Only generator leftovers (sgc-, calibre, mso, kix…) and blocks "
+        "repeated verbatim across chapters are removed. A rule named one "
+        "letter away from a name the book uses may be somebody's typo — that "
+        "one becomes a question. Everything else stays and is only counted."
     ),
     "policy.typography": "Repair the text's typography",
     "policy.typography.tip": (

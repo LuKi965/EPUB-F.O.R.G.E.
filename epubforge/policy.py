@@ -132,6 +132,17 @@ class Policy:
     #: about first (S-02). Every removal here looked obviously safe until a real
     #: book showed it was not.
     remove_dead: bool = False
+    #: Extend the unreachable-rule sweep into `<style>` elements inside
+    #: documents. Its own switch, off everywhere including strict, because the
+    #: fifth audit measured what it does at shelf scale — 66 186 rules against
+    #: the sheets' 6 303 — and a change of that size enters through its own
+    #: door, not as a consequence of another one. What it removes is narrower
+    #: than the sheet sweep: only rules whose dead names are a converter's
+    #: (sgc-, calibre, mso, kix…) or whose whole block is boilerplate repeated
+    #: across documents. A dead name one edit away from a name the book uses is
+    #: a possible human typo and becomes a question; anything else dead is only
+    #: reported. Decided with the owner 2026-08-19 (D-028).
+    sweep_style_blocks: bool = False
 
     #: What the render check does when it finds a page that lost content.
     #:

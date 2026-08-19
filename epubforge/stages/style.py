@@ -59,6 +59,28 @@ _REGULAR_VALUE_RE = re.compile(r"(font-(?:style|weight)\s*:\s*)regular\b", re.IG
 #: micro-optimisation.
 _STYLE_ELEMENT = re.compile(rb"<\s*style[\s>]", re.IGNORECASE)
 
+#: Class and id names that a converter invented, recognisable by prefix. The
+#: whole list was measured before it was written: over 66 186 unreachable rules
+#: in the shelf's `<style>` blocks, every one that fell to no other bucket was
+#: examined by hand and traced to one of these tools (Sigil's sgc-, Calibre,
+#: Word's mso/Mso, Google Docs' kix, and the section/block counters of
+#: docx-to-epub mills). A name matching none of them is *not* assumed to be
+#: junk — it is kept and reported, which is what makes this list safe to be
+#: incomplete.
+_GENERATOR_NAME = re.compile(
+    r"^(sgc-|sgd-|calibre|pcalibre|mso|Mso|lst-kix|kix-|Section\d|block_|text_|para\d)",
+    re.IGNORECASE,
+)
+
+#: Every class and id a selector names, for asking which of them are missing.
+#: Deliberately the same shape `stylesheet.names_nothing_here` parses, so the
+#: two never disagree about what a selector says.
+_SEL_NAME = re.compile(r"[.#]([A-Za-z_-][\w-]*)")
+
+#: The text of each `<style>` element, asked of raw bytes — the boilerplate
+#: census must not pay for a parse of every document.
+_STYLE_TEXT = re.compile(rb"<\s*style[^>]*>(.*?)</\s*style\s*>", re.S | re.I)
+
 #: A declaration written the way an HTML attribute is written: `text-align=
 #: "center"` where CSS wants a colon. The lead is `{` or `;` on purpose — it is
 #: what keeps this away from an attribute selector (`a[href="x"]`), from a
@@ -344,6 +366,15 @@ class StyleStage(Stage):
         every repair except this one, and the difference is written down here
         rather than left for somebody to find in a diff.
         """
+        # The boilerplate census, from bytes: the same normalised block text in
+        # three or more documents of one book is a converter stamping its
+        # template, and per D-028 that bucket may go without a question.
+        stamped: Counter = Counter()
+        if ctx.policy.sweep_style_blocks:
+            for resource in ctx.book.content_docs():
+                for found in _STYLE_TEXT.finditer(resource.data):
+                    stamped[b" ".join(found.group(1).split())] += 1
+
         for resource in ctx.book.content_docs():
             # Asked of the bytes before the tree, and not as an optimisation for
             # its own sake: `ctx.take` **evicts** the parse from the cache,
@@ -380,11 +411,174 @@ class StyleStage(Stage):
                     ctx, before, source_path, resource, unresolved,
                     sweep_unreachable=False,
                 )
+                if ctx.policy.sweep_style_blocks:
+                    key = b" ".join(before.encode("utf-8", "replace").split())
+                    after = self._sweep_style_block(
+                        ctx, after, resource, boilerplate=stamped.get(key, 0) >= 3
+                    )
                 if after != before:
                     element.text = after
                     touched = True
             if touched:
                 resource.data = xhtml.serialize(root)
+
+    @staticmethod
+    def _one_edit_away(dead: str, used: "set[str]") -> "tuple[str, int] | None":
+        """The used name closest to *dead*, if any is close enough to be a typo.
+
+        Distance 1, or 2 for names of eight characters and more — tight on
+        purpose. A looser cap would call Google Docs' `lst-kix_list_1-3` a typo
+        of `lst-kix_list_1-0`, which it is not; those never reach this check
+        anyway (generator-named), but the cap should not depend on that.
+        """
+        best = None
+        for candidate in used:
+            cap = 1 if min(len(dead), len(candidate)) < 8 else 2
+            if abs(len(dead) - len(candidate)) > cap:
+                continue
+            previous = list(range(len(candidate) + 1))
+            for row, a in enumerate(dead, 1):
+                current = [row]
+                for col, b in enumerate(candidate, 1):
+                    current.append(min(previous[col] + 1, current[-1] + 1,
+                                       previous[col - 1] + (a != b)))
+                previous = current
+            distance = previous[-1]
+            if 0 < distance <= cap and (best is None or distance < best[1]):
+                best = (candidate, distance)
+        return best
+
+    def _sweep_style_block(
+        self, ctx: Context, css_text: str, resource, *, boilerplate: bool
+    ) -> str:
+        """The unreachable-rule sweep, for one `<style>` block, three buckets.
+
+        D-028. The sheet sweep removes every rule that names nothing in the
+        book; this one is narrower on purpose, because the owner's rule about
+        removal draws the line at *significant* changes versus code errors
+        (D-026), and a `<style>` block is where the two meet. So:
+
+        * a rule whose dead name is a **converter's** (`_GENERATOR_NAME`), or
+          whose whole block is boilerplate pasted into three or more documents
+          of this book, is a code error and goes — with a report line;
+        * a rule whose dead name is one edit away from a name the book **uses**
+          may be a human's typo, and only a human can tell — it becomes a
+          question (keep / drop / correct to the used name), and nothing
+          happens without an answer;
+        * anything else dead is kept and counted, because a list of generator
+          prefixes is safe only while matching none of them means keeping.
+
+        The same guards as the sheet sweep, in the same order: a scripted book
+        is left alone entirely, `preserve` reports instead of removing, and the
+        cut is verified by re-parsing before it is kept.
+        """
+        from ..decisions import KEEP, STYLE, Option, Question
+        from ..question_texts import say
+
+        spans = stylesheet.top_level_rules(css_text)
+        dead = [
+            span for span in spans
+            if stylesheet.names_nothing_here(span.selector, ctx.used_classes, ctx.used_ids)
+        ]
+        if not dead:
+            return css_text
+        if ctx.scripted:
+            self.note(ctx, Level.INFO, "css.unreachable-rules-scripted",
+                      values={"count": len(dead)}, location=resource.path)
+            return css_text
+        share = round(100 * sum(s.end - s.start for s in dead) / max(len(css_text), 1))
+        if not ctx.policy.remove_dead:
+            self.note(ctx, Level.INFO, "css.unreachable-rules-found",
+                      values={"count": len(dead), "share": share, "total": len(spans)},
+                      location=resource.path)
+            return css_text
+
+        used = ctx.used_classes | ctx.used_ids
+        #: `(span, action, replacement)`; applied back to front so offsets hold.
+        surgery: list = []
+        typos: list[str] = []
+        unmatched = 0
+        for span in dead:
+            missing = {n for n in set(_SEL_NAME.findall(span.selector)) if n not in used}
+            generator_named = any(_GENERATOR_NAME.match(n) for n in missing)
+            near = None
+            if not boilerplate and not generator_named:
+                for name in sorted(missing):
+                    found = self._one_edit_away(name, used)
+                    if found:
+                        near = (name, *found)
+                        break
+            if near:
+                dead_name, near_name, distance = near
+                rule_text = css_text[span.start:span.end].strip()
+                question = Question(
+                    kind=STYLE,
+                    where=resource.path,
+                    summary=say("style.typo.summary", dead=dead_name, near=near_name),
+                    detail=say("style.typo.detail", where=resource.path,
+                               rule=rule_text[:400], dead=dead_name,
+                               near=near_name, distance=distance),
+                    options=(
+                        Option(KEEP, say("style.typo.keep"), say("style.typo.keep.why")),
+                        Option("drop", say("style.typo.drop"), say("style.typo.drop.why")),
+                        Option("rename", say("style.typo.rename", near=near_name),
+                               say("style.typo.rename.why", near=near_name)),
+                    ),
+                    recommended=KEEP,
+                    reversible=False,
+                    risk=Risk.APPEARANCE,
+                    group="style:typo",
+                    subject=f"{dead_name}~{near_name}",
+                )
+                answer = ctx.decide(question)
+                if answer.option == "drop":
+                    surgery.append((span, "drop", ""))
+                elif answer.option == "rename":
+                    surgery.append((span, "rename",
+                                    css_text[span.start:span.end].replace(dead_name, near_name)))
+                else:
+                    typos.append(f".{dead_name} ~ .{near_name}")
+            elif boilerplate or generator_named:
+                surgery.append((span, "drop", ""))
+            else:
+                unmatched += 1
+
+        dropped = sum(1 for _, action, _ in surgery if action == "drop")
+        renamed = sum(1 for _, action, _ in surgery if action == "rename")
+        if surgery:
+            result = css_text
+            for span, action, replacement in sorted(surgery, key=lambda s: -s[0].start):
+                result = result[:span.start] + replacement + result[span.end:]
+            # One verification for the whole surgery: the result must still be
+            # a stylesheet, and must hold exactly the rules that were not cut.
+            # `_same_but_for` cannot serve here — it verifies removals only,
+            # and a rename is not a removal.
+            if not _parses_as_css(result) or (
+                len(stylesheet.top_level_rules(result)) != len(spans) - dropped
+            ):
+                self.note(ctx, Level.WARN, "css.unreachable-rules-unverified",
+                          values={"count": dropped + renamed}, location=resource.path)
+            else:
+                css_text = result
+                if dropped:
+                    self.note(ctx, Level.FIX, "css.style-junk-removed",
+                              values={"count": dropped, "share": share, "total": len(spans)},
+                              location=resource.path)
+                    self.changed(
+                        ctx, Action.REMOVED, resource.path,
+                        before=f"{dropped} converter-leftover rule(s) matching nothing",
+                        after="removed from the document's <style> block",
+                        risk=Risk.NONE, reversible=False,
+                        rule="css.style-junk-removed",
+                    )
+        if typos:
+            self.note(ctx, Level.INFO, "css.style-typo-kept",
+                      values={"count": len(typos), "examples": ", ".join(typos[:3])},
+                      location=resource.path)
+        if unmatched:
+            self.note(ctx, Level.INFO, "css.style-unmatched-kept",
+                      values={"count": unmatched}, location=resource.path)
+        return css_text
 
     def _add_watermark_rule(self, ctx: Context) -> None:
         """Define, once, the class the content stage put on watermark markers."""
