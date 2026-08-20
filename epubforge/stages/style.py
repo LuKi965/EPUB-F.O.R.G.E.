@@ -563,6 +563,14 @@ class StyleStage(Stage):
     #: census walks every document and must not pay for a parse of each.
     _TAG_CLASS_RE = re.compile(rb'<([A-Za-z][A-Za-z0-9]*)\b[^>]*?\bclass="([^"]*)"')
 
+    #: A whole tag, for rewriting class attributes **inside tags only**. The
+    #: first shelf run with the translation on found the counterexample this
+    #: guards: a book whose visible text contains a *literal, broken* tag —
+    #: `span class="sgc-5">` with its `<` lost somewhere in the source's own
+    #: conversion — and a bare `class="…"` pattern renamed the book's text.
+    #: K1 refused the file, which is exactly what K1 is for.
+    _TAG_RE = re.compile(rb"<[A-Za-z][^>]*>")
+
     _CLASS_ATTR_RE = re.compile(rb'\bclass="([^"]*)"')
 
     def _translate_class_names(self, ctx: Context) -> None:
@@ -700,12 +708,24 @@ class StyleStage(Stage):
                     'class="' + " ".join(renames.get(t, t) for t in tokens) + '"'
                 ).encode("utf-8")
 
-            data = self._CLASS_ATTR_RE.sub(attribute, data)
+            def tag(match: "re.Match") -> bytes:
+                return self._CLASS_ATTR_RE.sub(attribute, match.group(0))
+
+            data = self._TAG_RE.sub(tag, data)
 
             def block(match: "re.Match") -> bytes:
-                text = match.group(1).decode("utf-8", "replace")
-                whole = match.group(0).decode("utf-8", "replace")
-                return whole.replace(text, rename_css(text)).encode("utf-8")
+                renamed = rename_css(
+                    match.group(1).decode("utf-8", "replace")
+                ).encode("utf-8")
+                # Spliced by position, not by `str.replace` — the block's text
+                # could coincide with a fragment of the element's own tag.
+                start, end = match.span(1)
+                offset = match.start(0)
+                return (
+                    match.group(0)[: start - offset]
+                    + renamed
+                    + match.group(0)[end - offset:]
+                )
 
             return _STYLE_TEXT.sub(block, data)
 

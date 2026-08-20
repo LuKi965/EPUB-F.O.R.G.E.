@@ -154,6 +154,28 @@ class TestTheGuards:
         assert "calibre9" in sheet_of(result)
         assert "css.class-translation-attr-selector" in rules_of(result)
 
+    def test_broken_markup_in_the_text_is_not_renamed(self, tmp_path):
+        """Found by the first shelf run with the switch on, and refused by K1
+        before it could ship: one book's visible text contains a literal,
+        broken tag — `span class="sgc-5">` with its `<` lost in the source's
+        own conversion. That is the book's TEXT, and renaming it changes the
+        book. The rewrite touches class attributes inside tags only; the
+        mutation that loosens it back to bare `class="…"` fails here."""
+        body = (
+            '<p class="calibre9">Highway span class="calibre9"&gt;i33 in.</p>'
+        )
+        sheet = "p.calibre9 { margin: 0; text-indent: 1em; line-height: 1.4; text-align: justify; }"
+        result = build(tmp_path, body=body, sheet=sheet)
+        assert result.status.wrote_a_file, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            document = next(
+                archive.read(n).decode("utf-8")
+                for n in archive.namelist()
+                if n.endswith(".xhtml") and "Highway" in archive.read(n).decode("utf-8")
+            )
+        assert 'Highway span class="calibre9"' in document  # the text, untouched
+        assert '<p class="ef-akapit-1">' in document        # the attribute, renamed
+
     def test_the_map_is_in_the_report(self, tmp_path):
         result = build(tmp_path)
         renamed = next(
