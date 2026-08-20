@@ -158,10 +158,13 @@ class Policy:
     #: (or `ef-paragraph-3`, `ef-italic` under an English window). D-031: the
     #: category comes from what the class is attached to in this book, the
     #: number is the order of first use, values are never touched, and the
-    #: report carries the full old→new map. **Off by default in this first
-    #: version** — the same road the sweep travelled (D-028 → D-029): a change
-    #: of this size is opted into until the owner turns the default himself.
-    translate_class_names: bool = False
+    #: report carries the full old→new map. **On by default in both modes
+    #: since D-032** (owner, 2026-08-20, after the acceptance measurements:
+    #: 1 483 classes across 72 books with zero pixels moved, and a KEPUB
+    #: round-trip identical to the pixel) — the same road the sweep travelled
+    #: (D-028 → D-029). The tick in the window and `--keep-class-names` are
+    #: the opt-out S-02 requires.
+    translate_class_names: bool = True
 
     #: Language of the translated names: `pl` or `en`; empty means the
     #: language the interface is running in at build time (the window's

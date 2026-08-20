@@ -147,8 +147,8 @@ pinned engine — 334 measurements, not one pixel of content lost.
 
 `calibre7`, `sgc-1`, `Hoofdtekst9a`: a converter names its styles after
 itself, and whoever opens the file later learns nothing from any of them.
-Behind a new switch (`--translate-class-names`, off by default), such names
-become the epubforge dictionary's: `ef-akapit-3`, `ef-naglowek-1` — or, where
+Such names now become the epubforge dictionary's, by default in both modes
+(unticking the box or `--keep-class-names` keeps them): `ef-akapit-3`, `ef-naglowek-1` — or, where
 one to three atomic declarations carry the whole truth, a name that *is* the
 rule: `ef-kursywa`. Under an English window the same book names itself
 `ef-paragraph-3`, `ef-italic`: the name's language follows the interface,

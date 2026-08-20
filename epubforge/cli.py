@@ -112,6 +112,9 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.sweep_style_blocks = False
     if getattr(args, "translate_class_names", False):
         policy.translate_class_names = True
+    if getattr(args, "keep_class_names", False):
+        policy.translate_class_names = False
+    if policy.translate_class_names:
         policy.class_name_language = getattr(args, "report_language", "") or ""
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
@@ -1165,8 +1168,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "rename a converter's meaningless class names (calibre7, sgc-1) "
             "to the epubforge dictionary (ef-akapit-3 / ef-paragraph-3, per "
-            "--report-language); values are never touched and the report "
-            "carries the full old-to-new map"
+            "--report-language); the default since D-032, kept for scripts "
+            "written before it"
+        ),
+    )
+    build.add_argument(
+        "--keep-class-names",
+        action="store_true",
+        help=(
+            "keep class names exactly as the converter wrote them; values "
+            "were never touched either way"
         ),
     )
     build.add_argument(

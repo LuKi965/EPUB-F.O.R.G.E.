@@ -77,9 +77,11 @@ def classes_of(result) -> "set[str]":
 
 
 class TestTheDictionarySpeaks:
-    def test_off_by_default(self, tmp_path):
-        policy = Policy.preset("preserve")
-        assert policy.translate_class_names is False
+    def test_on_by_default_and_untickable(self, tmp_path):
+        """D-032: on in both modes, after the acceptance measurements — and
+        untickable, which is what S-02 requires of every change."""
+        for name in ("preserve", "strict"):
+            assert Policy.preset(name).translate_class_names is True, name
         result = build(tmp_path, translate=False)
         assert "calibre9" in sheet_of(result)
         assert "css.classes-renamed" not in rules_of(result)
