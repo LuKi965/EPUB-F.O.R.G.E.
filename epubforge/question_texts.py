@@ -147,6 +147,29 @@ TEXTS_PL: dict[str, str] = {
         "{count} znaczników stanie się odnośnikami do swoich not; tekst "
         "pozostaje co do znaku ten sam"
     ),
+    # --- contents entries all pointing at one untangled id ------------------
+    "toc.duplicate.summary": (
+        "{count} pozycji spisu treści prowadzi w to samo miejsce, a rozplątane "
+        "cele czekają"
+    ),
+    "toc.duplicate.detail": (
+        "W źródle jeden identyfikator powtarzał się wielokrotnie i każda z tych "
+        "pozycji spisu skakała do pierwszego wystąpienia. Przebudowa rozplątała "
+        "identyfikatory i liczby się zgadzają: pozycji jest tyle, ile wystąpień. "
+        "Przypisanie po kolejności w dokumencie ({where}):\n\n{shown}\n\n"
+        "To przypisanie jest prawdopodobne, nie pewne — dlatego jest pytaniem."
+    ),
+    "toc.duplicate.keep": "Zostaw jak jest",
+    "toc.duplicate.keep.why": (
+        "Wszystkie pozycje dalej skaczą do pierwszego wystąpienia — tak, jak "
+        "działało źródło"
+    ),
+    "toc.duplicate.repoint": "Przepnij pozycje po kolejności",
+    "toc.duplicate.repoint.why": (
+        "{count} pozycji spisu poprowadzi kolejno do swoich rozplątanych celów; "
+        "jeśli kolejność w źródle znaczyła co innego, czytelnik trafi w złe "
+        "miejsce"
+    ),
     # --- a declaration written `property="value"` in a hand-touched rule ----
     "style.equals.summary": (
         "{count} deklaracji CSS zapisanych jak atrybut HTML (`=` zamiast `:`) — "
@@ -284,6 +307,30 @@ TEXTS_EN: dict[str, str] = {
     "footnote.link.why": (
         "{count} marker(s) become links to their notes; the text stays the "
         "same to the character"
+    ),
+    # --- contents entries all pointing at one untangled id ------------------
+    "toc.duplicate.summary": (
+        "{count} contents entries lead to the same place, and untangled "
+        "targets are waiting"
+    ),
+    "toc.duplicate.detail": (
+        "In the source one identifier repeated many times, and every one of "
+        "these contents entries jumped to its first occurrence. The rebuild "
+        "untangled the identifiers and the counts agree: as many entries as "
+        "occurrences. Assigned by document order ({where}):\n\n{shown}\n\n"
+        "That assignment is probable, not certain — which is why it is a "
+        "question."
+    ),
+    "toc.duplicate.keep": "Leave it as it is",
+    "toc.duplicate.keep.why": (
+        "Every entry keeps jumping to the first occurrence — the way the "
+        "source behaved"
+    ),
+    "toc.duplicate.repoint": "Repoint the entries in order",
+    "toc.duplicate.repoint.why": (
+        "{count} contents entries lead one-by-one to their untangled targets; "
+        "if the source's ordering meant something else, a reader lands in the "
+        "wrong place"
     ),
     # --- a declaration written `property="value"` in a hand-touched rule ----
     "style.equals.summary": (

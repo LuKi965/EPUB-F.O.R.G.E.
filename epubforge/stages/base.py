@@ -82,6 +82,16 @@ class Context:
     #: Navigation targets are fragments too, so they need the same remapping.
     id_map: dict[str, dict[str, str]] = field(default_factory=dict)
 
+    #: Per-document, for every id that appeared more than once: the ordered
+    #: final ids of its occurrences after untangling, keyed by the id the
+    #: *first* occurrence carries (the one every reference still lands on).
+    #: `{path: {first_id: [first_id, renamed_second, …]}}`, in document order.
+    #: The content stage knows which duplicate is which at the moment it
+    #: renames them and nobody else ever does again — EF-058 is the navigation
+    #: stage needing exactly that knowledge, one stage later, to ask about
+    #: contents entries that all jump to the first.
+    untangled: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+
     #: References whose anchor this program could not honestly resolve — see
     #: :mod:`epubforge.references`. Kept on the context rather than counted and
     #: forgotten, because two things outside the stage need them: `strict`

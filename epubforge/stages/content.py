@@ -943,6 +943,11 @@ class ContentStage(Stage):
         """
         renamed: dict[str, str] = {}
         duplicated: list[str] = []
+        # Occurrences of each source name, in document order, by final id.
+        # This pass is the only moment anything knows which duplicate became
+        # which name — EF-058 is the navigation stage needing that knowledge
+        # after it has evaporated, so it is kept on the context instead.
+        occurrences: dict[str, list[str]] = {}
         carrying = [
             element for element in xhtml.iter_elements(root) if element.get("id") is not None
         ]
@@ -954,6 +959,7 @@ class ContentStage(Stage):
             seen.add(current)
             valid = _NCNAME_RE.match(current) is not None
             if valid and not repeat:
+                occurrences.setdefault(current, []).append(current)
                 continue
             candidate = current
             if not valid:
@@ -967,6 +973,7 @@ class ContentStage(Stage):
                 counter += 1
             taken.add(unique)
             element.set("id", unique)
+            occurrences.setdefault(current, []).append(unique)
             if repeat:
                 duplicated.append(current)
             else:
@@ -974,6 +981,11 @@ class ContentStage(Stage):
                 # the map is read to rewrite `#name`, and a second entry for the
                 # same key would send every reference to whichever came last.
                 renamed[current] = unique
+        untangled = {
+            ids[0]: ids for ids in occurrences.values() if len(ids) > 1
+        }
+        if untangled:
+            ctx.untangled[path] = untangled
         if renamed:
             self.note(
                 ctx,

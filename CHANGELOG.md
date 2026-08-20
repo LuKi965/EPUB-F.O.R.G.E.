@@ -213,6 +213,30 @@ the same sheet. One consequence is stated rather than hidden: a kept invalid
 line means strict declines to publish the file, and the report says exactly
 why — that is the person's choice carried out honestly, not a defect.
 
+### Eleven contents entries, one landing place — asked, not guessed
+
+The finding (EF-058) predates this release: a source document carried one id
+eleven times, the rebuild untangles the copies correctly, and the eleven
+contents entries that pointed at the shared id kept pointing at its first
+occurrence — eleven entries, one landing place, exactly as broken as the
+source. The earlier fix stopped EPUBCheck's `playOrder` complaint; the
+entries themselves stayed tangled, and deliberately so: assigning the n-th
+entry to the n-th occurrence is probable, and probable is not the standard
+`REPAIRED` demands.
+
+The audit named the honest way out — the reference rules' third verb, ask —
+and that is what happens now (pillar 4 of the 0.3 plan). When the counts
+agree, one question shows each entry's label beside the text it would start
+leading to, assigned by document order, and says in as many words that the
+assignment is probable rather than certain. On a person's word the entries
+are repointed, in the navigation document and the NCX alike; without an
+answer every entry keeps jumping where it jumped yesterday, and the report
+carries a count. When the counts do not agree, no ordering is even probable,
+so nobody is asked at all. The knowledge this runs on — which duplicate
+became which name — existed for one moment inside the id repair and
+evaporated; it is now kept for the navigation stage, which is the whole of
+the plumbing.
+
 ### The hidden paragraph is now hidden without CSS too
 
 The fifth audit took apart the reasoning behind hiding head-content with an

@@ -5,9 +5,11 @@ from __future__ import annotations
 import html
 import re
 
-from .. import covers, paths, xmlchars
+from .. import covers, paths, xhtml, xmlchars
+from ..decisions import KEEP, REFERENCE, Option, Question
 from ..model import Landmark, NavPoint, Resource, SpineItem
-from ..report import Action, Level, Risk
+from ..question_texts import say
+from ..report import Action, Automation, Level, Risk
 from ..xhtml import EPUB_NS, XHTML_NS
 from .base import Context, Stage
 
@@ -106,6 +108,7 @@ class NavigationStage(Stage):
         self._had_nav = bool(ctx.book.nav_path)
         self._ensure_cover_page(ctx)
         self._prune_toc(ctx)
+        self._repoint_duplicate_targets(ctx)
         self._spine_what_the_navigation_reaches(ctx)
         if not ctx.book.toc:
             self._synthesize_toc(ctx)
@@ -259,6 +262,100 @@ class NavigationStage(Stage):
                 "nav.fragment-cleared",
                 values={"count": dangling_fragments},
             )
+
+    def _repoint_duplicate_targets(self, ctx: Context) -> None:
+        """Contents entries that all jump to one untangled id: asked, not guessed.
+
+        EF-058, and the audit of it drew the line this method walks. A source
+        document carried one id eleven times; the content stage untangles the
+        copies correctly (`…_5`, `…_5-2`, …), but the eleven contents entries
+        that pointed at `#…_5` keep pointing there — eleven entries, one
+        landing place. Assigning the n-th entry to the n-th occurrence is
+        *probable* and is not a fact: `references.py` allows `REPAIRED` only
+        for a mapping the program itself produced, and reading somebody
+        else's ordering is not that. Its third verb — ask — is what this is.
+
+        Asked only when the counts agree. Ten entries over eleven occurrences
+        leave no ordering that is even probable, so nothing is offered and the
+        report carries a count instead. Without an answer nothing changes:
+        every entry keeps jumping where it jumped yesterday.
+        """
+        if not ctx.untangled:
+            return
+        groups: dict[str, list[NavPoint]] = {}
+        for root in ctx.book.toc:
+            for node in root.walk():
+                target = node.target
+                if not target or "#" not in target:
+                    continue
+                path, _, fragment = target.partition("#")
+                if fragment in ctx.untangled.get(path, {}):
+                    groups.setdefault(target, []).append(node)
+
+        for target, nodes in groups.items():
+            path, _, fragment = target.partition("#")
+            names = ctx.untangled[path][fragment]
+            if len(nodes) < 2:
+                continue
+            if len(nodes) != len(names):
+                self.note(ctx, Level.INFO, "nav.duplicate-target-found",
+                          values={"count": len(nodes)}, location=path)
+                continue
+            texts = self._texts_at(ctx, path, names)
+            shown = "\n".join(
+                f"„{node.label}” → {texts.get(name, '') or f'#{name}'}"
+                for node, name in list(zip(nodes, names))[:3]
+            )
+            question = Question(
+                kind=REFERENCE,
+                where=path,
+                summary=say("toc.duplicate.summary", count=len(nodes)),
+                detail=say("toc.duplicate.detail", where=path,
+                           count=len(nodes), shown=shown),
+                options=(
+                    Option(KEEP, say("toc.duplicate.keep"), say("toc.duplicate.keep.why")),
+                    Option("repoint", say("toc.duplicate.repoint"),
+                           say("toc.duplicate.repoint.why", count=len(nodes))),
+                ),
+                recommended="repoint",
+                reversible=True,
+                risk=Risk.CONTENT,
+                group="toc:duplicate-target",
+                subject=f"{len(nodes)} entries",
+            )
+            if ctx.decide(question).option != "repoint":
+                self.note(ctx, Level.INFO, "nav.duplicate-target-found",
+                          values={"count": len(nodes)}, location=path)
+                continue
+            for node, name in zip(nodes, names):
+                node.target = f"{path}#{name}"
+            self.note(ctx, Level.FIX, "nav.entries-repointed",
+                      values={"count": len(nodes)}, location=path)
+            self.changed(
+                ctx, Action.REPLACED, path,
+                before=f"{len(nodes)} contents entries, every one landing on #{fragment}",
+                after="each entry points at its own untangled id, in document order",
+                automation=Automation.ASKED,
+                risk=Risk.CONTENT, reversible=True,
+                rule="nav.entries-repointed",
+            )
+
+    def _texts_at(self, ctx: Context, path: str, names: list[str]) -> dict[str, str]:
+        """The visible text at each id, for the question's preview."""
+        resource = ctx.book.get(path)
+        if resource is None:
+            return {}
+        try:
+            root = ctx.parsed(resource).root
+        except Exception:  # noqa: BLE001 — no preview beats no question
+            return {}
+        wanted = set(names)
+        found: dict[str, str] = {}
+        for element in xhtml.iter_elements(root):
+            name = element.get("id")
+            if name in wanted and name not in found:
+                found[name] = " ".join("".join(element.itertext()).split())[:60]
+        return found
 
     def _spine_what_the_navigation_reaches(self, ctx: Context) -> None:
         """Put a document the navigation points at into the spine, out of the flow.
