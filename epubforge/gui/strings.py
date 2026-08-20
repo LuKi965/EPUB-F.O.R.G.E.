@@ -610,6 +610,19 @@ PL: dict[str, str] = {
         "Włączone domyślnie w obu trybach: preserve zachowuje układ książki, "
         "nie śmieci konwertera. Odznaczenie zostawia wszystko i tylko liczy."
     ),
+    "policy.class-names": "Tłumacz nazwy klas na słownik epubforge",
+    "policy.class-names.tip": (
+        "Konwertery nazywają style po swojemu: calibre7, sgc-1, Hoofdtekst9a "
+        "— czytelne dla nikogo. Po zaznaczeniu takie nazwy dostają nazwy ze "
+        "słownika epubforge: ef-akapit-3, ef-naglowek-1, a reguła prosta — "
+        "wprost mówiącą, np. ef-kursywa.\n\n"
+        "Zmienia się wyłącznie nazwa, jednocześnie w stylach i w treści; "
+        "wartości reguł — wcięcia, marginesy, odstępy — zostają co do znaku, "
+        "więc książka wygląda dokładnie tak samo. Raport niesie pełną mapę "
+        "starych nazw na nowe. Nazwy powstają w języku okna.\n\n"
+        "Książka ze skryptem albo z selektorami atrybutów w CSS nie jest "
+        "ruszana — tam nazwa może żyć poza zasięgiem tej zamiany."
+    ),
     "policy.typography": "Popraw typografię tekstu",
     "policy.typography.tip": (
         "Jedyne miejsce, w którym narzędzie zmienia sam tekst, a nie znaczniki "
@@ -1491,6 +1504,19 @@ EN: dict[str, str] = {
         "not change.\n\n"
         "On by default in both modes: preserve keeps the book's layout, not "
         "the converter's litter. Unticking keeps everything and only counts."
+    ),
+    "policy.class-names": "Translate class names to the epubforge dictionary",
+    "policy.class-names.tip": (
+        "Converters name styles after themselves: calibre7, sgc-1, "
+        "Hoofdtekst9a — readable to nobody. Ticked, such names become "
+        "epubforge dictionary names: ef-paragraph-3, ef-heading-1, and a "
+        "simple rule gets a speaking one, e.g. ef-italic.\n\n"
+        "Only the name changes, in the styles and the text together; the "
+        "rules' values — indents, margins, spacing — stay to the character, "
+        "so the book looks exactly the same. The report carries the full "
+        "old-to-new map. Names are made in the window's language.\n\n"
+        "A book carrying a script, or CSS with attribute selectors, is left "
+        "alone — there a name can live beyond this rename's reach."
     ),
     "policy.typography": "Repair the text's typography",
     "policy.typography.tip": (

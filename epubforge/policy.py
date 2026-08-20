@@ -139,9 +139,12 @@ class Policy:
     #: door, not as a consequence of another one. What it removes is narrower
     #: than the sheet sweep: only rules whose dead names are a converter's
     #: (sgc-, calibre, mso, kix…) or whose whole block is boilerplate repeated
-    #: across documents. A dead name one edit away from a name the book uses is
-    #: a possible human typo and becomes a question; anything else dead is only
-    #: reported. Decided with the owner 2026-08-19 (D-028).
+    #: across documents; anything else dead is only reported. Decided with the
+    #: owner 2026-08-19 (D-028). The third bucket that briefly existed — a
+    #: dead name one edit from a used one became a "possible typo" question —
+    #: was removed by D-030, on the owner's own challenge: a dead rule draws
+    #: nothing, and the only repair the question offered would change the
+    #: book's look against this program's promise.
     #: **On by default in both modes since D-029** (owner, 2026-08-19): the
     #: preserve promise is about the book's look, and a rule no selector can
     #: reach draws nothing anywhere — "tryb preserve nie ma na celu zachować
@@ -149,6 +152,23 @@ class Policy:
     #: S-02 requires of every removal; the tick is in the window and
     #: `--keep-style-junk` is the same choice on the command line.
     sweep_style_blocks: bool = True
+
+    #: Translate a converter's meaningless class names (`calibre7`, `sgc-1`)
+    #: into names from the epubforge dictionary — `ef-akapit-3`, `ef-kursywa`
+    #: (or `ef-paragraph-3`, `ef-italic` under an English window). D-031: the
+    #: category comes from what the class is attached to in this book, the
+    #: number is the order of first use, values are never touched, and the
+    #: report carries the full old→new map. **Off by default in this first
+    #: version** — the same road the sweep travelled (D-028 → D-029): a change
+    #: of this size is opted into until the owner turns the default himself.
+    translate_class_names: bool = False
+
+    #: Language of the translated names: `pl` or `en`; empty means the
+    #: language the interface is running in at build time (the window's
+    #: setting, or EPUBFORGE_LANG). Written down here rather than read from
+    #: the environment at the moment of naming, so `--reproducible` pins it
+    #: with the rest of the policy.
+    class_name_language: str = ""
 
     #: What the render check does when it finds a page that lost content.
     #:

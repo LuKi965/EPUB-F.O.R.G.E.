@@ -143,6 +143,26 @@ Measured before it was allowed in: the full shelf several times over, the two bo
 with the largest cuts (49 545 and 8 525 rules) redrawn page by page on the
 pinned engine — 334 measurements, not one pixel of content lost.
 
+### Class names a person can read — the epubforge dictionary
+
+`calibre7`, `sgc-1`, `Hoofdtekst9a`: a converter names its styles after
+itself, and whoever opens the file later learns nothing from any of them.
+Behind a new switch (`--translate-class-names`, off by default), such names
+become the epubforge dictionary's: `ef-akapit-3`, `ef-naglowek-1` — or, where
+one to three atomic declarations carry the whole truth, a name that *is* the
+rule: `ef-kursywa`. Under an English window the same book names itself
+`ef-paragraph-3`, `ef-italic`: the name's language follows the interface,
+because whoever hand-edits the file later is whoever built it.
+
+The category is never guessed: it comes from what the class is attached to in
+this book — a class seen only on `<h2>` is a heading, a class seen on a
+heading *and* a paragraph proves neither and lands in `ef-inne`. The number
+is the order of first use in reading order, and means nothing else. The
+rules' values are untouched to the character; identical rule bodies collapse
+to one name; the report carries the full old-to-new map. A book with a script
+or with attribute selectors on `class` is left alone entirely — there a name
+can live beyond this rename's reach.
+
 ### Word's print plumbing is taken out of the styles
 
 `div.Section2 { page: Section2 }` — measured at 7 694 live rules across 160

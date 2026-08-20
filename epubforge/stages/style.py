@@ -324,6 +324,7 @@ class StyleStage(Stage):
             self._validate(ctx, resource)
 
         self._inline_blocks(ctx)
+        self._translate_class_names(ctx)
 
     def _mend(
         self,
@@ -557,6 +558,176 @@ class StyleStage(Stage):
             self.note(ctx, Level.INFO, "css.style-unmatched-kept",
                       values={"count": unmatched}, location=resource.path)
         return css_text
+
+    #: Every tag that carries a class, asked of serialized bytes — the naming
+    #: census walks every document and must not pay for a parse of each.
+    _TAG_CLASS_RE = re.compile(rb'<([A-Za-z][A-Za-z0-9]*)\b[^>]*?\bclass="([^"]*)"')
+
+    _CLASS_ATTR_RE = re.compile(rb'\bclass="([^"]*)"')
+
+    def _translate_class_names(self, ctx: Context) -> None:
+        """Rename a converter's class names to the epubforge dictionary (D-031).
+
+        Pillar 1 of the 0.3 plan, the shape negotiated with the owner across
+        six conversations: `ef-<category>-<number>` — category from what the
+        class is *attached to* in this book (ambiguity lands in `inne`, never
+        in a wrong specific category), number from the order of first use in
+        reading order, a speaking name (`ef-kursywa`) where one to three
+        atomic declarations can carry the whole truth. The rule's **values are
+        never touched**: the composition the converter recorded — every
+        indent, every margin — survives byte for byte; only the name changes,
+        in the stylesheet and in every `class` attribute together.
+
+        The name's language follows the interface (the owner's argument:
+        whoever opens the file in an editor later is whoever built it), which
+        `policy.class_name_language` pins for reproducible builds.
+
+        Two whole-book guards, both absolute: a **scripted** book is left
+        alone (a script may hold class names in strings this program cannot
+        see into), and a book whose CSS uses **attribute selectors on class**
+        (`[class~=…]`) is left alone too — those reach classes by a route the
+        rewrite below does not travel. Off by default in this first version;
+        the switch is `--translate-class-names` and the window's tick.
+        """
+        if not ctx.policy.translate_class_names:
+            return
+        from .. import naming
+        from ..question_texts import language as interface_language
+
+        if ctx.scripted:
+            self.note(ctx, Level.INFO, "css.class-translation-scripted", values={})
+            return
+
+        documents = ctx.book.content_docs()
+        sheets = list(ctx.book.by_type("style"))
+        css_texts: list[str] = [sheet.text() for sheet in sheets]
+        for document in documents:
+            css_texts += [
+                found.group(1).decode("utf-8", "replace")
+                for found in _STYLE_TEXT.finditer(document.data)
+            ]
+        if any("[class" in text for text in css_texts):
+            self.note(ctx, Level.INFO, "css.class-translation-attr-selector", values={})
+            return
+
+        # The census: which tags carry each class, and the order classes first
+        # appear in reading order. Serialized bytes, double-quoted attributes —
+        # which is what this program's own writer produces by this point.
+        tags_of: dict[str, set] = {}
+        first_use: list[str] = []
+        for document in documents:
+            for found in self._TAG_CLASS_RE.finditer(document.data):
+                tag = found.group(1).decode("ascii", "replace").lower()
+                for name in found.group(2).decode("utf-8", "replace").split():
+                    tags_of.setdefault(name, set()).add(tag)
+                    if name not in first_use and _GENERATOR_NAME.match(name):
+                        first_use.append(name)
+        if not first_use:
+            return
+
+        # Each class's declarations, read off every rule that names it.
+        declarations_of: dict[str, list] = {name: [] for name in first_use}
+        rules_of: dict[str, int] = {name: 0 for name in first_use}
+        for text in css_texts:
+            for span in stylesheet.top_level_rules(text):
+                named = set(_SEL_NAME.findall(span.selector)) & set(first_use)
+                if not named:
+                    continue
+                body = text[span.start:span.end]
+                inner = body[body.find("{") + 1:body.rfind("}")]
+                declarations = [
+                    (part.partition(":")[0].strip().lower(),
+                     " ".join(part.partition(":")[2].split()).lower())
+                    for part in inner.split(";") if ":" in part
+                ]
+                for name in named:
+                    declarations_of[name] += declarations
+                    rules_of[name] += 1
+
+        language = naming.language_of(
+            ctx.policy.class_name_language or interface_language()
+        )
+        used = set(tags_of) | set(ctx.used_classes)
+        taken: set = set()
+        counters: dict[str, int] = {}
+        identical: dict[tuple, str] = {}
+        renames: dict[str, str] = {}
+        for old in first_use:
+            declarations = declarations_of[old]
+            category = naming.categorize(
+                tags_of.get(old, set()), {prop for prop, _ in declarations}
+            )
+            body_key = (category, tuple(sorted(declarations)))
+            if rules_of[old] == 1 and declarations and body_key in identical:
+                renames[old] = identical[body_key]  # D-031: identical bodies merge
+                continue
+            new = None
+            if rules_of[old] == 1:
+                new = naming.speaking_name(declarations, language)
+            if new is None or new in taken or new in used:
+                stem = f"ef-{naming.word(category, language)}"
+                counters[category] = counters.get(category, 0) + 1
+                new = f"{stem}-{counters[category]}"
+                while new in taken or new in used:
+                    counters[category] += 1
+                    new = f"{stem}-{counters[category]}"
+            taken.add(new)
+            renames[old] = new
+            if rules_of[old] == 1 and declarations:
+                identical[body_key] = new
+        if not renames:
+            return
+
+        # Build every rewritten text first, verify, and only then commit —
+        # a half-renamed book is worse than an untouched one.
+        def rename_css(text: str) -> str:
+            for old, new in renames.items():
+                text = re.sub(r"\." + re.escape(old) + r"(?![\w-])", "." + new, text)
+            return text
+
+        new_sheets = [rename_css(text) for text in [sheet.text() for sheet in sheets]]
+        for before, after in zip([sheet.text() for sheet in sheets], new_sheets):
+            if len(stylesheet.top_level_rules(before)) != len(
+                stylesheet.top_level_rules(after)
+            ) or not _parses_as_css(after):
+                self.note(ctx, Level.WARN, "css.class-translation-unverified", values={})
+                return
+
+        def rename_document(data: bytes) -> bytes:
+            def attribute(match: "re.Match") -> bytes:
+                tokens = match.group(1).decode("utf-8", "replace").split()
+                return (
+                    'class="' + " ".join(renames.get(t, t) for t in tokens) + '"'
+                ).encode("utf-8")
+
+            data = self._CLASS_ATTR_RE.sub(attribute, data)
+
+            def block(match: "re.Match") -> bytes:
+                text = match.group(1).decode("utf-8", "replace")
+                whole = match.group(0).decode("utf-8", "replace")
+                return whole.replace(text, rename_css(text)).encode("utf-8")
+
+            return _STYLE_TEXT.sub(block, data)
+
+        for sheet, text in zip(sheets, new_sheets):
+            sheet.data = text.encode("utf-8")
+        for document in documents:
+            document.data = rename_document(document.data)
+
+        listed = "\n".join(f"{old} → {new}" for old, new in renames.items())
+        self.note(
+            ctx, Level.FIX, "css.classes-renamed",
+            values={"count": len(renames), "language": language},
+            detail=listed,
+        )
+        self.changed(
+            ctx, Action.REPLACED, "class-names",
+            before=f"{len(renames)} converter-named class(es): "
+                   + ", ".join(list(renames)[:5]) + ("…" if len(renames) > 5 else ""),
+            after="renamed to the epubforge dictionary; the report carries the full map",
+            risk=Risk.NONE, reversible=False,
+            rule="css.classes-renamed",
+        )
 
     def _page_plumbing(self, ctx: Context, css_text: str, resource) -> str:
         """Remove Word's `page: SectionN` declarations — print plumbing, not style.

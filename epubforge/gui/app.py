@@ -421,6 +421,9 @@ class MainWindow(QMainWindow):
         # an order of magnitude larger than the sheets', so it enters through
         # its own door (D-028).
         self.style_sweep_check = self._checkbox(layout, "policy.style-sweep", checked=True)
+        # Pillar 1 of the 0.3 plan (D-031): off until the owner turns the
+        # default, the same road the sweep travelled.
+        self.class_names_check = self._checkbox(layout, "policy.class-names", checked=False)
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
         watermark_label = QLabel(tr("policy.watermark.label"))
@@ -803,6 +806,8 @@ class MainWindow(QMainWindow):
             policy.strip_scripts = self.scripts_check.isChecked()
             policy.remove_dead = self.dead_check.isChecked()
             policy.sweep_style_blocks = self.style_sweep_check.isChecked()
+            policy.translate_class_names = self.class_names_check.isChecked()
+            policy.class_name_language = language()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()

@@ -110,6 +110,9 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.sweep_style_blocks = True
     if getattr(args, "keep_style_junk", False):
         policy.sweep_style_blocks = False
+    if getattr(args, "translate_class_names", False):
+        policy.translate_class_names = True
+        policy.class_name_language = getattr(args, "report_language", "") or ""
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1154,6 +1157,16 @@ def build_parser() -> argparse.ArgumentParser:
             "keep <style> blocks and stylesheets exactly as the converter "
             "left them; the report still counts what a sweep would have "
             "removed"
+        ),
+    )
+    build.add_argument(
+        "--translate-class-names",
+        action="store_true",
+        help=(
+            "rename a converter's meaningless class names (calibre7, sgc-1) "
+            "to the epubforge dictionary (ef-akapit-3 / ef-paragraph-3, per "
+            "--report-language); values are never touched and the report "
+            "carries the full old-to-new map"
         ),
     )
     build.add_argument(
