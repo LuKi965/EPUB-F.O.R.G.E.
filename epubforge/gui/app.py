@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSplitter,
     QStackedWidget,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -296,8 +295,6 @@ class MainWindow(QMainWindow):
             ("corpus", tr("tab.corpus"), CorpusPanel(self.palette_colors)),
             ("diagnostics", tr("tab.diagnostics"), DiagnosticsPanel(self.palette_colors)),
         ):
-            from PySide6.QtGui import QIcon
-
             item = QListWidgetItem(
                 QIcon(theme_module.nav_icon(glyph_name, self.palette_colors.text_muted)),
                 label,
