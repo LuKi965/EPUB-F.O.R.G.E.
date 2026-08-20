@@ -611,6 +611,15 @@ PL: dict[str, str] = {
         "nie śmieci konwertera. Odznaczenie zostawia wszystko i tylko liczy."
     ),
     "table.empty": "Przeciągnij pliki EPUB tutaj<br/>albo kliknij „Dodaj książki…”",
+    "policy.footnotes": "Pytaj o niepodlinkowane przypisy",
+    "policy.footnotes.tip": (
+        "Niektóre konwertery linkują część przypisów i porzucają resztę: "
+        "w treści zostaje goły znacznik [N], a nota z numerem N czeka w sekcji "
+        "przypisów. Gdy oba końce istnieją, program pokaże je i zapyta, czy "
+        "je połączyć. Sam tekst nie zmienia się ani o znak — dochodzi tylko "
+        "odnośnik. Bez odpowiedzi nic się nie dzieje; odznaczenie wyłącza "
+        "samo pytanie."
+    ),
     "policy.section.mode": "Tryb pracy",
     "policy.section.container": "Kontener i pliki",
     "policy.section.styles": "Style i nazwy",
@@ -1517,6 +1526,15 @@ EN: dict[str, str] = {
         "the converter's litter. Unticking keeps everything and only counts."
     ),
     "table.empty": "Drop EPUB files here<br/>or click “Add books…”",
+    "policy.footnotes": "Ask about unlinked footnotes",
+    "policy.footnotes.tip": (
+        "Some converters link part of a notes section and abandon the rest: "
+        "a bare [N] marker stays in the text while note N waits in the notes "
+        "section. When both ends exist, the program shows them and asks "
+        "whether to join them. The text itself does not change by a single "
+        "character — only a link is added. Without an answer nothing "
+        "happens; unticking declines the question in advance."
+    ),
     "policy.section.mode": "Mode",
     "policy.section.container": "Container and files",
     "policy.section.styles": "Styles and names",

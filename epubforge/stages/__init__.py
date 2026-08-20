@@ -13,7 +13,10 @@ Order is load-bearing:
 * accessibility before compatibility — it must measure the book proper, not the
   device concessions layered on top of it;
 * typography after content — it edits the text, and the content stage moves
-  markup around it. Running it first would mean unwrapping a `<span>` through a
+  markup around it;
+* footnotes after hyphens and before navigation — the linking question needs
+  the text in its final shape, and the anchors it may add exist before
+  anything counts or validates references. Running it first would mean unwrapping a `<span>` through a
   paragraph the text of which had just been retyped, for no gain;
 * compatibility last — every measure there is a step away from the standard,
   taken for a named device, and nothing earlier should have to know about it.
@@ -24,6 +27,7 @@ from .base import Context, Stage
 from .compat import CompatibilityStage
 from .content import ContentStage
 from .fonts import FontStage
+from .footnotes import FootnoteStage
 from .images import ImageStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
@@ -43,6 +47,7 @@ DEFAULT_STAGES = (
     StyleStage,
     TypographyStage,
     HyphenStage,
+    FootnoteStage,
     NavigationStage,
     AccessibilityStage,
     CompatibilityStage,
@@ -53,6 +58,7 @@ __all__ = [
     "Stage",
     "DEFAULT_STAGES",
     "FontStage",
+    "FootnoteStage",
     "ImageStage",
     "StructureStage",
     "MetadataStage",

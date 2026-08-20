@@ -173,6 +173,13 @@ class Policy:
     #: with the rest of the policy.
     class_name_language: str = ""
 
+    #: Ask about bare `[N]` footnote markers whose notes section exists, and
+    #: link them on a "link" answer (pillar 3 of the 0.3 plan). Detection
+    #: changes nothing and the question's safe option is "leave it" (S-05);
+    #: the switch exists so the question itself can be declined in advance —
+    #: a batch with no resolver never links anything either way.
+    link_footnotes: bool = True
+
     #: What the render check does when it finds a page that lost content.
     #:
     #: * `off` — do not render at all.

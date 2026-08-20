@@ -695,6 +695,9 @@ class MainWindow(QMainWindow):
         # is a person looking at it. On by default: this is a window, somebody
         # is here, and asking is the point rather than the fallback.
         self.ask_check = self._checkbox(layout, "policy.ask", checked=True)
+        # Pillar 3 of the 0.3 plan. Detection changes nothing and the question's
+        # safe answer is "leave it"; this tick declines the question in advance.
+        self.footnotes_check = self._checkbox(layout, "policy.footnotes", checked=True)
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
         # BA-2026-001's remaining half. 67 evidenced candidates against 189
         # that the book itself does not settle — so the weaker classes are one
@@ -1026,6 +1029,7 @@ class MainWindow(QMainWindow):
             policy.remove_dead = self.dead_check.isChecked()
             policy.sweep_style_blocks = self.style_sweep_check.isChecked()
             policy.translate_class_names = self.class_names_check.isChecked()
+            policy.link_footnotes = self.footnotes_check.isChecked()
             policy.class_name_language = language()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()

@@ -143,6 +143,24 @@ Measured before it was allowed in: the full shelf several times over, the two bo
 with the largest cuts (49 545 and 8 525 rules) redrawn page by page on the
 pinned engine — 334 measurements, not one pixel of content lost.
 
+### Footnotes a converter abandoned halfway are joined on request
+
+Measured on the shelf before it was designed: 19 books have working
+footnotes — never touched — and the dominant defect is a converter that
+linked part of a notes section and dropped the rest, leaving bare `[N]`
+markers in running text while notes numbered `N` wait a few files over.
+Seven books, 205 markers; the other 153 books have nothing of the kind and
+are never asked a single question.
+
+When both ends of the bridge exist, one question per book shows the first
+pairs and offers to join them. On "link", the marker's own characters are
+wrapped in an anchor — the text is identical before and after, to the
+character — and the note paragraph receives an id when it has none. A marker
+already inside a link is a working footnote and is nobody's business here;
+a number matching no note stays as it is; a numbered list in an ordinary
+chapter does not make a notes section. Without an answer nothing changes,
+and unticking one box declines the question in advance.
+
 ### Class names a person can read — the epubforge dictionary
 
 `calibre7`, `sgc-1`, `Hoofdtekst9a`: a converter names its styles after

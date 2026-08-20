@@ -114,6 +114,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.translate_class_names = True
     if getattr(args, "keep_class_names", False):
         policy.translate_class_names = False
+    if getattr(args, "no_footnote_questions", False):
+        policy.link_footnotes = False
     if policy.translate_class_names:
         policy.class_name_language = getattr(args, "report_language", "") or ""
     if getattr(args, "no_memory_check", False):
@@ -1170,6 +1172,14 @@ def build_parser() -> argparse.ArgumentParser:
             "to the epubforge dictionary (ef-akapit-3 / ef-paragraph-3, per "
             "--report-language); the default since D-032, kept for scripts "
             "written before it"
+        ),
+    )
+    build.add_argument(
+        "--no-footnote-questions",
+        action="store_true",
+        help=(
+            "never ask about bare [N] footnote markers; detection is skipped "
+            "entirely and nothing is linked"
         ),
     )
     build.add_argument(

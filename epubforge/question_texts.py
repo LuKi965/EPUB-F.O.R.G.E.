@@ -132,6 +132,21 @@ TEXTS_PL: dict[str, str] = {
     "metadata.reconstructed.write": "Wpisz poprawną wartość",
     "metadata.reconstructed.write.why": "W książce będzie to, co wpiszesz",
     # --- punctuation a conversion turned into unprintable codes -------------
+    # --- bare footnote markers whose notes exist ----------------------------
+    "footnote.summary": "{count} znaczników przypisów [N] bez odnośnika, a sekcja przypisów istnieje",
+    "footnote.detail": (
+        "W treści stoją gołe znaczniki w rodzaju [1], a w sekcji przypisów "
+        "czekają noty o tych numerach — konwerter porzucił linkowanie w pół "
+        "drogi. Pierwsze pary:\n\n{shown}\n\nPołączenie nie zmienia ani "
+        "jednego znaku tekstu: znacznik zostaje, dochodzi tylko odnośnik."
+    ),
+    "footnote.keep": "Zostaw jak jest",
+    "footnote.keep.why": "Nic się nie zmienia; znaczniki dalej nie prowadzą nigdzie",
+    "footnote.link": "Połącz znaczniki z przypisami",
+    "footnote.link.why": (
+        "{count} znaczników stanie się odnośnikami do swoich not; tekst "
+        "pozostaje co do znaku ten sam"
+    ),
     "encoding.mojibake.summary": (
         "{count} znaków przestankowych zamienionych przez konwersję w kody bez kształtu"
     ),
@@ -227,6 +242,21 @@ TEXTS_EN: dict[str, str] = {
     "metadata.reconstructed.keep.why": "The book keeps what the parser read",
     "metadata.reconstructed.write": "Type the correct value",
     "metadata.reconstructed.write.why": "The book will carry whatever you type",
+    # --- bare footnote markers whose notes exist ----------------------------
+    "footnote.summary": "{count} footnote marker(s) [N] with no link, and a notes section exists",
+    "footnote.detail": (
+        "The text carries bare markers like [1], and notes with those numbers "
+        "wait in the notes section — a converter abandoned the linking "
+        "halfway. First pairs:\n\n{shown}\n\nJoining them changes not a "
+        "single character of the text: the marker stays, only a link is added."
+    ),
+    "footnote.keep": "Leave it as it is",
+    "footnote.keep.why": "Nothing changes; the markers keep leading nowhere",
+    "footnote.link": "Join the markers to their notes",
+    "footnote.link.why": (
+        "{count} marker(s) become links to their notes; the text stays the "
+        "same to the character"
+    ),
     "encoding.mojibake.summary": (
         "{count} punctuation marks a conversion turned into codes with no shape"
     ),
