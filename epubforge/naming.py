@@ -15,10 +15,13 @@ Two properties the whole design leans on, both negotiated explicitly:
   shapes. When the evidence is ambiguous the answer is `inne`, never a wrong
   specific category: the owner's acceptance line was that `ef-akapit-20`
   must never turn out to be the book's title.
-* **The name's language follows the interface**, because the person opening
-  the file in an editor later is the person who built it — the owner's
-  argument verbatim: nobody hand-editing in Calibre will read a
-  Polish-English dictionary first. Other languages get English.
+* **The names written into a book are always English** (D-034). The first
+  design followed the interface language, on the owner's own hand-editing
+  argument — and the owner reversed it after living with the Polish names:
+  identifiers in source code are international by convention, and a Polish
+  spelling would keep making trouble downstream. The Polish column in these
+  tables is not dead weight: the window's help and the report use it to
+  explain to a Polish reader what `ef-paragraph-3` means.
 """
 
 from __future__ import annotations

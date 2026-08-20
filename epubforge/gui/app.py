@@ -1036,7 +1036,6 @@ class MainWindow(QMainWindow):
             policy.sweep_style_blocks = self.style_sweep_check.isChecked()
             policy.translate_class_names = self.class_names_check.isChecked()
             policy.link_footnotes = self.footnotes_check.isChecked()
-            policy.class_name_language = language()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()

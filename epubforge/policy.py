@@ -166,13 +166,6 @@ class Policy:
     #: the opt-out S-02 requires.
     translate_class_names: bool = True
 
-    #: Language of the translated names: `pl` or `en`; empty means the
-    #: language the interface is running in at build time (the window's
-    #: setting, or EPUBFORGE_LANG). Written down here rather than read from
-    #: the environment at the moment of naming, so `--reproducible` pins it
-    #: with the rest of the policy.
-    class_name_language: str = ""
-
     #: Ask about bare `[N]` footnote markers whose notes section exists, and
     #: link them on a "link" answer (pillar 3 of the 0.3 plan). Detection
     #: changes nothing and the question's safe option is "leave it" (S-05);

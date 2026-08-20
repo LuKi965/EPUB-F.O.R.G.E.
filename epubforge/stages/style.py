@@ -590,9 +590,14 @@ class StyleStage(Stage):
         indent, every margin — survives byte for byte; only the name changes,
         in the stylesheet and in every `class` attribute together.
 
-        The name's language follows the interface (the owner's argument:
-        whoever opens the file in an editor later is whoever built it), which
-        `policy.class_name_language` pins for reproducible builds.
+        The names are **always English**, whatever language the window
+        speaks (D-034). The first design followed the interface language —
+        the owner's own argument about hand-editing in Calibre — and the
+        owner reversed it after living with it: identifiers in source code
+        are international by convention, and Polish ones would keep making
+        trouble downstream. The window and the report keep speaking Polish;
+        the report's map and the help's dictionary are where a Polish reader
+        learns what `ef-paragraph-3` means.
 
         Two whole-book guards, both absolute: a **scripted** book is left
         alone (a script may hold class names in strings this program cannot
@@ -605,7 +610,7 @@ class StyleStage(Stage):
         word the generator wrote into its own name (`sgc-toc-title`) is the
         tool's record of what it generated — the same class of fact as the
         cover repair's marker — and is translated rather than discarded:
-        `ef-spis-tresci`, with a toc level's own digit carried over. And a
+        `ef-contents`, with a toc level's own digit carried over. And a
         block class whose declarations style like a heading is `inne`, not
         `akapit` — the category that cannot lie about a title composed out
         of `<div>`.
@@ -613,7 +618,6 @@ class StyleStage(Stage):
         if not ctx.policy.translate_class_names:
             return
         from .. import naming
-        from ..question_texts import language as interface_language
 
         if ctx.scripted:
             self.note(ctx, Level.INFO, "css.class-translation-scripted", values={})
@@ -665,9 +669,10 @@ class StyleStage(Stage):
                     declarations_of[name] += declarations
                     rules_of[name] += 1
 
-        language = naming.language_of(
-            ctx.policy.class_name_language or interface_language()
-        )
+        # Always English (D-034), whatever the window speaks: identifiers in
+        # source code are international, and one spelling per book forever is
+        # also one less thing a reproducible build has to pin.
+        language = "en"
         used = set(tags_of) | set(ctx.used_classes)
         taken: set = set()
         counters: dict[str, int] = {}

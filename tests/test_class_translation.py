@@ -6,7 +6,7 @@ attached to in this book, number from the order of first use, a speaking name
 where one to three atomic declarations carry the whole truth, the name's
 language following the interface, values never touched, the full old→new map
 in the report. The owner's acceptance line for the category logic —
-`ef-akapit-20` must never turn out to be the book's title — is a test here,
+`ef-paragraph-20` must never turn out to be the book's title — is a test here,
 not a sentence in a plan.
 """
 
@@ -45,7 +45,7 @@ SHEET = (
 )
 
 
-def build(tmp_path, *, translate=True, language="pl", body=BODY, sheet=SHEET):
+def build(tmp_path, *, translate=True, body=BODY, sheet=SHEET):
     source = make_book(
         tmp_path / "in.epub",
         {"c0.xhtml": PAGE.format(body=body)},
@@ -54,7 +54,6 @@ def build(tmp_path, *, translate=True, language="pl", body=BODY, sheet=SHEET):
     )
     policy = Policy.preset("preserve", render_gate="off")
     policy.translate_class_names = translate
-    policy.class_name_language = language
     return rebuild(source, str(tmp_path / "out.epub"), policy)
 
 
@@ -91,9 +90,9 @@ class TestTheDictionarySpeaks:
         assert result.status.wrote_a_file, result.report.to_text()
         sheet = sheet_of(result)
         assert "calibre" not in sheet and "sgc-1" not in sheet
-        assert "h2.ef-naglowek-1" in sheet
+        assert "h2.ef-heading-1" in sheet
         assert classes_of(result) == {
-            "ef-naglowek-1", "ef-akapit-1", "ef-akapit-2", "ef-kursywa"
+            "ef-heading-1", "ef-paragraph-1", "ef-paragraph-2", "ef-italic"
         }
         assert "css.classes-renamed" in rules_of(result)
 
@@ -109,31 +108,36 @@ class TestTheDictionarySpeaks:
         sorts the census fails here."""
         result = build(tmp_path)
         sheet = sheet_of(result)
-        first = sheet.index("p.ef-akapit-1")
+        first = sheet.index("p.ef-paragraph-1")
         assert "text-indent: 1.2em" in sheet[first:first + 120]
 
     def test_a_simple_rule_speaks(self, tmp_path):
         result = build(tmp_path)
-        assert "span.ef-kursywa { font-style: italic; }" in sheet_of(result)
+        assert "span.ef-italic { font-style: italic; }" in sheet_of(result)
 
-    def test_the_english_window_names_in_english(self, tmp_path):
-        result = build(tmp_path, language="en")
+    def test_the_names_are_english_whatever_the_window_speaks(self, tmp_path):
+        """D-034, the owner's reversal of his own earlier call: identifiers
+        in source code are international, so the book gets English names even
+        when the window and the report speak Polish. What a name means is the
+        report's and the help's job, in the window's language."""
+        result = build(tmp_path)
         sheet = sheet_of(result)
         assert "h2.ef-heading-1" in sheet
         assert "p.ef-paragraph-1" in sheet
         assert "span.ef-italic" in sheet
+        assert "akapit" not in sheet_of(result).replace("Akapit", "")
 
     def test_identical_bodies_share_one_name(self, tmp_path):
         """D-031: duplicates merge — measured at 11 on the shelf."""
         body = (
-            '<p class="calibre7">Raz.</p><p class="calibre8">Dwa.</p>'
+            '<p class="calibre7">Akapit raz.</p><p class="calibre8">Akapit dwa.</p>'
         )
         sheet = (
             "p.calibre7 { margin: 1em 0; text-indent: 2em; line-height: 1.3; text-align: justify; } "
             "p.calibre8 { margin: 1em 0; text-indent: 2em; line-height: 1.3; text-align: justify; }"
         )
         result = build(tmp_path, body=body, sheet=sheet)
-        assert classes_of(result) == {"ef-akapit-1"}
+        assert classes_of(result) == {"ef-paragraph-1"}
 
 
 class TestTheGuards:
@@ -176,7 +180,7 @@ class TestTheGuards:
                 if n.endswith(".xhtml") and "Highway" in archive.read(n).decode("utf-8")
             )
         assert 'Highway span class="calibre9"' in document  # the text, untouched
-        assert '<p class="ef-akapit-1">' in document        # the attribute, renamed
+        assert '<p class="ef-paragraph-1">' in document        # the attribute, renamed
 
     def test_the_map_is_in_the_report(self, tmp_path):
         result = build(tmp_path)
@@ -184,8 +188,8 @@ class TestTheGuards:
             finding for finding in result.report.findings
             if finding.rule == "css.classes-renamed"
         )
-        assert "calibre4 → ef-naglowek-1" in renamed.detail
-        assert "sgc-1 → ef-kursywa" in renamed.detail
+        assert "calibre4 → ef-heading-1" in renamed.detail
+        assert "sgc-1 → ef-italic" in renamed.detail
 
 
 TOC_BODY = (
@@ -205,7 +209,7 @@ class TestTheRoleWords:
     """D-033, the owner's own example seconded by the seventh audit:
     `sgc-toc-title` is Sigil's record that it generated a table of contents —
     the tool's note of purpose, the same class of fact as the cover repair's
-    marker — and `ef-akapit-1` in its place loses information the old name
+    marker — and `ef-paragraph-1` in its place loses information the old name
     carried. A role word found in the generator's name is translated; a toc
     level's digit is the source's own level and travels with it."""
 
@@ -213,22 +217,23 @@ class TestTheRoleWords:
         result = build(tmp_path, body=TOC_BODY, sheet=TOC_SHEET)
         assert result.status.wrote_a_file, result.report.to_text()
         sheet = sheet_of(result)
-        assert "div.ef-spis-tresci {" in sheet
+        assert "div.ef-contents {" in sheet
         # The digit is the source name's own level, carried over — not this
         # program's first-use counter. The mutation that stops carrying it
         # fails here.
-        assert "div.ef-spis-tresci-2 {" in sheet
+        assert "div.ef-contents-2 {" in sheet
         renamed = next(
             finding for finding in result.report.findings
             if finding.rule == "css.classes-renamed"
         )
-        assert "sgc-toc-title → ef-spis-tresci" in renamed.detail
+        assert "sgc-toc-title → ef-contents" in renamed.detail
 
-    def test_the_english_window_says_contents(self, tmp_path):
-        result = build(tmp_path, body=TOC_BODY, sheet=TOC_SHEET, language="en")
+    def test_a_polish_window_still_writes_contents(self, tmp_path):
+        """The D-034 tooth for role words: the book says `ef-contents`, never
+        `ef-spis-tresci` — the Polish word lives in the help, not the file."""
+        result = build(tmp_path, body=TOC_BODY, sheet=TOC_SHEET)
         sheet = sheet_of(result)
-        assert "div.ef-contents {" in sheet
-        assert "div.ef-contents-2 {" in sheet
+        assert "spis-tresci" not in sheet
 
     def test_a_heading_styled_block_is_not_a_paragraph(self, tmp_path):
         """The seventh audit's judgment case: converters compose titles out
@@ -247,12 +252,12 @@ class TestTheRoleWords:
         )
         result = build(tmp_path, body=body, sheet=sheet)
         sheet_text = sheet_of(result)
-        assert "div.ef-inne-1 {" in sheet_text
-        assert "div.ef-akapit" not in sheet_text
+        assert "div.ef-other-1 {" in sheet_text
+        assert "div.ef-paragraph" not in sheet_text
 
     def test_a_role_name_is_never_shared_by_a_body_double(self, tmp_path):
         """The identical-bodies merge (D-031) must not hand a role name to a
-        class that merely shares a rule body: `ef-spis-tresci` on a class
+        class that merely shares a rule body: `ef-contents` on a class
         that is not the contents title would be the lie the whole dictionary
         exists to avoid."""
         body = (
@@ -267,9 +272,9 @@ class TestTheRoleWords:
         )
         result = build(tmp_path, body=body, sheet=sheet)
         sheet_text = sheet_of(result)
-        assert "div.ef-spis-tresci {" in sheet_text
-        assert sheet_text.count("ef-spis-tresci") == 1
-        assert "div.ef-inne-1 {" in sheet_text  # heading-styled, no role word
+        assert "div.ef-contents {" in sheet_text
+        assert sheet_text.count("ef-contents") == 1
+        assert "div.ef-other-1 {" in sheet_text  # heading-styled, no role word
 
     def test_a_name_cannot_outvote_an_image(self):
         """The one cheap, certain contradiction: a class carried only by
@@ -278,7 +283,7 @@ class TestTheRoleWords:
         guard from `role_name` fails here."""
         from epubforge import naming
 
-        assert naming.role_name("sgc-toc-1", {"img"}, "pl") is None
-        assert naming.role_name("sgc-toc-1", {"div"}, "pl") == "ef-spis-tresci-1"
-        assert naming.role_name("MsoHyperlink", {"a"}, "pl") == "ef-odnosnik"
-        assert naming.role_name("MsoNormal", {"p"}, "pl") is None
+        assert naming.role_name("sgc-toc-1", {"img"}, "en") is None
+        assert naming.role_name("sgc-toc-1", {"div"}, "en") == "ef-contents-1"
+        assert naming.role_name("MsoHyperlink", {"a"}, "en") == "ef-hyperlink"
+        assert naming.role_name("MsoNormal", {"p"}, "en") is None

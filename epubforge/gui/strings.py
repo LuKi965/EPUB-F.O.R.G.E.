@@ -634,15 +634,15 @@ PL: dict[str, str] = {
     "policy.class-names.tip": (
         "Konwertery nazywają style po swojemu: calibre7, sgc-1, Hoofdtekst9a "
         "— czytelne dla nikogo. Po zaznaczeniu takie nazwy dostają nazwy ze "
-        "słownika epubforge: ef-akapit-3, ef-naglowek-1, a reguła prosta — "
-        "wprost mówiącą, np. ef-kursywa. Gdy nazwa generatora sama niesie "
+        "słownika epubforge: ef-paragraph-3, ef-heading-1, a reguła prosta — "
+        "wprost mówiącą, np. ef-italic. Gdy nazwa generatora sama niesie "
         "rolę (sgc-toc-title to zapis Sigila o spisie treści), rola zostaje "
-        "przetłumaczona: ef-spis-tresci, ef-spis-tresci-2 — cyfra to poziom "
+        "przetłumaczona: ef-contents, ef-contents-2 — cyfra to poziom "
         "ze źródła, nie kolejność.\n\n"
         "Zmienia się wyłącznie nazwa, jednocześnie w stylach i w treści; "
         "wartości reguł — wcięcia, marginesy, odstępy — zostają co do znaku, "
         "więc książka wygląda dokładnie tak samo. Raport niesie pełną mapę "
-        "starych nazw na nowe. Nazwy powstają w języku okna.\n\n"
+        "starych nazw na nowe. Nazwy w pliku są zawsze angielskie — identyfikatory w kodzie źródłowym to standard międzynarodowy, a co która znaczy, tłumaczy słownik w pomocy.\n\n"
         "Książka ze skryptem albo z selektorami atrybutów w CSS nie jest "
         "ruszana — tam nazwa może żyć poza zasięgiem tej zamiany."
     ),
@@ -1563,7 +1563,7 @@ EN: dict[str, str] = {
         "Only the name changes, in the styles and the text together; the "
         "rules' values — indents, margins, spacing — stay to the character, "
         "so the book looks exactly the same. The report carries the full "
-        "old-to-new map. Names are made in the window's language.\n\n"
+        "old-to-new map. The names in the file are always English — identifiers in source code are international; the help's dictionary explains each one.\n\n"
         "A book carrying a script, or CSS with attribute selectors, is left "
         "alone — there a name can live beyond this rename's reach."
     ),
