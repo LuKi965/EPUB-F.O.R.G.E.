@@ -121,6 +121,8 @@ _NAV_PATHS = {
     "library": '<path d="M3.5 3 v10 M7 3 v10 M10 3.6 l3 0.8 -2.6 9.6" fill="none" stroke="{c}" stroke-width="1.6" stroke-linecap="round"/>',
     # a card grid — the corpus of recorded signatures
     "corpus": '<path d="M3 3 h4.5 v4.5 h-4.5 z M8.5 3 h4.5 v4.5 h-4.5 z M3 8.5 h4.5 v4.5 h-4.5 z M8.5 8.5 h4.5 v4.5 h-4.5 z" fill="none" stroke="{c}" stroke-width="1.4" stroke-linejoin="round"/>',
+    # an arrow dropping into a tray — the empty queue's invitation
+    "drop": '<path d="M8 2.5 v6 M5.5 6 L8 8.8 L10.5 6 M3 10.5 v2 a1 1 0 0 0 1 1 h8 a1 1 0 0 0 1 -1 v-2" fill="none" stroke="{c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
     # a pulse line — diagnostics
     "diagnostics": '<path d="M2.5 8.5 h3 l1.6 -4 2 7 1.6 -3 h2.8" fill="none" stroke="{c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
 }
@@ -240,6 +242,14 @@ def stylesheet(palette: Palette) -> str:
     QPushButton:pressed {{ background-color: {p.border}; }}
     QPushButton:disabled {{ color: {p.text_muted}; border-color: {p.border}; }}
 
+    QPushButton#tonal {{
+        background-color: {p.surface_alt};
+        color: {p.accent};
+        border: 1px solid {p.border};
+        font-weight: 600;
+    }}
+    QPushButton#tonal:hover {{ border-color: {p.accent}; }}
+
     QPushButton#primary {{
         background-color: {p.accent};
         color: {p.accent_text};
@@ -312,7 +322,9 @@ def stylesheet(palette: Palette) -> str:
         border: none;
         border-bottom: 1px solid {p.border};
         padding: 8px;
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 8.5pt;
+        letter-spacing: 0.5px;
     }}
     QTableCornerButton::section {{ background: transparent; border: none; }}
 
@@ -399,6 +411,11 @@ def stylesheet(palette: Palette) -> str:
     QLabel#brandVersion {{ color: {p.text_muted}; font-size: 8.5pt; background: transparent; }}
 
     QLabel#sectionLabel {{ color: {p.text_muted}; font-size: 9pt; }}
+    QLabel#emptyHint {{
+        color: {p.text_muted};
+        font-size: 10.5pt;
+        background: transparent;
+    }}
     QLabel#dividerLabel {{
         color: {p.text_muted};
         font-size: 8.5pt;

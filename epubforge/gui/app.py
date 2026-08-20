@@ -55,7 +55,10 @@ LEVEL_KEYS = {
 
 STATUS_KEYS = {
     "queued": "status.queued",
-    "working": "status.working",
+    # Its own short label: "status.working" is the status *bar*'s sentence
+    # and carries a {name} placeholder — in a table cell the template leaked
+    # out literally, curly braces and all (found by the WP-21 chip demo).
+    "working": "status.cell.working",
     "done": "status.done",
     "issues": "status.issues",
     "failed": "status.failed",
@@ -206,6 +209,57 @@ class _NavTabs:
 
     def currentIndex(self) -> int:  # noqa: N802
         return self._nav.currentRow()
+
+
+class _StatusChip:
+    """Paints the queue's status cell as a Fluent pill — WP-21 phase B2.
+
+    A delegate rather than rich text, because a QTableWidgetItem cannot round
+    its own corners and a real chip is the difference the owner pointed at:
+    the sidebar spoke the new language and the middle of the window did not.
+    The colour comes from the item's foreground, which `_set_status` already
+    chooses per status — so a new status never needs a second table here.
+    """
+
+    @staticmethod
+    def install(table: QTableWidget) -> None:
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QPainter
+        from PySide6.QtWidgets import QStyledItemDelegate
+
+        class Chip(QStyledItemDelegate):
+            def sizeHint(self, option, index):  # noqa: N802 - Qt casing
+                hint = super().sizeHint(option, index)
+                hint.setWidth(hint.width() + 26)
+                return hint
+
+            def paint(self, painter, option, index):
+                text = index.data() or ""
+                if not text:
+                    return super().paint(painter, option, index)
+                color = index.data(Qt.ForegroundRole)
+                color = color.color() if color is not None else option.palette.text().color()
+                painter.save()
+                painter.setRenderHint(QPainter.Antialiasing, True)
+                metrics = option.fontMetrics
+                width = metrics.horizontalAdvance(text) + 20
+                height = metrics.height() + 6
+                rect = QRectF(
+                    option.rect.x() + 6,
+                    option.rect.center().y() - height / 2,
+                    width,
+                    height,
+                )
+                fill = QColor(color)
+                fill.setAlpha(28)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(fill)
+                painter.drawRoundedRect(rect, height / 2, height / 2)
+                painter.setPen(color)
+                painter.drawText(rect, Qt.AlignCenter, text)
+                painter.restore()
+
+        table.setItemDelegateForColumn(1, Chip(table))
 
 
 class MainWindow(QMainWindow):
@@ -379,6 +433,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
 
         add = QPushButton(tr("toolbar.add"))
+        add.setObjectName("tonal")
         add.setToolTip(tr("toolbar.add.tip"))
         add.clicked.connect(self._choose_files)
         layout.addWidget(add)
@@ -413,7 +468,9 @@ class MainWindow(QMainWindow):
             (tr("table.kept"), tr("table.kept.tip")),
             (tr("table.issues"), tr("table.issues.tip")),
         ]
-        self.table.setHorizontalHeaderLabels([label for label, _ in headers])
+        # Uppercase by hand: Qt stylesheets have no text-transform, and the
+        # quiet small-caps header is half of what makes a table read as a card.
+        self.table.setHorizontalHeaderLabels([label.upper() for label, _ in headers])
         for column, (_, tip) in enumerate(headers):
             if tip:
                 self.table.horizontalHeaderItem(column).setToolTip(tip)
@@ -429,7 +486,38 @@ class MainWindow(QMainWindow):
         self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.itemSelectionChanged.connect(self._show_selected_report)
+        _StatusChip.install(self.table)
+
+        # The empty queue invites instead of sitting blank — WP-21 phase B2.
+        # A child of the viewport, so it scrolls with nothing and never
+        # swallows a click or a drop: events pass through it.
+        from . import theme as theme_module
+
+        hint = QLabel(
+            f'<div align="center">'
+            f'<img src="{theme_module.nav_icon("drop", self.palette_colors.text_muted)}" '
+            f'width="40" height="40"/><br/><br/>{tr("table.empty")}</div>',
+            self.table.viewport(),
+        )
+        hint.setObjectName("emptyHint")
+        hint.setAlignment(Qt.AlignCenter)
+        hint.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._empty_hint = hint
+        self.table.viewport().installEventFilter(self)
+        self._update_empty_hint()
         return self.table
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.table.viewport() and event.type() in (
+            event.Type.Resize,
+            event.Type.Paint,
+        ):
+            self._empty_hint.resize(self.table.viewport().size())
+        return super().eventFilter(watched, event)
+
+    def _update_empty_hint(self) -> None:
+        self._empty_hint.setVisible(self.table.rowCount() == 0)
+        self._empty_hint.resize(self.table.viewport().size())
 
     def _build_side_panel(self) -> QWidget:
         """The options, in a column that scrolls rather than being cut off.
@@ -888,6 +976,7 @@ class MainWindow(QMainWindow):
                 self._set_status(row, "queued")
                 for column in (2, 3, 4):
                     self.table.setItem(row, column, QTableWidgetItem("—"))
+        self._update_empty_hint()
         self.statusBar().showMessage(tr("status.queued.count", count=len(self._sources)))
 
     def _clear(self) -> None:
@@ -895,6 +984,7 @@ class MainWindow(QMainWindow):
         self._results.clear()
         self.table.setRowCount(0)
         self.report_view.clear()
+        self._update_empty_hint()
 
     def _set_status(self, row: int, status: str) -> None:
         item = QTableWidgetItem(tr(STATUS_KEYS[status]))

@@ -610,6 +610,7 @@ PL: dict[str, str] = {
         "Włączone domyślnie w obu trybach: preserve zachowuje układ książki, "
         "nie śmieci konwertera. Odznaczenie zostawia wszystko i tylko liczy."
     ),
+    "table.empty": "Przeciągnij pliki EPUB tutaj<br/>albo kliknij „Dodaj książki…”",
     "policy.section.container": "Kontener i pliki",
     "policy.section.styles": "Style i nazwy",
     "policy.section.store": "Znaki wodne i sklep",
@@ -887,6 +888,7 @@ PL: dict[str, str] = {
     "status.hint.nocheck": "EPUBCheck niedostępny — weryfikacja wyłączona.",
     "status.queued.count": "W kolejce: {count}",
     "status.working": "Przebudowuję {name}…",
+    "status.cell.working": "w toku",
     "status.validating": "Sprawdzam {name} programem EPUBCheck…",
     "status.finished": "Zakończono {count} książek — wszystkie zapisane.",
     "status.finished.failures": "Zakończono {count} książek — {failures} nie udało się zapisać.",
@@ -1512,6 +1514,7 @@ EN: dict[str, str] = {
         "On by default in both modes: preserve keeps the book's layout, not "
         "the converter's litter. Unticking keeps everything and only counts."
     ),
+    "table.empty": "Drop EPUB files here<br/>or click “Add books…”",
     "policy.section.container": "Container and files",
     "policy.section.styles": "Styles and names",
     "policy.section.store": "Watermarks and the store",
@@ -1761,6 +1764,7 @@ EN: dict[str, str] = {
     "status.hint.nocheck": "EPUBCheck unavailable — validation disabled.",
     "status.queued.count": "Queued: {count}",
     "status.working": "Rebuilding {name}…",
+    "status.cell.working": "in progress",
     "status.validating": "Checking {name} with EPUBCheck…",
     "status.finished": "Finished {count} book(s) — all written.",
     "status.finished.failures": "Finished {count} book(s) — {failures} could not be written.",
