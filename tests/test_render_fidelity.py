@@ -530,6 +530,45 @@ class TestTheCoverRepairMeasuredInInk:
         assert ink is not None and not ink.blank
         assert ink.top <= 0.005, ink
 
+    def test_the_margin_zeroing_is_measured_in_ink_too(self, tmp_path):
+        """EF-057's own shape, given the ink tooth the seventh audit found
+        missing (S-3/EF-067). `margin: 0` in the added cover block is
+        load-bearing: without it the browser's default 8px body margin makes
+        the page taller than the window — the image starts 8px down and its
+        last rows fall off the bottom. Every earlier guard on that declaration
+        read the *text* of the CSS, which is the class of guard EF-057 got
+        past in the first place; the comment in `_judge` pointed at this suite
+        as holding the line in ink, and until this test it did not. Measured
+        on the pinned engine: with the margin zeroed the fitted image's ink
+        starts at the very top of the window (top = 0.0); with the mutation it
+        starts 8px down — 0.0125 of a 640px viewport."""
+        import io
+        import random
+
+        from PIL import Image
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        random.seed(7)
+        picture = Image.new("RGB", (390, 1300))
+        picture.putdata(
+            [(random.randint(0, 255),) * 3 for _ in range(390 * 1300)]
+        )
+        packed = io.BytesIO()
+        picture.save(packed, "PNG")
+        source = self.tall_cover_book(tmp_path, packed.getvalue())
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.status.wrote_a_file, result.report.to_text()
+
+        measured = render_fidelity.compare(
+            source, result.output_path, viewports=((390, 640),), sample=0
+        )
+        check = next(c for c in measured.pages if "cover" in c.document)
+        ink = check.output_ink
+        assert ink is not None and not ink.blank
+        assert ink.top <= 0.005, ink
+
     def test_a_marked_cover_that_came_out_blank_still_refuses(self, tmp_path):
         """The marker says "this program refitted this page on purpose" — it
         must never come to mean "so whatever happened to it is fine". Blank is

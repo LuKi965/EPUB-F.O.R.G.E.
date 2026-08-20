@@ -254,6 +254,44 @@ became which name — existed for one moment inside the id repair and
 evaporated; it is now kept for the navigation stage, which is the whole of
 the plumbing.
 
+### A generator's own words survive the translation
+
+The seventh audit put its finger on a loss the dictionary was inflicting:
+`sgc-toc-title` — Sigil's own record that it generated a table of contents —
+was coming out as `ef-akapit-1`, a name that says less than the one it
+replaced and, worse, says something false. The owner's verdict was the
+obvious one in hindsight: a role word the generator wrote into its own name
+is the tool's note of purpose, the same class of fact as the cover repair's
+refit marker, and it should be translated rather than discarded.
+
+Measured first: of 566 distinct generator class names on the shelf, 96 carry
+any word at all, and after machine vocabulary is set aside five families
+remain — the contents family (`toc`, with `title` and `level`), hyperlinks,
+tables, and print headers and footers. Those now translate: `sgc-toc-title`
+becomes `ef-spis-tresci`, `sgc-toc-level-2` becomes `ef-spis-tresci-2` with
+the digit carried from the source because there it means the level, and the
+English window says `ef-contents`. One contradiction closes the door: a
+class carried only by images is not a table of contents whatever its name
+claims. Alongside it, the audit's other half: a block class whose
+declarations dress like a heading — bold, uppercase, or a font a third
+larger — now lands in `inne`, which claims nothing, instead of `akapit`,
+which was fourteen times a lie on this shelf.
+
+### Three findings from the seventh audit, closed the same day
+
+The audit verified all nine positions and left three measured findings, none
+blocking. All three are closed: the two strict-refusal tests that failed on
+a machine without EPUBCheck carry the `validates` marker now, so the real
+gate answers for them everywhere and refusal stays honest — `BLOCKED` for
+want of a validator is still a refusal. The GUI's status colours live in a
+module-level table mirrored against `STATUS_KEYS` by an invariant test, so
+the next status added to one table and not the other fails a test instead
+of a person. And the render suite holds the line its comment in `_judge`
+claimed it held: a new test measures in ink what dropping `margin: 0` from
+the added cover block does — the image slides down and off the page bottom —
+where until now only guards that read the text of the CSS stood watch, the
+class of guard EF-057 originally got past.
+
 ### The hidden paragraph is now hidden without CSS too
 
 The fifth audit took apart the reasoning behind hiding head-content with an

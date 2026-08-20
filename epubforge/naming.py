@@ -23,6 +23,8 @@ Two properties the whole design leans on, both negotiated explicitly:
 
 from __future__ import annotations
 
+import re
+
 #: Category keys are the Polish, diacritic-free words; the table maps a key to
 #: its word per interface language. Keys are stable identifiers — reports and
 #: tests may rely on them — and the order here is the order the help section
@@ -60,6 +62,28 @@ ATOMS: dict[tuple[str, str], dict[str, str]] = {
     ("text-decoration", "line-through"): {"pl": "przekreslenie", "en": "strikeout"},
 }
 
+#: Role words a generator writes into its own class names (D-033). The owner's
+#: observation, seconded by the seventh audit: `sgc-toc-title` is Sigil's own
+#: record that it generated a table of contents — the name is the tool's note
+#: of purpose, the same class of fact as the cover repair's `REFIT_MARK`, and
+#: throwing it away to write `ef-akapit-1` loses information the old name
+#: carried. Measured over the shelf's 566 distinct generator names: 96 carry
+#: any word at all, and after machine vocabulary (normal, spacing, default,
+#: chp, acetate) is set aside these five families are what remains. `list` is
+#: deliberately absent — Google's `lst-kix_list_…` are numbering counters and
+#: the `lista` category already answers from evidence.
+ROLE_WORDS: dict[str, dict[str, str]] = {
+    "toc": {"pl": "spis-tresci", "en": "contents"},
+    "hyperlink": {"pl": "odnosnik", "en": "hyperlink"},
+    "table": {"pl": "tabela", "en": "table"},
+    "header": {"pl": "naglowek-strony", "en": "page-header"},
+    "footer": {"pl": "stopka", "en": "footer"},
+}
+
+#: Words inside a generator's class name: hyphen/underscore pieces, camelCase
+#: halves (`MsoHyperlink` → `Mso`, `Hyperlink`), digits their own token.
+_NAME_TOKENS = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
+
 #: A fixed composition order for speaking names, so the same combination is
 #: always the same name — layout first, then face, then decoration.
 _ATOM_ORDER = [
@@ -94,13 +118,26 @@ def word(category: str, language: str) -> str:
     return CATEGORY_WORDS[category][language_of(language)]
 
 
-def categorize(tags: "set[str]", properties: "set[str]") -> str:
+def categorize(
+    tags: "set[str]",
+    properties: "set[str]",
+    declarations: "list[tuple[str, str]] | None" = None,
+) -> str:
     """The category a class belongs to, from what carries it in this book.
 
     Every branch is a subset test on purpose: a class seen on a heading *and*
     on a body paragraph proves neither and lands in `inne`. The one softening
     is `span` beside headings — converters wrap heading fragments in spans,
     and the heading is still what the class is about.
+
+    The `akapit` branch carries one extra guard, from the seventh audit's
+    measurement: converters compose titles out of `<div>` and `<p>`, so a
+    class whose declarations *style like a heading* — bold, uppercase, or a
+    font a third larger — may well be a title the tag family cannot see.
+    Fourteen such classes on the owner's shelf were being named `ef-akapit-*`
+    while titling things; `akapit` there is a lie and `inne` is not, which is
+    the same acceptance line the whole function was built on. The guard needs
+    declaration *values*, so it only fires when the caller passes them.
     """
     if not tags:
         return "inne"
@@ -123,8 +160,62 @@ def categorize(tags: "set[str]", properties: "set[str]") -> str:
             return "wyrownanie"
         if properties and properties <= _FACE_PROPERTIES:
             return "czcionka"
+        if declarations and _heading_styled(declarations):
+            return "inne"
         return "akapit"
     return "inne"
+
+
+def _heading_styled(declarations: "list[tuple[str, str]]") -> bool:
+    """Whether these declarations dress a block the way a heading dresses.
+
+    The audit's three signals, verbatim: `font-weight` bold (or 600 and up),
+    `text-transform: uppercase`, or a `font-size` of 1.3em or more — em, rem,
+    percent, or the large keywords. Absolute units are deliberately not
+    judged: 14pt is a heading in one book and body text in another, and a
+    guard that guesses is the thing this dictionary exists to avoid.
+    """
+    for prop, value in declarations:
+        name = prop.strip().lower()
+        text = " ".join(value.split()).lower()
+        if name == "font-weight" and text in {"bold", "bolder", "600", "700", "800", "900"}:
+            return True
+        if name == "text-transform" and text == "uppercase":
+            return True
+        if name == "font-size":
+            if text in {"large", "x-large", "xx-large", "xxx-large"}:
+                return True
+            measured = re.match(r"([0-9.]+)\s*(em|rem|%)$", text)
+            if measured:
+                size = float(measured.group(1))
+                if measured.group(2) == "%":
+                    size /= 100.0
+                if size >= 1.3:
+                    return True
+    return False
+
+
+def role_name(class_name: str, tags: "set[str]", language: str) -> "str | None":
+    """The name a generator's own role word earns, or `None` (D-033).
+
+    `sgc-toc-title` → `ef-spis-tresci`; `sgc-toc-level-2` → `ef-spis-tresci-2`,
+    where the digit is the **source name's own level**, carried over because
+    the generator recorded it — it is not this program's first-use counter,
+    and the report's map is where that difference is visible. The one
+    contradiction that is cheap and certain closes the door: a class carried
+    only by images is not a table of contents whatever its name says, and a
+    role that cannot be true falls back to evidence.
+    """
+    if tags and tags <= _IMAGES:
+        return None
+    tokens = [token.lower() for token in _NAME_TOKENS.findall(class_name)]
+    role = next((token for token in tokens if token in ROLE_WORDS), None)
+    if role is None:
+        return None
+    stem = "ef-" + ROLE_WORDS[role][language_of(language)]
+    if role == "toc" and tokens and tokens[-1].isdigit():
+        return f"{stem}-{int(tokens[-1])}"
+    return stem
 
 
 def speaking_name(declarations: "list[tuple[str, str]]", language: str) -> "str | None":
@@ -155,4 +246,13 @@ def _translated_atom(pl_key: str, language: str) -> str:
     raise KeyError(pl_key)
 
 
-__all__ = ["ATOMS", "CATEGORY_WORDS", "categorize", "language_of", "speaking_name", "word"]
+__all__ = [
+    "ATOMS",
+    "CATEGORY_WORDS",
+    "ROLE_WORDS",
+    "categorize",
+    "language_of",
+    "role_name",
+    "speaking_name",
+    "word",
+]

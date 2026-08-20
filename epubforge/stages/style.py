@@ -598,8 +598,17 @@ class StyleStage(Stage):
         alone (a script may hold class names in strings this program cannot
         see into), and a book whose CSS uses **attribute selectors on class**
         (`[class~=…]`) is left alone too — those reach classes by a route the
-        rewrite below does not travel. Off by default in this first version;
-        the switch is `--translate-class-names` and the window's tick.
+        rewrite below does not travel. On by default in both modes (D-032);
+        the opt-out is `--keep-class-names` and the window's tick.
+
+        D-033, after the seventh audit and the owner's own example: a role
+        word the generator wrote into its own name (`sgc-toc-title`) is the
+        tool's record of what it generated — the same class of fact as the
+        cover repair's marker — and is translated rather than discarded:
+        `ef-spis-tresci`, with a toc level's own digit carried over. And a
+        block class whose declarations style like a heading is `inne`, not
+        `akapit` — the category that cannot lie about a title composed out
+        of `<div>`.
         """
         if not ctx.policy.translate_class_names:
             return
@@ -667,8 +676,25 @@ class StyleStage(Stage):
         for old in first_use:
             declarations = declarations_of[old]
             category = naming.categorize(
-                tags_of.get(old, set()), {prop for prop, _ in declarations}
+                tags_of.get(old, set()),
+                {prop for prop, _ in declarations},
+                declarations,
             )
+            # D-033: a role word in the generator's own name — its record of
+            # what it generated — outranks everything below, and stays out of
+            # the identical-bodies merge in both directions: a role name must
+            # never be handed to a class that merely shares a rule body, and
+            # a role-carrying class must never dissolve into a numbered one.
+            role = naming.role_name(old, tags_of.get(old, set()), language)
+            if role is not None:
+                new = role
+                suffix = 2
+                while new in taken or new in used:
+                    new = f"{role}-{suffix}"
+                    suffix += 1
+                taken.add(new)
+                renames[old] = new
+                continue
             body_key = (category, tuple(sorted(declarations)))
             if rules_of[old] == 1 and declarations and body_key in identical:
                 renames[old] = identical[body_key]  # D-031: identical bodies merge

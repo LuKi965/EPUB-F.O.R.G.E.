@@ -186,3 +186,99 @@ class TestTheGuards:
         )
         assert "calibre4 → ef-naglowek-1" in renamed.detail
         assert "sgc-1 → ef-kursywa" in renamed.detail
+
+
+TOC_BODY = (
+    '<div class="sgc-toc-title">Spis treści</div>'
+    '<div class="sgc-toc-level-2"><a href="c0.xhtml">Rozdział</a></div>'
+    '<p class="calibre9">Akapit z treścią rozdziału.</p>'
+)
+
+TOC_SHEET = (
+    "div.sgc-toc-title { font-size: 1.5em; font-weight: bold; margin: 1em 0; } "
+    "div.sgc-toc-level-2 { margin-left: 2em; text-indent: 0; } "
+    "p.calibre9 { margin: 0 0 0.2em 0; text-indent: 1.2em; line-height: 1.4; }"
+)
+
+
+class TestTheRoleWords:
+    """D-033, the owner's own example seconded by the seventh audit:
+    `sgc-toc-title` is Sigil's record that it generated a table of contents —
+    the tool's note of purpose, the same class of fact as the cover repair's
+    marker — and `ef-akapit-1` in its place loses information the old name
+    carried. A role word found in the generator's name is translated; a toc
+    level's digit is the source's own level and travels with it."""
+
+    def test_a_toc_title_speaks_its_role(self, tmp_path):
+        result = build(tmp_path, body=TOC_BODY, sheet=TOC_SHEET)
+        assert result.status.wrote_a_file, result.report.to_text()
+        sheet = sheet_of(result)
+        assert "div.ef-spis-tresci {" in sheet
+        # The digit is the source name's own level, carried over — not this
+        # program's first-use counter. The mutation that stops carrying it
+        # fails here.
+        assert "div.ef-spis-tresci-2 {" in sheet
+        renamed = next(
+            finding for finding in result.report.findings
+            if finding.rule == "css.classes-renamed"
+        )
+        assert "sgc-toc-title → ef-spis-tresci" in renamed.detail
+
+    def test_the_english_window_says_contents(self, tmp_path):
+        result = build(tmp_path, body=TOC_BODY, sheet=TOC_SHEET, language="en")
+        sheet = sheet_of(result)
+        assert "div.ef-contents {" in sheet
+        assert "div.ef-contents-2 {" in sheet
+
+    def test_a_heading_styled_block_is_not_a_paragraph(self, tmp_path):
+        """The seventh audit's judgment case: converters compose titles out
+        of `<div>`, so a block class dressed like a heading — bold, uppercase
+        or a font a third larger — must land in `inne`, which claims nothing,
+        not in `akapit`, which would lie. Fourteen such classes on the shelf.
+        The mutation that drops the heading guard from `categorize` fails
+        here."""
+        body = (
+            '<div class="calibre55">Wielki tytuł rozdziału</div>'
+            '<p class="calibre9">Akapit z treścią.</p>'
+        )
+        sheet = (
+            "div.calibre55 { font-size: 1.5em; font-weight: bold; margin: 1em 0; } "
+            "p.calibre9 { margin: 0; text-indent: 1.2em; line-height: 1.4; }"
+        )
+        result = build(tmp_path, body=body, sheet=sheet)
+        sheet_text = sheet_of(result)
+        assert "div.ef-inne-1 {" in sheet_text
+        assert "div.ef-akapit" not in sheet_text
+
+    def test_a_role_name_is_never_shared_by_a_body_double(self, tmp_path):
+        """The identical-bodies merge (D-031) must not hand a role name to a
+        class that merely shares a rule body: `ef-spis-tresci` on a class
+        that is not the contents title would be the lie the whole dictionary
+        exists to avoid."""
+        body = (
+            '<div class="sgc-toc-title">Spis treści</div>'
+            '<div class="calibre77">Zupełnie inna rzecz</div>'
+            '<p class="calibre9">Akapit z treścią.</p>'
+        )
+        sheet = (
+            "div.sgc-toc-title { font-size: 1.5em; font-weight: bold; margin: 1em 0; } "
+            "div.calibre77 { font-size: 1.5em; font-weight: bold; margin: 1em 0; } "
+            "p.calibre9 { margin: 0; text-indent: 1.2em; line-height: 1.4; }"
+        )
+        result = build(tmp_path, body=body, sheet=sheet)
+        sheet_text = sheet_of(result)
+        assert "div.ef-spis-tresci {" in sheet_text
+        assert sheet_text.count("ef-spis-tresci") == 1
+        assert "div.ef-inne-1 {" in sheet_text  # heading-styled, no role word
+
+    def test_a_name_cannot_outvote_an_image(self):
+        """The one cheap, certain contradiction: a class carried only by
+        images is not a table of contents whatever its name says. The role
+        falls away and the evidence answers. The mutation that drops the
+        guard from `role_name` fails here."""
+        from epubforge import naming
+
+        assert naming.role_name("sgc-toc-1", {"img"}, "pl") is None
+        assert naming.role_name("sgc-toc-1", {"div"}, "pl") == "ef-spis-tresci-1"
+        assert naming.role_name("MsoHyperlink", {"a"}, "pl") == "ef-odnosnik"
+        assert naming.role_name("MsoNormal", {"p"}, "pl") is None
