@@ -28,7 +28,9 @@ PL: dict[str, str] = {
     "toolbar.output.tip": (
         "Gdzie zapisać przebudowane książki.\n\n"
         "Gdy pole jest puste, każdy plik trafia obok oryginału z końcówką "
-        "„.forged.epub”. Oryginał nigdy nie jest nadpisywany."
+        "„.forged.epub”. Gdy wskażesz folder, plik dostaje w nim czystą "
+        "nazwę źródła — bez końcówki, bo folder sam mówi, co w nim jest.\n\n"
+        "Oryginał nigdy nie jest nadpisywany."
     ),
     "toolbar.browse": "Przeglądaj…",
     "toolbar.browse.tip": "Wskaż folder, w którym mają wylądować gotowe pliki.",
@@ -959,7 +961,9 @@ EN: dict[str, str] = {
     "toolbar.output.placeholder": "empty — write next to the source as *.forged.epub",
     "toolbar.output.tip": (
         "Where rebuilt books are written.\n\nLeft empty, each file is written beside its "
-        "original with a .forged.epub suffix. The source is never overwritten."
+        "original with a .forged.epub suffix. With a folder chosen, the file "
+        "keeps the source's plain name there — no suffix, because the folder "
+        "already says what it holds.\n\nThe source is never overwritten."
     ),
     "toolbar.browse": "Browse…",
     "toolbar.browse.tip": "Choose the folder for the finished files.",
