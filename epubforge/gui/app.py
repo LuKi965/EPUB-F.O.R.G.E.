@@ -6,7 +6,7 @@ import os
 import tempfile
 import sys
 
-from PySide6.QtCore import QObject, QSettings, Qt, QThread, Signal
+from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QFont, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
@@ -18,12 +18,15 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
     QSplitter,
+    QStackedWidget,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -175,6 +178,37 @@ def settings() -> QSettings:
     return QSettings("EPUB-Forge", "EPUB-Forge")
 
 
+class _NavTabs:
+    """The old QTabWidget surface of the new side navigation — WP-21 phase B.
+
+    The window used to be a QTabWidget and half the test suite (rightly)
+    reaches features through `window.tabs`. The navigation is a list and a
+    stack now, but the promise those tests hold — every feature has a page,
+    every page is reachable — has not changed, so the surface they hold it
+    through does not change either.
+    """
+
+    def __init__(self, nav: QListWidget, pages: QStackedWidget):
+        self._nav = nav
+        self._pages = pages
+
+    def count(self) -> int:
+        return self._pages.count()
+
+    def widget(self, index: int):
+        return self._pages.widget(index)
+
+    def tabText(self, index: int) -> str:  # noqa: N802 - Qt casing, kept on purpose
+        item = self._nav.item(index)
+        return item.text() if item is not None else ""
+
+    def setCurrentIndex(self, index: int) -> None:  # noqa: N802
+        self._nav.setCurrentRow(index)
+
+    def currentIndex(self) -> int:  # noqa: N802
+        return self._nav.currentRow()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, palette: theme.Palette | None = None, initial_files: list[str] | None = None):
         super().__init__()
@@ -213,14 +247,78 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- layout
     def _build_ui(self) -> None:
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._build_rebuild_tab(), tr("tab.rebuild"))
-        self.tabs.addTab(LibraryPanel(self.palette_colors), tr("tab.library"))
-        self.tabs.addTab(CorpusPanel(self.palette_colors), tr("tab.corpus"))
-        self.tabs.addTab(DiagnosticsPanel(self.palette_colors), tr("tab.diagnostics"))
-        self.tabs.currentChanged.connect(self._tab_changed)
-        self.setCentralWidget(self.tabs)
+        # WP-21 phase B: a side navigation instead of a top tab bar. The four
+        # pages are the same four panels; what changed is where their names
+        # live and how much of the window says "application" before it says
+        # "content". The owner's rule for this package: take the design
+        # language, keep our flows — nothing here is reachable one click
+        # later than it was.
+        from . import theme as theme_module
+
+        nav_pane = QWidget()
+        nav_pane.setObjectName("navPane")
+        nav_pane.setFixedWidth(212)
+        nav_layout = QVBoxLayout(nav_pane)
+        nav_layout.setContentsMargins(12, 12, 12, 12)
+        nav_layout.setSpacing(10)
+
+        brand = QWidget()
+        brand_row = QHBoxLayout(brand)
+        brand_row.setContentsMargins(2, 0, 0, 4)
+        brand_row.setSpacing(8)
+        glyph = QLabel("EF")
+        glyph.setObjectName("brandGlyph")
+        glyph.setFixedSize(30, 30)
+        glyph.setAlignment(Qt.AlignCenter)
+        brand_row.addWidget(glyph)
+        names = QVBoxLayout()
+        names.setContentsMargins(0, 0, 0, 0)
+        names.setSpacing(0)
+        title = QLabel("EPUB F.O.R.G.E.")
+        title.setObjectName("brandTitle")
+        names.addWidget(title)
+        version = QLabel(version_string())
+        version.setObjectName("brandVersion")
+        names.addWidget(version)
+        brand_row.addLayout(names)
+        brand_row.addStretch(1)
+        nav_layout.addWidget(brand)
+
+        self.nav = QListWidget()
+        self.nav.setObjectName("sideNav")
+        self.nav.setIconSize(QSize(17, 17))
+        self.nav.setUniformItemSizes(True)
+        self.pages = QStackedWidget()
+
+        for glyph_name, label, page in (
+            ("rebuild", tr("tab.rebuild"), self._build_rebuild_tab()),
+            ("library", tr("tab.library"), LibraryPanel(self.palette_colors)),
+            ("corpus", tr("tab.corpus"), CorpusPanel(self.palette_colors)),
+            ("diagnostics", tr("tab.diagnostics"), DiagnosticsPanel(self.palette_colors)),
+        ):
+            from PySide6.QtGui import QIcon
+
+            item = QListWidgetItem(
+                QIcon(theme_module.nav_icon(glyph_name, self.palette_colors.text_muted)),
+                label,
+            )
+            self.nav.addItem(item)
+            self.pages.addWidget(page)
+
+        nav_layout.addWidget(self.nav, stretch=1)
+
+        central = QWidget()
+        columns = QHBoxLayout(central)
+        columns.setContentsMargins(0, 0, 0, 0)
+        columns.setSpacing(0)
+        columns.addWidget(nav_pane)
+        columns.addWidget(self.pages, stretch=1)
+        self.setCentralWidget(central)
+
+        self.tabs = _NavTabs(self.nav, self.pages)
+        self.nav.currentRowChanged.connect(self.pages.setCurrentIndex)
+        self.nav.currentRowChanged.connect(self._tab_changed)
+        self.nav.setCurrentRow(0)
         self._tab_changed(0)
 
     def _tab_changed(self, index: int) -> None:

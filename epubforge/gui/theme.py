@@ -111,6 +111,36 @@ def _dot(color: str) -> str:
     return target.as_posix()
 
 
+#: Minimal single-stroke glyphs for the side navigation — same mechanism as
+#: the checkbox tick above: written to a temp file, because QSS and QIcon can
+#: share it and the frozen build needs no asset handling.
+_NAV_PATHS = {
+    # a hammer over an anvil block — the forge itself
+    "rebuild": '<path d="M4 12.5 L9 7.5 M7.5 3.5 h5 v3.5 h-5 z" fill="none" stroke="{c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+    # two spines and a leaning third — a shelf
+    "library": '<path d="M3.5 3 v10 M7 3 v10 M10 3.6 l3 0.8 -2.6 9.6" fill="none" stroke="{c}" stroke-width="1.6" stroke-linecap="round"/>',
+    # a card grid — the corpus of recorded signatures
+    "corpus": '<path d="M3 3 h4.5 v4.5 h-4.5 z M8.5 3 h4.5 v4.5 h-4.5 z M3 8.5 h4.5 v4.5 h-4.5 z M8.5 8.5 h4.5 v4.5 h-4.5 z" fill="none" stroke="{c}" stroke-width="1.4" stroke-linejoin="round"/>',
+    # a pulse line — diagnostics
+    "diagnostics": '<path d="M2.5 8.5 h3 l1.6 -4 2 7 1.6 -3 h2.8" fill="none" stroke="{c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+}
+
+
+def nav_icon(name: str, color: str) -> str:
+    """A file path for a navigation glyph, drawn in *color*."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+        + _NAV_PATHS[name].format(c=color)
+        + "</svg>"
+    )
+    directory = pathlib.Path(tempfile.gettempdir()) / "epubforge-ui"
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / f"nav-{name}-{hashlib.md5(svg.encode()).hexdigest()[:8]}.svg"
+    if not target.exists():
+        target.write_text(svg, encoding="utf-8")
+    return target.as_posix()
+
+
 def stylesheet(palette: Palette) -> str:
     p = palette
     tick = _checkmark(p.accent_text)
@@ -334,6 +364,39 @@ def stylesheet(palette: Palette) -> str:
 
     QStatusBar {{ color: {p.text_muted}; }}
     QStatusBar::item {{ border: none; }}
+
+    /* Side navigation (WP-21 phase B) ---------------------------------- */
+    QWidget#navPane {{
+        background-color: {p.surface};
+        border-right: 1px solid {p.border};
+    }}
+    QListWidget#sideNav {{
+        background: transparent;
+        border: none;
+        outline: none;
+        padding: 4px 8px;
+    }}
+    QListWidget#sideNav::item {{
+        color: {p.text_muted};
+        border-radius: 8px;
+        padding: 9px 10px;
+        margin: 2px 0;
+        font-weight: 600;
+    }}
+    QListWidget#sideNav::item:hover {{ background: {p.surface_alt}; color: {p.text}; }}
+    QListWidget#sideNav::item:selected {{
+        background: {p.window};
+        color: {p.accent};
+    }}
+    QLabel#brandGlyph {{
+        background-color: {p.accent};
+        color: {p.accent_text};
+        border-radius: 8px;
+        font-weight: 800;
+        font-size: 12pt;
+    }}
+    QLabel#brandTitle {{ font-size: 11pt; font-weight: 700; background: transparent; }}
+    QLabel#brandVersion {{ color: {p.text_muted}; font-size: 8.5pt; background: transparent; }}
 
     QLabel#sectionLabel {{ color: {p.text_muted}; font-size: 9pt; }}
     QLabel#dividerLabel {{
