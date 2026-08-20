@@ -65,6 +65,23 @@ STATUS_KEYS = {
     "blocked": "status.blocked",
 }
 
+#: Which palette colour each status paints its chip with. Module-level and
+#: keyed like `STATUS_KEYS` on purpose: EF-066 was a status that existed in
+#: one table and not the other, and the window found out with a KeyError on
+#: the one row a person most needs to read. The seventh audit's S-2 asked for
+#: the invariant to be a test, and a test needs the mapping where it can see
+#: it without building a window.
+STATUS_COLOR_ROLES = {
+    "queued": "text_muted",
+    "working": "accent",
+    "done": "fix",
+    "issues": "warn",
+    # A gate's deliberate refusal, painted like an error: either way, this
+    # book needs the person's eyes (EF-066).
+    "blocked": "error",
+    "failed": "error",
+}
+
 
 class Worker(QObject):
     """Runs the rebuild off the UI thread."""
@@ -999,19 +1016,8 @@ class MainWindow(QMainWindow):
 
     def _set_status(self, row: int, status: str) -> None:
         item = QTableWidgetItem(tr(STATUS_KEYS[status]))
-        colors = {
-            "queued": self.palette_colors.text_muted,
-            "working": self.palette_colors.accent,
-            "done": self.palette_colors.fix,
-            "issues": self.palette_colors.warn,
-            # A gate's deliberate refusal, missing from this dict since the
-            # dict existed — so the one row a person most needs to read raised
-            # KeyError instead of colouring (EF-066). Painted like an error:
-            # either way, this book needs the person's eyes.
-            "blocked": self.palette_colors.error,
-            "failed": self.palette_colors.error,
-        }
-        item.setForeground(QColor(colors.get(status, self.palette_colors.text)))
+        role = STATUS_COLOR_ROLES.get(status, "text")
+        item.setForeground(QColor(getattr(self.palette_colors, role)))
         self.table.setItem(row, 1, item)
 
     # ------------------------------------------------------------- execution

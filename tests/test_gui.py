@@ -633,3 +633,37 @@ class TestEveryFeatureIsActuallyInTheWindow:
         assert [
             window.gate_combo.itemData(index) for index in range(window.gate_combo.count())
         ] == list(GATES)
+
+
+class TestEveryStatusHasAColour:
+    """EF-066, closed the way the seventh audit's S-2 asked.
+
+    The `blocked` status existed in `STATUS_KEYS` and not in the colour
+    table, and the window found out with a KeyError on the one row a person
+    most needs to read — a gate's refusal. Nothing in the suite watched the
+    two tables agree, so only somebody who happened to hit a refusal could
+    see it. The mapping is module-level now precisely so this invariant can
+    be a test instead of a manual observation.
+    """
+
+    def test_the_two_tables_name_the_same_statuses(self):
+        from dataclasses import fields
+
+        from epubforge.gui.app import STATUS_COLOR_ROLES, STATUS_KEYS
+
+        assert set(STATUS_KEYS) == set(STATUS_COLOR_ROLES)
+        palette_fields = {f.name for f in fields(theme.Palette)}
+        for role in STATUS_COLOR_ROLES.values():
+            assert role in palette_fields, role
+
+    def test_every_status_paints_a_row_in_a_real_window(self, window):
+        """The audit reproduced EF-066 by calling `_set_status(0, "blocked")`
+        in real Qt; this is that measurement, kept. Any status either table
+        knows must colour a cell without raising."""
+        from epubforge.gui.app import STATUS_KEYS
+
+        window.table.setRowCount(len(STATUS_KEYS))
+        for row, status in enumerate(STATUS_KEYS):
+            window._set_status(row, status)
+            item = window.table.item(row, 1)
+            assert item is not None and item.text()

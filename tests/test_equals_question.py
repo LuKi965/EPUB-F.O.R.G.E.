@@ -14,6 +14,8 @@ generator junk standing beside it.
 
 from __future__ import annotations
 
+import pytest
+
 from epubforge.decisions import Answer
 from epubforge.pipeline import rebuild
 from epubforge.policy import Policy
@@ -70,12 +72,19 @@ class TestThePersonDecidesTheHumanLine:
         assert "text-align: center" not in css
         assert "css.malformed-declaration-left" in rules_of(result)
 
+    @pytest.mark.validates
     def test_strict_refuses_to_publish_a_kept_invalid_line(self, tmp_path):
         """`keep` in strict is a real choice with a real consequence: the line
         makes the file invalid, strict does not publish invalid files, and the
         honest outcome is a refusal — not a silent drop behind the person's
         answer. The mutation that drops the human line despite `keep` would
-        publish here, and this test fails."""
+        publish here, and this test fails.
+
+        Marked `validates` because the refusal *is* the validator's verdict
+        (the seventh audit's S-1): on a machine where the suite stands the
+        gate down, strict would publish and this test would fail for want of
+        Java. With the real gate, a machine without the validator still
+        refuses — `BLOCKED` — which is the same honest outcome."""
         result, chooser = build(tmp_path, option="keep", writes=False)
         assert equals_questions(chooser)
         assert not result.status.wrote_a_file
@@ -96,11 +105,13 @@ class TestThePersonDecidesTheHumanLine:
         assert "color: black" in css  # the healthy declaration next door stays
         assert "css.malformed-declaration-dropped" in rules_of(result)
 
+    @pytest.mark.validates
     def test_without_an_answer_nothing_changes_in_either_mode(self, tmp_path):
         """S-05 for this question: no resolver means the queue answers with
         its safe default, and the safe default here is `keep`. Preserve then
         publishes the book as it was; strict refuses to publish an invalid
-        file — in both modes the line itself is untouched."""
+        file — in both modes the line itself is untouched. Marked `validates`
+        for the strict half, same as the test above (S-1)."""
         preserve = rebuild(
             make_book(tmp_path / "in-p.epub", {"chapter.xhtml": MIXED}),
             str(tmp_path / "out-p.epub"), Policy.preset("preserve"),

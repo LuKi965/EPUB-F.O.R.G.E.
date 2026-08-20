@@ -364,7 +364,14 @@ def _judge(check: PageCheck) -> None:
         # the fitting CSS itself works is not re-litigated per book: the
         # render suite measures it with ink on a solid and a photographic
         # cover, and the mutations that break it (`100vh → 100%`, dropping
-        # `margin: 0`) fail those tests. What remains for the gate here is
+        # `margin: 0`) fail those tests. The seventh audit measured this
+        # sentence and found it half true — the `margin: 0` mutation left
+        # the whole render suite green, so the tooth this comment promised
+        # did not exist (S-3). It does now: the margin test in the ink class
+        # measures the 8px shift directly, and the mutation fails it — the
+        # claim above was made true rather than softened, because a comment
+        # is the only thing holding this boundary up. What remains for the
+        # gate here is
         # the one verdict pixels can still give safely: a blank page is a
         # loss, marker or no marker — `not after.blank` in the condition is
         # what hands that page to the blank check below instead of this note.

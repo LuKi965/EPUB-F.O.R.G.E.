@@ -192,6 +192,23 @@ hold: `page-break-*` is real styling readers honour and is never touched, and
 a pre-paginated publication keeps its `page:` — there it is paged media and
 the property is in its element.
 
+### Three teeth the seventh audit found missing, grown the same day
+
+The seventh audit verified everything in this release and measured three
+gaps beside its verdicts, all three closed here. Two tests about strict
+refusing to publish an invalid file failed on a machine without EPUBCheck —
+they were about the validator and did not say so; they carry the `validates`
+marker now, and on a machine without the validator the gate's own refusal
+(`BLOCKED`) keeps them honest. The GUI's status-colour repair had no test —
+the colour table is module-level now, one invariant test holds the two
+tables to the same set of statuses, and the audit's own reproduction
+(painting every status in real Qt) is a test too. And a comment in the
+render gate claimed the render suite would catch the cover block losing
+`margin: 0` — the audit measured that mutation leaving all 43 render tests
+green. The claim was made true rather than softened: a new ink test
+measures the 8px shift the missing margin causes (EF-057's own shape), and
+the mutation now fails exactly that test.
+
 ### A typo of the publisher's own hand becomes a question
 
 `text-align="center"` — an `=` where CSS wants a colon — has been dropped in
