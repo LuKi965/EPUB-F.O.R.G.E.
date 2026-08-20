@@ -2,9 +2,11 @@
 
 Maturity is stated in words, not encoded in the number: `__stage__` sits beside
 `__version__` and appears wherever the version does — `alpha` today. MINOR
-moves only when the stage does, against the entry conditions in
-`CONTRIBUTING.md`. PATCH moves on every release, whatever it contains, so there
-is no judgement call to make and therefore no way for one to drift upwards.
+moves when the stage does, against the entry conditions in `CONTRIBUTING.md` —
+or when the owner names a release after a completed, audited plan, which is
+what `0.3.0` was (the plan carried the name before the release did). PATCH
+moves on every release, whatever it contains, so there is no judgement call to
+make and therefore no way for one to drift upwards.
 
 The number says nothing about how significant a change was. That is what the
 entries below are for.
@@ -40,12 +42,19 @@ written; only the current version was reset.
 
 _Nic jeszcze._
 
-## 0.2.30 — alpha — 2026-08-18
+## 0.3.0 — alpha — 2026-08-20
 
-The first release whose entire content came from **running the program over the
-owner's whole shelf** rather than from reading its code. One strict run over 160
-books, nine refusals, and six of the nine were this program's doing. All six are
-below.
+The number `0.2.30` was never released — the owner skipped it (D-032) when its
+content outgrew a patch: the whole of the 0.3 plan landed inside it. This is
+that release, under the plan's own name, verified position by position by the
+seventh audit before the tag.
+
+It began as the first release whose entire content came from **running the
+program over the owner's whole shelf** rather than from reading its code — one
+strict run over 160 books, nine refusals, six of them this program's doing —
+and grew into the plan those findings fed: readable class names, print
+plumbing removed, footnotes linked on request, and two new questions in the
+decision queue. All of it is below.
 
 ### Content in the head was being made visible
 

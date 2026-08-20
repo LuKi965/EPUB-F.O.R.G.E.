@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.2.30` · alpha · **Windows**
+`0.3.0` · alpha · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
