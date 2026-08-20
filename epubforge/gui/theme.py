@@ -316,7 +316,7 @@ def stylesheet(palette: Palette) -> str:
     }}
     /* A column boundary the eye can follow across a long title without a
        hard grid: the border colour, one pixel, vertical only. */
-    QTableWidget::item {{ padding: 7px 8px; border: none; border-right: 1px solid {p.border}; }}
+    QTableWidget::item {{ padding: 7px 8px; border: none; border-right: 1px solid {p.border}; border-bottom: 1px solid {p.border}; }}
     QTableWidget::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
     QTableWidget {{ border: 1px solid {p.border}; border-radius: 8px; }}
     QHeaderView::section {{
@@ -419,17 +419,7 @@ def stylesheet(palette: Palette) -> str:
         font-size: 10.5pt;
         background: transparent;
     }}
-    QLabel#dividerLabel {{
-        color: {p.text_muted};
-        font-size: 8.5pt;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        padding: 10px 0 2px 0;
-        border-bottom: 1px solid {p.border};
-        margin-bottom: 2px;
-    }}
-    QLabel#fieldLabel {{ color: {p.text}; font-weight: 600; padding-top: 4px; }}
+     QLabel#fieldLabel {{ color: {p.text}; font-weight: 600; padding-top: 4px; }}
     """
 
 

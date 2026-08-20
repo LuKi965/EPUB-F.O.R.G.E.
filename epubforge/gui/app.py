@@ -262,6 +262,7 @@ class _StatusChip:
                 # or this one column loses its boundary.
                 painter.setPen(QPen(QColor(border)))
                 painter.drawLine(option.rect.topRight(), option.rect.bottomRight())
+                painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
                 painter.restore()
 
         table.setItemDelegateForColumn(1, Chip(table))
@@ -486,7 +487,9 @@ class MainWindow(QMainWindow):
         for column in range(1, 5):
             header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
+        # No zebra: the row separator below replaces it, which is how a
+        # Fluent list reads — lines, hover, selection, not stripes.
+        self.table.setAlternatingRowColors(False)
         self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -571,16 +574,25 @@ class MainWindow(QMainWindow):
         panel.setMaximumWidth(430)
         return panel
 
-    def _build_policy_box(self) -> QGroupBox:
-        box = QGroupBox(tr("policy.group"))
-        layout = QVBoxLayout(box)
-        layout.setSpacing(7)
+    def _build_policy_box(self) -> QWidget:
+        # WP-21 phase B4: the sections became *cards*, one per concern — the
+        # owner's line was that the right column still did not speak the
+        # sidebar's language, and eight small cards is that language. Same
+        # switches, same attribute names, one scrolling column; only the
+        # walls moved.
+        column = QWidget()
+        stack = QVBoxLayout(column)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.setSpacing(10)
 
-        # WP-21 phase A: the same switches, grouped under readable headings.
-        # One scroll column still — sections are visual, not navigational —
-        # and every widget keeps its attribute name, so nothing downstream
-        # (mode toggling, policy assembly, retranslation) changes.
+        def card(key: str) -> QVBoxLayout:
+            box = QGroupBox(tr(key))
+            inner = QVBoxLayout(box)
+            inner.setSpacing(7)
+            stack.addWidget(box)
+            return inner
 
+        layout = card("policy.section.mode")
         label = QLabel(tr("policy.mode.label"))
         label.setObjectName("sectionLabel")
         label.setWordWrap(True)
@@ -601,7 +613,7 @@ class MainWindow(QMainWindow):
         self.mode_combo.currentIndexChanged.connect(self._mode_changed)
         layout.addWidget(self.mode_combo)
 
-        self._divider(layout, "policy.section.container")
+        layout = card("policy.section.container")
         self.ncx_check = self._checkbox(layout, "policy.ncx", checked=True)
         self.orphans_check = self._checkbox(layout, "policy.orphans", checked=False)
         # The last thing in the program that deleted a file by name. It now
@@ -611,7 +623,7 @@ class MainWindow(QMainWindow):
         self.layout_check = self._checkbox(layout, "policy.layout", checked=True)
         self.scripts_check = self._checkbox(layout, "policy.scripts", checked=False)
 
-        self._divider(layout, "policy.section.styles")
+        layout = card("policy.section.styles")
         # Ticked by "force the standard" and untickable there all the same.
         # The owner asked for this as a standing rule rather than about this
         # feature: whatever the application ever deletes must be optional to
@@ -632,7 +644,7 @@ class MainWindow(QMainWindow):
         )
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
-        self._divider(layout, "policy.section.store")
+        layout = card("policy.section.store")
         watermark_label = QLabel(tr("policy.watermark.label"))
         watermark_label.setObjectName("sectionLabel")
         watermark_label.setWordWrap(True)
@@ -657,7 +669,7 @@ class MainWindow(QMainWindow):
             layout, "policy.shop.notices", checked=False
         )
 
-        self._divider(layout, "policy.section.assets")
+        layout = card("policy.section.assets")
         # Two more things this program changes about a book, and the owner's
         # standing rule says a person gets the last word on each: fonts whose
         # obfuscation is undone, and images converted out of a format EPUB 3
@@ -667,7 +679,7 @@ class MainWindow(QMainWindow):
         self.fonts_check = self._checkbox(layout, "policy.fonts", checked=True)
         self.images_check = self._checkbox(layout, "policy.images", checked=True)
 
-        self._divider(layout, "policy.section.questions")
+        layout = card("policy.section.questions")
         # There used to be a checkbox here — "rebuild even if part of the source
         # cannot be read". It is gone with the setting behind it: a source this
         # program could not read in full now stops the rebuild, with no way
@@ -718,7 +730,7 @@ class MainWindow(QMainWindow):
         # something people switch off.
         self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
 
-        self._divider(layout, "policy.section.gates")
+        layout = card("policy.section.gates")
         self.validate_check = self._checkbox(
             layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
         )
@@ -780,7 +792,7 @@ class MainWindow(QMainWindow):
             layout, "policy.render.unverified", checked=False
         )
 
-        self._divider(layout, "policy.section.run")
+        layout = card("policy.section.run")
         # BA-2026-003. Beside the settings rather than beside the button,
         # because it is a question about this run and not about this book.
         self.plan_check = self._checkbox(layout, "policy.plan.only", checked=False)
@@ -804,20 +816,7 @@ class MainWindow(QMainWindow):
         self.memory_check.toggled.connect(self.memory_limit_edit.setEnabled)
 
         self._mode_changed()
-        return box
-
-    @staticmethod
-    def _divider(layout, key: str) -> QLabel:
-        """A section heading inside the settings column — WP-21 phase A.
-
-        Purely visual: the switches stay in one scroll, in one layout, under
-        the same attribute names. The heading only says where one concern
-        ends and the next begins, which twenty-five flat checkboxes did not.
-        """
-        label = QLabel(tr(key))
-        label.setObjectName("dividerLabel")
-        layout.addWidget(label)
-        return label
+        return column
 
     def _checkbox(self, layout, key: str, *, checked: bool, enabled: bool = True) -> QCheckBox:
         box = QCheckBox(tr(key))

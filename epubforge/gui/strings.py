@@ -611,6 +611,7 @@ PL: dict[str, str] = {
         "nie śmieci konwertera. Odznaczenie zostawia wszystko i tylko liczy."
     ),
     "table.empty": "Przeciągnij pliki EPUB tutaj<br/>albo kliknij „Dodaj książki…”",
+    "policy.section.mode": "Tryb pracy",
     "policy.section.container": "Kontener i pliki",
     "policy.section.styles": "Style i nazwy",
     "policy.section.store": "Znaki wodne i sklep",
@@ -1515,6 +1516,7 @@ EN: dict[str, str] = {
         "the converter's litter. Unticking keeps everything and only counts."
     ),
     "table.empty": "Drop EPUB files here<br/>or click “Add books…”",
+    "policy.section.mode": "Mode",
     "policy.section.container": "Container and files",
     "policy.section.styles": "Styles and names",
     "policy.section.store": "Watermarks and the store",
