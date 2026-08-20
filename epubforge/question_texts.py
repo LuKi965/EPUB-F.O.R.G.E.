@@ -147,6 +147,34 @@ TEXTS_PL: dict[str, str] = {
         "{count} znaczników stanie się odnośnikami do swoich not; tekst "
         "pozostaje co do znaku ten sam"
     ),
+    # --- a declaration written `property="value"` in a hand-touched rule ----
+    "style.equals.summary": (
+        "{count} deklaracji CSS zapisanych jak atrybut HTML (`=` zamiast `:`) — "
+        "żaden czytnik ich nie stosuje"
+    ),
+    "style.equals.detail": (
+        "W arkuszu {where} stoją deklaracje w rodzaju:\n\n{shown}\n\n"
+        "Składnia CSS wymaga dwukropka, więc parser każdego czytnika odrzuca "
+        "taką linię w całości — to formatowanie nigdy nie działało. Reguła "
+        "nie nosi podpisu żadnego konwertera, więc mógł to być zamysł "
+        "wydawcy z literówką. Włączenie sprawi, że formatowanie, którego "
+        "nikt dotąd nie widział, zacznie obowiązywać."
+    ),
+    "style.equals.keep": "Zostaw jak jest",
+    "style.equals.keep.why": (
+        "Nic się nie zmienia; linia dalej jest ignorowana przez czytniki, "
+        "a książka wygląda tak, jak wyglądała"
+    ),
+    "style.equals.drop": "Usuń martwą linię",
+    "style.equals.drop.why": (
+        "Linia znika z arkusza; wygląd książki się nie zmienia, bo nikt jej "
+        "nigdy nie stosował"
+    ),
+    "style.equals.enable": "Popraw `=` na `:` i włącz",
+    "style.equals.enable.why": (
+        "{count} deklaracji zacznie działać — książka może zmienić wygląd w "
+        "miejscach, których nikt wcześniej nie widział z tym formatowaniem"
+    ),
     "encoding.mojibake.summary": (
         "{count} znaków przestankowych zamienionych przez konwersję w kody bez kształtu"
     ),
@@ -256,6 +284,34 @@ TEXTS_EN: dict[str, str] = {
     "footnote.link.why": (
         "{count} marker(s) become links to their notes; the text stays the "
         "same to the character"
+    ),
+    # --- a declaration written `property="value"` in a hand-touched rule ----
+    "style.equals.summary": (
+        "{count} CSS declaration(s) written like an HTML attribute (`=` "
+        "instead of `:`) — no reading system applies them"
+    ),
+    "style.equals.detail": (
+        "The sheet {where} carries declarations like:\n\n{shown}\n\n"
+        "CSS syntax requires a colon, so every reading system's parser "
+        "rejects the whole line — this formatting has never worked. The rule "
+        "bears no converter's signature, so it could be a publisher's intent "
+        "with a typo in it. Enabling it means formatting nobody has ever "
+        "seen starts applying."
+    ),
+    "style.equals.keep": "Leave it as it is",
+    "style.equals.keep.why": (
+        "Nothing changes; reading systems keep ignoring the line and the "
+        "book looks the way it looked"
+    ),
+    "style.equals.drop": "Remove the dead line",
+    "style.equals.drop.why": (
+        "The line leaves the sheet; the book's appearance does not change, "
+        "because nothing ever applied it"
+    ),
+    "style.equals.enable": "Correct the `=` to a `:` and enable it",
+    "style.equals.enable.why": (
+        "{count} declaration(s) start working — the book may change its "
+        "appearance in places nobody has seen with this formatting"
     ),
     "encoding.mojibake.summary": (
         "{count} punctuation marks a conversion turned into codes with no shape"

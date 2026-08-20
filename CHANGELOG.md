@@ -192,6 +192,27 @@ hold: `page-break-*` is real styling readers honour and is never touched, and
 a pre-paginated publication keeps its `page:` — there it is paged media and
 the property is in its element.
 
+### A typo of the publisher's own hand becomes a question
+
+`text-align="center"` — an `=` where CSS wants a colon — has been dropped in
+strict since EF-059, on the grounds that no reader ever applied it. That
+reasoning holds for a converter's rule, and the shelf's one measured case sits
+in a `sgc-` rule, converter-signed. But the same typo in a rule nobody's
+generator named could be a publisher's slip of the finger, and whether they
+wanted the line gone or wanted it working is a question about intent, not a
+fact about the file.
+
+So the two now part ways (pillar 4 of the 0.3 plan). A line in a
+generator-signed rule or a stamped boilerplate block keeps the measured path:
+strict drops it, preserve keeps it, silently either way. A line no generator
+signed becomes a question with three answers — leave it, remove it, or enable
+it, where enabling turns the `=` into a `:` and formatting nobody has ever
+seen starts applying, on a person's word. The safe default is leaving it, and
+an "enable" answer never switches on the converter junk standing beside it in
+the same sheet. One consequence is stated rather than hidden: a kept invalid
+line means strict declines to publish the file, and the report says exactly
+why — that is the person's choice carried out honestly, not a defect.
+
 ### The hidden paragraph is now hidden without CSS too
 
 The fifth audit took apart the reasoning behind hiding head-content with an

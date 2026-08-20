@@ -64,7 +64,16 @@ VERIFICATION = "verification"
 #: the count. Keeping them apart also keeps the ledger's per-kind tally
 #: meaningful.
 ENCODING = "encoding"
-KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING)
+#: A declaration written the way an HTML attribute is written — `text-align=
+#: "center"` — in a rule no generator signed. No reader has ever applied it,
+#: so enabling it (the `=` becomes a `:`) changes how the book looks, and
+#: whether the publisher wanted that is not a fact the file can answer.
+#: Pillar 4 of the 0.3 plan, the owner's own call: "Ja bym to chyba zrobił
+#: na zasadzie zapytania czy włączyć czy eliminować całkowicie."
+#: (The kind existed once before, for the typo question D-030 removed;
+#: the name returns because the judgement is again about one CSS rule.)
+STYLE = "style"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that
@@ -376,6 +385,7 @@ __all__ = [
     "Queue",
     "Question",
     "REFERENCE",
+    "STYLE",
     "UNANSWERED",
     "answers_path",
 ]

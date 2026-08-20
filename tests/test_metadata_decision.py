@@ -191,10 +191,12 @@ class TestAllThreeClassesShareOneApi:
             # answered by different judgements — one needs the sentence, the
             # other needs only the count.
             decisions.ENCODING,
-            # D-028 briefly added a sixth ("style", the possible-typo rule);
-            # D-030 removed it with the question itself — a dead rule draws
-            # nothing, and the only repair the question offered would change
-            # the book's look against the program's own promise.
+            # The sixth came, went and came back changed: D-028's typo
+            # question introduced it, D-030 removed it with that question,
+            # and pillar 4 of the 0.3 plan brought it back for a different
+            # judgement — the publisher's own `=`-for-`:` declaration,
+            # enabled or removed only at a person's word.
+            decisions.STYLE,
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):

@@ -38,6 +38,8 @@ from collections import Counter
 import cssutils
 
 from .. import fonts_meta, paths, stylesheet, watermark, xhtml
+from ..decisions import KEEP, STYLE, Option, Question
+from ..question_texts import say
 from ..report import Action, Level, Risk
 from .base import Context, Stage
 from .content import strip_remote_imports
@@ -335,6 +337,7 @@ class StyleStage(Stage):
         unresolved: int,
         *,
         sweep_unreachable: bool = True,
+        boilerplate: bool = False,
     ) -> tuple[str, int]:
         """Every repair this stage knows, in order, whatever the CSS lives in.
 
@@ -355,7 +358,7 @@ class StyleStage(Stage):
             unresolved -= neutralised
         css_text = self._strip_vendor_hacks(ctx, css_text, resource)
         css_text = self._repair(ctx, css_text, resource)
-        css_text = self._malformed_declarations(ctx, css_text, resource)
+        css_text = self._malformed_declarations(ctx, css_text, resource, boilerplate=boilerplate)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
@@ -437,6 +440,7 @@ class StyleStage(Stage):
                 after, _ = self._mend(
                     ctx, before, source_path, resource, unresolved,
                     sweep_unreachable=False,
+                    boilerplate=stamped.get(_block_key(before), 0) >= 3,
                 )
                 if ctx.policy.sweep_style_blocks:
                     after = self._sweep_style_block(
@@ -1010,66 +1014,138 @@ class StyleStage(Stage):
         repaired = self._repair_direction(ctx, repaired, resource)
         return repaired
 
-    def _malformed_declarations(self, ctx: Context, css_text: str, resource) -> str:
-        """Drop a declaration written `property="value"` instead of `property: value`.
+    def _malformed_declarations(
+        self, ctx: Context, css_text: str, resource, *, boilerplate: bool = False
+    ) -> str:
+        """A declaration written `property="value"`: machine junk goes the old
+        way, a human-possible one becomes a question (pillar 4 of the 0.3 plan).
 
         From the owner's shelf, in a `<style>` block a converter wrote:
         `p.sgc-1 {text-align="center"}`. EPUBCheck answers `Token "=" not
         allowed here, expecting :` and strict will not publish the book, which
         is one of nine refusals measured on 160 books (EF-059).
 
-        **Dropped rather than corrected, and the choice is the careful one.**
-        Every reader already discards this declaration, so removing it changes
-        nothing anybody has ever seen; turning the `=` into a `:` would start
-        centring text that has never been centred. Which of the two the
-        publisher wanted is a question about their intent, not a fact about the
-        file — the same shape as D-022, where the answer that changes nothing is
-        what happens when nobody is there to ask.
-
-        Gated on `remove_dead` for the same reason `_neutralise_dead_urls` is:
-        `preserve` keeps the book as the publisher wrote it and says so in the
-        report, `strict` was chosen by somebody who wants a file that conforms.
+        The split is the anti-flood exception the owner approved: a line in a
+        **generator-signed rule** or a **stamped block** is converter output
+        and takes the measured path — strict drops it (nothing any reader ever
+        applied), preserve keeps it and the report says so. A line no
+        generator signed *could* be a publisher's slip of the finger, and the
+        owner's call was explicit: ask — enable it (the `=` becomes a `:`,
+        and formatting nobody has ever seen starts applying, on a person's
+        word), remove it, or leave it. Without an answer nothing changes,
+        in either mode.
         """
-        if not ctx.policy.remove_dead:
+        matches = list(_MALFORMED_DECL_RE.finditer(css_text))
+        if not matches:
             return css_text
+        spans = stylesheet.top_level_rules(css_text)
+
+        def machine_made(match: "re.Match[str]") -> bool:
+            if boilerplate:
+                return True
+            for span in spans:
+                if span.start <= match.start() < span.end:
+                    return any(
+                        _GENERATOR_NAME.match(name)
+                        for name in set(_SEL_NAME.findall(span.selector))
+                    )
+            return False
+
+        machine_positions = {m.start() for m in matches if machine_made(m)}
+        human = [m for m in matches if m.start() not in machine_positions]
+
+        human_action = "keep"
+        if human:
+            shown = "\n".join(
+                f'{m.group("prop")}="{m.group("value")}"' for m in human[:3]
+            )
+            question = Question(
+                kind=STYLE,
+                where=resource.path,
+                summary=say("style.equals.summary", count=len(human)),
+                detail=say("style.equals.detail", where=resource.path,
+                           count=len(human), shown=shown),
+                options=(
+                    Option(KEEP, say("style.equals.keep"), say("style.equals.keep.why")),
+                    Option("drop", say("style.equals.drop"), say("style.equals.drop.why")),
+                    Option("enable", say("style.equals.enable"),
+                           say("style.equals.enable.why", count=len(human))),
+                ),
+                recommended=KEEP,
+                reversible=False,
+                risk=Risk.APPEARANCE,
+                group="style:equals",
+                subject=f"{len(human)} declarations",
+            )
+            human_action = ctx.decide(question).option
+
+        # One pass, one action per match: the human subset does what the
+        # person said, the machine subset does what the mode says — and an
+        # "enable" answer never switches on a generator's junk beside it.
+        enabled: list[str] = []
         dropped: list[str] = []
 
-        def cut(match: "re.Match[str]") -> str:
-            dropped.append(f'{match.group("prop")}="{match.group("value")}"')
-            return match.group("lead")
+        def repl(match: "re.Match[str]") -> str:
+            if match.start() in machine_positions:
+                action = "drop" if ctx.policy.remove_dead else "keep"
+            else:
+                action = human_action
+            token = f'{match.group("prop")}="{match.group("value")}"'
+            if action == "enable":
+                enabled.append(token)
+                return f'{match.group("lead")}{match.group("prop")}: {match.group("value")};'
+            if action == "drop":
+                dropped.append(token)
+                return match.group("lead")
+            return match.group(0)
 
-        rewritten = _MALFORMED_DECL_RE.sub(cut, css_text)
-        if not dropped:
+        rewritten = _MALFORMED_DECL_RE.sub(repl, css_text)
+        if not enabled and not dropped:
+            if human and human_action == "keep":
+                self.note(ctx, Level.PRESERVED, "css.malformed-declaration-left",
+                          values={"count": len(human)}, location=resource.path)
             return css_text
         # The same guard the other removals use: a repair that leaves behind
         # something which is no longer a stylesheet is worse than the error it
         # was repairing.
         if not _parses_as_css(rewritten):
+            self.note(ctx, Level.PRESERVED, "css.malformed-declaration-kept",
+                      values={"count": len(enabled) + len(dropped)},
+                      location=resource.path)
+            return css_text
+        if enabled:
+            self.note(ctx, Level.FIX, "css.malformed-declaration-enabled",
+                      values={"count": len(enabled),
+                              "names": ", ".join(sorted(set(enabled))[:3])},
+                      location=resource.path)
+            self.changed(
+                ctx, Action.REPLACED, resource.path,
+                before=", ".join(sorted(set(enabled))[:3]),
+                after="the = became a :, at a person's word — the rule starts applying",
+                risk=Risk.APPEARANCE, reversible=False,
+                rule="css.malformed-declaration-enabled",
+            )
+        if dropped:
             self.note(
                 ctx,
-                Level.PRESERVED,
-                "css.malformed-declaration-kept",
-                values={"count": len(dropped)},
+                Level.FIX,
+                "css.malformed-declaration-dropped",
+                values={"count": len(dropped), "names": ", ".join(sorted(set(dropped))[:3])},
                 location=resource.path,
             )
-            return css_text
-        self.note(
-            ctx,
-            Level.FIX,
-            "css.malformed-declaration-dropped",
-            values={"count": len(dropped), "names": ", ".join(sorted(set(dropped))[:3])},
-            location=resource.path,
-        )
-        self.changed(
-            ctx,
-            Action.REMOVED,
-            resource.path,
-            before=", ".join(sorted(set(dropped))[:3]),
-            after="nothing — no reader ever applied it",
-            risk=Risk.NONE,
-            reversible=False,
-            rule="css.malformed-declaration-dropped",
-        )
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                resource.path,
+                before=", ".join(sorted(set(dropped))[:3]),
+                after="nothing — no reader ever applied it",
+                risk=Risk.NONE,
+                reversible=False,
+                rule="css.malformed-declaration-dropped",
+            )
+        if human and human_action == "keep":
+            self.note(ctx, Level.PRESERVED, "css.malformed-declaration-left",
+                      values={"count": len(human)}, location=resource.path)
         return rewritten
 
     def _repair_invalid_emphasis(self, ctx: Context, css_text: str, resource) -> str:
