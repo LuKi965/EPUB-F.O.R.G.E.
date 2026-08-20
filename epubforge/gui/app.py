@@ -222,15 +222,15 @@ class _StatusChip:
     """
 
     @staticmethod
-    def install(table: QTableWidget) -> None:
+    def install(table: QTableWidget, border: str) -> None:
         from PySide6.QtCore import QRectF
-        from PySide6.QtGui import QPainter
+        from PySide6.QtGui import QPainter, QPen
         from PySide6.QtWidgets import QStyledItemDelegate
 
         class Chip(QStyledItemDelegate):
             def sizeHint(self, option, index):  # noqa: N802 - Qt casing
                 hint = super().sizeHint(option, index)
-                hint.setWidth(hint.width() + 26)
+                hint.setWidth(hint.width() + 18)
                 return hint
 
             def paint(self, painter, option, index):
@@ -257,6 +257,11 @@ class _StatusChip:
                 painter.drawRoundedRect(rect, height / 2, height / 2)
                 painter.setPen(color)
                 painter.drawText(rect, Qt.AlignCenter, text)
+                # The column separator the stylesheet draws for every other
+                # cell — a custom paint bypasses QSS, so it is drawn by hand
+                # or this one column loses its boundary.
+                painter.setPen(QPen(QColor(border)))
+                painter.drawLine(option.rect.topRight(), option.rect.bottomRight())
                 painter.restore()
 
         table.setItemDelegateForColumn(1, Chip(table))
@@ -410,6 +415,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         splitter.setChildrenCollapsible(False)
+        splitter.setSizes([640, 420])
         layout.addWidget(splitter, stretch=1)
 
         self.progress = QProgressBar()
@@ -486,7 +492,7 @@ class MainWindow(QMainWindow):
         self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.itemSelectionChanged.connect(self._show_selected_report)
-        _StatusChip.install(self.table)
+        _StatusChip.install(self.table, self.palette_colors.border)
 
         # The empty queue invites instead of sitting blank — WP-21 phase B2.
         # A child of the viewport, so it scrolls with nothing and never
@@ -529,7 +535,7 @@ class MainWindow(QMainWindow):
         """
         inner = QWidget()
         layout = QVBoxLayout(inner)
-        layout.setContentsMargins(0, 0, 4, 0)
+        layout.setContentsMargins(0, 0, 10, 0)
         layout.setSpacing(10)
 
         layout.addWidget(self._build_policy_box())
@@ -557,9 +563,12 @@ class MainWindow(QMainWindow):
         column.addWidget(self.run_button)
 
         # Wide enough for the longest option label, narrow enough to leave the
-        # queue the majority of any window.
+        # queue the majority of any window. Tightened in WP-21 phase B3: with
+        # the side navigation in place, every pixel this column keeps is a
+        # pixel the book titles in the queue lose — the first column was down
+        # to eight characters before eliding.
         panel.setMinimumWidth(330)
-        panel.setMaximumWidth(460)
+        panel.setMaximumWidth(430)
         return panel
 
     def _build_policy_box(self) -> QGroupBox:

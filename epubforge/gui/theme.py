@@ -178,22 +178,23 @@ def stylesheet(palette: Palette) -> str:
         background-color: {p.surface};
         border: 1px solid {p.border};
         border-radius: 8px;
-        margin-top: 14px;
-        padding: 14px 12px 12px 12px;
+        margin-top: 0;
+        padding: 36px 12px 12px 12px;
         font-weight: 600;
     }}
+    /* The title lives *inside* the card now (WP-21 phase B3) — the old
+       label-on-the-border look was the one place the right column still
+       spoke 2005. Inside, it is a heading, so it reads in full colour and
+       full case; nothing paints over the border any more. */
     QGroupBox::title {{
         subcontrol-origin: margin;
         subcontrol-position: top left;
         left: 12px;
-        /* Painted on the window colour, not transparent: the card's top border
-           runs behind the title, and without this it strikes through it. */
-        background-color: {p.window};
-        padding: 0 6px;
-        color: {p.text_muted};
-        font-size: 9pt;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        top: 11px;
+        background-color: transparent;
+        color: {p.text};
+        font-size: 10.5pt;
+        font-weight: 700;
     }}
 
     /* Tabs -------------------------------------------------------------- */
@@ -313,7 +314,9 @@ def stylesheet(palette: Palette) -> str:
         gridline-color: transparent;
         outline: none;
     }}
-    QTableWidget::item {{ padding: 7px 8px; border: none; }}
+    /* A column boundary the eye can follow across a long title without a
+       hard grid: the border colour, one pixel, vertical only. */
+    QTableWidget::item {{ padding: 7px 8px; border: none; border-right: 1px solid {p.border}; }}
     QTableWidget::item:selected {{ background: {p.accent}; color: {p.accent_text}; }}
     QTableWidget {{ border: 1px solid {p.border}; border-radius: 8px; }}
     QHeaderView::section {{
@@ -321,9 +324,9 @@ def stylesheet(palette: Palette) -> str:
         color: {p.text_muted};
         border: none;
         border-bottom: 1px solid {p.border};
-        padding: 8px;
+        padding: 8px 5px;
         font-weight: 700;
-        font-size: 8.5pt;
+        font-size: 8pt;
         letter-spacing: 0.5px;
     }}
     QTableCornerButton::section {{ background: transparent; border: none; }}

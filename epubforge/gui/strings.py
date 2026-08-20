@@ -48,7 +48,7 @@ PL: dict[str, str] = {
 
     "status.queued": "w kolejce",
     "status.done": "gotowe",
-    "status.issues": "gotowe z uwagami",
+    "status.issues": "z uwagami",
     "status.failed": "niepowodzenie",
     "status.blocked": "odmowa",
 
@@ -336,8 +336,8 @@ PL: dict[str, str] = {
         "z programem; bez niej kontrola się nie wykona, a raport powie to wprost."
     ),
     "policy.render.gate": "Gdy strona straci treść:",
-    "policy.render.unverified": "Zapisz nawet wtedy, gdy nie da się sprawdzić wyglądu",
-    "policy.metadata.reconstructed": "Przyjmuj metadane odczytane z uszkodzonego pakietu",
+    "policy.render.unverified": "Zapisuj bez sprawdzenia wyglądu",
+    "policy.metadata.reconstructed": "Przyjmuj metadane z odzysku",
     "policy.hyphen.review": "Słowa z łącznikiem bez dowodu w książce:",
     "policy.hyphen.review.tip": (
         "Program pyta o słowo z łącznikiem wtedy, gdy ta sama książka pisze je "
@@ -421,7 +421,7 @@ PL: dict[str, str] = {
         "odpowiedź na pytanie „co ta przebudowa zrobi z moją książką”, udzielona "
         "**zanim** cokolwiek trafi na dysk."
     ),
-    "policy.repair.encoding": "Przywróć znaki przestankowe zgubione przez konwersję",
+    "policy.repair.encoding": "Przywróć zgubioną interpunkcję",
     "policy.repair.encoding.tip": (
         "Windows trzyma cudzysłowy, myślniki i wielokropki na pozycjach, które "
         "Unikod rezerwuje dla kodów sterujących. Konwerter, który odczyta taki "
@@ -495,7 +495,7 @@ PL: dict[str, str] = {
         "raport to mówi. Odtworzenie czyjejś decyzji na stronie, której ta osoba "
         "nie widziała, jest gorsze niż zapytanie drugi raz."
     ),
-    "policy.memory": "Odmawiaj książek, na które ta maszyna nie ma pamięci",
+    "policy.memory": "Odmawiaj, gdy zabraknie pamięci",
     "policy.memory.limit.placeholder": "budżet pamięci, np. 4G — puste znaczy „zapytaj system”",
     "policy.memory.limit.tip": (
         "Stały budżet zamiast pytania, ile pamięci jest akurat wolnej. Przydaje "
@@ -521,7 +521,7 @@ PL: dict[str, str] = {
         "Odznacz, jeżeli wiesz coś, czego model nie wie — że nic innego nie "
         "działa, że jest swap, że ta książka jest inna niż tamtych sześć."
     ),
-    "policy.reproducible": "Buduj reprodukowalnie (te same bajty za każdym razem)",
+    "policy.reproducible": "Buduj reprodukowalnie",
     "policy.reproducible.tip": (
         "Dwie przebudowy tej samej książki dają plik bajt w bajt identyczny. "
         "Przydaje się, gdy chcesz porównać dwa buildy albo sprawdzić, że to, co "
@@ -547,7 +547,7 @@ PL: dict[str, str] = {
         "treści. Plik, do którego coś prowadzi, zostaje i raport to mówi.\n\n"
         "Odznaczone: nie usuwa nic, cokolwiek by się nazywało."
     ),
-    "policy.ask": "Pytaj mnie o odnośniki, których nie da się rozwiązać",
+    "policy.ask": "Pytaj o nierozwiązywalne odnośniki",
     "policy.ask.tip": (
         "Odnośnik potrafi wskazywać kotwicę, której w dokumencie docelowym nie "
         "ma — najczęściej po konwersji z PDF-a, gdzie tylko część przypisów "
@@ -962,7 +962,7 @@ EN: dict[str, str] = {
     "table.issues.tip": "Warnings and errors that could not be fixed automatically.",
     "status.queued": "queued",
     "status.done": "done",
-    "status.issues": "done with issues",
+    "status.issues": "with issues",
     "status.failed": "failed",
     "status.blocked": "refused",
     "policy.group": "Rebuild policy",
@@ -1268,8 +1268,8 @@ EN: dict[str, str] = {
         "conversion cut in half are the exceptions — both happen at your request "
         "and both are named in the report.",
     "policy.render.all": "Draw every page, not a sample",
-    "policy.render.unverified": "Write the book even when the appearance check cannot run",
-    "policy.metadata.reconstructed": "Accept metadata read out of a damaged package",
+    "policy.render.unverified": "Write without the appearance check",
+    "policy.metadata.reconstructed": "Accept recovered metadata",
     "policy.hyphen.review": "Hyphenated words the book does not settle:",
     "policy.hyphen.review.tip": (
         "The program asks about a hyphenated word when the same book writes it "
@@ -1398,7 +1398,7 @@ EN: dict[str, str] = {
         "report says so. Replaying somebody's decision onto a page they have not "
         "seen is worse than asking a second time."
     ),
-    "policy.memory": "Refuse books this machine has no memory for",
+    "policy.memory": "Refuse when memory runs short",
     "policy.memory.limit.placeholder": "memory budget, e.g. 4G — empty means \"ask the system\"",
     "policy.memory.limit.tip": (
         "A fixed budget instead of asking how much memory happens to be free. "
@@ -1423,7 +1423,7 @@ EN: dict[str, str] = {
         "pessimistic. Untick it if you know something it does not — that nothing "
         "else is running, that there is swap, that this book is unlike those six."
     ),
-    "policy.reproducible": "Reproducible build (the same bytes every time)",
+    "policy.reproducible": "Reproducible build",
     "policy.reproducible.tip": (
         "Two rebuilds of one book produce a byte-for-byte identical file. "
         "Useful for comparing two builds, or for checking that what you have "
@@ -1450,7 +1450,7 @@ EN: dict[str, str] = {
         "Anything the book reaches is kept, and the report says so.\n\n"
         "Unticked: nothing is removed, whatever it is called."
     ),
-    "policy.ask": "Ask me about references that cannot be resolved",
+    "policy.ask": "Ask about unresolvable references",
     "policy.ask.tip": (
         "A link can name an anchor the target document does not have — usually "
         "after a PDF conversion, where only some of the notes were given an "
