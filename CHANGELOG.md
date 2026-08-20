@@ -40,7 +40,32 @@ written; only the current version was reset.
 
 ## Unreleased
 
-_Nic jeszcze._
+### Properties CSS does not have are removed, in both modes
+
+The first slice of the 0.4 plan's stylesheet rebuild, and the largest single
+mountain in its measured baseline: of 41 997 findings Calibre's own CSS lint
+raises over the rebuilt shelf, 36 791 are declarations of properties that do
+not exist — Word's `mso-font-charset` and its siblings, thousands per book,
+parked inside `@font-face` blocks. Every conforming CSS parser drops such a
+declaration before any reader sees it, so removal cannot change a pixel; the
+render gate verifies that per book anyway. The authority is deliberately the
+gate's own: the vendored `known-css-properties` catalogue is the dataset the
+lint rule reads, so the program decides by the same measure it is judged by.
+
+Three doors stay open. A vendor-prefixed name never reaches the judgement —
+`-epub-hyphens` is honoured by shipping readers, and a reader's private
+prefix invented tomorrow cannot be in any catalogue. `panose-1` is kept, the
+CSS 2.1 font descriptor Calibre itself writes and suppresses in its own
+lint. And `adobe-*` stays with its existing mode-aware handling: bare and
+unlisted, but old RMSDK engines honour it, so "no parser knows it" would be
+a lie there. A rule left empty by the removal goes whole, `@font-face`
+included, and the whole removal sits behind the same opt-out as the sweep.
+
+Alongside it, the `<!-- … -->` comment wrapper an HTML-era converter left
+around `<style>` content is stripped — 312 of the baseline's 314 parse
+errors; every CSS parser since 1997 was ignoring it. Only the leading and
+trailing shield is taken: an arrow inside somebody's `content:` string is
+content and stays.
 
 ## 0.3.0 — alpha — 2026-08-20
 

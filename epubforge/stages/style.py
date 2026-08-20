@@ -38,6 +38,7 @@ from collections import Counter
 import cssutils
 
 from .. import fonts_meta, paths, stylesheet, watermark, xhtml
+from ..css_properties import KNOWN_PROPERTIES
 from ..decisions import KEEP, STYLE, Option, Question
 from ..question_texts import say
 from ..report import Action, Level, Risk
@@ -106,6 +107,19 @@ def _block_key(text: str) -> bytes:
 _MALFORMED_DECL_RE = re.compile(
     r"(?P<lead>[{;]\s*)(?P<prop>-?[A-Za-z][A-Za-z0-9-]*)\s*=\s*"
     r"(?P<quote>['\"])(?P<value>[^'\"]*)(?P=quote)\s*;?"
+)
+
+#: One declaration, anchored on the block/statement boundary before it, so a
+#: selector's `a:hover` and a `url(data:…)` value can never look like one.
+#: The boundary is a lookbehind on purpose: a consuming `[{;]` would eat the
+#: very semicolon the *next* declaration anchors on, and `a: 1; b: 2; c: 3`
+#: would match only every other declaration. The match span is exactly what
+#: removal cuts — declaration plus its own terminating `;` when it has one.
+#: The property's first character is a bare letter **by construction**: a
+#: vendor-prefixed name (`-epub-hyphens`, or a reader's private property no
+#: catalogue can enumerate) never even reaches the judgement below.
+_DECLARATION_RE = re.compile(
+    r"(?<=[{;])\s*(?P<prop>[A-Za-z][A-Za-z0-9-]*)\s*:\s*(?P<value>[^;}]*?)\s*(?:;|(?=\}))"
 )
 
 #: What the element would have to be inheriting for correcting `regular` to
@@ -356,9 +370,11 @@ class StyleStage(Stage):
                 ctx, css_text, source_path, resource.path, resource
             )
             unresolved -= neutralised
+        css_text = self._comment_shield(ctx, css_text, resource)
         css_text = self._strip_vendor_hacks(ctx, css_text, resource)
         css_text = self._repair(ctx, css_text, resource)
         css_text = self._malformed_declarations(ctx, css_text, resource, boilerplate=boilerplate)
+        css_text = self._unknown_properties(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
@@ -783,6 +799,104 @@ class StyleStage(Stage):
             risk=Risk.NONE, reversible=False,
             rule="css.classes-renamed",
         )
+
+    def _comment_shield(self, ctx: Context, css_text: str, resource) -> str:
+        """Strip the `<!-- … -->` wrapper an HTML-era converter left in the CSS.
+
+        Pillar A of the 0.4 plan, first slice. The wrapper hid CSS from
+        browsers that predate 1997; every CSS parser since ignores the
+        `<!--`/`-->` tokens at the top level of a stylesheet, so removing
+        them cannot change a parse — and leaving them is what 312 of the 314
+        parse errors in the Calibre-lint baseline were. Only the leading and
+        trailing shield is taken, which is the one shape the shelf measured;
+        a `-->` in the middle of a sheet is somebody's content and stays.
+        """
+        stripped = re.sub(r"^\s*<!--", "", css_text)
+        stripped = re.sub(r"-->\s*$", "", stripped)
+        if stripped == css_text:
+            return css_text
+        if not _parses_as_css(stripped) or len(
+            stylesheet.top_level_rules(stripped)
+        ) != len(stylesheet.top_level_rules(css_text)):
+            return css_text
+        self.note(ctx, Level.FIX, "css.comment-shield-removed", location=resource.path)
+        return stripped
+
+    def _unknown_properties(self, ctx: Context, css_text: str, resource) -> str:
+        """Remove declarations naming properties CSS does not have.
+
+        Pillar A of the 0.4 plan, and the largest single mountain in its
+        baseline: 36 791 of 41 997 lint findings on the shelf are
+        `property-no-unknown`, 36 562 of them Word's `mso-*` inside two
+        copies of one book's `@font-face` blocks. A declaration whose
+        property name no parser knows is dropped whole by **every**
+        conforming CSS parser before any reader sees it — the same argument
+        the `=` declarations rest on — so removal cannot change a pixel,
+        and the render gate still verifies that per book.
+
+        The authority is deliberately the gate's own: `KNOWN_PROPERTIES` is
+        the dataset stylelint's rule reads (see `css_properties`). Two
+        doors stay open on purpose: a **vendor-prefixed** name (leading `-`)
+        is never judged — `-epub-hyphens` is honoured by real readers and
+        the lint rule skips prefixes too — and `panose-1` is kept, a CSS 2.1
+        font descriptor Calibre itself writes and suppresses in its own
+        lint. Behind the sweep's opt-out; without it the report counts.
+        """
+        # No prefix check here: `_DECLARATION_RE` refuses a leading `-` by
+        # construction, so a vendor-prefixed name never reaches this filter.
+        # `adobe-*` is excluded although it is bare and unlisted: old RMSDK
+        # engines — PocketBooks among them, and the owner has one — honour
+        # those inventions, and `_vendor_properties` below owns them with its
+        # mode-aware keep/remove. "No parser knows it" must stay literally
+        # true for everything cut here.
+        matches = [
+            m for m in _DECLARATION_RE.finditer(css_text)
+            if m.group("prop").lower() not in KNOWN_PROPERTIES
+            and m.group("prop").lower() != "panose-1"
+            and not m.group("prop").lower().startswith("adobe-")
+        ]
+        if not matches:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.unknown-properties-found",
+                      values={"count": len(matches)}, location=resource.path)
+            return css_text
+        names = sorted({m.group("prop").lower() for m in matches})
+        pieces: list[str] = []
+        cursor = 0
+        for match in matches:
+            pieces.append(css_text[cursor:match.start()])
+            cursor = match.end()
+        pieces.append(css_text[cursor:])
+        cleaned = "".join(pieces)
+        rules_before = len(stylesheet.top_level_rules(css_text))
+        emptied = [
+            span for span in stylesheet.top_level_rules(cleaned)
+            if not cleaned[cleaned.index("{", span.start) + 1:span.end].strip("} \t\r\n")
+        ]
+        if emptied:
+            cleaned = stylesheet.without(cleaned, emptied)
+        # An at-rule emptied by the removal goes whole too — `@font-face {}`
+        # would only trade one lint finding for another.
+        cleaned = re.sub(r"@[A-Za-z-]+[^{};]*\{\s*\}", "", cleaned)
+        if not _parses_as_css(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned)) != rules_before - len(emptied)
+        ):
+            self.note(ctx, Level.WARN, "css.unknown-properties-unverified",
+                      values={"count": len(matches)}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.unknown-properties-removed",
+                  values={"count": len(matches), "names": ", ".join(names[:3]),
+                          "rules": len(emptied)},
+                  location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{len(matches)} declaration(s) of properties CSS does not have ({', '.join(names[:3])})",
+            after="removed; every conforming parser was already dropping them",
+            risk=Risk.NONE, reversible=False,
+            rule="css.unknown-properties-removed",
+        )
+        return cleaned
 
     def _page_plumbing(self, ctx: Context, css_text: str, resource) -> str:
         """Remove Word's `page: SectionN` declarations — print plumbing, not style.
