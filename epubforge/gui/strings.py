@@ -736,6 +736,7 @@ PL: dict[str, str] = {
         "nigdy nie widziałem i nie zobaczę. „Inny wynik” znaczy więc: przebudowana "
         "inaczej niż ostatnim razem. Twój plik na dysku pozostaje nietknięty."
     ),
+    "corpus.card": "Korpus podpisów",
     "corpus.books": "Książki:",
     "corpus.signatures": "Podpisy:",
     "corpus.signatures.placeholder": "puste — folder „expected” obok książek",
@@ -1629,6 +1630,7 @@ EN: dict[str, str] = {
         "\"Different\" therefore means: rebuilt differently than last time. Your file "
         "on disk is untouched."
     ),
+    "corpus.card": "Signature corpus",
     "corpus.books": "Books:",
     "corpus.signatures": "Signatures:",
     "corpus.signatures.placeholder": "empty — an \"expected\" folder beside the books",

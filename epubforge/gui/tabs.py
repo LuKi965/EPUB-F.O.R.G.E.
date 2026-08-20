@@ -70,6 +70,27 @@ class Panel(QWidget):
         self.layout_.setSpacing(12)
 
     # ------------------------------------------------------------- building
+    def begin_card(self, title: str) -> None:
+        """Everything added until `end_card` lands inside one titled card.
+
+        WP-21 phase B5: the three tool panels floated their controls straight
+        on the window while every other page had learnt to speak in cards.
+        Redirecting `layout_` is what keeps the change this small — every
+        existing helper keeps adding to `self.layout_` and needs no idea the
+        walls moved.
+        """
+        from PySide6.QtWidgets import QGroupBox
+
+        card = QGroupBox(title)
+        inner = QVBoxLayout(card)
+        inner.setSpacing(8)
+        self._outer_layout = self.layout_
+        self._outer_layout.addWidget(card)
+        self.layout_ = inner
+
+    def end_card(self) -> None:
+        self.layout_ = self._outer_layout
+
     def add_intro(self, text: str) -> None:
         label = QLabel(text)
         label.setWordWrap(True)
@@ -201,11 +222,8 @@ class LibraryPanel(Panel):
     def __init__(self, palette: theme.Palette) -> None:
         super().__init__(palette)
         self.add_intro(tr("library.intro"))
+        self.begin_card(tr("library.mode"))
         self.folder = self.add_folder_row(tr("common.folder"))
-
-        mode = QLabel(tr("library.mode"))
-        mode.setObjectName("sectionLabel")
-        self.layout_.addWidget(mode)
 
         self.survey_choice = QRadioButton(tr("library.survey"))
         self.survey_choice.setToolTip(tr("library.survey.tip"))
@@ -241,6 +259,7 @@ class LibraryPanel(Panel):
         row.addWidget(self.save_button)
         row.addStretch(1)
         self.layout_.addWidget(buttons)
+        self.end_card()
 
         self.add_output(tr("library.empty"))
 
@@ -358,11 +377,8 @@ class DiagnosticsPanel(Panel):
     def __init__(self, palette: theme.Palette) -> None:
         super().__init__(palette)
         self.add_intro(tr("diagnostics.intro"))
+        self.begin_card(tr("diagnostics.mode"))
         self.folder = self.add_folder_row(tr("diagnostics.files"))
-
-        mode = QLabel(tr("diagnostics.mode"))
-        mode.setObjectName("sectionLabel")
-        self.layout_.addWidget(mode)
 
         self.inspect_choice = QRadioButton(tr("diagnostics.inspect"))
         self.inspect_choice.setToolTip(tr("diagnostics.inspect.tip"))
@@ -426,6 +442,8 @@ class DiagnosticsPanel(Panel):
         row.addWidget(self.save_button)
         row.addStretch(1)
         self.layout_.addWidget(buttons)
+
+        self.end_card()
 
         self.add_output(tr("diagnostics.empty"))
 
@@ -628,6 +646,7 @@ class CorpusPanel(Panel):
         super().__init__(palette)
         self._signatures_used: pathlib.Path | None = None
         self.add_intro(tr("corpus.intro"))
+        self.begin_card(tr("corpus.card"))
         self.books = self.add_folder_row(tr("corpus.books"))
         self.signatures = self.add_folder_row(
             tr("corpus.signatures"), tr("corpus.signatures.placeholder")
@@ -674,6 +693,7 @@ class CorpusPanel(Panel):
         row.addWidget(self.assign_button)
         row.addStretch(1)
         self.layout_.addWidget(buttons)
+        self.end_card()
 
         self.add_output(tr("corpus.empty"))
 
