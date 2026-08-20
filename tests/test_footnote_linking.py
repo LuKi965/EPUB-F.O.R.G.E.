@@ -25,7 +25,7 @@ CHAPTER = (
     '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
     '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head><meta charset="utf-8"/>'
     '<title>R</title></head><body>'
-    "<p>Wiedźmin wypił eliksir[1] i ruszył w stronę zamku[2] nocą.</p>"
+    "<p>Rycerz wypił eliksir[1] i ruszył w stronę zamku[2] nocą.</p>"
     '<p>Odnośnik działający<a href="przypisy.xhtml#stary">[3]</a> zostaje.</p>'
     "</body></html>"
 )
@@ -91,7 +91,7 @@ class TestTheBridgeIsBuiltOnRequest:
         docs = documents_of(result)
         chapter = next(d for d in docs.values() if "eliksir" in d)
         text = re.sub(r"<[^>]+>", "", chapter[chapter.find("<body"):])
-        assert "Wiedźmin wypił eliksir[1] i ruszył w stronę zamku[2] nocą." in text
+        assert "Rycerz wypił eliksir[1] i ruszył w stronę zamku[2] nocą." in text
 
     def test_a_working_footnote_is_never_touched(self, tmp_path):
         """[3] already lives inside a link — the measured promise is that the
