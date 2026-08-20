@@ -384,6 +384,11 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(box)
         layout.setSpacing(7)
 
+        # WP-21 phase A: the same switches, grouped under readable headings.
+        # One scroll column still — sections are visual, not navigational —
+        # and every widget keeps its attribute name, so nothing downstream
+        # (mode toggling, policy assembly, retranslation) changes.
+
         label = QLabel(tr("policy.mode.label"))
         label.setObjectName("sectionLabel")
         label.setWordWrap(True)
@@ -404,6 +409,7 @@ class MainWindow(QMainWindow):
         self.mode_combo.currentIndexChanged.connect(self._mode_changed)
         layout.addWidget(self.mode_combo)
 
+        self._divider(layout, "policy.section.container")
         self.ncx_check = self._checkbox(layout, "policy.ncx", checked=True)
         self.orphans_check = self._checkbox(layout, "policy.orphans", checked=False)
         # The last thing in the program that deleted a file by name. It now
@@ -412,6 +418,8 @@ class MainWindow(QMainWindow):
         self.junk_check = self._checkbox(layout, "policy.junk", checked=True)
         self.layout_check = self._checkbox(layout, "policy.layout", checked=True)
         self.scripts_check = self._checkbox(layout, "policy.scripts", checked=False)
+
+        self._divider(layout, "policy.section.styles")
         # Ticked by "force the standard" and untickable there all the same.
         # The owner asked for this as a standing rule rather than about this
         # feature: whatever the application ever deletes must be optional to
@@ -424,8 +432,15 @@ class MainWindow(QMainWindow):
         # Pillar 1 of the 0.3 plan (D-031); on by default since D-032, the
         # same road the sweep travelled.
         self.class_names_check = self._checkbox(layout, "policy.class-names", checked=True)
+        # EF-029. Off by default and in the window rather than only behind a
+        # flag, because it is a change to the publisher's stylesheet and S-04
+        # says the person deciding gets to see the switch.
+        self.relative_units_check = self._checkbox(
+            layout, "policy.relative.units", checked=False
+        )
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
+        self._divider(layout, "policy.section.store")
         watermark_label = QLabel(tr("policy.watermark.label"))
         watermark_label.setObjectName("sectionLabel")
         watermark_label.setWordWrap(True)
@@ -443,7 +458,14 @@ class MainWindow(QMainWindow):
             self.watermark_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
         self.watermark_combo.setCurrentIndex(watermark.MODES.index(Policy().watermarks))
         layout.addWidget(self.watermark_combo)
+        # WP-17 / D-019. Off, and next to the watermark setting rather than
+        # inside it: that one asks how visible a token may be, this one asks
+        # whether a sentence may be deleted.
+        self.shop_notices_check = self._checkbox(
+            layout, "policy.shop.notices", checked=False
+        )
 
+        self._divider(layout, "policy.section.assets")
         # Two more things this program changes about a book, and the owner's
         # standing rule says a person gets the last word on each: fonts whose
         # obfuscation is undone, and images converted out of a format EPUB 3
@@ -453,12 +475,7 @@ class MainWindow(QMainWindow):
         self.fonts_check = self._checkbox(layout, "policy.fonts", checked=True)
         self.images_check = self._checkbox(layout, "policy.images", checked=True)
 
-        self.validate_check = self._checkbox(
-            layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
-        )
-        if not self._epubcheck:
-            self.validate_check.setToolTip(tr("policy.validate.missing"))
-
+        self._divider(layout, "policy.section.questions")
         # There used to be a checkbox here — "rebuild even if part of the source
         # cannot be read". It is gone with the setting behind it: a source this
         # program could not read in full now stops the rebuild, with no way
@@ -474,17 +491,67 @@ class MainWindow(QMainWindow):
         # is a person looking at it. On by default: this is a window, somebody
         # is here, and asking is the point rather than the fallback.
         self.ask_check = self._checkbox(layout, "policy.ask", checked=True)
-        # Two builds of one book, byte for byte the same. Off by default,
-        # because the honest modification date of a file produced now is now.
-        self.reproducible_check = self._checkbox(layout, "policy.reproducible", checked=False)
-        # EF-020, after the measurement. On by default, because the alternative
-        # default is the process being killed halfway with nothing written and
-        # nothing said — and this is the build most likely to meet that: a
-        # batch of books in one window, on a laptop, on Windows.
+        self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
+        # BA-2026-001's remaining half. 67 evidenced candidates against 189
+        # that the book itself does not settle — so the weaker classes are one
+        # question carrying the words rather than 189 questions.
+        hyphen_label = QLabel(tr("policy.hyphen.review"))
+        hyphen_label.setToolTip(tr("policy.hyphen.review.tip"))
+        layout.addWidget(hyphen_label)
+        self.hyphen_review_combo = QComboBox()
+        self.hyphen_review_combo.setToolTip(tr("policy.hyphen.review.tip"))
+        for index, value in enumerate(HYPHEN_REVIEWS):
+            key = f"policy.hyphen.review.{value}"
+            self.hyphen_review_combo.addItem(tr(key), value)
+            self.hyphen_review_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.hyphen_review_combo.setCurrentIndex(
+            HYPHEN_REVIEWS.index(Policy().hyphen_review)
+        )
+        layout.addWidget(self.hyphen_review_combo)
+        # EF-050. Beside the hyphens because it is the other setting that
+        # touches characters a reader sees — and unlike them it puts the text
+        # back rather than taking it away.
+        self.encoding_check = self._checkbox(
+            layout, "policy.repair.encoding", checked=False
+        )
+        # F-004's half of the same rule. A package that only parsed after
+        # recovery gives fields nobody wrote; with the window open the rebuild
+        # asks about each one, and this is the same consent in advance.
+        self.reconstructed_check = self._checkbox(
+            layout, "policy.metadata.reconstructed", checked=False
+        )
         # BA-2026-001 and BA-2026-002. Detection is on because detection changes
         # nothing; the answers are remembered because being asked the same
         # forty-six questions on every rebuild is how a feature becomes
         # something people switch off.
+        self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
+
+        self._divider(layout, "policy.section.gates")
+        self.validate_check = self._checkbox(
+            layout, "policy.validate", checked=self._epubcheck, enabled=self._epubcheck
+        )
+        if not self._epubcheck:
+            self.validate_check.setToolTip(tr("policy.validate.missing"))
+        # The audit's K.2 invariant 12, as a choice rather than a policy this
+        # program makes on somebody's behalf. It follows the mode by default —
+        # strict refuses an invalid file, the other two publish and report — and
+        # the mode combo resets it, so changing the mode never leaves a stricter
+        # setting behind than the mode implies.
+        gate_label = QLabel(tr("policy.gate"))
+        gate_label.setToolTip(tr("policy.gate.tip"))
+        layout.addWidget(gate_label)
+        self.gate_label = gate_label
+
+        self.gate_combo = QComboBox()
+        self.gate_combo.setToolTip(tr("policy.gate.tip"))
+        for index, value in enumerate(GATES):
+            key = f"policy.gate.{value}"
+            self.gate_combo.addItem(tr(key), value)
+            # Each one refuses a different set of books, and one of them refuses
+            # books this program did nothing wrong to. That has to be readable
+            # before it is chosen, not after a batch stops.
+            self.gate_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        layout.addWidget(self.gate_combo)
         # F-028, and the owner's own choice of default: "stop". He was shown the
         # cost — about thirty-six seconds a book — and the measurement behind it,
         # zero refusals across his thirty-two books, and chose the strong one.
@@ -520,56 +587,18 @@ class MainWindow(QMainWindow):
         self.unverified_check = self._checkbox(
             layout, "policy.render.unverified", checked=False
         )
-        # F-004's half of the same rule. A package that only parsed after
-        # recovery gives fields nobody wrote; with the window open the rebuild
-        # asks about each one, and this is the same consent in advance.
-        self.reconstructed_check = self._checkbox(
-            layout, "policy.metadata.reconstructed", checked=False
-        )
 
-        # EF-029. Off by default and in the window rather than only behind a
-        # flag, because it is a change to the publisher's stylesheet and S-04
-        # says the person deciding gets to see the switch.
-        self.relative_units_check = self._checkbox(
-            layout, "policy.relative.units", checked=False
-        )
-
-        # WP-17 / D-019. Off, and next to the watermark setting rather than
-        # inside it: that one asks how visible a token may be, this one asks
-        # whether a sentence may be deleted.
-        self.shop_notices_check = self._checkbox(
-            layout, "policy.shop.notices", checked=False
-        )
-
+        self._divider(layout, "policy.section.run")
         # BA-2026-003. Beside the settings rather than beside the button,
         # because it is a question about this run and not about this book.
         self.plan_check = self._checkbox(layout, "policy.plan.only", checked=False)
-
-        # EF-050. Beside the two above because it is the third setting that
-        # touches characters a reader sees — and unlike them it puts the text
-        # back rather than taking it away.
-        self.encoding_check = self._checkbox(
-            layout, "policy.repair.encoding", checked=False
-        )
-
-        self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
-        # BA-2026-001's remaining half. 67 evidenced candidates against 189
-        # that the book itself does not settle — so the weaker classes are one
-        # question carrying the words rather than 189 questions.
-        hyphen_label = QLabel(tr("policy.hyphen.review"))
-        hyphen_label.setToolTip(tr("policy.hyphen.review.tip"))
-        layout.addWidget(hyphen_label)
-        self.hyphen_review_combo = QComboBox()
-        self.hyphen_review_combo.setToolTip(tr("policy.hyphen.review.tip"))
-        for index, value in enumerate(HYPHEN_REVIEWS):
-            key = f"policy.hyphen.review.{value}"
-            self.hyphen_review_combo.addItem(tr(key), value)
-            self.hyphen_review_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
-        self.hyphen_review_combo.setCurrentIndex(
-            HYPHEN_REVIEWS.index(Policy().hyphen_review)
-        )
-        layout.addWidget(self.hyphen_review_combo)
-        self.remember_check = self._checkbox(layout, "policy.remember", checked=True)
+        # Two builds of one book, byte for byte the same. Off by default,
+        # because the honest modification date of a file produced now is now.
+        self.reproducible_check = self._checkbox(layout, "policy.reproducible", checked=False)
+        # EF-020, after the measurement. On by default, because the alternative
+        # default is the process being killed halfway with nothing written and
+        # nothing said — and this is the build most likely to meet that: a
+        # batch of books in one window, on a laptop, on Windows.
         self.memory_check = self._checkbox(layout, "policy.memory", checked=True)
         # And the budget itself, because "everything is reachable from the
         # window" does not stop at the switch. Empty means "ask the machine
@@ -582,29 +611,21 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.memory_limit_edit)
         self.memory_check.toggled.connect(self.memory_limit_edit.setEnabled)
 
-        # The audit's K.2 invariant 12, as a choice rather than a policy this
-        # program makes on somebody's behalf. It follows the mode by default —
-        # strict refuses an invalid file, the other two publish and report — and
-        # the mode combo resets it, so changing the mode never leaves a stricter
-        # setting behind than the mode implies.
-        gate_label = QLabel(tr("policy.gate"))
-        gate_label.setToolTip(tr("policy.gate.tip"))
-        layout.addWidget(gate_label)
-        self.gate_label = gate_label
-
-        self.gate_combo = QComboBox()
-        self.gate_combo.setToolTip(tr("policy.gate.tip"))
-        for index, value in enumerate(GATES):
-            key = f"policy.gate.{value}"
-            self.gate_combo.addItem(tr(key), value)
-            # Each one refuses a different set of books, and one of them refuses
-            # books this program did nothing wrong to. That has to be readable
-            # before it is chosen, not after a batch stops.
-            self.gate_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
-        layout.addWidget(self.gate_combo)
-
         self._mode_changed()
         return box
+
+    @staticmethod
+    def _divider(layout, key: str) -> QLabel:
+        """A section heading inside the settings column — WP-21 phase A.
+
+        Purely visual: the switches stay in one scroll, in one layout, under
+        the same attribute names. The heading only says where one concern
+        ends and the next begins, which twenty-five flat checkboxes did not.
+        """
+        label = QLabel(tr(key))
+        label.setObjectName("dividerLabel")
+        layout.addWidget(label)
+        return label
 
     def _checkbox(self, layout, key: str, *, checked: bool, enabled: bool = True) -> QCheckBox:
         box = QCheckBox(tr(key))
@@ -787,9 +808,14 @@ class MainWindow(QMainWindow):
             "working": self.palette_colors.accent,
             "done": self.palette_colors.fix,
             "issues": self.palette_colors.warn,
+            # A gate's deliberate refusal, missing from this dict since the
+            # dict existed — so the one row a person most needs to read raised
+            # KeyError instead of colouring (EF-066). Painted like an error:
+            # either way, this book needs the person's eyes.
+            "blocked": self.palette_colors.error,
             "failed": self.palette_colors.error,
         }
-        item.setForeground(QColor(colors[status]))
+        item.setForeground(QColor(colors.get(status, self.palette_colors.text)))
         self.table.setItem(row, 1, item)
 
     # ------------------------------------------------------------- execution

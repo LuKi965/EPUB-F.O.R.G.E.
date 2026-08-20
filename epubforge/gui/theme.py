@@ -336,6 +336,16 @@ def stylesheet(palette: Palette) -> str:
     QStatusBar::item {{ border: none; }}
 
     QLabel#sectionLabel {{ color: {p.text_muted}; font-size: 9pt; }}
+    QLabel#dividerLabel {{
+        color: {p.text_muted};
+        font-size: 8.5pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        padding: 10px 0 2px 0;
+        border-bottom: 1px solid {p.border};
+        margin-bottom: 2px;
+    }}
     QLabel#fieldLabel {{ color: {p.text}; font-weight: 600; padding-top: 4px; }}
     """
 

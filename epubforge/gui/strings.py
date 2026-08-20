@@ -610,6 +610,13 @@ PL: dict[str, str] = {
         "Włączone domyślnie w obu trybach: preserve zachowuje układ książki, "
         "nie śmieci konwertera. Odznaczenie zostawia wszystko i tylko liczy."
     ),
+    "policy.section.container": "Kontener i pliki",
+    "policy.section.styles": "Style i nazwy",
+    "policy.section.store": "Znaki wodne i sklep",
+    "policy.section.assets": "Fonty i obrazy",
+    "policy.section.questions": "Pytania do Ciebie",
+    "policy.section.gates": "Bramy jakości",
+    "policy.section.run": "Ten przebieg",
     "policy.class-names": "Tłumacz nazwy klas na słownik epubforge",
     "policy.class-names.tip": (
         "Konwertery nazywają style po swojemu: calibre7, sgc-1, Hoofdtekst9a "
@@ -1505,6 +1512,13 @@ EN: dict[str, str] = {
         "On by default in both modes: preserve keeps the book's layout, not "
         "the converter's litter. Unticking keeps everything and only counts."
     ),
+    "policy.section.container": "Container and files",
+    "policy.section.styles": "Styles and names",
+    "policy.section.store": "Watermarks and the store",
+    "policy.section.assets": "Fonts and images",
+    "policy.section.questions": "Questions for you",
+    "policy.section.gates": "Quality gates",
+    "policy.section.run": "This run",
     "policy.class-names": "Translate class names to the epubforge dictionary",
     "policy.class-names.tip": (
         "Converters name styles after themselves: calibre7, sgc-1, "
