@@ -1,6 +1,6 @@
 {
   "source": "sha256:75f69ab9b5549ff7541fc146618bbdc7a79c1fe66b34feb2b7bcaf8f157f25d0",
-  "version": "0.2.30",
+  "version": "0.3.0",
   "minimal": {
     "written": true,
     "report": {
@@ -38,13 +38,14 @@
     "report": {
       "info": 15,
       "fix": 6,
-      "preserved": 3,
+      "preserved": 5,
       "warn": 2
     },
     "rules": {
       "a11y.heading-jump": 1,
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
+      "css.duplicate-selectors-kept": 2,
       "css.unreachable-rules-found": 3,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
@@ -78,13 +79,14 @@
     "report": {
       "info": 12,
       "fix": 9,
-      "preserved": 3,
+      "preserved": 5,
       "warn": 2
     },
     "rules": {
       "a11y.heading-jump": 1,
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
+      "css.duplicate-selectors-kept": 2,
       "css.unreachable-rules-removed": 3,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,

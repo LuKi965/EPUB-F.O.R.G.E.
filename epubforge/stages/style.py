@@ -348,6 +348,7 @@ class StyleStage(Stage):
 
         self._inline_blocks(ctx)
         self._translate_class_names(ctx)
+        self._merge_after_translation(ctx)
 
     def _mend(
         self,
@@ -382,6 +383,7 @@ class StyleStage(Stage):
         css_text = self._repair(ctx, css_text, resource)
         css_text = self._malformed_declarations(ctx, css_text, resource, boilerplate=boilerplate)
         css_text = self._unknown_properties(ctx, css_text, resource)
+        css_text = self._merge_duplicate_selectors(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
@@ -906,6 +908,189 @@ class StyleStage(Stage):
             rule="css.unknown-properties-removed",
         )
         return cleaned
+
+    def _merge_duplicate_selectors(self, ctx: Context, css_text: str, resource) -> str:
+        """Fold rules that repeat a selector into one, where the cascade proves it.
+
+        Pillar A of the 0.4 plan, second slice. Two rules with the same
+        selector tie on specificity, so **order is the whole cascade** —
+        which is exactly why a merge must be proved, not assumed. Two proofs
+        are cheap and certain, and only those two are used:
+
+        * **Identical bodies:** every earlier copy loses every conflict to
+          the last one anyway, so dropping all but the **last** occurrence
+          moves no winner. Keeping the *first* instead would hoist its
+          declarations above whatever stood between — a flip; the mutation
+          that keeps the first is measured.
+        * **Disjoint properties on the road down:** an earlier body may move
+          into the last occurrence (prepended, so the last body still wins
+          intra-block, as it won inter-block) when no ordinary rule between
+          them declares any property the moved body carries, and no at-rule
+          stands between at all — an at-rule's inside is something this
+          module refuses to read, so it blocks the move out of caution.
+
+        Everything else stays and is counted (`css.duplicate-selectors-kept`)
+        — a pair whose merge cannot be proved is the publisher's cascade,
+        and pillar A's line is proof or nothing. Behind the sweep's opt-out.
+        """
+        spans = stylesheet.top_level_rules(css_text)
+        groups: dict[str, list] = {}
+        for span in spans:
+            groups.setdefault(span.selector, []).append(span)
+        doubled = {sel: g for sel, g in groups.items() if len(g) > 1}
+        if not doubled:
+            return css_text
+        extra = sum(len(g) - 1 for g in doubled.values())
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.duplicate-selectors-found",
+                      values={"count": extra}, location=resource.path)
+            return css_text
+
+        def declarations_of(span) -> "list[str] | None":
+            """The body as declarations — or `None` for a body this reading
+            does not fully account for. `p.sgc-1 {text-align="center"}` has
+            an `=` where the pattern wants a colon, parses as zero
+            declarations, and a merge that believed that would quietly drop
+            the very line `_malformed_declarations` just asked a person
+            about. Opaque bodies take no part in any fold."""
+            body = css_text[css_text.index("{", span.start) + 1:span.end]
+            body = body[:body.rfind("}")]
+            found = []
+            wrapped = "{" + body + "}"
+            cursor = 1
+            for match in _DECLARATION_RE.finditer(wrapped):
+                gap = re.sub(r"/\*.*?\*/", "", wrapped[cursor:match.start()], flags=re.S)
+                if gap.strip("; \t\r\n"):
+                    return None
+                found.append(f"{match.group('prop')}: {match.group('value')}")
+                cursor = match.end()
+            tail = re.sub(r"/\*.*?\*/", "", wrapped[cursor:-1], flags=re.S)
+            if tail.strip("; \t\r\n"):
+                return None
+            return found
+
+        def normalized(declarations: "list[str]") -> "tuple[str, ...]":
+            return tuple(" ".join(d.split()).lower() for d in declarations)
+
+        def properties_of(span) -> "set[str] | None":
+            declarations = declarations_of(span)
+            if declarations is None:
+                return None
+            return {d.partition(":")[0].strip().lower() for d in declarations}
+
+        def road_is_clear(earlier, last, moved_props: "set[str]") -> bool:
+            between = re.sub(
+                r"/\*.*?\*/", " ", css_text[earlier.end:last.start], flags=re.S
+            )
+            if re.search(r"@[A-Za-z-]", between):
+                return False
+            for other in spans:
+                if earlier.end <= other.start < last.start and other.selector != earlier.selector:
+                    other_props = properties_of(other)
+                    if other_props is None or other_props & moved_props:
+                        return False
+            return True
+
+        to_drop: list = []
+        prepend: dict[int, list] = {}
+        kept = 0
+        for selector, group in doubled.items():
+            last = group[-1]
+            last_declarations = declarations_of(last)
+            if last_declarations is None:
+                kept += len(group) - 1
+                continue
+            last_norm = normalized(last_declarations)
+            for earlier in group[:-1]:
+                earlier_declarations = declarations_of(earlier)
+                if earlier_declarations is None:
+                    kept += 1
+                    continue
+                if normalized(earlier_declarations) == last_norm:
+                    to_drop.append(earlier)
+                    continue
+                if road_is_clear(earlier, last, {
+                    d.partition(":")[0].strip().lower() for d in earlier_declarations
+                }):
+                    to_drop.append(earlier)
+                    if earlier_declarations:
+                        prepend.setdefault(last.start, []).extend(earlier_declarations)
+                else:
+                    kept += 1
+        if not to_drop:
+            self.note(ctx, Level.PRESERVED, "css.duplicate-selectors-kept",
+                      values={"count": kept}, location=resource.path)
+            return css_text
+
+        drop_spans = sorted(to_drop, key=lambda s: s.start)
+        cleaned_parts: list = []
+        cursor = 0
+        for span in sorted(spans, key=lambda s: s.start):
+            if span in drop_spans:
+                cleaned_parts.append(css_text[cursor:span.start])
+                cursor = span.end
+                continue
+            if span.start in prepend:
+                brace = css_text.index("{", span.start)
+                cleaned_parts.append(css_text[cursor:brace + 1])
+                cleaned_parts.append(" " + "; ".join(prepend[span.start]) + ";")
+                cursor = brace + 1
+        cleaned_parts.append(css_text[cursor:])
+        cleaned = "".join(cleaned_parts)
+
+        if not _parses_as_css(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned)) != len(spans) - len(to_drop)
+        ):
+            self.note(ctx, Level.WARN, "css.duplicate-selectors-unverified",
+                      values={"count": len(to_drop)}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.duplicate-selectors-merged",
+                  values={"count": len(to_drop)}, location=resource.path)
+        if kept:
+            self.note(ctx, Level.PRESERVED, "css.duplicate-selectors-kept",
+                      values={"count": kept}, location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{len(to_drop)} repeated-selector rule(s)",
+            after="folded into the last occurrence; every cascade winner is the same",
+            risk=Risk.NONE, reversible=False,
+            rule="css.duplicate-selectors-merged",
+        )
+        return cleaned
+
+    def _merge_after_translation(self, ctx: Context) -> None:
+        """The merge again, after renaming — for the duplicates renaming makes.
+
+        D-031's identical-bodies fold gives two generator classes one name,
+        which leaves two byte-identical rules under one selector in the
+        sheet; the shelf measured +30 of those the day slice 1 stripped the
+        `mso-*` junk that had kept the bodies different. They only exist
+        once translation has run, so `_mend`'s pass cannot see them.
+        """
+        if not ctx.policy.rewrite_content:
+            return
+        for sheet in ctx.book.by_type("style"):
+            before = sheet.text()
+            after = self._merge_duplicate_selectors(ctx, before, sheet)
+            if after != before:
+                sheet.data = after.encode("utf-8")
+        for resource in ctx.book.content_docs():
+            if not _STYLE_TEXT.search(resource.data):
+                continue
+            data = resource.data
+            pieces: list = []
+            cursor = 0
+            touched = False
+            for found in _STYLE_TEXT.finditer(data):
+                text = found.group(1).decode("utf-8", "replace")
+                merged = self._merge_duplicate_selectors(ctx, text, resource)
+                pieces.append(data[cursor:found.start(1)])
+                pieces.append(merged.encode("utf-8"))
+                cursor = found.end(1)
+                touched = touched or merged != text
+            pieces.append(data[cursor:])
+            if touched:
+                resource.data = b"".join(pieces)
 
     def _page_plumbing(self, ctx: Context, css_text: str, resource) -> str:
         """Remove Word's `page: SectionN` declarations — print plumbing, not style.
