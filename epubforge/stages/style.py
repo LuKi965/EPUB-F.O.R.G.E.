@@ -384,6 +384,7 @@ class StyleStage(Stage):
         css_text = self._malformed_declarations(ctx, css_text, resource, boilerplate=boilerplate)
         css_text = self._unknown_properties(ctx, css_text, resource)
         css_text = self._merge_duplicate_selectors(ctx, css_text, resource)
+        css_text = self._empty_noise(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
@@ -1091,6 +1092,51 @@ class StyleStage(Stage):
             pieces.append(data[cursor:])
             if touched:
                 resource.data = b"".join(pieces)
+
+    def _empty_noise(self, ctx: Context, css_text: str, resource) -> str:
+        """Remove what says nothing: empty comments, empty rules, empty at-rules.
+
+        Pillar A of the 0.4 plan, third slice — 1 982 `/**/` and 71 empty
+        blocks on the shelf's lint baseline, most of them Word's. An empty
+        comment carries no note of the publisher's (a comment with words in
+        it is one, and stays); an empty rule declares nothing; an empty
+        at-rule selects nothing. Every parser was already ignoring all
+        three. Strings pass whole — `content: "/**/"` is content — because
+        the walk is the stylesheet module's, not a regex. Behind the
+        sweep's opt-out, like the rest of the family.
+        """
+        stripped, comments, at_rules = stylesheet.strip_empty_noise(css_text)
+        spans = stylesheet.top_level_rules(stripped)
+        empty_spans = [
+            span for span in spans
+            if not stripped[stripped.index("{", span.start) + 1:span.end].strip("} \t\r\n")
+        ]
+        total = comments + at_rules + len(empty_spans)
+        if not total:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.empty-noise-found",
+                      values={"count": total}, location=resource.path)
+            return css_text
+        cleaned = stylesheet.without(stripped, empty_spans) if empty_spans else stripped
+        if not _parses_as_css(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned)) != len(spans) - len(empty_spans)
+        ):
+            self.note(ctx, Level.WARN, "css.empty-noise-unverified",
+                      values={"count": total}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.empty-noise-removed",
+                  values={"count": total, "comments": comments,
+                          "rules": len(empty_spans) + at_rules},
+                  location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{total} empty comment(s), rule(s) and at-rule(s)",
+            after="removed; they said nothing and every parser ignored them",
+            risk=Risk.NONE, reversible=False,
+            rule="css.empty-noise-removed",
+        )
+        return cleaned
 
     def _page_plumbing(self, ctx: Context, css_text: str, resource) -> str:
         """Remove Word's `page: SectionN` declarations — print plumbing, not style.

@@ -130,6 +130,52 @@ def strip_html_shields(text: str) -> "tuple[str, int]":
     return "".join(kept), removed
 
 
+_EMPTY_AT_RULE = re.compile(r"@[A-Za-z-][^{};\"']*\{\s*\}")
+
+
+def strip_empty_noise(text: str) -> "tuple[str, int, int]":
+    """Remove empty comments and empty at-rules; strings pass untouched.
+
+    `/**/` says nothing and `@media print {}` selects nothing — every parser
+    was already ignoring both. Walked rather than substituted, for the same
+    reason as `strip_html_shields`: `content: "/**/"` is somebody's content,
+    and a blind regex would eat it. Returns the text, the comment count and
+    the at-rule count; empty *ordinary* rules are the caller's business —
+    they need the rule-count guard the caller already holds.
+    """
+    kept: list[str] = []
+    cursor = 0
+    comments = 0
+    at_rules = 0
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if character in "\"'":
+            moved = _skip_noise(text, cursor)
+            if moved != cursor:
+                kept.append(text[cursor:moved])
+                cursor = moved
+                continue
+        if text.startswith("/*", cursor):
+            end = text.find("*/", cursor + 2)
+            end = length if end < 0 else end + 2
+            if text[cursor + 2:end - 2].strip():
+                kept.append(text[cursor:end])
+            else:
+                comments += 1
+            cursor = end
+            continue
+        if character == "@":
+            matched = _EMPTY_AT_RULE.match(text, cursor)
+            if matched:
+                at_rules += 1
+                cursor = matched.end()
+                continue
+        kept.append(character)
+        cursor += 1
+    return "".join(kept), comments, at_rules
+
+
 def top_level_rules(text: str) -> list[RuleSpan]:
     """Every style rule at the top level of *text*, in source order.
 

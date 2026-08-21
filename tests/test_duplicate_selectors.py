@@ -156,3 +156,35 @@ class TestOpaqueBodiesTakeNoPart:
         assert 'text-align="center"' in out       # kept, unasked → unchanged
         assert out.count("p.jeden") == 2
         assert "css.duplicate-selectors-merged" not in rules_of(result)
+
+
+class TestEmptyNoise:
+    """Third slice: what says nothing goes — empty comments, empty rules,
+    empty at-rules. 1 982 `/**/` and 71 empty blocks on the lint baseline."""
+
+    def test_empty_things_go_and_full_things_stay(self, tmp_path):
+        sheet = (
+            "/**/ /* Sekcja wstępu */ p.jeden { margin: 0; } "
+            "p.pusty {} @media print {} /*  */"
+        )
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert "/**/" not in out and "/*  */" not in out
+        assert "Sekcja wstępu" in out          # a comment with words is a note
+        assert "p.pusty" not in out and "@media print" not in out
+        assert "margin: 0" in out
+        assert "css.empty-noise-removed" in rules_of(result)
+
+    def test_an_empty_comment_inside_content_is_content(self, tmp_path):
+        """`content: "/**/"` is somebody's text on the page. The mutation
+        that swaps the walk for a regex fails here."""
+        sheet = 'p.jeden { margin: 0; } p.jeden::before { content: "/**/"; }'
+        result = build(tmp_path, sheet=sheet)
+        assert 'content: "/**/"' in sheet_of(result)
+
+    def test_the_opt_out_counts_the_emptiness_too(self, tmp_path):
+        sheet = "p.jeden { margin: 0; } /**/ p.pusty {}"
+        result = build(tmp_path, sheet=sheet, sweep=False)
+        out = sheet_of(result)
+        assert "/**/" in out and "p.pusty" in out
+        assert "css.empty-noise-found" in rules_of(result)
