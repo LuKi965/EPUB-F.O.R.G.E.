@@ -176,6 +176,40 @@ def structurally_sound(text: str) -> bool:
     return depth == 0
 
 
+def declaration_blocks(text: str) -> "list[tuple[int, int]]":
+    """Every innermost `{…}` body in *text*, at any depth, as offsets.
+
+    `text[start:end]` is what stands between the braces, braces excluded.
+    Innermost is the point: a block holding other blocks (`@media`) is a
+    container, and declarations live in the leaves. Depth deliberately
+    does not matter — the caller's question, which declaration wins
+    *within* one block, has the same answer under any at-rule condition,
+    because whatever turns the block on turns all of it on.
+    """
+    found: list[tuple[int, int]] = []
+    stack: list[list] = []
+    cursor = 0
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if character in "\"'" or text.startswith("/*", cursor):
+            moved = _skip_noise(text, cursor)
+            if moved != cursor:
+                cursor = moved
+                continue
+        if character == "{":
+            if stack:
+                stack[-1][1] = True
+            stack.append([cursor + 1, False])
+        elif character == "}":
+            if stack:
+                start, has_children = stack.pop()
+                if not has_children:
+                    found.append((start, cursor))
+        cursor += 1
+    return found
+
+
 _EMPTY_AT_RULE = re.compile(r"@[A-Za-z-][^{};\"']*\{\s*\}")
 
 

@@ -129,6 +129,72 @@ _DECLARATION_RE = re.compile(
     r"(?P<value>(?:[^;}\"']|\"[^\"]*\"|'[^']*')*?)\s*(?:;|(?=\}))"
 )
 
+#: The values every CSS validator has accepted since CSS1, by property — the
+#: proof `_duplicate_properties` cuts on. An earlier in-block duplicate is
+#: dead only when **no** reader can reject the later value: a reader that
+#: rejects `display: flex` falls back to the earlier `display: block`, so
+#: that pair is a working fallback and stays. A plain CSS1 length for
+#: `margin-bottom` has no reader to fall back for — Word writes
+#: `margin-bottom: 0cm` and `margin-bottom: .0001pt` into one block 948
+#: times across the shelf, and the earlier line never won anywhere. Every
+#: row of this table is here because CSS1 itself lists the value for the
+#: property; a property whose CSS1 grammar is narrower than its modern one
+#: (`vertical-align` took lengths only in CSS2) earns no row at all.
+_CSS1_LENGTH_PROPS = frozenset({
+    "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
+    "padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
+    "text-indent", "font-size", "line-height", "letter-spacing", "word-spacing",
+    "width", "height",
+    "border-width", "border-top-width", "border-right-width",
+    "border-bottom-width", "border-left-width",
+})
+#: `auto` is CSS1 for exactly these.
+_CSS1_AUTO_PROPS = frozenset({
+    "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
+    "width", "height",
+})
+_CSS1_KEYWORDS = {
+    "font-weight": frozenset({
+        "normal", "bold", "bolder", "lighter",
+        "100", "200", "300", "400", "500", "600", "700", "800", "900",
+    }),
+    "font-style": frozenset({"normal", "italic", "oblique"}),
+    "text-align": frozenset({"left", "right", "center", "justify"}),
+}
+#: A CSS1 length token: a number with a CSS1 unit or percent, or a bare zero.
+#: A bare non-zero number is deliberately not one — CSS1 requires the unit,
+#: so a strict validator may reject `margin: 12` and wake the fallback.
+_CSS1_LENGTH = re.compile(
+    r"(?:[-+]?(?:\d+\.?\d*|\.\d+)(?:pt|px|pc|cm|mm|in|em|ex|%)"
+    r"|[-+]?(?:0+\.?0*|\.0+))\Z"
+)
+_CSS1_NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)\Z")
+#: Only the margin and padding shorthands took several lengths in CSS1.
+_CSS1_MULTI = frozenset({"margin", "padding"})
+
+_IMPORTANT_RE = re.compile(r"!\s*important\s*\Z", re.IGNORECASE)
+
+
+def _css1_safe(prop: str, value: str) -> bool:
+    """True when no validator since CSS1 rejects *value* for *prop*."""
+    keywords = _CSS1_KEYWORDS.get(prop)
+    if keywords is not None:
+        return value.lower() in keywords
+    if prop not in _CSS1_LENGTH_PROPS:
+        return False
+    tokens = value.lower().split()
+    if not tokens or (len(tokens) > 1 and prop not in _CSS1_MULTI) or len(tokens) > 4:
+        return False
+    for token in tokens:
+        if token == "auto" and prop in _CSS1_AUTO_PROPS:
+            continue
+        if prop == "line-height" and _CSS1_NUMBER.match(token):
+            continue
+        if _CSS1_LENGTH.match(token):
+            continue
+        return False
+    return True
+
 #: What the element would have to be inheriting for correcting `regular` to
 #: change the page (EF-033). `regular` is dropped, so the element inherits; the
 #: correction says `normal`, which *overrides*. Those two agree everywhere the
@@ -397,6 +463,7 @@ class StyleStage(Stage):
         css_text = self._malformed_declarations(ctx, css_text, resource, boilerplate=boilerplate)
         css_text = self._unknown_properties(ctx, css_text, resource)
         css_text = self._merge_duplicate_selectors(ctx, css_text, resource)
+        css_text = self._duplicate_properties(ctx, css_text, resource)
         css_text = self._empty_noise(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
@@ -1088,12 +1155,18 @@ class StyleStage(Stage):
         sheet; the shelf measured +30 of those the day slice 1 stripped the
         `mso-*` junk that had kept the bodies different. They only exist
         once translation has run, so `_mend`'s pass cannot see them.
+
+        The in-block duplicate cut runs again here for the same reason:
+        the merge prepends an earlier body into the selector's last block,
+        and when both declared the same property that block now holds the
+        pair — created after `_mend`'s own pass was over.
         """
         if not ctx.policy.rewrite_content:
             return
         for sheet in ctx.book.by_type("style"):
             before = sheet.text()
             after = self._merge_duplicate_selectors(ctx, before, sheet)
+            after = self._duplicate_properties(ctx, after, sheet)
             if after != before:
                 sheet.data = after.encode("utf-8")
         for resource in ctx.book.content_docs():
@@ -1106,6 +1179,7 @@ class StyleStage(Stage):
             for found in _STYLE_TEXT.finditer(data):
                 text = found.group(1).decode("utf-8", "replace")
                 merged = self._merge_duplicate_selectors(ctx, text, resource)
+                merged = self._duplicate_properties(ctx, merged, resource)
                 pieces.append(data[cursor:found.start(1)])
                 pieces.append(merged.encode("utf-8"))
                 cursor = found.end(1)
@@ -1113,6 +1187,108 @@ class StyleStage(Stage):
             pieces.append(data[cursor:])
             if touched:
                 resource.data = b"".join(pieces)
+
+    def _duplicate_properties(self, ctx: Context, css_text: str, resource) -> str:
+        """Cut in-block duplicates of a property that provably never win.
+
+        Pillar A of the 0.4 plan, fourth slice — 1 288
+        `declaration-block-no-duplicate-properties` findings on the shelf,
+        87% of them one Word artifact: `margin-bottom: 0cm` followed by
+        `margin-bottom: .0001pt` with another line between. Within one
+        block importance beats order and order beats nothing else, so a
+        duplicate is dead under exactly two proofs:
+
+        * **Same value everywhere:** every parser picks *some* occurrence
+          and they all say the same thing. The winner stays — the last
+          important one when importance is in play, the last occurrence
+          otherwise — so the inter-rule cascade keeps its importance too.
+        * **Different values, and the last one no validator since CSS1
+          rejects:** the fallback idiom (`display: block; display: flex`)
+          works only because an old reader can *reject* the later value
+          and fall back to the earlier. A plain CSS1 length has no reader
+          to reject it, so the earlier line never wins anywhere.
+          `_css1_safe` is the whole of that argument, kept deliberately
+          small.
+
+        A group that mixes values with `!important`, and a group whose
+        last value some validator may reject, is somebody's fallback until
+        proved otherwise: kept and counted. Blocks inside at-rules are
+        treated too — whatever condition turns a block on turns all of it
+        on, so the in-block winner is the same under any condition.
+        Behind the sweep's opt-out, like the rest of the family.
+        """
+        cuts: list = []
+        kept = 0
+        total = 0
+        for body_start, body_end in stylesheet.declaration_blocks(css_text):
+            wrapped = "{" + css_text[body_start:body_end] + "}"
+            groups: dict = {}
+            for match in _DECLARATION_RE.finditer(wrapped):
+                groups.setdefault(match.group("prop").lower(), []).append(match)
+            for prop, occurrences in groups.items():
+                if len(occurrences) < 2:
+                    continue
+                total += len(occurrences) - 1
+                parsed = []
+                for match in occurrences:
+                    value = match.group("value").strip()
+                    important = bool(_IMPORTANT_RE.search(value))
+                    bare = _IMPORTANT_RE.sub("", value).strip()
+                    parsed.append((match, " ".join(bare.split()), important))
+                values = {value for _, value, _ in parsed}
+                important_ones = [entry for entry in parsed if entry[2]]
+                if len(values) == 1:
+                    winner = (important_ones or parsed)[-1]
+                    losers = [entry for entry in parsed if entry is not winner]
+                elif important_ones:
+                    kept += len(occurrences) - 1
+                    continue
+                elif _css1_safe(prop, parsed[-1][1]):
+                    losers = parsed[:-1]
+                else:
+                    kept += len(occurrences) - 1
+                    continue
+                cuts.extend(
+                    (body_start - 1 + match.start(), body_start - 1 + match.end())
+                    for match, _, _ in losers
+                )
+        if not total:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.duplicate-properties-found",
+                      values={"count": total}, location=resource.path)
+            return css_text
+        if not cuts:
+            self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
+                      values={"count": kept}, location=resource.path)
+            return css_text
+        pieces: list = []
+        cursor = 0
+        for start, end in sorted(cuts):
+            pieces.append(css_text[cursor:start])
+            cursor = end
+        pieces.append(css_text[cursor:])
+        cleaned = "".join(pieces)
+        if not _structurally_sound(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned))
+            != len(stylesheet.top_level_rules(css_text))
+        ):
+            self.note(ctx, Level.WARN, "css.duplicate-properties-unverified",
+                      values={"count": len(cuts)}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.duplicate-properties-removed",
+                  values={"count": len(cuts)}, location=resource.path)
+        if kept:
+            self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
+                      values={"count": kept}, location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{len(cuts)} in-block duplicate declaration(s) that could never win",
+            after="removed; each property's winning declaration stays where it stood",
+            risk=Risk.NONE, reversible=False,
+            rule="css.duplicate-properties-removed",
+        )
+        return cleaned
 
     def _empty_noise(self, ctx: Context, css_text: str, resource) -> str:
         """Remove what says nothing: empty comments, empty rules, empty at-rules.

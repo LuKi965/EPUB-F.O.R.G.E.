@@ -34,11 +34,12 @@
     "written": true,
     "report": {
       "info": 15,
-      "fix": 7,
+      "fix": 8,
       "preserved": 5
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "css.duplicate-properties-removed": 1,
       "css.unreachable-rules-found": 3,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
@@ -61,7 +62,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:6a33d38ecc0923cd87ab9660c1f2ba80182ca39937ac3901e29803df7323d4a0",
+    "output": "sha256:5a68107e8bad0a0eaa5bdf95c186917e16a09e3bdc9a6310660fb450848bbed4",
     "text_characters": 251758,
     "text_added": 2,
     "text_invariant": true,
@@ -71,11 +72,12 @@
     "written": true,
     "report": {
       "info": 12,
-      "fix": 10,
+      "fix": 11,
       "preserved": 5
     },
     "rules": {
       "a11y.metadata-added": 1,
+      "css.duplicate-properties-removed": 1,
       "css.unreachable-rules-removed": 3,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
@@ -98,7 +100,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:93c4f48f27269a368321885c44742916148808daa50c0498b163bc1fa5e5d0bc",
+    "output": "sha256:e01ba5fb0735e1a1f5152f410e05e93cba57fec9242fdb20e6b9b4b3a57c3fa0",
     "text_characters": 251758,
     "text_added": 2,
     "text_invariant": true,
