@@ -152,10 +152,15 @@ def top_level_rules(text: str) -> list[RuleSpan]:
         if character == "{":
             prelude = text[prelude_start:cursor]
             end = _matching_brace(text, cursor)
-            # The shield tokens are stripped before the at-rule test (EF-070):
-            # Word writes `--> @page …`, and a prelude that starts with `-->`
-            # is still an at-rule's, not a selector.
-            if _HTML_SHIELD.sub(" ", prelude).lstrip().startswith("@"):
+            # Comments and shield tokens are stripped before the at-rule test
+            # (EF-070, both of its faces): Word writes `--> @page …` *and*
+            # `/* Page Definitions */ @page …`, and a prelude that starts
+            # with either is still an at-rule's, not a selector. The first
+            # fix handled only the shield; the shelf then showed `@font-face`
+            # behind `/* Font Definitions */` misread the same way — the test
+            # must see the prelude the way a CSS parser does, noise removed.
+            judged = _COMMENT.sub(" ", _HTML_SHIELD.sub(" ", prelude))
+            if judged.lstrip().startswith("@"):
                 # An at-rule, contents and all. Left whole, deliberately.
                 cursor = end
             else:

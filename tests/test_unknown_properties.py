@@ -172,6 +172,21 @@ class TestTheShieldDoesNotBlindTheScanner:
         text = "--> @page WordSection1 { size: 21cm 29.7cm; }"
         assert stylesheet.top_level_rules(text) == []
 
+    def test_a_commented_at_rule_is_still_an_at_rule(self):
+        """EF-070's second face, shown by the shelf right after the first
+        was fixed: Word heads every section with a comment — `/* Page
+        Definitions */` before `@page`, `/* Font Definitions */` before
+        `@font-face` — and a prelude that starts with a comment defeated
+        `startswith("@")` exactly the way the shield token did. This flaw
+        is older than pillar A: it was there whenever a comment preceded
+        an at-rule."""
+        from epubforge import stylesheet
+
+        text = "/* Page Definitions */ @page { margin: 2cm; }"
+        assert stylesheet.top_level_rules(text) == []
+        text2 = "/* Font Definitions */ @font-face { font-family: X; src: url(a.ttf); }"
+        assert stylesheet.top_level_rules(text2) == []
+
     def test_a_shielded_selector_is_still_clean(self):
         from epubforge import stylesheet
 
