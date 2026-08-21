@@ -267,8 +267,20 @@ def _drop_declaration(css_text: str, start: int, end: int, prop: str) -> str:
             return css_text[:at_rule] + css_text[closing + 1 :]
     return css_text[:start] + css_text[end:]
 
+def _structurally_sound(css_text: str) -> bool:
+    """Braces balanced, strings and comments closed — the cheap half of the
+    guard on any text surgery. A bad cut breaks structure, and structure is
+    one O(n) walk; whether the result is still grammatical CSS is cssutils's
+    question, asked once per mended text at the end of `_mend` instead of at
+    every step — the difference between 235 parses and one book blowing its
+    time budget (the shelf measured it), and honest guards that still bite.
+    """
+    return stylesheet.structurally_sound(css_text)
+
+
 def _parses_as_css(css_text: str) -> bool:
-    """Whether cssutils can still read this. The guard on any text surgery."""
+    """Whether cssutils can still read this. The expensive half of the guard,
+    asked once per mended text (see `_structurally_sound`)."""
     try:
         sheet = cssutils.parseString(css_text, validate=False)
     except Exception:  # noqa: BLE001 — an unreadable sheet is the answer
@@ -373,6 +385,7 @@ class StyleStage(Stage):
         it is a difference on purpose rather than an oversight — see
         `_inline_blocks`.
         """
+        original_text, original_unresolved = css_text, unresolved
         if unresolved and ctx.policy.remove_dead:
             css_text, neutralised = self._neutralise_dead_urls(
                 ctx, css_text, source_path, resource.path, resource
@@ -391,6 +404,14 @@ class StyleStage(Stage):
         if sweep_unreachable:
             css_text = self._unreachable_rules(ctx, css_text, resource)
         css_text = self._font_stacks(ctx, css_text, resource)
+        # The expensive half of every repair's guard, paid once: whatever the
+        # chain produced still has to read as CSS to a full parser. On a
+        # failure the whole mend is handed back — a chain whose product does
+        # not parse has no step worth keeping, and which step broke it is a
+        # question for the suite, not for a reader's book.
+        if css_text != original_text and not _parses_as_css(css_text):
+            self.note(ctx, Level.WARN, "css.mend-unverified", location=resource.path)
+            return original_text, original_unresolved
         return css_text, unresolved
 
     def _inline_blocks(self, ctx: Context) -> None:
@@ -567,7 +588,7 @@ class StyleStage(Stage):
             # The cut is checked rather than trusted, same as the sheet sweep:
             # the result must still be a stylesheet holding exactly the rules
             # that were not cut.
-            if not _parses_as_css(result) or (
+            if not _structurally_sound(result) or (
                 len(stylesheet.top_level_rules(result)) != len(spans) - len(junk)
             ):
                 self.note(ctx, Level.WARN, "css.unreachable-rules-unverified",
@@ -826,7 +847,7 @@ class StyleStage(Stage):
         stripped, removed = stylesheet.strip_html_shields(css_text)
         if not removed:
             return css_text
-        if not _parses_as_css(stripped) or len(
+        if not _structurally_sound(stripped) or len(
             stylesheet.top_level_rules(stripped)
         ) != len(stylesheet.top_level_rules(css_text)):
             return css_text
@@ -891,7 +912,7 @@ class StyleStage(Stage):
         # An at-rule emptied by the removal goes whole too — `@font-face {}`
         # would only trade one lint finding for another.
         cleaned = re.sub(r"@[A-Za-z-]+[^{};]*\{\s*\}", "", cleaned)
-        if not _parses_as_css(cleaned) or (
+        if not _structurally_sound(cleaned) or (
             len(stylesheet.top_level_rules(cleaned)) != rules_before - len(emptied)
         ):
             self.note(ctx, Level.WARN, "css.unknown-properties-unverified",
@@ -1039,7 +1060,7 @@ class StyleStage(Stage):
         cleaned_parts.append(css_text[cursor:])
         cleaned = "".join(cleaned_parts)
 
-        if not _parses_as_css(cleaned) or (
+        if not _structurally_sound(cleaned) or (
             len(stylesheet.top_level_rules(cleaned)) != len(spans) - len(to_drop)
         ):
             self.note(ctx, Level.WARN, "css.duplicate-selectors-unverified",
@@ -1119,7 +1140,7 @@ class StyleStage(Stage):
                       values={"count": total}, location=resource.path)
             return css_text
         cleaned = stylesheet.without(stripped, empty_spans) if empty_spans else stripped
-        if not _parses_as_css(cleaned) or (
+        if not _structurally_sound(cleaned) or (
             len(stylesheet.top_level_rules(cleaned)) != len(spans) - len(empty_spans)
         ):
             self.note(ctx, Level.WARN, "css.empty-noise-unverified",
@@ -1174,7 +1195,7 @@ class StyleStage(Stage):
         ]
         if emptied:
             cleaned = stylesheet.without(cleaned, emptied)
-        if not _parses_as_css(cleaned) or (
+        if not _structurally_sound(cleaned) or (
             len(stylesheet.top_level_rules(cleaned)) != rules_before - len(emptied)
         ):
             self.note(ctx, Level.WARN, "css.page-plumbing-unverified",
@@ -1335,7 +1356,7 @@ class StyleStage(Stage):
 
         # The guard, and the reason this is safe to do with a scanner rather
         # than a full parse: whatever came out has to still be a stylesheet.
-        if not _parses_as_css(css_text):
+        if not _structurally_sound(css_text):
             self.note(
                 ctx,
                 Level.PRESERVED,
@@ -1493,7 +1514,7 @@ class StyleStage(Stage):
         # The same guard the other removals use: a repair that leaves behind
         # something which is no longer a stylesheet is worse than the error it
         # was repairing.
-        if not _parses_as_css(rewritten):
+        if not _structurally_sound(rewritten):
             self.note(ctx, Level.PRESERVED, "css.malformed-declaration-kept",
                       values={"count": len(enabled) + len(dropped)},
                       location=resource.path)

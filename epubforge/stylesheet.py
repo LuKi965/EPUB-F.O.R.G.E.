@@ -130,6 +130,52 @@ def strip_html_shields(text: str) -> "tuple[str, int]":
     return "".join(kept), removed
 
 
+def structurally_sound(text: str) -> bool:
+    """Braces balanced, every string and comment closed — nothing else judged.
+
+    The property each text cut in this package must preserve, and the cheap
+    half of a two-part guard: a bad cut breaks *structure* (an orphaned
+    brace, a string sliced open — the shelf produced both), and structure is
+    checkable in one O(n) walk. Whether the text is still *grammatical* CSS
+    is the expensive question, asked of cssutils exactly once per mended
+    text at the end of the chain — 235 mid-chain cssutils reads were 205 of
+    the 304 seconds that pushed a 135-document book over its time budget.
+    """
+    cursor = 0
+    depth = 0
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if text.startswith("/*", cursor):
+            closed = text.find("*/", cursor + 2)
+            if closed < 0:
+                return False
+            cursor = closed + 2
+            continue
+        if character in "\"'":
+            quote = character
+            cursor += 1
+            while cursor < length:
+                if text[cursor] == "\\":
+                    cursor += 2
+                    continue
+                if text[cursor] == quote:
+                    break
+                cursor += 1
+            if cursor >= length:
+                return False
+            cursor += 1
+            continue
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth < 0:
+                return False
+        cursor += 1
+    return depth == 0
+
+
 _EMPTY_AT_RULE = re.compile(r"@[A-Za-z-][^{};\"']*\{\s*\}")
 
 

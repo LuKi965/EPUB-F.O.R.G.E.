@@ -256,3 +256,35 @@ class TestTheShieldDoesNotBlindTheScanner:
         assert "@page WordSection1 { size: 21cm 29.7cm; }" in document
         assert "mso-" not in document
         assert "&lt;!--" not in document and "--&gt;" not in document
+
+
+class TestTheTwoPartGuard:
+    """The shelf's budget refusal (a 135-document book at 304 s of a 300 s
+    ceiling, 205 s of it cssutils) split every repair's guard in two: the
+    cheap structural half after each cut, the full parser once per mended
+    text. Both halves need teeth of their own."""
+
+    def test_structure_is_judged_and_nothing_else(self):
+        from epubforge import stylesheet
+
+        sound = stylesheet.structurally_sound
+        assert sound("p { color: red; }")
+        assert sound('p::before { content: "}"; }')
+        assert sound("/* note */ p { a: 1 }")
+        assert not sound("p { color: red;")          # orphaned brace
+        assert not sound("p } color")                # closing before opening
+        assert not sound('p { content: "unclosed }') # string sliced open
+        assert not sound("p { } /* unclosed")        # comment sliced open
+
+    def test_a_mend_whose_product_stops_parsing_is_handed_back(self, tmp_path, monkeypatch):
+        """The once-per-text cssutils read at the end of `_mend`: when it
+        says no, the whole mend is returned and the report says so. The
+        parser is stood down for the probe, because a chain of correct
+        repairs cannot honestly produce an unreadable sheet on demand."""
+        from epubforge.stages import style as style_module
+
+        monkeypatch.setattr(style_module, "_parses_as_css", lambda text: False)
+        result = build(tmp_path)
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "mso-font-charset" in sheet_of(result)   # the cut was handed back
+        assert "css.mend-unverified" in rules_of(result)
