@@ -62,6 +62,14 @@ def _skip_noise(text: str, index: int) -> int:
 
 _COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
+#: The HTML-era shield tokens (CDO/CDC). CSS has ignored them at the top
+#: level of a stylesheet since 1997; they exist to hide the sheet from
+#: browsers older than that. EF-070 is what happens when a scanner forgets:
+#: a `-->` in front of `@page` made the at-rule test read the prelude as an
+#: ordinary selector, and an at-rule was one `without()` away from being cut
+#: as if it were one.
+_HTML_SHIELD = re.compile(r"<!--|-->")
+
 
 def _selector_of(prelude: str) -> tuple[int, str]:
     """Where the selector really starts in *prelude*, and what it says.
@@ -69,13 +77,57 @@ def _selector_of(prelude: str) -> tuple[int, str]:
     Anything before the last comment belongs to the file, not to this rule.
     Returning the offset rather than the trimmed text is what lets the caller
     cut a rule and leave the comment above it where the publisher put it.
+    A shield token is skipped the same way (EF-070): it belongs to the file's
+    ancient armour, never to a selector.
     """
     last = None
     for match in _COMMENT.finditer(prelude):
         last = match
     offset = last.end() if last else 0
+    while True:
+        tail = prelude[offset:]
+        bare = tail.lstrip()
+        shield = _HTML_SHIELD.match(bare)
+        if not shield:
+            break
+        offset += (len(tail) - len(bare)) + shield.end()
     tail = prelude[offset:]
     return offset + (len(tail) - len(tail.lstrip())), " ".join(tail.split())
+
+
+def strip_html_shields(text: str) -> "tuple[str, int]":
+    """Remove the `<!--`/`-->` shield tokens at the top level of *text*.
+
+    Only at the top level: inside a rule the same characters are somebody's
+    content (`content: "-->"`) and are left exactly where they are, which is
+    why this walks braces, strings and comments instead of substituting.
+    """
+    kept: list[str] = []
+    cursor = 0
+    depth = 0
+    removed = 0
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if character in "\"'" or text.startswith("/*", cursor):
+            moved = _skip_noise(text, cursor)
+            if moved != cursor:
+                kept.append(text[cursor:moved])
+                cursor = moved
+                continue
+        if depth == 0 and (
+            text.startswith("<!--", cursor) or text.startswith("-->", cursor)
+        ):
+            cursor += 4 if text.startswith("<!--", cursor) else 3
+            removed += 1
+            continue
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth = max(0, depth - 1)
+        kept.append(character)
+        cursor += 1
+    return "".join(kept), removed
 
 
 def top_level_rules(text: str) -> list[RuleSpan]:
@@ -100,7 +152,10 @@ def top_level_rules(text: str) -> list[RuleSpan]:
         if character == "{":
             prelude = text[prelude_start:cursor]
             end = _matching_brace(text, cursor)
-            if prelude.lstrip().startswith("@"):
+            # The shield tokens are stripped before the at-rule test (EF-070):
+            # Word writes `--> @page …`, and a prelude that starts with `-->`
+            # is still an at-rule's, not a selector.
+            if _HTML_SHIELD.sub(" ", prelude).lstrip().startswith("@"):
                 # An at-rule, contents and all. Left whole, deliberately.
                 cursor = end
             else:

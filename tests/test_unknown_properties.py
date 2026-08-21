@@ -119,7 +119,7 @@ class TestTheCommentShield:
             '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
             '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
             '<meta charset="utf-8"/><title>R</title>'
-            "<style>&lt;!--\np.tresc { margin: 0; text-indent: 1em; line-height: 1.3; }\n--&gt;</style>"
+            "<style>/**/ &lt;!--\np.tresc { margin: 0; text-indent: 1em; line-height: 1.3; }\n--&gt;</style>"
             '</head><body><p class="tresc">Akapit z treścią.</p></body></html>'
         )
         result = rebuild(
@@ -141,8 +141,75 @@ class TestTheCommentShield:
         assert "css.comment-shield-removed" in rules_of(result)
 
     def test_an_arrow_inside_content_stays(self, tmp_path):
-        """Only the leading/trailing shield is the measured shape; a `-->`
-        in the middle of a sheet is somebody's content."""
+        """A `-->` in a content string is somebody's content."""
         sheet = 'p.tresc { margin: 0; } p.tresc::before { content: "-->"; }'
         result = build(tmp_path, sheet=sheet)
         assert 'content: "-->"' in sheet_of(result)
+
+    def test_an_arrow_inside_a_block_keeps_a_broken_declaration_broken(self, tmp_path):
+        """The load-bearing case for the top-level rule. A shield token
+        *inside* a block makes its declaration invalid, and every parser
+        drops it — the text has never been red. Removing the token there
+        would switch the colour on, which is an appearance change nobody
+        asked for. The mutation that strips shields at any depth fails
+        here."""
+        sheet = "p.tresc { margin: 0; color: red --> ; text-indent: 1em; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "red -->" in sheet_of(result)
+
+
+class TestTheShieldDoesNotBlindTheScanner:
+    """EF-070, found by slice 1's own guard on the very first shelf run: in
+    Word's sheets a `-->` stands right before `@page`, the at-rule test read
+    the prelude as an ordinary selector, and an at-rule was one `without()`
+    away from being cut as if it were one. The rule-count guard refused the
+    whole sheet — 25 times across two books — which is the guard doing its
+    job and the scanner failing at its."""
+
+    def test_a_shielded_at_rule_is_still_an_at_rule(self):
+        from epubforge import stylesheet
+
+        text = "--> @page WordSection1 { size: 21cm 29.7cm; }"
+        assert stylesheet.top_level_rules(text) == []
+
+    def test_a_shielded_selector_is_still_clean(self):
+        from epubforge import stylesheet
+
+        (span,) = stylesheet.top_level_rules("<!-- p.tresc { margin: 0 } -->")
+        assert span.selector == "p.tresc"
+
+    def test_the_word_shape_cleans_and_verifies(self, tmp_path):
+        """The measured Dichte-mist shape end to end: `/**/` before the
+        shield, an `@page` of nothing but Word plumbing, `mso-*` beside real
+        declarations. It must clean — not refuse — and the at-rule must
+        survive as an at-rule."""
+        page = (
+            '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
+            '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
+            '<meta charset="utf-8"/><title>R</title>'
+            "<style>/**/\n&lt;!--\n"
+            "@page WordSection1 { size: 21cm 29.7cm; mso-header-margin: 35.4pt; }\n"
+            "p.tresc { margin: 0; mso-pagination: widow-orphan; text-indent: 1em; line-height: 1.3; }\n"
+            "--&gt;</style>"
+            '</head><body><p class="tresc">Akapit z treścią.</p></body></html>'
+        )
+        result = rebuild(
+            make_book(tmp_path / "in.epub", {"c0.xhtml": page}),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", render_gate="off"),
+        )
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "css.unknown-properties-removed" in rules_of(result)
+        assert "css.unknown-properties-unverified" not in rules_of(result)
+        assert "css.comment-shield-removed" in rules_of(result)
+        import zipfile
+
+        with zipfile.ZipFile(result.output_path) as archive:
+            document = next(
+                archive.read(n).decode("utf-8")
+                for n in archive.namelist()
+                if n.endswith(".xhtml") and "tresc" in archive.read(n).decode("utf-8")
+            )
+        assert "@page WordSection1 { size: 21cm 29.7cm; }" in document
+        assert "mso-" not in document
+        assert "&lt;!--" not in document and "--&gt;" not in document

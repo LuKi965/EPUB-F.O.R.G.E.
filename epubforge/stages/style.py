@@ -801,25 +801,27 @@ class StyleStage(Stage):
         )
 
     def _comment_shield(self, ctx: Context, css_text: str, resource) -> str:
-        """Strip the `<!-- … -->` wrapper an HTML-era converter left in the CSS.
+        """Strip the `<!-- … -->` shield an HTML-era converter left in the CSS.
 
-        Pillar A of the 0.4 plan, first slice. The wrapper hid CSS from
+        Pillar A of the 0.4 plan, first slice. The shield hid CSS from
         browsers that predate 1997; every CSS parser since ignores the
         `<!--`/`-->` tokens at the top level of a stylesheet, so removing
         them cannot change a parse — and leaving them is what 312 of the 314
-        parse errors in the Calibre-lint baseline were. Only the leading and
-        trailing shield is taken, which is the one shape the shelf measured;
-        a `-->` in the middle of a sheet is somebody's content and stays.
+        parse errors in the Calibre-lint baseline were. Top level **only**:
+        a `-->` inside a rule is somebody's content and stays. The first
+        version anchored on the sheet's edges and the very first shelf run
+        measured it doing nothing — Word opens with `/**/` *before* the
+        shield, so the walk is the stylesheet module's, not a regex.
         """
-        stripped = re.sub(r"^\s*<!--", "", css_text)
-        stripped = re.sub(r"-->\s*$", "", stripped)
-        if stripped == css_text:
+        stripped, removed = stylesheet.strip_html_shields(css_text)
+        if not removed:
             return css_text
         if not _parses_as_css(stripped) or len(
             stylesheet.top_level_rules(stripped)
         ) != len(stylesheet.top_level_rules(css_text)):
             return css_text
-        self.note(ctx, Level.FIX, "css.comment-shield-removed", location=resource.path)
+        self.note(ctx, Level.FIX, "css.comment-shield-removed",
+                  values={"count": removed}, location=resource.path)
         return stripped
 
     def _unknown_properties(self, ctx: Context, css_text: str, resource) -> str:

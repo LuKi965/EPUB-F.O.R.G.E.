@@ -143,7 +143,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 203
+TEMPLATED_TODAY = 204
 
 
 class TestTheTranslationCannotStall:
