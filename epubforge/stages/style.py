@@ -663,6 +663,7 @@ class StyleStage(Stage):
         if sweep_unreachable:
             css_text = self._unreachable_rules(ctx, css_text, resource)
         css_text = self._font_stacks(ctx, css_text, resource)
+        css_text = self._readable_format(ctx, css_text, resource)
         # The expensive half of every repair's guard, paid once: whatever the
         # chain produced still has to read as CSS to a full parser. On a
         # failure the whole mend is handed back — a chain whose product does
@@ -1381,6 +1382,51 @@ class StyleStage(Stage):
             pieces.append(data[cursor:])
             if touched:
                 resource.data = b"".join(pieces)
+
+    def _readable_format(self, ctx: Context, css_text: str, resource) -> str:
+        """Rewrite a one-line sheet into one declaration per line.
+
+        Pillar A of the 0.4 plan, seventh slice, and deliberately the
+        smallest: the shelf holds exactly five sheets packed onto a
+        single line (two from one publisher template, three from a
+        converter) — the owner's original complaint opened on one of
+        them. Only those are touched: a sheet with more than two rules
+        per line carries no formatting of the publisher's to respect,
+        while everything else is somebody's layout and stays byte-alone.
+        The transform is pure whitespace (`stylesheet.readable`), guarded
+        by the strongest equality this file has: both texts with every
+        whitespace removed must match to the character.
+        """
+        rules = stylesheet.top_level_rules(css_text)
+        lines = css_text.count("\n") + 1
+        # Ten rules is the measured floor: the smallest one-liner on the
+        # shelf packs 27, and a three-rule line is legible as it stands.
+        if len(rules) < 10 or len(rules) <= 2 * lines:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.single-line-found",
+                      values={"rules": len(rules), "lines": lines},
+                      location=resource.path)
+            return css_text
+        pretty = stylesheet.readable(css_text)
+        if not _structurally_sound(pretty) or (
+            len(stylesheet.top_level_rules(pretty)) != len(rules)
+            or re.sub(r"\s+", "", pretty) != re.sub(r"\s+", "", css_text)
+        ):
+            self.note(ctx, Level.WARN, "css.reformat-unverified",
+                      location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.reformatted",
+                  values={"rules": len(rules), "lines": lines},
+                  location=resource.path)
+        self.changed(
+            ctx, Action.REPLACED, resource.path,
+            before=f"{len(rules)} rules packed onto {lines} line(s)",
+            after="one declaration per line; every character outside whitespace identical",
+            risk=Risk.NONE, reversible=False,
+            rule="css.reformatted",
+        )
+        return pretty
 
     def _shorthand_overrides(self, ctx: Context, css_text: str, resource) -> str:
         """Cut a longhand a later shorthand in the same block resets anyway.

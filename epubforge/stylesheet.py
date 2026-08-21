@@ -216,6 +216,69 @@ def conditional_rules(text: str) -> "list[tuple[str, str]]":
     return found
 
 
+def readable(text: str) -> str:
+    """*text* rewritten one declaration per line, four-space indent per depth.
+
+    A pure whitespace transform: strings and comments pass through
+    verbatim (the walker skips them the way every walker here does), and
+    everything else keeps its characters — only the space between them
+    changes. Meant for sheets that arrive as one line, where there is no
+    publisher formatting to respect; the caller decides when that is.
+    """
+    out: list[str] = []
+    cursor = 0
+    depth = 0
+    length = len(text)
+
+    def skip_space(position: int) -> int:
+        while position < length and text[position] in " \t\r\n":
+            position += 1
+        return position
+
+    def trim_tail() -> None:
+        while out:
+            stripped = out[-1].rstrip(" \t\r\n")
+            if stripped:
+                out[-1] = stripped
+                return
+            out.pop()
+
+    cursor = skip_space(cursor)
+    while cursor < length:
+        character = text[cursor]
+        if character in "\"'" or text.startswith("/*", cursor):
+            moved = _skip_noise(text, cursor)
+            if moved != cursor:
+                out.append(text[cursor:moved])
+                cursor = moved
+                continue
+        if character == "{":
+            depth += 1
+            trim_tail()
+            out.append(" {\n" + "    " * depth)
+            cursor = skip_space(cursor + 1)
+            continue
+        if character == ";":
+            trim_tail()
+            out.append(";\n" + "    " * depth)
+            cursor = skip_space(cursor + 1)
+            continue
+        if character == "}":
+            depth = max(0, depth - 1)
+            trim_tail()
+            out.append("\n" + "    " * depth + "}\n\n" + "    " * depth)
+            cursor = skip_space(cursor + 1)
+            continue
+        if character in " \t\r\n":
+            out.append(" ")
+            cursor = skip_space(cursor)
+            continue
+        out.append(character)
+        cursor += 1
+    trim_tail()
+    return "".join(out).rstrip() + "\n"
+
+
 def declaration_blocks(text: str) -> "list[tuple[int, int]]":
     """Every innermost `{…}` body in *text*, at any depth, as offsets.
 
