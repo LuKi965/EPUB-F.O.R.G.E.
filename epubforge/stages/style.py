@@ -174,6 +174,93 @@ _CSS1_MULTI = frozenset({"margin", "padding"})
 
 _IMPORTANT_RE = re.compile(r"!\s*important\s*\Z", re.IGNORECASE)
 
+#: What a shorthand resets: every longhand it covers, the omitted ones
+#: included — that is what a shorthand *is*. The map also names families
+#: (`font`, `background`…) whose values the CSS1 argument below cannot
+#: certify; their pairs are detected and counted, never cut.
+_SHORTHAND_RESETS = {
+    "margin": frozenset({"margin-top", "margin-right", "margin-bottom", "margin-left"}),
+    "padding": frozenset({"padding-top", "padding-right", "padding-bottom", "padding-left"}),
+    "border-width": frozenset({"border-top-width", "border-right-width",
+                               "border-bottom-width", "border-left-width"}),
+    "border-style": frozenset({"border-top-style", "border-right-style",
+                               "border-bottom-style", "border-left-style"}),
+    "border-color": frozenset({"border-top-color", "border-right-color",
+                               "border-bottom-color", "border-left-color"}),
+    "border-top": frozenset({"border-top-width", "border-top-style", "border-top-color"}),
+    "border-right": frozenset({"border-right-width", "border-right-style", "border-right-color"}),
+    "border-bottom": frozenset({"border-bottom-width", "border-bottom-style", "border-bottom-color"}),
+    "border-left": frozenset({"border-left-width", "border-left-style", "border-left-color"}),
+    "border": frozenset({
+        "border-width", "border-style", "border-color",
+        "border-top", "border-right", "border-bottom", "border-left",
+        "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+        "border-top-style", "border-right-style", "border-bottom-style", "border-left-style",
+        "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+    }),
+    "font": frozenset({"font-style", "font-variant", "font-weight",
+                       "font-size", "line-height", "font-family", "font-stretch"}),
+    "background": frozenset({"background-color", "background-image", "background-repeat",
+                             "background-attachment", "background-position", "background-size"}),
+    "list-style": frozenset({"list-style-type", "list-style-position", "list-style-image"}),
+    "outline": frozenset({"outline-width", "outline-style", "outline-color"}),
+}
+
+_CSS1_BORDER_STYLES = frozenset({
+    "none", "dotted", "dashed", "solid", "double",
+    "groove", "ridge", "inset", "outset",
+})
+_CSS1_BORDER_WIDTHS = frozenset({"thin", "medium", "thick"})
+#: The sixteen colour names CSS1 itself listed; anything newer is a value
+#: an old validator may reject, which is exactly what disqualifies it.
+_CSS1_COLOR_NAMES = frozenset({
+    "black", "silver", "gray", "white", "maroon", "red", "purple", "fuchsia",
+    "green", "lime", "olive", "yellow", "navy", "teal", "blue", "aqua",
+})
+_CSS1_HEX = re.compile(r"#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?\Z")
+
+
+def _css1_shorthand_safe(prop: str, value: str) -> bool:
+    """True when no validator since CSS1 rejects *value* for shorthand *prop*.
+
+    Strict about grammar, not just vocabulary: `border: solid solid` uses
+    two CSS1 words and is still invalid — a validator may reject it, and
+    a rejected shorthand is the one case where the overridden longhand
+    still matters.
+    """
+    tokens = value.lower().split()
+    if not tokens:
+        return False
+    if prop in ("margin", "padding"):
+        return _css1_safe(prop, value)
+    if prop == "border-width":
+        return len(tokens) <= 4 and all(
+            t in _CSS1_BORDER_WIDTHS or _CSS1_LENGTH.match(t) for t in tokens)
+    if prop == "border-style":
+        return len(tokens) <= 4 and all(t in _CSS1_BORDER_STYLES for t in tokens)
+    if prop == "border-color":
+        return len(tokens) <= 4 and all(
+            t in _CSS1_COLOR_NAMES or _CSS1_HEX.match(t) for t in tokens)
+    if prop in ("border", "border-top", "border-right", "border-bottom", "border-left"):
+        if len(tokens) > 3:
+            return False
+        seen = set()
+        for token in tokens:
+            if token in _CSS1_BORDER_STYLES:
+                category = "style"
+            elif token in _CSS1_BORDER_WIDTHS or _CSS1_LENGTH.match(token):
+                category = "width"
+            elif token in _CSS1_COLOR_NAMES or _CSS1_HEX.match(token):
+                category = "colour"
+            else:
+                return False
+            if category in seen:
+                return False
+            seen.add(category)
+        return True
+    return False
+
+
 #: The gate's reading of `no-descending-specificity`, probed and calibrated
 #: against Calibre's own bundle until the shelf's 586 findings reproduced
 #: exactly (zero books divergent). Selectors are compared per *key*: the
@@ -567,6 +654,7 @@ class StyleStage(Stage):
         css_text = self._unknown_properties(ctx, css_text, resource)
         css_text = self._merge_duplicate_selectors(ctx, css_text, resource)
         css_text = self._duplicate_properties(ctx, css_text, resource)
+        css_text = self._shorthand_overrides(ctx, css_text, resource)
         css_text = self._ascending_specificity(ctx, css_text, resource)
         css_text = self._empty_noise(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
@@ -1271,6 +1359,7 @@ class StyleStage(Stage):
             before = sheet.text()
             after = self._merge_duplicate_selectors(ctx, before, sheet)
             after = self._duplicate_properties(ctx, after, sheet)
+            after = self._shorthand_overrides(ctx, after, sheet)
             if after != before:
                 sheet.data = after.encode("utf-8")
         for resource in ctx.book.content_docs():
@@ -1284,6 +1373,7 @@ class StyleStage(Stage):
                 text = found.group(1).decode("utf-8", "replace")
                 merged = self._merge_duplicate_selectors(ctx, text, resource)
                 merged = self._duplicate_properties(ctx, merged, resource)
+                merged = self._shorthand_overrides(ctx, merged, resource)
                 pieces.append(data[cursor:found.start(1)])
                 pieces.append(merged.encode("utf-8"))
                 cursor = found.end(1)
@@ -1291,6 +1381,94 @@ class StyleStage(Stage):
             pieces.append(data[cursor:])
             if touched:
                 resource.data = b"".join(pieces)
+
+    def _shorthand_overrides(self, ctx: Context, css_text: str, resource) -> str:
+        """Cut a longhand a later shorthand in the same block resets anyway.
+
+        Pillar A of the 0.4 plan, sixth slice — 42
+        `declaration-block-no-shorthand-property-overrides` findings on
+        the shelf, 43 of the 45 measured pairs one publisher template's:
+        `border-top-color: #353237; … border: 1px solid;`. A shorthand
+        resets **every** longhand it covers, the omitted ones included —
+        `border: 1px solid` sets the colour back to its initial value in
+        every parser since CSS1 — so the earlier colour was already being
+        discarded everywhere.
+
+        The proof is the same shape as the duplicate slice's: the cut is
+        allowed only when no validator since CSS1 can reject the
+        *shorthand's* value (`_css1_shorthand_safe`), because a rejected
+        shorthand is the one case where the earlier longhand still
+        matters. Importance follows the block's own law: a longhand with
+        `!important` beats a plain shorthand for its slot and stays. The
+        `font` findings stay too — that shorthand's grammar is beyond the
+        CSS1 argument — kept and counted. Behind the sweep's opt-out.
+        """
+        cuts: list = []
+        kept = 0
+        total = 0
+        for body_start, body_end in stylesheet.declaration_blocks(css_text):
+            wrapped = "{" + css_text[body_start:body_end] + "}"
+            declarations = list(_DECLARATION_RE.finditer(wrapped))
+            for index, match in enumerate(declarations):
+                shorthand = match.group("prop").lower()
+                covered = _SHORTHAND_RESETS.get(shorthand)
+                if not covered:
+                    continue
+                value = match.group("value").strip()
+                shorthand_important = bool(_IMPORTANT_RE.search(value))
+                bare = _IMPORTANT_RE.sub("", value).strip()
+                for earlier in declarations[:index]:
+                    if earlier.group("prop").lower() not in covered:
+                        continue
+                    total += 1
+                    earlier_important = bool(
+                        _IMPORTANT_RE.search(earlier.group("value").strip())
+                    )
+                    if earlier_important and not shorthand_important:
+                        kept += 1
+                        continue
+                    if not _css1_shorthand_safe(shorthand, bare):
+                        kept += 1
+                        continue
+                    cuts.append((body_start - 1 + earlier.start(),
+                                 body_start - 1 + earlier.end()))
+        if not total:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.shorthand-overrides-found",
+                      values={"count": total}, location=resource.path)
+            return css_text
+        if not cuts:
+            self.note(ctx, Level.PRESERVED, "css.shorthand-overrides-kept",
+                      values={"count": kept}, location=resource.path)
+            return css_text
+        pieces: list = []
+        cursor = 0
+        for start, end in sorted(set(cuts)):
+            pieces.append(css_text[cursor:start])
+            cursor = end
+        pieces.append(css_text[cursor:])
+        cleaned = "".join(pieces)
+        if not _structurally_sound(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned))
+            != len(stylesheet.top_level_rules(css_text))
+        ):
+            self.note(ctx, Level.WARN, "css.shorthand-overrides-unverified",
+                      values={"count": len(cuts)}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.shorthand-overrides-removed",
+                  values={"count": len(set(cuts))}, location=resource.path)
+        if kept:
+            self.note(ctx, Level.PRESERVED, "css.shorthand-overrides-kept",
+                      values={"count": kept}, location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{len(set(cuts))} longhand declaration(s) a later shorthand was resetting",
+            after="removed; the shorthand already reset that slot in every parser",
+            risk=Risk.NONE, reversible=False,
+            rule="css.shorthand-overrides-removed",
+        )
+        return cleaned
 
     def _duplicate_properties(self, ctx: Context, css_text: str, resource) -> str:
         """Cut in-block duplicates of a property that provably never win.
