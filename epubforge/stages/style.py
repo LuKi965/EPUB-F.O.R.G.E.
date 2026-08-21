@@ -117,9 +117,16 @@ _MALFORMED_DECL_RE = re.compile(
 #: removal cuts — declaration plus its own terminating `;` when it has one.
 #: The property's first character is a bare letter **by construction**: a
 #: vendor-prefixed name (`-epub-hyphens`, or a reader's private property no
-#: catalogue can enumerate) never even reaches the judgement below.
+#: catalogue can enumerate) never even reaches the judgement below. And the
+#: value walks over quoted strings whole — `_skip_noise`'s own lesson,
+#: relearned the hard way on the shelf: Word writes
+#: `mso-style-name:"Koptekst 2;Kop 2"`, a semicolon inside the quotes, and
+#: a string-blind value pattern cut that declaration in half, left an
+#: unbalanced quote behind, and blinded the rule scanner to 194 rules of
+#: one book. The count guard refused the sheet, which is how this was found.
 _DECLARATION_RE = re.compile(
-    r"(?<=[{;])\s*(?P<prop>[A-Za-z][A-Za-z0-9-]*)\s*:\s*(?P<value>[^;}]*?)\s*(?:;|(?=\}))"
+    r"(?<=[{;])\s*(?P<prop>[A-Za-z][A-Za-z0-9-]*)\s*:\s*"
+    r"(?P<value>(?:[^;}\"']|\"[^\"]*\"|'[^']*')*?)\s*(?:;|(?=\}))"
 )
 
 #: What the element would have to be inheriting for correcting `regular` to

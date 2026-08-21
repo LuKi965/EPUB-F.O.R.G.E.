@@ -93,6 +93,34 @@ class TestTheConclusionIsDrawn:
         assert "css.unknown-properties-found" in rules_of(result)
         assert "css.unknown-properties-removed" not in rules_of(result)
 
+    def test_a_semicolon_inside_a_quoted_value_does_not_cut_the_string(self, tmp_path):
+        """Word writes `mso-style-name:"Koptekst 2;Kop 2"` — a semicolon
+        inside the quotes. A string-blind value pattern cut that declaration
+        in half, left an unbalanced quote behind, and blinded the rule
+        scanner to 194 rules of one shelf book; the count guard refused the
+        sheet, which is how it was found. The declaration goes whole — and
+        its healthy neighbours stay. The mutation that makes the value
+        pattern string-blind again fails here."""
+        sheet = (
+            'p.tresc { margin: 0; mso-style-name:"Koptekst 2;Kop 2"; text-indent: 1em; } '
+            "p.inny { margin: 1em 0; line-height: 1.3; }"
+        )
+        body = BODY + '<p class="inny">Inny akapit.</p>'
+        source = make_book(
+            tmp_path / "in3.epub",
+            {"c0.xhtml": PAGE.format(body=body)},
+            extra_items='<item id="s" href="s.css" media-type="text/css"/>',
+            extra_files={"OEBPS/s.css": sheet.encode()},
+        )
+        result = rebuild(
+            source, str(tmp_path / "out3.epub"),
+            Policy.preset("preserve", render_gate="off"),
+        )
+        out = sheet_of(result)
+        assert "mso-style-name" not in out and "Koptekst" not in out
+        assert "text-indent: 1em" in out and "line-height: 1.3" in out
+        assert "css.unknown-properties-unverified" not in rules_of(result)
+
     def test_a_rule_emptied_whole_goes_whole(self, tmp_path):
         """A rule reduced to `{}` by the removal would only trade one lint
         finding for another (`block-no-empty`) — same rule as the plumbing."""
