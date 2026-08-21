@@ -174,6 +174,109 @@ _CSS1_MULTI = frozenset({"margin", "padding"})
 
 _IMPORTANT_RE = re.compile(r"!\s*important\s*\Z", re.IGNORECASE)
 
+#: The gate's reading of `no-descending-specificity`, probed and calibrated
+#: against Calibre's own bundle until the shelf's 586 findings reproduced
+#: exactly (zero books divergent). Selectors are compared per *key*: the
+#: last compound selector with its pseudo-classes and pseudo-elements
+#: stripped, as an exact string — `a.x` never pairs with `a`, `.foo`
+#: pairs with `.foo` behind any prelude, `a:hover` pairs with `a`.
+_PSEUDO_RE = re.compile(r"::?[-\w]+(\([^)]*\))?")
+_COMBINATOR_RE = re.compile(r"\s*[\s>+~]\s*")
+
+
+def _nds_key(branch: str) -> str:
+    last = _COMBINATOR_RE.split(branch.strip())[-1]
+    return _PSEUDO_RE.sub("", last) or "*"
+
+
+def _selector_specificity(branch: str) -> "tuple[int, int, int]":
+    """Standard CSS specificity of one selector branch: (ids, classes, types)."""
+    text = re.sub(r"\[[^\]]*\]", "[a]", branch)
+    text = re.sub(r"::[-\w]+", "::e", text)
+    ids = len(re.findall(r"#[-\w]+", text))
+    classes = (len(re.findall(r"\.[-\w]+", text)) + text.count("[")
+               + len(re.findall(r":(?!:)[-\w()]+", text)))
+    types = (len(re.findall(r"(?:^|[\s>+~(])([A-Za-z][-\w]*)", text))
+             + text.count("::e"))
+    return (ids, classes, types)
+
+
+def _last_type(branch: str) -> "str | None":
+    """The concrete element type the branch's last compound demands, if any.
+
+    Two branches whose last compounds demand *different* types can never
+    match the same element — the cheapest of the tie disproofs.
+    """
+    last = _COMBINATOR_RE.split(branch.strip())[-1]
+    matched = re.match(r"([A-Za-z][-\w]*)", last)
+    return matched.group(1).lower() if matched else None
+
+
+#: The simple descendant language the document disproof can read: chains of
+#: `type.class.class` compounds joined by descendant combinators, nothing
+#: else. A branch outside it offers nothing to disprove a tie with, so the
+#: tie blocks — conservative by construction.
+_SIMPLE_COMPOUND = re.compile(r"^([A-Za-z][-\w]*)?((?:\.[-\w]+)*)$")
+
+
+def _simple_chain(branch: str):
+    if re.search(r"[>+~\[\]:#*]", branch):
+        return None
+    chain = []
+    for part in branch.split():
+        matched = _SIMPLE_COMPOUND.match(part)
+        if not matched:
+            return None
+        classes = frozenset(re.findall(r"\.([-\w]+)", matched.group(2)))
+        chain.append((matched.group(1), classes))
+    return chain or None
+
+
+def _property_names(body: str) -> frozenset:
+    """The properties a rule body declares, as every parser reads them.
+
+    A malformed line (`text-align="center"`) is dropped by every parser,
+    so it conflicts with nothing and is rightly absent here.
+    """
+    return frozenset(
+        match.group("prop").lower()
+        for match in _DECLARATION_RE.finditer("{" + body + "}")
+    )
+
+
+def _properties_conflict(some: frozenset, other: frozenset) -> bool:
+    """Whether two rules could fight over any property.
+
+    A specificity tie is decided by order only where the two rules
+    declare a *common* property — and "common" has to respect shorthands:
+    `margin` and `margin-top` reach the same slot, every `border-*` pair
+    can, `font` resets `line-height`, `all` resets everything. The rule
+    of thumb is a dash-prefix; the named exceptions are the families the
+    prefix cannot see. False positives only cost a skipped move.
+    """
+    for a in some:
+        for b in other:
+            if a == b or a == "all" or b == "all":
+                return True
+            if a.startswith(b + "-") or b.startswith(a + "-"):
+                return True
+            if a.startswith("border") and b.startswith("border"):
+                return True
+            if {a, b} == {"font", "line-height"}:
+                return True
+            if a.endswith("gap") and b.endswith("gap"):
+                return True
+    return False
+
+
+def _compound_matches(element, compound) -> bool:
+    element_type, classes = compound
+    if element_type and element.tag.rsplit("}", 1)[-1] != element_type:
+        return False
+    if classes and not classes <= set((element.get("class") or "").split()):
+        return False
+    return True
+
 
 def _css1_safe(prop: str, value: str) -> bool:
     """True when no validator since CSS1 rejects *value* for *prop*."""
@@ -464,6 +567,7 @@ class StyleStage(Stage):
         css_text = self._unknown_properties(ctx, css_text, resource)
         css_text = self._merge_duplicate_selectors(ctx, css_text, resource)
         css_text = self._duplicate_properties(ctx, css_text, resource)
+        css_text = self._ascending_specificity(ctx, css_text, resource)
         css_text = self._empty_noise(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
@@ -1289,6 +1393,233 @@ class StyleStage(Stage):
             rule="css.duplicate-properties-removed",
         )
         return cleaned
+
+    def _ascending_specificity(self, ctx: Context, css_text: str, resource) -> str:
+        """Move a rule above the more specific selectors it shares a key with.
+
+        Pillar A of the 0.4 plan, fifth slice — 586 `no-descending-
+        specificity` findings on the shelf, two publisher templates
+        carrying most of them. The gate's own reading of the rule was
+        probed and calibrated to the finding (586 of 586 reproduced,
+        zero books divergent): selectors are compared per *key* — the
+        last compound with its pseudo-classes stripped, exact string —
+        within one top-level context, per occurrence, and only strict
+        descents count.
+
+        The move itself is where the proof lives. The flagged pair is
+        never the risk: its two selectors *differ* in specificity, so
+        their mutual order decides no winner. The risk is everything the
+        mover crosses — jumped top-level rules, and the rules **inside**
+        any at-rule on the road, read but never cut: whatever the
+        condition says, it turns both sides of a tie on together. An
+        exact specificity **tie** with a branch of the mover is decided
+        by order, and the move would flip it — unless one of three
+        disproofs lands:
+
+        * **no shared property** — order picks winners only where two
+          rules fight over the same slot, shorthands included
+          (`_properties_conflict` owns that reading); this is what lets
+          a `margin` rule sail past a `color` tie, and past a whole
+          `@media` of colors;
+        * **different concrete element types** in the last compounds —
+          one element cannot be both `p` and `div`;
+        * **this book's documents say so** — both branches read in the
+          simple descendant language (`type.class` chains), and no
+          element in any document matches both. The shelf measured this
+          on one template: all 310 ties dissolved, because page-type
+          container classes never share an ancestry path. The same
+          philosophy the unreachable sweep already uses: ask the book,
+          not the grammar.
+
+        A branch beyond the simple language blocks its tie (nothing to
+        disprove with), and a refused pair stays refused — counted, not
+        retried. Renaming changes no specificity and the
+        post-translation merge only deletes rules, so this pass does not
+        run again after translation. Behind the sweep's opt-out.
+        """
+        cache: dict = {}
+
+        def infos_of(text, spans):
+            return [
+                (span, [(b, _nds_key(b), _selector_specificity(b))
+                        for b in span.selectors])
+                for span in spans
+            ]
+
+        def descending_count(infos) -> int:
+            count = 0
+            seen: dict = {}
+            for _, branches in infos:
+                for _, key, spec in branches:
+                    count += sum(1 for other in seen.get(key, ()) if other > spec)
+                    seen.setdefault(key, []).append(spec)
+            return count
+
+        def body_of(text, span) -> str:
+            brace = text.index("{", span.start)
+            return text[brace + 1:span.end - 1]
+
+        def move_is_safe(text, infos, i, j) -> bool:
+            mover_branches = infos[j][1]
+            mover_props = _property_names(body_of(text, infos[j][0]))
+            # Every rule the mover crosses is a potential tie partner —
+            # the jumped top-level rules, and the rules *inside* any
+            # at-rule standing on the road. Reading an at-rule is not
+            # cutting one: whatever its condition, it turns both sides
+            # of a tie on together or off together.
+            partners = [
+                (infos[t][1], _property_names(body_of(text, infos[t][0])))
+                for t in range(i, j)
+            ]
+            crossed = text[infos[i][0].start:infos[j][0].start]
+            partners.extend(
+                ([(b, _nds_key(b), _selector_specificity(b))
+                  for b in [part.strip() for part in selector.split(",") if part.strip()]],
+                 _property_names(body))
+                for selector, body in stylesheet.conditional_rules(crossed)
+            )
+            for partner_branches, partner_props in partners:
+                # A tie is decided by order only where the two rules fight
+                # over a property — disjoint declarations have no winner
+                # for order to flip.
+                if not _properties_conflict(partner_props, mover_props):
+                    continue
+                for branch_t, _, spec_t in partner_branches:
+                    for branch_r, _, spec_r in mover_branches:
+                        if spec_t != spec_r:
+                            continue
+                        type_t, type_r = _last_type(branch_t), _last_type(branch_r)
+                        if type_t and type_r and type_t != type_r:
+                            continue
+                        chain_t = _simple_chain(branch_t)
+                        chain_r = _simple_chain(branch_r)
+                        if chain_t is None or chain_r is None:
+                            return False
+                        if self._element_hits(ctx, branch_t, chain_t, cache) \
+                                & self._element_hits(ctx, branch_r, chain_r, cache):
+                            return False
+            return True
+
+        spans = stylesheet.top_level_rules(css_text)
+        infos = infos_of(css_text, spans)
+        found = descending_count(infos)
+        if not found:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.specificity-found",
+                      values={"count": found}, location=resource.path)
+            return css_text
+
+        original = css_text
+        refused: set = set()
+        moves = 0
+        cap = 2 * len(spans) + 10
+        progress = True
+        while progress and moves < cap:
+            progress = False
+            spans = stylesheet.top_level_rules(css_text)
+            infos = infos_of(css_text, spans)
+            for j, (mover, mover_branches) in enumerate(infos):
+                offenders = [
+                    i for i in range(j)
+                    if any(key_i == key_j and spec_i > spec_j
+                           for _, key_i, spec_i in infos[i][1]
+                           for _, key_j, spec_j in mover_branches)
+                ]
+                if not offenders:
+                    continue
+                # The topmost offender, and only that: landing above it
+                # is an insertion sort's insertion, which converges. A
+                # "better than nothing" landing below a blocking tie was
+                # tried and measured — it mints new inversions against
+                # everything lower-specificity it flies over, and the
+                # probe book came out *worse* (83 findings kept became
+                # 108, at 332 moves against 10).
+                top = offenders[0]
+                target = infos[top][0]
+                signature = (css_text[mover.start:mover.end],
+                             css_text[target.start:target.end])
+                if signature in refused:
+                    continue
+                if not move_is_safe(css_text, infos, top, j):
+                    refused.add(signature)
+                    continue
+                moved_text = css_text[mover.start:mover.end]
+                remainder = (
+                    css_text[target.start:mover.start] + css_text[mover.end:]
+                )
+                css_text = (
+                    css_text[:target.start]
+                    + moved_text.rstrip() + "\n"
+                    + remainder.lstrip("\n")
+                )
+                moves += 1
+                progress = True
+                break
+        if not moves:
+            self.note(ctx, Level.PRESERVED, "css.specificity-kept",
+                      values={"count": found}, location=resource.path)
+            return original
+        # The reorder's own invariant: the same rules, to the byte, just
+        # elsewhere. A move that loses, grows or rewrites a rule is not a
+        # move, whatever else it is.
+        final_spans = stylesheet.top_level_rules(css_text)
+        original_spans = stylesheet.top_level_rules(original)
+        if not _structurally_sound(css_text) or sorted(
+            css_text[s.start:s.end].strip() for s in final_spans
+        ) != sorted(original[s.start:s.end].strip() for s in original_spans):
+            self.note(ctx, Level.WARN, "css.specificity-unverified",
+                      values={"count": moves}, location=resource.path)
+            return original
+        self.note(ctx, Level.FIX, "css.specificity-reordered",
+                  values={"count": moves}, location=resource.path)
+        remaining = descending_count(infos_of(css_text, final_spans))
+        if remaining:
+            self.note(ctx, Level.PRESERVED, "css.specificity-kept",
+                      values={"count": remaining}, location=resource.path)
+        self.changed(
+            ctx, Action.MOVED, resource.path,
+            before=f"{moves} rule(s) standing below a more specific selector sharing their key",
+            after="moved above it; every order-decided winner was proved unchanged, by type or by this book's documents",
+            risk=Risk.NONE, reversible=False,
+            rule="css.specificity-reordered",
+        )
+        return css_text
+
+    def _element_hits(self, ctx: Context, branch: str, chain, cache) -> frozenset:
+        """Which elements of this book the simple branch *chain* matches.
+
+        Identity is `(document path, XPath)` and not `id()`, and that is a
+        lesson, not a style choice: lxml hands out **proxy objects** made
+        fresh on every access, so two walks over one tree never produce
+        the same `id()` twice — an intersection of ids is empty by
+        construction, and a guard built on it approves every move it was
+        meant to block. Caught by the tie-confirming test the day it was
+        written.
+        """
+        hits = cache.get(branch)
+        if hits is not None:
+            return hits
+        found = set()
+        for resource in ctx.book.content_docs():
+            root = ctx.parsed(resource).root
+            tree = root.getroottree()
+            for element in root.iter():
+                if not isinstance(element.tag, str):
+                    continue
+                if not _compound_matches(element, chain[-1]):
+                    continue
+                needed = list(chain[:-1])
+                node = element.getparent()
+                while needed and node is not None:
+                    if _compound_matches(node, needed[-1]):
+                        needed.pop()
+                    node = node.getparent()
+                if not needed:
+                    found.add((resource.path, tree.getpath(element)))
+        hits = frozenset(found)
+        cache[branch] = hits
+        return hits
 
     def _empty_noise(self, ctx: Context, css_text: str, resource) -> str:
         """Remove what says nothing: empty comments, empty rules, empty at-rules.

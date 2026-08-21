@@ -176,6 +176,46 @@ def structurally_sound(text: str) -> bool:
     return depth == 0
 
 
+def conditional_rules(text: str) -> "list[tuple[str, str]]":
+    """`(selector, body)` of every rule nested inside an at-rule, any depth.
+
+    Read-only, and that is the point: this module still offers no way to
+    *cut* inside a condition it cannot evaluate, but a caller weighing a
+    reorder needs to know what the crossed `@media` holds — a tie with a
+    rule inside it is decided by order whenever the condition is on, and
+    the condition being unreadable changes nothing about that. `@font-face`
+    and `@page` hold declarations, not rules, and so contribute nothing.
+    """
+    found: list = []
+    cursor = 0
+    prelude_start = 0
+    length = len(text)
+    while cursor < length:
+        character = text[cursor]
+        if character in "\"'" or text.startswith("/*", cursor):
+            moved = _skip_noise(text, cursor)
+            if moved != cursor:
+                cursor = moved
+                continue
+        if character == "{":
+            prelude = text[prelude_start:cursor]
+            end = _matching_brace(text, cursor)
+            judged = _COMMENT.sub(" ", _HTML_SHIELD.sub(" ", prelude))
+            if judged.lstrip().startswith("@"):
+                interior = text[cursor + 1:end - 1]
+                for span in top_level_rules(interior):
+                    brace = interior.index("{", span.start)
+                    found.append((span.selector, interior[brace + 1:span.end - 1]))
+                found.extend(conditional_rules(interior))
+            cursor = end
+            prelude_start = cursor
+            continue
+        if character == ";":
+            prelude_start = cursor + 1
+        cursor += 1
+    return found
+
+
 def declaration_blocks(text: str) -> "list[tuple[int, int]]":
     """Every innermost `{…}` body in *text*, at any depth, as offsets.
 
