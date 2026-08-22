@@ -319,31 +319,44 @@ def _simple_chain(branch: str):
     return chain or None
 
 
-def _property_names(body: str) -> frozenset:
-    """The properties a rule body declares, as every parser reads them.
+def _declared_values(body: str) -> dict:
+    """Property → its winning value in *body*, as every parser reads them.
 
+    The value is whitespace-collapsed, `!important` and all — two rules
+    whose shared property carries the same string compute the same thing
+    whichever wins, and that is exactly the question the conflict test
+    asks. The last occurrence wins within a body, like everywhere else.
     A malformed line (`text-align="center"`) is dropped by every parser,
     so it conflicts with nothing and is rightly absent here.
     """
-    return frozenset(
-        match.group("prop").lower()
+    return {
+        match.group("prop").lower(): " ".join(match.group("value").split())
         for match in _DECLARATION_RE.finditer("{" + body + "}")
-    )
+    }
 
 
-def _properties_conflict(some: frozenset, other: frozenset) -> bool:
-    """Whether two rules could fight over any property.
+def _properties_conflict(some: dict, other: dict) -> bool:
+    """Whether two rules could fight over any property — and mean it.
 
     A specificity tie is decided by order only where the two rules
-    declare a *common* property — and "common" has to respect shorthands:
-    `margin` and `margin-top` reach the same slot, every `border-*` pair
-    can, `font` resets `line-height`, `all` resets everything. The rule
-    of thumb is a dash-prefix; the named exceptions are the families the
-    prefix cannot see. False positives only cost a skipped move.
+    declare a common property **with different values**: a tie over
+    `margin: 2em` on both sides has no winner for order to flip, which
+    is the owner's own point — the whole book is at hand, so read it.
+    "Common" still has to respect shorthands: `margin` and `margin-top`
+    reach the same slot, every `border-*` pair can, `font` resets
+    `line-height`, `all` resets everything — and across *different*
+    names the values are not comparable, so those always conflict.
+    The rule of thumb is a dash-prefix; the named exceptions are the
+    families the prefix cannot see. False positives only cost a skipped
+    move.
     """
-    for a in some:
-        for b in other:
-            if a == b or a == "all" or b == "all":
+    for a, a_value in some.items():
+        for b, b_value in other.items():
+            if a == b:
+                if a_value != b_value:
+                    return True
+                continue
+            if a == "all" or b == "all":
                 return True
             if a.startswith(b + "-") or b.startswith(a + "-"):
                 return True
@@ -1204,12 +1217,19 @@ class StyleStage(Stage):
           moves no winner. Keeping the *first* instead would hoist its
           declarations above whatever stood between — a flip; the mutation
           that keeps the first is measured.
-        * **Disjoint properties on the road down:** an earlier body may move
-          into the last occurrence (prepended, so the last body still wins
-          intra-block, as it won inter-block) when no ordinary rule between
-          them declares any property the moved body carries, and no at-rule
-          stands between at all — an at-rule's inside is something this
-          module refuses to read, so it blocks the move out of caution.
+        * **A road proved clear:** an earlier body may move into the last
+          occurrence (prepended, so the last body still wins intra-block,
+          as it won inter-block) when nothing it crosses can be flipped by
+          the move. Slice 2 proved that with grammar alone — any shared
+          property name blocked, any at-rule blocked unread. Slice 8
+          upgraded it at the owner's own prompting ("you have the whole
+          books at hand"): an intermediate blocks only on a specificity
+          **tie** over a property whose **value differs**, with a co-match
+          neither the element types nor **this book's documents** can rule
+          out; at-rules on the road are read, never cut, and their inner
+          rules judged the same way. A refused copy standing between a
+          mover and the last occurrence blocks everything above it — the
+          mover may not jump a stuck sibling it conflicts with.
 
         Everything else stays and is counted (`css.duplicate-selectors-kept`)
         — a pair whose merge cannot be proved is the publisher's cascade,
@@ -1254,23 +1274,52 @@ class StyleStage(Stage):
         def normalized(declarations: "list[str]") -> "tuple[str, ...]":
             return tuple(" ".join(d.split()).lower() for d in declarations)
 
-        def properties_of(span) -> "set[str] | None":
-            declarations = declarations_of(span)
-            if declarations is None:
-                return None
-            return {d.partition(":")[0].strip().lower() for d in declarations}
+        def values_of(declarations: "list[str]") -> dict:
+            return {
+                d.partition(":")[0].strip().lower():
+                " ".join(d.partition(":")[2].split())
+                for d in declarations
+            }
 
-        def road_is_clear(earlier, last, moved_props: "set[str]") -> bool:
-            between = re.sub(
-                r"/\*.*?\*/", " ", css_text[earlier.end:last.start], flags=re.S
-            )
-            if re.search(r"@[A-Za-z-]", between):
-                return False
+        def branch_info(selector_text: str) -> list:
+            return [(b, _selector_specificity(b))
+                    for b in [p.strip() for p in selector_text.split(",") if p.strip()]]
+
+        road_cache: dict = {}
+
+        def road_is_clear(earlier, last, moved_values: dict) -> bool:
+            earlier_branches = branch_info(earlier.selector)
+            partners = []
             for other in spans:
                 if earlier.end <= other.start < last.start and other.selector != earlier.selector:
-                    other_props = properties_of(other)
-                    if other_props is None or other_props & moved_props:
+                    other_declarations = declarations_of(other)
+                    if other_declarations is None:
+                        # An opaque body offers nothing to reason with.
                         return False
+                    partners.append((branch_info(other.selector),
+                                     values_of(other_declarations)))
+            crossed = css_text[earlier.end:last.start]
+            partners.extend(
+                (branch_info(selector), _declared_values(body))
+                for selector, body in stylesheet.conditional_rules(crossed)
+            )
+            for partner_branches, partner_values in partners:
+                if not _properties_conflict(partner_values, moved_values):
+                    continue
+                for branch_t, spec_t in partner_branches:
+                    for branch_e, spec_e in earlier_branches:
+                        if spec_t != spec_e:
+                            continue
+                        type_t, type_e = _last_type(branch_t), _last_type(branch_e)
+                        if type_t and type_e and type_t != type_e:
+                            continue
+                        chain_t = _simple_chain(branch_t)
+                        chain_e = _simple_chain(branch_e)
+                        if chain_t is None or chain_e is None:
+                            return False
+                        if self._element_hits(ctx, branch_t, chain_t, road_cache) \
+                                & self._element_hits(ctx, branch_e, chain_e, road_cache):
+                            return False
             return True
 
         to_drop: list = []
@@ -1283,22 +1332,31 @@ class StyleStage(Stage):
                 kept += len(group) - 1
                 continue
             last_norm = normalized(last_declarations)
-            for earlier in group[:-1]:
+            # Decisions run nearest-to-last first: a refused copy blocks
+            # every non-identical copy above it, which must not jump a
+            # stuck sibling it shares the selector — and every tie — with.
+            approved: list = []
+            blocked_below = False
+            for earlier in reversed(group[:-1]):
                 earlier_declarations = declarations_of(earlier)
                 if earlier_declarations is None:
                     kept += 1
+                    blocked_below = True
                     continue
                 if normalized(earlier_declarations) == last_norm:
                     to_drop.append(earlier)
                     continue
-                if road_is_clear(earlier, last, {
-                    d.partition(":")[0].strip().lower() for d in earlier_declarations
-                }):
-                    to_drop.append(earlier)
-                    if earlier_declarations:
-                        prepend.setdefault(last.start, []).extend(earlier_declarations)
+                if not blocked_below and road_is_clear(
+                    earlier, last, values_of(earlier_declarations)
+                ):
+                    approved.append((earlier, earlier_declarations))
                 else:
                     kept += 1
+                    blocked_below = True
+            for earlier, earlier_declarations in reversed(approved):
+                to_drop.append(earlier)
+                if earlier_declarations:
+                    prepend.setdefault(last.start, []).extend(earlier_declarations)
         if not to_drop:
             self.note(ctx, Level.PRESERVED, "css.duplicate-selectors-kept",
                       values={"count": kept}, location=resource.path)
@@ -1685,27 +1743,27 @@ class StyleStage(Stage):
 
         def move_is_safe(text, infos, i, j) -> bool:
             mover_branches = infos[j][1]
-            mover_props = _property_names(body_of(text, infos[j][0]))
+            mover_props = _declared_values(body_of(text, infos[j][0]))
             # Every rule the mover crosses is a potential tie partner —
             # the jumped top-level rules, and the rules *inside* any
             # at-rule standing on the road. Reading an at-rule is not
             # cutting one: whatever its condition, it turns both sides
             # of a tie on together or off together.
             partners = [
-                (infos[t][1], _property_names(body_of(text, infos[t][0])))
+                (infos[t][1], _declared_values(body_of(text, infos[t][0])))
                 for t in range(i, j)
             ]
             crossed = text[infos[i][0].start:infos[j][0].start]
             partners.extend(
                 ([(b, _nds_key(b), _selector_specificity(b))
                   for b in [part.strip() for part in selector.split(",") if part.strip()]],
-                 _property_names(body))
+                 _declared_values(body))
                 for selector, body in stylesheet.conditional_rules(crossed)
             )
             for partner_branches, partner_props in partners:
                 # A tie is decided by order only where the two rules fight
-                # over a property — disjoint declarations have no winner
-                # for order to flip.
+                # over a property with different values — disjoint or
+                # agreeing declarations have no winner for order to flip.
                 if not _properties_conflict(partner_props, mover_props):
                     continue
                 for branch_t, _, spec_t in partner_branches:

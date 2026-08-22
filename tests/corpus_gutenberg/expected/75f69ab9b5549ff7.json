@@ -37,15 +37,16 @@
     "written": true,
     "report": {
       "info": 15,
-      "fix": 6,
-      "preserved": 5,
+      "fix": 8,
+      "preserved": 3,
       "warn": 2
     },
     "rules": {
       "a11y.heading-jump": 1,
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
-      "css.duplicate-selectors-kept": 2,
+      "css.duplicate-properties-removed": 1,
+      "css.duplicate-selectors-merged": 1,
       "css.unreachable-rules-found": 3,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
@@ -68,7 +69,7 @@
       "xhtml.inline-promoted": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:8c4b8a2b54452ea5b72835a1a7efaaaa640a86191f327de95bae19fd57dd873c",
+    "output": "sha256:3361d72f20e6702981c2357e741f8be311cb3ffe7aad6c892cac067520f81f77",
     "text_characters": 156310,
     "text_added": 2,
     "text_invariant": true,
@@ -78,15 +79,16 @@
     "written": true,
     "report": {
       "info": 12,
-      "fix": 9,
-      "preserved": 5,
+      "fix": 11,
+      "preserved": 3,
       "warn": 2
     },
     "rules": {
       "a11y.heading-jump": 1,
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
-      "css.duplicate-selectors-kept": 2,
+      "css.duplicate-properties-removed": 1,
+      "css.duplicate-selectors-merged": 1,
       "css.unreachable-rules-removed": 3,
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
@@ -109,7 +111,7 @@
       "xhtml.inline-promoted": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:80261b4b6a9d38a7aad8f3ddc4eb827bfbb2983d48b14b2d507de17f6fcbb71e",
+    "output": "sha256:c6c6722f5a182f6fef7ff006976e01a9c55a8659341a6ace17ca169c21a39a4a",
     "text_characters": 156310,
     "text_added": 2,
     "text_invariant": true,

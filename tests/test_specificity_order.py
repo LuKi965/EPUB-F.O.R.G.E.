@@ -108,6 +108,25 @@ class TestTheProvableMoves:
         assert out.index(".jeden {") < out.index(".rozdzial .jeden")
         assert "css.specificity-reordered" in rules_of(result)
 
+
+    def test_a_tie_over_the_same_value_is_harmless(self, tmp_path):
+        """The tie is real and the property shared — but both sides say
+        `margin: 0`, and a fight both sides win identically is no fight.
+        The mutation that compares names without values fails here."""
+        sheet = (
+            ".rozdzial .jeden { margin: 2em; } "
+            ".dwa { margin: 0; } "
+            ".jeden { margin: 0; }"
+        )
+        body = (
+            '<div class="rozdzial"><p class="jeden dwa">Obie klasy.</p></div>'
+            "<h1>Tytuł</h1>"
+        )
+        result = build(tmp_path, sheet=sheet, body=body)
+        out = sheet_of(result)
+        assert out.index(".jeden {") < out.index(".rozdzial .jeden")
+        assert "css.specificity-reordered" in rules_of(result)
+
     def test_an_at_rule_holding_no_conflict_is_crossed(self, tmp_path):
         """The `@media` on the road holds only a colour for `h1`; the
         climbing `h1` carries margins. Its inside is read — not cut — and

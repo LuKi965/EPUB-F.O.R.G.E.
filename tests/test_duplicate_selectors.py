@@ -101,10 +101,10 @@ class TestTheProvableFolds:
         assert "css.duplicate-selectors-merged" not in rules_of(result)
 
     def test_an_at_rule_on_the_road_blocks_the_move_too(self, tmp_path):
-        """This module refuses to read an at-rule's inside, so it cannot
-        prove the road clear past one — the move is blocked out of caution.
-        The identical-bodies fold is unaffected: it never moves anything
-        forward past the at-rule, it only drops copies that won nothing."""
+        """The `@media` on the road holds a `p.jeden` colour that fights
+        the moved colour — read, not cut, and a real conflict under any
+        condition, so the move is blocked. The identical-bodies fold is
+        unaffected: it never moves anything forward past the at-rule."""
         sheet = (
             "p.jeden { color: green; } "
             "@media screen { p.jeden { color: red; } } "
@@ -188,3 +188,80 @@ class TestEmptyNoise:
         out = sheet_of(result)
         assert "/**/" in out and "p.pusty" in out
         assert "css.empty-noise-found" in rules_of(result)
+
+
+class TestTheBookProvedRoads:
+    """Slice 8, at the owner's own prompting („masz całe książki do
+    dyspozycji"): the road test upgraded from grammar to the full prover —
+    specificity, values, and this book's documents."""
+
+    def test_a_contest_with_the_same_value_merges(self, tmp_path):
+        """`p.dwa` on the road declares the same `color: green` the moved
+        body carries — whichever wins, the page computes the same thing,
+        so there is no contest. The mutation that compares names without
+        values fails here."""
+        sheet = (
+            "p.jeden { color: green; } "
+            "p.dwa { color: green; } "
+            "p.jeden { margin: 0; }"
+        )
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 1
+        assert "css.duplicate-selectors-merged" in rules_of(result)
+
+    def test_a_contest_of_different_specificity_merges(self, tmp_path):
+        """`body p.dwa` outguns the moved branch on specificity, so their
+        order never decided anything — the move cannot flip a winner
+        specificity already picked."""
+        sheet = (
+            "p.jeden { color: green; } "
+            "body p.dwa { color: blue; } "
+            "p.jeden { margin: 0; }"
+        )
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 1
+        assert "css.duplicate-selectors-merged" in rules_of(result)
+
+    def test_a_contest_these_documents_disprove_merges(self, tmp_path):
+        """`p.trzy` ties and fights over `color` — but no element in this
+        book is both `.jeden` and `.trzy`, so the pair never meets. The
+        mutation that skips the document check fails here."""
+        sheet = (
+            "p.jeden { color: green; } "
+            "p.trzy { color: blue; } "
+            "p.jeden { margin: 0; }"
+        )
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 1
+        assert "css.duplicate-selectors-merged" in rules_of(result)
+
+    def test_an_at_rule_holding_no_conflict_is_crossed(self, tmp_path):
+        """The `@media` on the road holds only a colour; the moved body
+        carries indentation. Read, not cut — and nothing in it can flip."""
+        sheet = (
+            "p.jeden { text-indent: 1em; } "
+            "@media print { p.jeden { color: black; } } "
+            "p.jeden { margin: 0; }"
+        )
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 2  # the media copy and the merged rule
+        assert "css.duplicate-selectors-merged" in rules_of(result)
+
+    def test_a_stuck_sibling_blocks_everything_above_it(self, tmp_path):
+        """The middle copy is opaque (`=` for a colon) and stays; the
+        first copy must not jump it — same selector means every tie, and
+        an unreadable body means an unknowable conflict. The mutation
+        that lets copies above a refused sibling move fails here."""
+        sheet = (
+            "p.jeden { color: green; } "
+            'p.jeden {text-align="center"} '
+            "p.jeden { margin: 0; }"
+        )
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 3
+        assert "css.duplicate-selectors-merged" not in rules_of(result)
