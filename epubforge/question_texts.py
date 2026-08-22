@@ -279,6 +279,27 @@ TEXTS_PL: dict[str, str] = {
         "{count} deklaracji zacznie działać — książka może zmienić wygląd w "
         "miejscach, których nikt wcześniej nie widział z tym formatowaniem"
     ),
+    "style.typo.summary": (
+        "{count} deklaracji CSS z literówką wydawcy — czytniki je odrzucają"
+    ),
+    "style.typo.detail": (
+        "W arkuszu {where} stoją zepsute deklaracje z oczywistą propozycją "
+        "naprawy:\n\n{shown}\n\n"
+        "Każdy czytnik odrzuca zepsutą linię w całości, więc to formatowanie "
+        "dzisiaj nie działa. Propozycja to domysł programu o intencji autora — "
+        "dlatego pyta, zamiast poprawiać po cichu. Po naprawie formatowanie, "
+        "którego nikt dotąd nie widział, zacznie obowiązywać."
+    ),
+    "style.typo.keep": "Zostaw jak jest",
+    "style.typo.keep.why": (
+        "Nic się nie zmienia; zepsute linie dalej są ignorowane przez "
+        "czytniki, a książka wygląda tak, jak wyglądała"
+    ),
+    "style.typo.fix": "Popraw według propozycji",
+    "style.typo.fix.why": (
+        "{count} deklaracji zacznie działać — książka może zmienić wygląd w "
+        "miejscach, których nikt wcześniej nie widział z tym formatowaniem"
+    ),
     "encoding.mojibake.summary": (
         "{count} znaków przestankowych zamienionych przez konwersję w kody bez kształtu"
     ),
@@ -518,6 +539,27 @@ TEXTS_EN: dict[str, str] = {
     ),
     "style.equals.enable": "Correct the `=` to a `:` and enable it",
     "style.equals.enable.why": (
+        "{count} declaration(s) start working — the book may change its "
+        "appearance in places nobody has seen with this formatting"
+    ),
+    "style.typo.summary": (
+        "{count} CSS declaration(s) with a publisher's typo — readers reject them"
+    ),
+    "style.typo.detail": (
+        "The stylesheet {where} carries broken declarations with an obvious "
+        "repair to propose:\n\n{shown}\n\n"
+        "Every reader rejects a broken line whole, so this formatting does "
+        "nothing today. The proposal is the program's guess at the author's "
+        "intent — which is why it asks instead of fixing quietly. Once "
+        "repaired, formatting nobody has seen starts applying."
+    ),
+    "style.typo.keep": "Leave it as it is",
+    "style.typo.keep.why": (
+        "Nothing changes; the broken lines stay ignored by readers and the "
+        "book looks the way it looked"
+    ),
+    "style.typo.fix": "Repair as proposed",
+    "style.typo.fix.why": (
         "{count} declaration(s) start working — the book may change its "
         "appearance in places nobody has seen with this formatting"
     ),

@@ -664,6 +664,7 @@ class StyleStage(Stage):
         css_text = self._strip_vendor_hacks(ctx, css_text, resource)
         css_text = self._repair(ctx, css_text, resource)
         css_text = self._malformed_declarations(ctx, css_text, resource, boilerplate=boilerplate)
+        css_text = self._publisher_typos(ctx, css_text, resource)
         css_text = self._unknown_properties(ctx, css_text, resource)
         css_text = self._merge_duplicate_selectors(ctx, css_text, resource)
         css_text = self._duplicate_properties(ctx, css_text, resource)
@@ -1127,6 +1128,107 @@ class StyleStage(Stage):
         self.note(ctx, Level.FIX, "css.comment-shield-removed",
                   values={"count": removed}, location=resource.path)
         return stripped
+
+    def _publisher_typos(self, ctx: Context, css_text: str, resource) -> str:
+        """A declaration broken by a slip of the publisher's finger, with a
+        proposal the program can be honest about (the owner's decision,
+        2026-08-22: ask with the proposal shown; without an answer nothing
+        changes, S-05).
+
+        Two shapes, both measured on the shelf and both dead today — every
+        reader rejects a broken line whole:
+
+        * **a number wearing `$` for a unit** (`margin-right: 2$`): `$` is
+          no unit in any CSS, `%` is its keyboard neighbour and the only
+          one-character unit — the proposal swaps the sign;
+        * **a lost semicolon** (`border: 0px solid border-collapse:
+          collapse`): a *known property name* with a colon inside a value
+          is two declarations run together — the proposal re-inserts the
+          `;`. Every run-together head must be a known property, or the
+          colon is part of a value this pass does not understand and the
+          line is left unread.
+
+        Both proposals are guesses at intent, which is exactly why they go
+        through a question rather than through a repair (D-033 — and here
+        the person supplies the missing certainty). Values carrying strings
+        or `url(` are left alone unread: a `$` inside quoted content is
+        somebody's text, not a unit.
+        """
+        proposals: list[tuple[int, int, str, str, str]] = []
+        for body_start, body_end in stylesheet.declaration_blocks(css_text):
+            wrapped = "{" + css_text[body_start:body_end] + "}"
+            for match in _DECLARATION_RE.finditer(wrapped):
+                prop = match.group("prop").lower()
+                value = match.group("value").strip()
+                if prop not in KNOWN_PROPERTIES:
+                    continue
+                if '"' in value or "'" in value or "url(" in value.lower():
+                    continue
+                fixed = None
+                unit = re.fullmatch(r"(\d*\.?\d+)\s*\$", value)
+                if unit:
+                    fixed = unit.group(1) + "%"
+                else:
+                    pieces = re.split(r"\s+(?=[a-z-]{3,}\s*:)", value)
+                    heads = [
+                        re.match(r"([a-z-]{3,})\s*:", piece) for piece in pieces[1:]
+                    ]
+                    if len(pieces) > 1 and heads and all(
+                        head and head.group(1) in KNOWN_PROPERTIES for head in heads
+                    ):
+                        fixed = "; ".join(pieces)
+                if fixed is None or fixed == value:
+                    continue
+                start = body_start - 1 + match.start("value")
+                end = body_start - 1 + match.end("value")
+                proposals.append(
+                    (start, end, fixed, f"{prop}: {value}", f"{prop}: {fixed}")
+                )
+        if not proposals:
+            return css_text
+        shown = "\n".join(
+            f"{before}  →  {after}" for _, _, _, before, after in proposals[:3]
+        )
+        question = Question(
+            kind=STYLE,
+            where=resource.path,
+            summary=say("style.typo.summary", count=len(proposals)),
+            detail=say("style.typo.detail", where=resource.path,
+                       count=len(proposals), shown=shown),
+            options=(
+                Option(KEEP, say("style.typo.keep"), say("style.typo.keep.why")),
+                Option("fix", say("style.typo.fix"),
+                       say("style.typo.fix.why", count=len(proposals))),
+            ),
+            recommended=KEEP,
+            reversible=False,
+            risk=Risk.APPEARANCE,
+            group="style:typo",
+            subject=f"{len(proposals)} declarations",
+        )
+        if ctx.decide(question).option != "fix":
+            self.note(ctx, Level.PRESERVED, "css.publisher-typo-left",
+                      values={"count": len(proposals)}, location=resource.path)
+            return css_text
+        mended = css_text
+        for start, end, fixed, _, _ in sorted(proposals, reverse=True):
+            mended = mended[:start] + fixed + mended[end:]
+        self.note(ctx, Level.FIX, "css.publisher-typo-fixed",
+                  values={"count": len(proposals),
+                          "names": "; ".join(
+                              f"{before} → {after}"
+                              for _, _, _, before, after in proposals[:3]
+                          )},
+                  location=resource.path)
+        for _, _, _, before, after in proposals:
+            self.changed(
+                ctx, Action.REPLACED, resource.path,
+                before=before, after=after,
+                automation=Automation.ASKED,
+                risk=Risk.APPEARANCE, reversible=False,
+                rule="css.publisher-typo-fixed",
+            )
+        return mended
 
     def _unknown_properties(self, ctx: Context, css_text: str, resource) -> str:
         """Remove declarations naming properties CSS does not have.
@@ -2489,6 +2591,16 @@ class StyleStage(Stage):
             if human and human_action == "keep":
                 self.note(ctx, Level.PRESERVED, "css.malformed-declaration-left",
                           values={"count": len(human)}, location=resource.path)
+            if machine_positions:
+                # Measured on the shelf, 2026-08-22: one such declaration in
+                # 160 books, kept by this mode and reported nowhere at all —
+                # a defect the output carries and the report did not name,
+                # which is the one thing this program may never do. Whether
+                # a converter's slip should also become a question is the
+                # owner's call; that it must be *said* is not.
+                self.note(ctx, Level.PRESERVED, "css.malformed-declaration-converter-kept",
+                          values={"count": len(machine_positions)},
+                          location=resource.path)
             return css_text
         # The same guard the other removals use: a repair that leaves behind
         # something which is no longer a stylesheet is worse than the error it
