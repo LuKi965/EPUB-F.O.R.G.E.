@@ -211,6 +211,29 @@ _CSS1_BORDER_STYLES = frozenset({
     "groove", "ridge", "inset", "outset",
 })
 _CSS1_BORDER_WIDTHS = frozenset({"thin", "medium", "thick"})
+
+#: The `font` shorthand's vocabulary as CSS1 defined it:
+#:
+#:     font: [ <style> || <variant> || <weight> ]? <size> [ / <height> ]? <family>
+#:
+#: Size and family are required and ordered; the three optional keywords may
+#: come in any order but only once each. CSS2's system fonts (`font: menu`)
+#: are deliberately absent — a CSS1 validator rejects them, and a rejected
+#: shorthand is the one case where an overridden longhand still matters.
+_CSS1_FONT_STYLES = frozenset({"normal", "italic", "oblique"})
+_CSS1_FONT_VARIANTS = frozenset({"normal", "small-caps"})
+_CSS1_FONT_WEIGHTS = frozenset({
+    "normal", "bold", "bolder", "lighter",
+    "100", "200", "300", "400", "500", "600", "700", "800", "900",
+})
+_CSS1_FONT_SIZES = frozenset({
+    "xx-small", "x-small", "small", "medium", "large", "x-large", "xx-large",
+    "larger", "smaller",
+})
+#: A bare family name: CSS1 allows it unquoted, and a multi-word one unquoted
+#: too (`font-family: New Century Schoolbook`).
+_BARE_FAMILY_WORD = re.compile(r"[A-Za-z][A-Za-z0-9-]*\Z")
+_CSS1_NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)\Z")
 #: The sixteen colour names CSS1 itself listed; anything newer is a value
 #: an old validator may reject, which is exactly what disqualifies it.
 _CSS1_COLOR_NAMES = frozenset({
@@ -258,7 +281,84 @@ def _css1_shorthand_safe(prop: str, value: str) -> bool:
                 return False
             seen.add(category)
         return True
+    if prop == "font":
+        return _css1_font_shorthand_safe(value)
     return False
+
+
+def _css1_font_shorthand_safe(value: str) -> bool:
+    """True when no validator since CSS1 rejects this `font` shorthand.
+
+    Written 2026-08-22 in answer to the owner's question about the last two
+    exceptions on the gate's list — *is this some early compatibility thing?*
+    It is not. Nothing about the two declarations needed a reader's mercy;
+    the proof for this shorthand had simply never been written, so `font`
+    fell through to `False` beside the shorthands that had one, and the
+    findings were reported as unprovable rather than as unexamined.
+
+    The grammar is the whole of the argument, and it is strict about order,
+    because that is where a shorthand gets rejected: the optional style,
+    variant and weight keywords come first and once each, then a size, then
+    an optional `/line-height`, then at least one family. Anything outside
+    that — a CSS2 system font, a second size, a stray token — is a value
+    some validator may reject, and then the longhand it overrode is still
+    somebody's fallback and must stay.
+    """
+    text = " ".join(value.split())
+    if not text or "," in text.split("/")[0].split()[0]:
+        return False
+    # The family may be quoted and may contain anything, so split the head
+    # (keywords, size, line-height) from the family list on the first comma
+    # or the first quote — whichever the value reaches first.
+    tokens = text.split()
+    index = 0
+    seen: set[str] = set()
+    while index < len(tokens):
+        token = tokens[index].lower()
+        if token.startswith(("'", '"')):
+            break
+        category = None
+        # `normal` is legal for style, variant and weight alike; it says
+        # nothing about which, so it is charged to the first slot free.
+        for name, vocabulary in (
+            ("style", _CSS1_FONT_STYLES),
+            ("variant", _CSS1_FONT_VARIANTS),
+            ("weight", _CSS1_FONT_WEIGHTS),
+        ):
+            if token in vocabulary and name not in seen:
+                category = name
+                break
+        if category is None:
+            break
+        seen.add(category)
+        index += 1
+    if index >= len(tokens):
+        return False  # keywords and no size: not a font shorthand at all
+    size, slash, height = tokens[index].partition("/")
+    if not (size.lower() in _CSS1_FONT_SIZES or _CSS1_LENGTH.match(size)):
+        return False
+    if slash and not height:
+        return False  # `12pt/ Arial` — a slash promising a height and no height
+    if height and not (
+        height.lower() == "normal"
+        or _CSS1_NUMBER.match(height)
+        or _CSS1_LENGTH.match(height)
+    ):
+        return False
+    family = " ".join(tokens[index + 1:]).strip()
+    if not family:
+        return False
+    for name in family.split(","):
+        name = name.strip()
+        if not name:
+            return False
+        if name[0] in "'\"":
+            if len(name) < 2 or name[-1] != name[0] or name[0] in name[1:-1]:
+                return False
+            continue
+        if not all(_BARE_FAMILY_WORD.match(word) for word in name.split()):
+            return False
+    return True
 
 
 #: The gate's reading of `no-descending-specificity`, probed and calibrated

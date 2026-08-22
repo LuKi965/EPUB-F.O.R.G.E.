@@ -79,8 +79,18 @@ class TestTheKeptPairs:
         assert "border-top-color" in sheet_of(result)
         assert "css.shorthand-overrides-kept" in rules_of(result)
 
-    def test_the_font_shorthand_is_beyond_the_argument(self, tmp_path):
-        sheet = "p.jeden { font-weight: bold; font: 12pt serif; }"
+    def test_a_system_font_is_beyond_the_argument(self, tmp_path):
+        """`font: menu` is CSS2's, not CSS1's, so a validator may reject it —
+        and then the longhand it overrode is somebody's fallback after all.
+
+        This test used to say `font: 12pt serif` and to claim the whole `font`
+        family was beyond proving. That was never true of the value; it was
+        true of the code, which had no grammar for `font` and fell through to
+        `False`. Two findings sat on the gate's exception list on the strength
+        of it. The grammar is written now, so the case that still cannot be
+        proved has to be a value that genuinely cannot.
+        """
+        sheet = "p.jeden { font-weight: bold; font: menu; }"
         result = build(tmp_path, sheet=sheet)
         assert "font-weight: bold" in sheet_of(result)
         assert "css.shorthand-overrides-kept" in rules_of(result)
@@ -90,6 +100,64 @@ class TestTheKeptPairs:
         result = build(tmp_path, sheet=sheet, sweep=False)
         assert "border-top-color" in sheet_of(result)
         assert "css.shorthand-overrides-found" in rules_of(result)
+
+
+class TestTheFontGrammar:
+    """The last two entries on the gate's exception list, and the owner's
+    question that got them looked at again: *is this some early compatibility
+    thing?* It was not — the proof had simply never been written, and
+    "unprovable" was being reported where "unexamined" was the truth.
+
+    The grammar is CSS1's, and it is strict about order because that is where
+    a shorthand gets rejected:
+
+        font: [ <style> || <variant> || <weight> ]? <size> [ / <height> ]? <family>
+    """
+
+    def test_the_shape_the_shelf_actually_carries(self, tmp_path):
+        """Size and a quoted family — the two findings, in their own form."""
+        sheet = 'p.jeden { font-family: "Stara"; font-style: normal; font: 90% "Nowa"; }'
+        result = build(tmp_path, sheet=sheet)
+        out = sheet_of(result)
+        assert "Stara" not in out and "font-style" not in out
+        assert 'font: 90% "Nowa"' in out
+        assert "css.shorthand-overrides-removed" in rules_of(result)
+
+    def test_the_whole_grammar_is_accepted(self, tmp_path):
+        sheet = "p.jeden { font-weight: bold; font: italic bold 12pt/1.5 Georgia, serif; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "font-weight: bold" not in sheet_of(result)
+
+    def test_an_unquoted_family_of_several_words_is_still_a_family(self, tmp_path):
+        sheet = "p.jeden { font-weight: bold; font: 12pt New Century Schoolbook; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "font-weight: bold" not in sheet_of(result)
+
+    def test_a_size_with_no_family_proves_nothing(self, tmp_path):
+        """The grammar requires a family. Without one the value is not a
+        `font` shorthand at all, and a validator may say so. The mutation
+        that stops requiring it fails here."""
+        sheet = "p.jeden { font-weight: bold; font: 12pt; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "font-weight: bold" in sheet_of(result)
+
+    def test_a_unit_css1_never_had_proves_nothing(self, tmp_path):
+        sheet = "p.jeden { font-weight: bold; font: 2rem Arial; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "font-weight: bold" in sheet_of(result)
+
+    def test_one_keyword_twice_proves_nothing(self, tmp_path):
+        """`bold bold` is two words of one slot, the same shape the border
+        proof refuses. The mutation that lets a slot be filled twice fails
+        here."""
+        sheet = "p.jeden { font-weight: bold; font: bold bold 12pt Arial; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "font-weight: bold" in sheet_of(result)
+
+    def test_a_slash_promising_a_height_that_is_absent_proves_nothing(self, tmp_path):
+        sheet = "p.jeden { font-weight: bold; font: 12pt/ Arial; }"
+        result = build(tmp_path, sheet=sheet)
+        assert "font-weight: bold" in sheet_of(result)
 
 
 class TestTheGuard:
