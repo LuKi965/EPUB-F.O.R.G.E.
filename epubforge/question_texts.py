@@ -171,6 +171,28 @@ TEXTS_PL: dict[str, str] = {
         "miejsce"
     ),
     # --- a declaration written `property="value"` in a hand-touched rule ----
+    "style.generic.summary": (
+        "{count} deklaracji fontów wskazuje kroje, których książka nie "
+        "dołącza, bez rodziny zapasowej ({generic}?)"
+    ),
+    "style.generic.detail": (
+        "W {where} deklaracje font-family kończą się na nazwanych krojach "
+        "({examples}), których nie ma w paczce książki. Czytnik bez takiego "
+        "kroju użyje swojego domyślnego — jakiegokolwiek. Dopisanie rodziny "
+        "zapasowej `{generic}` mówi mu: „jak nie masz tego kroju, weź swój "
+        "{generic}”. Zmiana widoczna wyłącznie na czytnikach, którym kroju "
+        "brakuje — i tam przybliża wygląd do zamysłu wydawcy."
+    ),
+    "style.generic.keep": "Zostaw jak jest",
+    "style.generic.keep.why": (
+        "Nic się nie zmienia; czytnik bez nazwanego kroju dalej bierze swój "
+        "domyślny"
+    ),
+    "style.generic.append": "Dopisz `{generic}` jako zapasowy",
+    "style.generic.append.why": (
+        "Do każdej z tych deklaracji dołącza `, {generic}` na końcu; kroje "
+        "nazwane zostają na swoich miejscach i dalej mają pierwszeństwo"
+    ),
     "style.equals.summary": (
         "{count} deklaracji CSS zapisanych jak atrybut HTML (`=` zamiast `:`) — "
         "żaden czytnik ich nie stosuje"
@@ -333,6 +355,28 @@ TEXTS_EN: dict[str, str] = {
         "wrong place"
     ),
     # --- a declaration written `property="value"` in a hand-touched rule ----
+    "style.generic.summary": (
+        "{count} font declaration(s) name faces the book does not embed, "
+        "with no generic fallback ({generic}?)"
+    ),
+    "style.generic.detail": (
+        "In {where}, font-family declarations end on named faces "
+        "({examples}) that are not in the book's package. A reader without "
+        "such a face falls back to its default — whatever that is. Appending "
+        "the generic family `{generic}` tells it: \"if you lack this face, "
+        "use your {generic}\". Visible only on readers missing the face — "
+        "and there it moves the look toward the publisher's intent."
+    ),
+    "style.generic.keep": "Leave as is",
+    "style.generic.keep.why": (
+        "Nothing changes; a reader without the named face keeps using its "
+        "default"
+    ),
+    "style.generic.append": "Append `{generic}` as the fallback",
+    "style.generic.append.why": (
+        "Each of these declarations gains `, {generic}` at the end; the "
+        "named faces stay first and keep priority"
+    ),
     "style.equals.summary": (
         "{count} CSS declaration(s) written like an HTML attribute (`=` "
         "instead of `:`) — no reading system applies them"

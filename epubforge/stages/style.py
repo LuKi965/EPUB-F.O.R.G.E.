@@ -41,7 +41,7 @@ from .. import fonts_meta, paths, stylesheet, watermark, xhtml
 from ..css_properties import KNOWN_PROPERTIES
 from ..decisions import KEEP, STYLE, Option, Question
 from ..question_texts import say
-from ..report import Action, Level, Risk
+from ..report import Action, Automation, Level, Risk
 from .base import Context, Stage
 from .content import strip_remote_imports
 
@@ -2835,22 +2835,33 @@ class StyleStage(Stage):
         return cleaned
 
     def _font_stacks(self, ctx: Context, css_text: str, resource) -> str:
-        """Give a font stack the generic family the font declares about itself.
+        """Give a font stack the generic family the font declares about itself
+        — and, for faces the book does not carry, offer common knowledge
+        through a question.
 
-        A stack ending in a named font and nothing else is a real weakness: when
-        the named font fails to load — and on an e-reader it often does — the
-        reader falls back to whatever it likes. Calibre calls it an error and it
-        is right; this tool reported it and left it alone, on the ground that
-        choosing between `serif` and `sans-serif` from a font's *name* is
-        guesswork.
+        A stack ending in a named font and nothing else is a real weakness:
+        when the named font fails to load — and on an e-reader it often does —
+        the reader falls back to whatever it likes. Calibre calls it an error
+        and it is right. Three answers, in order of authority:
 
-        The premise was wrong wherever the book embeds the font. Then the answer
-        is written in the font's own OS/2 table — PANOSE, ten bytes the designer
-        filled in — and appending it is reading a declaration, not making one.
-        See :mod:`epubforge.fonts_meta`.
-
-        Where the font is not embedded, or will not say, nothing is added and
-        the stack is reported exactly as before. That case really is a guess.
+        * **The embedded font's own word.** Where the book embeds the face,
+          PANOSE says what it is (:mod:`epubforge.fonts_meta`), and appending
+          that generic is reading a declaration, not making one. Deterministic,
+          no question. The whole book's `@font-face` blocks answer, not just
+          this sheet's — a converter that keeps its faces in one sheet and its
+          styles in another embeds them all the same.
+        * **Common knowledge, on a person's word.** `"Times New Roman"` with
+          nothing embedded — 41 913 of the shelf's 50 173 findings — is not in
+          any table this program can read, but it is not a guess either. The
+          owner delegated the design; the shape is pillar A's question rule:
+          one question per generic family per file, grouped so one answer can
+          stand for all of them, recommended but **never applied on its own**
+          (S-05: no answer, no change). Appending is visible only on a reader
+          that lacks the face, and there it moves the look toward the
+          publisher's intent.
+        * **Nothing.** A symbol face (Wingdings) gets no question — no generic
+          family draws pictures — and an unknown name stays a guess. Both are
+          left alone and counted, exactly as before.
         """
         # Blank out @font-face bodies while keeping offsets stable.
         outside = _FONT_FACE_RE.sub(lambda match: " " * len(match.group()), css_text)
@@ -2858,6 +2869,7 @@ class StyleStage(Stage):
         offenders: list[str] = []
         completed: list[str] = []
         edits: list[tuple[int, int, str]] = []
+        askable: dict[str, list] = {}
 
         for match in _FONT_FAMILY_RE.finditer(outside):
             families = [part.strip().strip("\"'") for part in match.group(1).split(",")]
@@ -2875,10 +2887,52 @@ class StyleStage(Stage):
             if generic:
                 edits.append((match.end(1), match.end(1), f", {generic}"))
                 completed.append(f"{families[-1]} → {generic}")
+                continue
+            if any(f.lower() in fonts_meta.SYMBOL_FAMILIES for f in families):
+                offenders.append(families[-1])
+                continue
+            known = None
+            for family in families:
+                known = fonts_meta.well_known(family)
+                if known:
+                    break
+            if known:
+                askable.setdefault(known, []).append((match, families[-1]))
             else:
                 offenders.append(families[-1])
 
-        for start, end, insertion in reversed(edits):
+        approved: dict[str, int] = {}
+        for generic in sorted(askable):
+            entries = askable[generic]
+            names = sorted({name for _, name in entries})
+            question = Question(
+                kind=STYLE,
+                where=resource.path,
+                summary=say("style.generic.summary",
+                            count=len(entries), generic=generic),
+                detail=say("style.generic.detail", where=resource.path,
+                           count=len(entries), generic=generic,
+                           examples=", ".join(names[:4])),
+                options=(
+                    Option(KEEP, say("style.generic.keep"),
+                           say("style.generic.keep.why")),
+                    Option("append", say("style.generic.append", generic=generic),
+                           say("style.generic.append.why", generic=generic)),
+                ),
+                recommended="append",
+                reversible=True,
+                risk=Risk.APPEARANCE,
+                group=f"style:generic-{generic}",
+                subject=f"{len(entries)} declarations",
+            )
+            if ctx.decide(question).option == "append":
+                for match, _ in entries:
+                    edits.append((match.end(1), match.end(1), f", {generic}"))
+                approved[generic] = len(entries)
+            else:
+                offenders.extend(name for _, name in entries)
+
+        for start, end, insertion in sorted(edits, reverse=True):
             css_text = css_text[:start] + insertion + css_text[end:]
 
         if completed:
@@ -2891,6 +2945,25 @@ class StyleStage(Stage):
                     "examples": ", ".join(sorted(set(completed))[:4]),
                 },
                 location=resource.path,
+            )
+        if approved:
+            self.note(
+                ctx,
+                Level.FIX,
+                "css.font-stack-generic-approved",
+                values={
+                    "count": sum(approved.values()),
+                    "generics": ", ".join(sorted(approved)),
+                },
+                location=resource.path,
+            )
+            self.changed(
+                ctx, Action.ADDED, resource.path,
+                before=f"{sum(approved.values())} font stack(s) naming faces the book does not carry, with no fallback",
+                after="the generic family common knowledge assigns, appended on a person's word",
+                automation=Automation.ASKED,
+                risk=Risk.APPEARANCE, reversible=True,
+                rule="css.font-stack-generic-approved",
             )
         if offenders:
             self.note(
@@ -2906,7 +2979,32 @@ class StyleStage(Stage):
         return css_text
 
     def _embedded_families(self, ctx: Context, css_text: str, resource) -> dict[str, str]:
-        """`{family name: generic}` for every font this sheet embeds and reads."""
+        """`{family name: generic}` for every font the **book** embeds and reads.
+
+        The whole book's stylesheets are consulted, this sheet's entries
+        winning: a converter that keeps its `@font-face` in one sheet and its
+        text styles in another (or in `<style>` blocks) embeds the font all
+        the same, and reading only the local sheet was leaving the embedded
+        answer on the table.
+        """
+        found = self._families_declared(ctx, css_text, resource)
+        for sheet in ctx.book.by_type("style"):
+            if sheet.path == resource.path:
+                continue
+            for family, generic in self._families_declared(
+                ctx, sheet.text(), sheet
+            ).items():
+                found.setdefault(family, generic)
+        return found
+
+    def _families_declared(self, ctx: Context, css_text: str, sheet) -> dict[str, str]:
+        """`{family name: generic}` for the `@font-face` blocks of one sheet.
+
+        A url is tried against the sheet's current path first, then against
+        its original one, remapped — a sheet read *before* its own urls were
+        rewritten still points at the old layout, and the mend order of two
+        sheets must not decide whether the book's fonts are seen.
+        """
         found: dict[str, str] = {}
         for block in _FONT_FACE_RE.finditer(css_text):
             body = block.group()
@@ -2915,8 +3013,12 @@ class StyleStage(Stage):
                 continue
             family = name.group(1).strip().strip("\"'").split(",")[0].strip()
             for url in re.findall(r"url\(\s*(['\"]?)(.*?)\1\s*\)", body):
-                target = paths.resolve(resource.path, url[1])
+                target = paths.resolve(sheet.path, url[1])
                 font = ctx.book.get(target) if target else None
+                if font is None and sheet.original_path:
+                    original = paths.resolve(sheet.original_path, url[1])
+                    remapped = ctx.remap(original) if original else None
+                    font = ctx.book.get(remapped) if remapped else None
                 if font is None:
                     continue
                 generic = fonts_meta.classify(font.data)

@@ -103,3 +103,52 @@ def classify(data: bytes) -> str | None:
     if family_class == _CLASS_SCRIPT:
         return "cursive"
     return None
+
+
+#: What everybody already knows about fonts nobody embedded. The shelf's
+#: 50 173 stacks without a generic name mostly one font: `"Times New Roman"`
+#: alone accounts for 41 913 of them, written by Word into books that embed
+#: nothing — so there is no OS/2 table to read, and the module's own rule
+#: ("ask the font, don't guess") has nothing to ask. This table is the middle
+#: ground the owner delegated: not a guess, but common knowledge — the kind a
+#: person answering the question would apply anyway — offered *through* the
+#: question queue, never on the program's own authority. Names normalized to
+#: lower case; only names the shelf actually showed or their obvious kin.
+WELL_KNOWN_GENERICS: dict[str, str] = {
+    # serif
+    "times new roman": "serif", "times": "serif", "tms rmn": "serif",
+    "georgia": "serif", "garamond": "serif", "book antiqua": "serif",
+    "palatino": "serif", "palatino linotype": "serif", "cambria": "serif",
+    "cambria math": "serif", "constantia": "serif", "century schoolbook": "serif",
+    "new york": "serif", "liberation serif": "serif", "dejavu serif": "serif",
+    "minion pro": "serif", "adobe garamond pro": "serif", "baskerville": "serif",
+    "bookman old style": "serif", "goudy old style": "serif",
+    # sans-serif
+    "arial": "sans-serif", "arial unicode ms": "sans-serif",
+    "helvetica": "sans-serif", "helv": "sans-serif", "verdana": "sans-serif",
+    "tahoma": "sans-serif", "calibri": "sans-serif", "segoe ui": "sans-serif",
+    "trebuchet ms": "sans-serif", "franklin gothic": "sans-serif",
+    "franklin gothic medium": "sans-serif", "futura": "sans-serif",
+    "geneva": "sans-serif", "lucida sans": "sans-serif",
+    "lucida sans unicode": "sans-serif", "liberation sans": "sans-serif",
+    "dejavu sans": "sans-serif", "corbel": "sans-serif", "candara": "sans-serif",
+    "optima": "sans-serif", "gill sans": "sans-serif",
+    # monospace
+    "courier": "monospace", "courier new": "monospace",
+    "consolas": "monospace", "lucida console": "monospace",
+    "monaco": "monospace", "dejavu sans mono": "monospace",
+    "liberation mono": "monospace",
+}
+
+#: Symbol and dingbat faces get no question at all: appending `fantasy` to
+#: Wingdings would promise readers a substitute that draws pictures, and no
+#: generic family does. Left alone, counted, named in the report.
+SYMBOL_FAMILIES: frozenset = frozenset({
+    "wingdings", "wingdings 2", "wingdings 3", "webdings", "symbol",
+    "marlett", "zapf dingbats", "zapfdingbats", "system",
+})
+
+
+def well_known(family: str) -> "str | None":
+    """The generic common knowledge assigns to *family*, or None."""
+    return WELL_KNOWN_GENERICS.get(family.strip().strip("\"'").lower())
