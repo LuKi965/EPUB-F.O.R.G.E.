@@ -641,13 +641,17 @@ class TestStylesheetLinting:
         with zipfile.ZipFile(result.output_path) as archive:
             return archive.read("EPUB/styles/main.css").decode()
 
-    def test_reader_specific_property_is_reported_and_kept(self, rebuilt):
-        preserved = [
+    def test_reader_specific_property_is_removed_by_default(self, rebuilt):
+        """D-036: protection moved from the preserve mode to the `legacy`
+        compat profile. Without the profile the default, in both modes,
+        is the owner's one word — czystość; `test_reader_properties.py`
+        holds the profile's side of the contract."""
+        removed = [
             f for f in rebuilt.report.findings
-            if f.level is Level.PRESERVED and "reader-specific" in f.message
+            if f.level is Level.FIX and "reader-specific" in f.message
         ]
-        assert preserved and "adobe-hyphenate" in (preserved[0].detail or "")
-        assert "adobe-hyphenate" in self.stylesheet(rebuilt)
+        assert removed and "adobe-hyphenate" in (removed[0].detail or "")
+        assert "adobe-hyphenate" not in self.stylesheet(rebuilt)
 
     def test_strict_removes_only_the_reader_specific_property(self, rebuilt_strict):
         css = self.stylesheet(rebuilt_strict)

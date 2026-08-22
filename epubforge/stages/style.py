@@ -2804,17 +2804,26 @@ class StyleStage(Stage):
         return repaired
 
     def _vendor_properties(self, ctx: Context, css_text: str, resource) -> str:
-        """Report — and under strict, drop — properties no EPUB 3 reader knows.
+        """Drop properties no conforming reader knows — unless a compat
+        profile speaks for the readers that do.
 
         Only reader-specific inventions like Adobe's ``adobe-hyphenate`` are
-        touched. Real vendor prefixes (``-webkit-``, ``-epub-``) are honoured by
-        shipping readers and are never removed.
+        touched. Real vendor prefixes (``-webkit-``, ``-epub-``) are honoured
+        by shipping readers and are never removed.
+
+        D-036 replaced the old mode split (strict dropped, preserve kept
+        unconditionally) with the compat module's judgement: the ``legacy``
+        profile *is* the program's word for "this book is meant for RMSDK
+        readers" — PocketBook among them — so protection belongs there, not
+        in a mode. With the profile on, the properties stay and the report
+        says for whom; without it, every conforming reader was ignoring
+        them anyway, and the owner's call was one word: czystość.
         """
         found = _ADOBE_PROPERTY_RE.findall(css_text)
         if not found:
             return css_text
         names = sorted({name.lower() for _, name in found})
-        if not ctx.policy.strict:
+        if "legacy" in ctx.policy.compat_profiles:
             self.note(
                 ctx,
                 Level.PRESERVED,
