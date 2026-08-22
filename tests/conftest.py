@@ -86,8 +86,10 @@ def no_browser_anywhere():
     patch.setattr(
         render_fidelity,
         "compare",
-        lambda source, candidate, sample=0, browser=None: render_fidelity.RenderFidelity(
-            available=True, engine="podstawiona przeglądarka", pages=[]
+        lambda source, candidate, sample=0, browser=None, renames=None: (
+            render_fidelity.RenderFidelity(
+                available=True, engine="podstawiona przeglądarka", pages=[]
+            )
         ),
     )
     yield

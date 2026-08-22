@@ -338,8 +338,16 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         if render.find_renderer() is None:
             return _cannot_verify(policy, report, queue)
 
+        # The rebuild's own ledger of moved files, so the pairing knows which
+        # output page is which source page — names alone stopped being enough
+        # when D-035 began naming documents by their role.
+        moved = {
+            change.before: change.after
+            for change in report.changes
+            if change.rule == "structure.relaid-out" and change.before and change.after
+        }
         measured = render_fidelity.compare(
-            source, candidate, sample=policy.render_sample
+            source, candidate, sample=policy.render_sample, renames=moved
         )
         if not measured.available:
             return _cannot_verify(policy, report, queue)

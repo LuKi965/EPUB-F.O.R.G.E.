@@ -309,6 +309,51 @@ class TestReadingTheSpines:
         ) == []
 
 
+class TestThePairingKnowsTheRenames:
+    """D-035 names documents by their role, so the stems the alignment leaned
+    on are gone. Measured on the 160-book shelf the day the renames landed:
+    ten books refused, every one a wrong-neighbour comparison — a renamed
+    spine plus one synthesized cover page collapses the diff into a single
+    shifted "replace" block. The rebuild knows exactly which file went where;
+    the gate must ask it rather than guess.
+    """
+
+    BEFORE = [pathlib.Path(p) for p in ("przed/spis.xhtml", "przed/r1.xhtml", "przed/r2.xhtml")]
+    AFTER = [
+        pathlib.Path(p)
+        for p in (
+            "po/0000-cover.xhtml",
+            "po/0001-toc.xhtml",
+            "po/0002-chapter-01.xhtml",
+            "po/0003-chapter-02.xhtml",
+        )
+    ]
+
+    def translated(self):
+        """The after-side stems as the rebuild's ledger tells them: the cover
+        page is synthesized (no source name), the rest map back."""
+        return ["cover", "spis", "r1", "r2"]
+
+    def test_without_the_ledger_every_page_meets_its_neighbour(self):
+        """The measured failure, pinned so the fix cannot be quietly undone."""
+        pairs, added, dropped = render_fidelity._pair(self.BEFORE, self.AFTER)
+        assert (self.BEFORE[0], self.AFTER[0]) in pairs, (
+            "the source contents page lands opposite the synthesized cover"
+        )
+
+    def test_with_the_ledger_every_page_meets_itself(self):
+        pairs, added, dropped = render_fidelity._pair(
+            self.BEFORE, self.AFTER, self.translated()
+        )
+        assert pairs == [
+            (self.BEFORE[0], self.AFTER[1]),
+            (self.BEFORE[1], self.AFTER[2]),
+            (self.BEFORE[2], self.AFTER[3]),
+        ]
+        assert added == [self.AFTER[0]]
+        assert dropped == []
+
+
 class TestMeasuringOnePage:
     def test_ink_finds_where_the_content_is(self, tmp_path):
         html = tmp_path / "p.html"

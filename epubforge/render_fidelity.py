@@ -183,7 +183,11 @@ def _stem(path: pathlib.Path) -> str:
     return _PREFIX.sub("", path.stem).lower()
 
 
-def _pair(before: "list[pathlib.Path]", after: "list[pathlib.Path]"):
+def _pair(
+    before: "list[pathlib.Path]",
+    after: "list[pathlib.Path]",
+    after_stems: "list[str] | None" = None,
+):
     """Match the two reading orders to each other, allowing for insertions.
 
     Pairing by position was the first version and it is wrong on any book where
@@ -196,15 +200,23 @@ def _pair(before: "list[pathlib.Path]", after: "list[pathlib.Path]"):
     A gate that compares the wrong pages and then refuses the book is worse than
     no gate at all, which is why this is an alignment and not an index.
     `difflib` over the file stems handles insertion and deletion the way a diff
-    does, and needs no assumption beyond the rebuild mostly keeping names —
-    which it does, under a numeric prefix that `_stem` removes.
+    does, and needs no assumption beyond the rebuild mostly keeping names.
+
+    Since D-035 the rebuild does *not* mostly keep names — documents are named
+    by their role — so the caller passes `after_stems`: the after-side stems
+    translated back to their source stems through the rebuild's own rename
+    ledger. Measured without it on the 160-book shelf: ten books refused, every
+    one a wrong-neighbour comparison, because a renamed spine plus one
+    synthesized cover page collapses the diff into a single shifted "replace"
+    block. The gate must never guess where the rebuild can simply tell it.
 
     Returns `(pairs, added, dropped)`.
     """
     import difflib
 
     before_stems = [_stem(path) for path in before]
-    after_stems = [_stem(path) for path in after]
+    if after_stems is None:
+        after_stems = [_stem(path) for path in after]
     matcher = difflib.SequenceMatcher(None, before_stems, after_stems, autojunk=False)
     pairs: list[tuple[pathlib.Path, pathlib.Path]] = []
     added: list[pathlib.Path] = []
@@ -439,11 +451,16 @@ def compare(
     sample: int = SAMPLE,
     browser=None,
     on_page=None,
+    renames: "dict[str, str] | None" = None,
 ) -> RenderFidelity:
     """Render both books page by page and say what changed.
 
     `sample` of `0` renders the whole spine, which is what a release check wants
     and what nobody wants to wait for interactively.
+
+    `renames` is the rebuild's own ledger of moved files — old archive path to
+    new archive path — so the pairing can *know* which output page is which
+    source page instead of guessing from names it renamed itself (D-035).
     """
     browser = browser or render.find_renderer()
     if browser is None:
@@ -470,7 +487,20 @@ def compare(
             result.reason = "nie udało się odczytać kolejności czytania"
             return result
 
-        paired, added, dropped = _pair(before_spine, after_spine)
+        after_stems = None
+        undone = {new: old for old, new in (renames or {}).items()}
+        if undone:
+            after_stems = []
+            for path in after_spine:
+                try:
+                    internal = path.resolve().relative_to(after_root.resolve()).as_posix()
+                except ValueError:
+                    internal = ""
+                old = undone.get(internal)
+                after_stems.append(
+                    _stem(pathlib.Path(old)) if old else _stem(path)
+                )
+        paired, added, dropped = _pair(before_spine, after_spine, after_stems)
         for path in dropped:
             # A document in the reading order that is not in the output any more.
             # No rendering needed and none possible: this is the loss the whole
