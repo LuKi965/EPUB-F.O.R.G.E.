@@ -76,6 +76,7 @@ CATALOGUE: dict[str, str] = {
     "reader.unmanifested-file": "a file is in the archive but absent from the manifest",
     "reader.spine-rebuilt": "the reading order was empty and was rebuilt from {count} content documents",
     # -- structure: where files ended up ------------------------------------
+    "structure.role-named": "{count} document(s) were named by their role — cover, toc, chapter-NN with -2/-3 for a chapter split across files ({examples}); documents the evidence cannot name keep their old stem",
     "structure.relaid-out": "{count} file(s) were regrouped into a typed {directory}/ layout with portable names",
     "structure.junk-removed": "packaging leftovers were removed",
     "structure.junk-kept": "this file has the name of a packaging leftover and the book links to it, so it was kept: a name is not evidence about content, and `.bak` is a name a publisher can give a chapter",
@@ -411,6 +412,7 @@ CATALOGUE_PL: dict[str, str] = {
     'reader.ncx-unreferenced-used': 'znaleziono NCX, do którego nic się nie odwoływało, i użyto go jako spisu treści',
     'reader.unmanifested-file': 'plik jest w archiwum, ale nie ma go w manifeście',
     'reader.spine-rebuilt': 'kolejność czytania była pusta i odtworzono ją z {count} {count:dokumentu treści|dokumentów treści|dokumentów treści}',
+    'structure.role-named': '{count} {count:dokument dostał nazwę|dokumenty dostały nazwy|dokumentów dostało nazwy} z roli — cover, toc, chapter-NN z -2/-3 dla rozdziału pociętego na pliki ({examples}); dokumenty bez dowodu roli zostają przy starej nazwie',
     'structure.relaid-out': '{count} {count:plik przegrupowano|pliki przegrupowano|plików przegrupowano} w układ według typów w {directory}/, z przenośnymi nazwami',
     'structure.junk-removed': 'usunięto pozostałości po pakowaniu',
     'structure.junk-kept': 'ten plik nazywa się jak pozostałość po pakowaniu, ale książka się do niego odwołuje, więc został: nazwa nie jest dowodem o treści, a `.bak` to nazwa, jaką wydawca może dać rozdziałowi',

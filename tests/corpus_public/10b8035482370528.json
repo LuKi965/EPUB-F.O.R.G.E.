@@ -1,6 +1,6 @@
 {
   "source": "sha256:10b80354823705289f7c2251dbfd0b65654ac4799821c99df8f939f58e62e476",
-  "version": "0.2.30",
+  "version": "0.3.0",
   "minimal": {
     "written": true,
     "report": {
@@ -24,7 +24,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 2
     },
     "rules": {
@@ -33,9 +33,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "profile.body-text-found": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "structure.role-named": 1
     },
-    "output": "sha256:1cd4a850bf7d278bd8e74c399538f243f022edf3a83771c5fd7daa1b66fbe0f2",
+    "output": "sha256:a30669620b605b5346061d2e297d52e2ad4530737e6cded18a163eb3a24dd499",
     "text_characters": 50,
     "text_added": 0,
     "text_invariant": true,
@@ -44,7 +45,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 2
     },
     "rules": {
@@ -53,9 +54,10 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "profile.body-text-found": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "structure.role-named": 1
     },
-    "output": "sha256:1cd4a850bf7d278bd8e74c399538f243f022edf3a83771c5fd7daa1b66fbe0f2",
+    "output": "sha256:a30669620b605b5346061d2e297d52e2ad4530737e6cded18a163eb3a24dd499",
     "text_characters": 50,
     "text_added": 0,
     "text_invariant": true,

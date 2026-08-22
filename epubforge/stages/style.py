@@ -1572,7 +1572,6 @@ class StyleStage(Stage):
         cuts: list = []
         kept = 0
         total = 0
-        askable: list = []
         for body_start, body_end in stylesheet.declaration_blocks(css_text):
             wrapped = "{" + css_text[body_start:body_end] + "}"
             declarations = list(_DECLARATION_RE.finditer(wrapped))

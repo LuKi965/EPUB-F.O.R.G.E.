@@ -306,6 +306,65 @@ class Difference:
         return f"{self.kind}: {self.detail}"
 
 
+#: D-035: the relaying presets name content documents by their role — the
+#: contents' chapters as `chapter-NN`, the guide's cover page as `cover`, and
+#: so on. A document's identity survives that rename the same way it survives
+#: the ordinal prefix: the reading order pairs the old name with the new one.
+ROLE_NAMED = re.compile(
+    r"^(?:cover|titlepage|toc|copyright|dedication|foreword|preface|prologue"
+    r"|epilogue|afterword|appendix|glossary|index|bibliography|acknowledgments"
+    r"|colophon|epigraph|footnotes|illustrations|tables|part|chapter)"
+    r"(?:-\d+)*\.xhtml$"
+)
+
+
+def _role_aliases(before: Graph, after: Graph) -> dict[str, str]:
+    """new key → old key, for documents the rebuild renamed by role.
+
+    Deliberately narrow, so nothing real hides behind it: the spines must be
+    the same length, the new name must come from the role vocabulary, and it
+    must not already exist in the source — otherwise the pairing could dress
+    a reorder or a loss up as a rename, and the oracle reports instead.
+    """
+    if len(before.spine) != len(after.spine):
+        return {}
+    aliases: dict[str, str] = {}
+    taken = set(before.spine)
+    for source, renamed in zip(before.spine, after.spine):
+        if renamed == source or renamed in taken:
+            continue
+        name = renamed.partition(":")[2]
+        if renamed.startswith("file:") and ROLE_NAMED.match(name):
+            aliases[renamed] = source
+    return aliases
+
+
+def _dealiased(after: Graph, aliases: dict[str, str]) -> Graph:
+    """The after-graph with every role-given name read as its old identity."""
+    if not aliases:
+        return after
+
+    def keyed(value: str) -> str:
+        return aliases.get(value, value)
+
+    nodes: Counter = Counter()
+    for node, count in after.nodes.items():
+        nodes[Node(node.kind, keyed(node.subject), node.value, node.qualifiers)] += count
+    edges: Counter = Counter()
+    for edge, count in after.edges.items():
+        edges[Edge(edge.kind, keyed(edge.source), keyed(edge.target))] += count
+    return Graph(
+        package=after.package,
+        nodes=nodes,
+        edges=edges,
+        spine=tuple(keyed(item) for item in after.spine),
+        collections=tuple(
+            (role, tuple(keyed(member) for member in members))
+            for role, members in after.collections
+        ),
+    )
+
+
 def compare(before: Graph, after: Graph) -> list[Difference]:
     """What the rebuild lost. Additions are not differences.
 
@@ -313,6 +372,7 @@ def compare(before: Graph, after: Graph) -> list[Difference]:
     stamps `dcterms:modified`, asserts accessibility metadata. It is not
     entitled to say less, and this only reports less.
     """
+    after = _dealiased(after, _role_aliases(before, after))
     differences: list[Difference] = []
 
     missing_attributes = dict(before.package).keys() - dict(after.package).keys()

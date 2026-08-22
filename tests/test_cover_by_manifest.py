@@ -220,8 +220,11 @@ class TestTheTemplateNeedsAPageWithNothingToLayOut:
         self, tmp_path
     ):
         written = documents(rebuilt(tmp_path, "guide.epub"))
+        # The guide's `type="cover"` also *names* the file now (D-035), so the
+        # chapter-that-is-the-cover comes out as `0000-cover.xhtml` — and must
+        # still keep its running-text layout, which is this test's point.
         chapter = next(
-            page for name, page in written.items() if name.endswith("chapter-1.xhtml")
+            page for name, page in written.items() if name.endswith("0000-cover.xhtml")
         )
         assert "Rozdział pierwszy" in chapter, "wrong page — the fixture moved"
         assert "display: flex" not in chapter
@@ -233,7 +236,7 @@ class TestTheTemplateNeedsAPageWithNothingToLayOut:
         document — and it is what this code did before WP-8."""
         written = documents(rebuilt(tmp_path, "scoped.epub"))
         chapter = next(
-            page for name, page in written.items() if name.endswith("chapter-1.xhtml")
+            page for name, page in written.items() if name.endswith("0000-cover.xhtml")
         )
         assert "max-width: 100%" in chapter
 

@@ -103,7 +103,7 @@ def test_compat_stylesheet_is_linked_before_the_books_own(compat_archive):
     """Same specificity means source order decides; the publisher must win."""
     import re
 
-    document = compat_archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+    document = compat_archive.read("EPUB/text/0000-cover.xhtml").decode()
     links = re.findall(r'<link[^>]*href="([^"]+)"', document)
     ours = [i for i, href in enumerate(links) if compat.COMPAT_STYLESHEET_NAME in href]
     theirs = [i for i, href in enumerate(links) if compat.COMPAT_STYLESHEET_NAME not in href]

@@ -439,6 +439,7 @@ class StructureStage(Stage):
         ordered += [path for path in book.resources if path not in set(ordered)]
 
         spine_positions = {item.path: index for index, item in enumerate(book.spine)}
+        role_stems = _role_stems(book)
 
         for path in ordered:
             if path in stuck:
@@ -450,9 +451,14 @@ class StructureStage(Stage):
                 folder = folder_for(resource.media_type)
                 basename = paths.ascii_slug(posixpath.basename(path), fallback=folder)
                 if resource.is_content_doc:
-                    stem = basename.rpartition(".")[0] or basename
-                    # Strip a prefix from an earlier run so names cannot accrete.
-                    stem = re.sub(r"^\d{4}-", "", stem)
+                    # D-035: a document the evidence can name is named by its
+                    # role; one it cannot keeps its old stem — a fallback name
+                    # is honest, a wrong concrete one is not.
+                    stem = role_stems.get(path)
+                    if stem is None:
+                        stem = basename.rpartition(".")[0] or basename
+                        # Strip a prefix from an earlier run so names cannot accrete.
+                        stem = re.sub(r"^\d{4}-", "", stem)
                     prefix = f"{spine_positions[path]:04d}-" if path in spine_positions else ""
                     basename = f"{prefix}{stem or 'section'}.xhtml"
                 new_path = _join(root, f"{folder}/{basename}")
@@ -474,6 +480,15 @@ class StructureStage(Stage):
                 "structure.relaid-out",
                 values={"count": len(moves), "directory": root, "renamed": renamed},
             )
+            role_named = sum(1 for path in role_stems if path in spine_positions)
+            if role_named:
+                sample = sorted(role_stems.values())[:4]
+                self.note(
+                    ctx,
+                    Level.INFO,
+                    "structure.role-named",
+                    values={"count": role_named, "examples": ", ".join(sample)},
+                )
             # Reversible: every move is in the report with both names, which is
             # what F-003/F-016 put there. Entered one by one rather than as a
             # count, because "42 files moved" cannot answer "where did
@@ -489,6 +504,138 @@ class StructureStage(Stage):
                     reversible=True,
                     rule="structure.relaid-out",
                 )
+
+
+
+#: D-035: the file's name comes from its role, plainly — the owner's words:
+#: "jeżeli rozdział to chapter, jeżeli coś innego to coś innego. Proste."
+#: Role words are English (D-034); the table maps landmark/`epub:type`
+#: vocabulary onto them. `bodymatter` is a boundary, not a name.
+_ROLE_STEMS = {
+    "cover": "cover", "titlepage": "titlepage", "toc": "toc",
+    "copyright-page": "copyright", "dedication": "dedication",
+    "foreword": "foreword", "preface": "preface", "prologue": "prologue",
+    "epilogue": "epilogue", "afterword": "afterword", "appendix": "appendix",
+    "glossary": "glossary", "index": "index", "bibliography": "bibliography",
+    "acknowledgments": "acknowledgments", "colophon": "colophon",
+    "epigraph": "epigraph", "endnotes": "footnotes", "loi": "illustrations",
+    "lot": "tables", "part": "part", "chapter": "chapter",
+}
+_EPUB_TYPE_RE = re.compile(rb'epub:type="([^"]+)"')
+
+
+def _role_stems(book) -> dict[str, str]:
+    """Path → role stem for every spine document the evidence can name.
+
+    Three rungs, evidence only (D-033's line: doubt is never a wrong
+    concrete category):
+
+    1. **Landmarks and the EPUB 2 guide** (the reader folds both into
+       `book.landmarks`; measured on the shelf: a guide in 131 of 160
+       books) name the cover, the contents, the copyright page…
+       `bodymatter` marks where the text begins and names nothing.
+    2. **`epub:type` on a document** (47 books) names it directly —
+       `chapter` most of all.
+    3. **Contents entries from the body start onward** are chapters:
+       the entries say *where chapters begin* (D-035 uses the contents
+       for positions, never for titles), and documents between two
+       beginnings are the same chapter continued — `chapter-03`,
+       `chapter-03-2`. Documents before the body start that no evidence
+       names keep their old fallback name rather than gaining a wrong one.
+
+    A continuation needs evidence on *both* sides: between two chapter
+    beginnings, "the next chapter has not begun" is what makes the file
+    in between the same chapter continued. After the last beginning there
+    is no closing side, and what actually sits there — measured on the
+    Gutenberg corpus — is a title-page image wrap or the licence, not the
+    chapter continued. The tail is swept only up to a roled or
+    contents-listed document; reaching the end of the spine without one
+    retracts the sweep, and those files keep their stems (D-033 again).
+    """
+    spine_order = {item.path: index for index, item in enumerate(book.spine)}
+    documents = [
+        item.path for item in book.spine
+        if item.path in book.resources and book.resources[item.path].is_content_doc
+    ]
+    roles: dict[str, str] = {}
+    body_start = None
+    for landmark in book.landmarks:
+        target = (landmark.target or "").partition("#")[0]
+        if target not in spine_order:
+            continue
+        if landmark.epub_type == "bodymatter":
+            if body_start is None or spine_order[target] < body_start:
+                body_start = spine_order[target]
+            continue
+        stem = _ROLE_STEMS.get(landmark.epub_type)
+        if stem and stem not in ("chapter", "part"):
+            roles.setdefault(target, stem)
+    for path in documents:
+        if path in roles:
+            continue
+        for match in _EPUB_TYPE_RE.finditer(book.resources[path].data):
+            stem = None
+            for token in match.group(1).decode("ascii", "replace").split():
+                stem = _ROLE_STEMS.get(token)
+                if stem:
+                    break
+            if stem:
+                roles[path] = stem
+                break
+    entry_paths: list[str] = []
+    seen: set[str] = set()
+    for root in book.toc:
+        for node in root.walk():
+            target = node.target_path
+            if target and target in spine_order and target not in seen:
+                seen.add(target)
+                entry_paths.append(target)
+    if len(entry_paths) < 2:
+        # One entry sets no boundaries: "where the chapters begin" needs at
+        # least two points to mean anything, and a lone entry could name the
+        # cover as easily as a chapter. Rung 3 stands down; rungs 1 and 2
+        # (landmarks and epub:type) are unaffected.
+        seen = set()
+        entry_paths = []
+    if body_start is None:
+        typed = [p for p in documents if roles.get(p) == "chapter"]
+        if typed:
+            body_start = spine_order[typed[0]]
+    if body_start is None:
+        unroled = [t for t in entry_paths if t not in roles]
+        if unroled:
+            body_start = spine_order[unroled[0]]
+    starts = sorted(
+        {
+            path for path in documents
+            if roles.get(path) == "chapter"
+            or (path in seen and body_start is not None
+                and spine_order[path] >= body_start and path not in roles)
+        },
+        key=lambda path: spine_order[path],
+    )
+    named: dict[str, str] = {
+        path: stem for path, stem in roles.items() if stem not in ("chapter", "part")
+    }
+    for number, start in enumerate(starts, 1):
+        named[start] = f"chapter-{number:02d}"
+        bounded = number < len(starts)
+        boundary = (
+            spine_order[starts[number]] if bounded else len(book.spine)
+        )
+        swept: list[str] = []
+        for path in documents:
+            position = spine_order[path]
+            if position <= spine_order[start] or position >= boundary:
+                continue
+            if path in roles or path in seen:
+                bounded = True
+                break
+            swept.append(path)
+        if bounded:
+            for piece, path in enumerate(swept, 2):
+                named[path] = f"chapter-{number:02d}-{piece}"
+    return named
 
 
 def _ledger_bucket(path: str, resource) -> str:

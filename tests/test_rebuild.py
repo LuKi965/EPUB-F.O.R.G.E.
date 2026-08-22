@@ -150,7 +150,7 @@ def test_content_documents_use_the_xhtml_extension(archive):
 
 class TestLegacyMarkup:
     def chapter(self, archive):
-        return archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+        return archive.read("EPUB/text/0000-cover.xhtml").decode()
 
     def test_center_font_and_table_attributes_become_css(self, archive):
         html = self.chapter(archive)
@@ -163,7 +163,7 @@ class TestLegacyMarkup:
         assert 'bgcolor' not in html and 'valign' not in html
 
     def test_tt_and_big_are_replaced(self, archive):
-        html = archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+        html = archive.read("EPUB/text/0001-chapter-01.xhtml").decode()
         assert "<tt>" not in html and "<big>" not in html
         assert "font-family: monospace" in html
         assert "font-size: larger" in html
@@ -177,17 +177,17 @@ class TestLegacyMarkup:
         assert self.chapter(archive).count("alt=") == 2
 
     def test_undefined_entities_are_resolved(self, archive):
-        html = archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+        html = archive.read("EPUB/text/0001-chapter-01.xhtml").decode()
         assert "&mdash;" not in html
         assert "—" in html
 
 
 class TestReferenceIntegrity:
     def test_invalid_ids_are_renamed_and_links_follow(self, archive):
-        chapter_one = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
-        chapter_two = archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+        chapter_one = archive.read("EPUB/text/0000-cover.xhtml").decode()
+        chapter_two = archive.read("EPUB/text/0001-chapter-01.xhtml").decode()
         assert 'id="id-1st-heading"' in chapter_two
-        assert 'href="0001-chapter2.xhtml#id-1st-heading"' in chapter_one
+        assert 'href="0001-chapter-01.xhtml#id-1st-heading"' in chapter_one
 
     def test_navigation_fragments_are_remapped_too(self, archive):
         nav = archive.read("EPUB/nav.xhtml").decode()
@@ -198,7 +198,7 @@ class TestReferenceIntegrity:
 
     def test_stylesheet_link_is_repointed(self, archive):
         assert 'href="../styles/main.css"' in archive.read(
-            "EPUB/text/0000-chapter-1.xhtml"
+            "EPUB/text/0000-cover.xhtml"
         ).decode()
 
     def test_css_urls_follow_transcoded_images(self, archive):
@@ -281,13 +281,13 @@ class TestAssets:
 class TestPolicyModes:
     def test_strict_neutralises_dead_links(self, rebuilt_strict):
         with zipfile.ZipFile(rebuilt_strict.output_path) as archive:
-            html = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+            html = archive.read("EPUB/text/0000-cover.xhtml").decode()
         assert "brakujacy.xhtml" not in html
         assert "martwy link" in html, "link text must survive; only the href goes"
 
     def test_preserve_keeps_dead_links_and_says_so(self, rebuilt):
         with zipfile.ZipFile(rebuilt.output_path) as archive:
-            html = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+            html = archive.read("EPUB/text/0000-cover.xhtml").decode()
         assert "brakujacy.xhtml" in html
         preserved = [f for f in rebuilt.report.findings if f.level is Level.PRESERVED]
         assert any(f.rule == "xhtml.dead-reference-kept" for f in preserved)
@@ -406,7 +406,7 @@ class TestImageParagraphs:
 
     def chapter(self, rebuilt) -> str:
         with zipfile.ZipFile(rebuilt.output_path) as archive:
-            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+            return archive.read("EPUB/text/0001-chapter-01.xhtml").decode()
 
     def test_image_only_paragraph_is_centred_and_unindented(self, rebuilt):
         html = self.chapter(rebuilt)
@@ -424,7 +424,7 @@ class TestImageParagraphs:
 
     def test_paragraphs_with_text_are_left_alone(self, rebuilt):
         with zipfile.ZipFile(rebuilt.output_path) as archive:
-            chapter_one = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+            chapter_one = archive.read("EPUB/text/0000-cover.xhtml").decode()
         # Chapter one's images sit inside a paragraph that also has prose.
         assert "text-indent: 0; text-align: center;" not in chapter_one
 
@@ -458,7 +458,7 @@ class TestEpub2ToEpub3Migration:
 
     def chapter(self, rebuilt) -> str:
         with zipfile.ZipFile(rebuilt.output_path) as archive:
-            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+            return archive.read("EPUB/text/0001-chapter-01.xhtml").decode()
 
     def test_percentage_width_moves_from_attribute_to_css(self, rebuilt):
         """XHTML 5 requires width to be a bare integer; 10% makes it invalid."""
@@ -474,7 +474,7 @@ class TestEpub2ToEpub3Migration:
         """Where HTML 5 still defines the attribute, leave it alone."""
         # Chapter one's table had width="100%" on a <table>, which is not a
         # replaced element, so it must have become CSS.
-        html = archive.read("EPUB/text/0000-chapter-1.xhtml").decode()
+        html = archive.read("EPUB/text/0000-cover.xhtml").decode()
         assert 'width="100%"' not in html
         assert "width: 100%" in html
 
@@ -506,7 +506,9 @@ class TestRemoteResources:
 
     def test_an_external_hyperlink_is_not_a_remote_resource(self, rebuilt):
         """remote-resources covers embedded media, not where links point."""
-        assert "remote-resources" not in self.properties_of(rebuilt, "chapter2")
+        # The source's `chapter2.xhtml` — the contents' first unroled entry,
+        # so D-035 names it `0001-chapter-01.xhtml`.
+        assert "remote-resources" not in self.properties_of(rebuilt, "0001-chapter-01")
 
 
 class TestWatermarks:
@@ -514,7 +516,7 @@ class TestWatermarks:
 
     def chapter(self, result) -> str:
         with zipfile.ZipFile(result.output_path) as archive:
-            return archive.read("EPUB/text/0001-chapter2.xhtml").decode()
+            return archive.read("EPUB/text/0001-chapter-01.xhtml").decode()
 
     def stylesheet(self, result) -> str:
         with zipfile.ZipFile(result.output_path) as archive:

@@ -191,10 +191,12 @@ class TestAReplacedNavTakesItsReferencesWithIt:
                 assert resolved in names, f"{name} → {href!r} resolves to {resolved!r}, absent"
 
     def test_the_chapters_link_to_the_new_navigation(self, rebuilt):
+        # Minimal keeps the source's `r1.xhtml`; the relaying modes name the
+        # document by its role (D-035), so it comes out as `chapter-01`.
         chapter = next(
             read(rebuilt.output_path, name)
             for name in files_of(rebuilt.output_path)
-            if "r1" in name and name.endswith(".xhtml")
+            if name.endswith(("r1.xhtml", "chapter-01.xhtml"))
         )
         assert "Powrót do spisu treści" in chapter
         assert "nav.xhtml" in chapter
@@ -489,12 +491,20 @@ class TestTheContentsMayNotLeadOutOfTheReadingOrder:
             re.search(rf'<item id="{ref}" href="([^"]+)"', opf).group(1)
             for ref in re.findall(r'<itemref idref="([^"]+)"', opf)
         ]
-        # The paths are relaid out in two of the three modes, so match on the
-        # stem the source gave each document rather than on the whole path.
+        # The paths are relaid out in two of the three modes, and the relaying
+        # modes also rename the two contents-listed chapters by their role
+        # (D-035) — the colophon joins the spine after the relayout and keeps
+        # its own stem in every mode. Match each document by either name.
+        aliases = {
+            "r1": ("r1.xhtml", "chapter-01.xhtml"),
+            "kolofon": ("kolofon.xhtml",),
+            "r2": ("r2.xhtml", "chapter-02.xhtml"),
+        }
         stems = [
-            next(stem for stem in ("r1", "kolofon", "r2") if name.endswith(f"{stem}.xhtml"))
+            stem
             for name in order
-            if name.endswith(("r1.xhtml", "kolofon.xhtml", "r2.xhtml"))
+            for stem, endings in aliases.items()
+            if name.endswith(endings)
         ]
         assert stems == ["r1", "kolofon", "r2"]
 
