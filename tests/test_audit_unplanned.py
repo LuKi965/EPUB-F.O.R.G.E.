@@ -317,11 +317,59 @@ class TestF022WhatDidNotReproduce:
             "OEBPS/nav.xhtml": NAV,
             "OEBPS/chapter.xhtml": page("<p>x</p>"),
         })
+        # `modified_override` pins the wall clock, and without it this test was
+        # a coin toss: the fixture pins `dcterms:modified` in its *source*, the
+        # rebuild restamps it, and the two digests matched only when both runs
+        # landed inside the same second. Measured 2026-08-22 — it failed five
+        # times out of five when run alone and passed inside the full suite,
+        # which is the worst way for a test to be wrong, because the suite says
+        # green while the property goes unmeasured.
+        #
+        # Pinning it is what the class docstring above already claims the
+        # fixture does, and it is what leaves this test measuring the half of
+        # F-022 that is closed: everything *except* the two known clocks. The
+        # open half — a reproducible mode that pins them for a whole batch —
+        # stays open, and the test below is what holds it open.
+        policy = Policy.preset("preserve", modified_override="2020-01-01T00:00:00Z")
         digests = []
         for run in range(2):
-            result = rebuild(source, str(tmp_path / f"out-{run}.epub"), Policy.preset("preserve"))
+            result = rebuild(source, str(tmp_path / f"out-{run}.epub"), policy)
             digests.append(hashlib.sha256(pathlib.Path(result.output_path).read_bytes()).hexdigest())
         assert digests[0] == digests[1]
+
+    def test_without_pinning_the_clock_the_stamp_is_the_only_difference(self, tmp_path):
+        """What the flake was, kept as a measurement rather than as folklore.
+
+        Two rebuilds seconds apart differ, and they differ in exactly one
+        line. That is worth an assertion of its own: it says the restamp is
+        the whole of the irreproducibility here, so the day a reproducible
+        mode arrives, this is the one thing it has to pin.
+        """
+        import zipfile
+
+        source = build(tmp_path / "in.epub", {
+            "META-INF/container.xml": CONTAINER,
+            "OEBPS/package.opf": opf(CHAPTER_ITEM + NAV_ITEM, '<itemref idref="c"/>'),
+            "OEBPS/nav.xhtml": NAV,
+            "OEBPS/chapter.xhtml": page("<p>x</p>"),
+        })
+        written = []
+        for run, stamp in enumerate(("2020-01-01T00:00:00Z", "2021-06-15T12:30:00Z")):
+            result = rebuild(
+                source, str(tmp_path / f"out-{run}.epub"),
+                Policy.preset("preserve", modified_override=stamp),
+            )
+            with zipfile.ZipFile(result.output_path) as archive:
+                written.append({n: archive.read(n) for n in archive.namelist()})
+        first, second = written
+        assert sorted(first) == sorted(second)
+        differing = [name for name in first if first[name] != second[name]]
+        assert differing == ["EPUB/package.opf"], differing
+        changed = [
+            line for line in first["EPUB/package.opf"].decode().splitlines()
+            if line not in second["EPUB/package.opf"].decode().splitlines()
+        ]
+        assert len(changed) == 1 and "dcterms:modified" in changed[0], changed
 
     def test_the_mechanism_the_finding_names_is_still_there(self):
         """`modified_override` exists; a mode that sets it for a whole batch
