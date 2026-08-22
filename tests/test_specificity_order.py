@@ -145,6 +145,27 @@ class TestTheProvableMoves:
 
 
 class TestTheBlockedMoves:
+    def test_a_move_that_mints_as_much_as_it_fixes_is_refused(self, tmp_path):
+        """The mover's list carries two keys: climbing fixes its `b` pair
+        and plants its `div h2` branch above a plain `h2` — one finding
+        out, one finding in. A move earns its keep by the gate's own
+        count, and this one earns nothing. The mutation that accepts any
+        lawful move fails here."""
+        sheet = (
+            ".rozdzial b { margin: 9em; } "
+            "h2 { margin: 1em; } "
+            "b, div h2 { margin: 2em; }"
+        )
+        body = (
+            '<div class="rozdzial"><p class="jeden">Tu <b>wyraz</b>.</p>'
+            "<div><h2>Śródtytuł</h2></div></div>"
+        )
+        result = build(tmp_path, sheet=sheet, body=body)
+        out = sheet_of(result)
+        assert out.index(".rozdzial b") < out.index("b, div h2")
+        assert "css.specificity-kept" in rules_of(result)
+        assert "css.specificity-reordered" not in rules_of(result)
+
     def test_a_typeless_tie_the_book_confirms_blocks_the_move(self, tmp_path):
         """The same sheet as the disproved-tie case — but here one element
         carries both classes, so the tie is real and order decides it.

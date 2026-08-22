@@ -1795,6 +1795,7 @@ class StyleStage(Stage):
         original = css_text
         refused: set = set()
         moves = 0
+        current = found
         cap = 2 * len(spans) + 10
         progress = True
         while progress and moves < cap:
@@ -1811,12 +1812,12 @@ class StyleStage(Stage):
                 if not offenders:
                     continue
                 # The topmost offender, and only that: landing above it
-                # is an insertion sort's insertion, which converges. A
-                # "better than nothing" landing below a blocking tie was
-                # tried and measured — it mints new inversions against
-                # everything lower-specificity it flies over, and the
-                # probe book came out *worse* (83 findings kept became
-                # 108, at 332 moves against 10).
+                # is an insertion sort's insertion. A "better than
+                # nothing" landing below a blocking tie was tried and
+                # measured — it mints new inversions against everything
+                # lower-specificity it flies over, and the probe book
+                # came out *worse* (83 findings kept became 108, at 332
+                # moves against 10).
                 top = offenders[0]
                 target = infos[top][0]
                 signature = (css_text[mover.start:mover.end],
@@ -1830,11 +1831,26 @@ class StyleStage(Stage):
                 remainder = (
                     css_text[target.start:mover.start] + css_text[mover.end:]
                 )
-                css_text = (
+                candidate = (
                     css_text[:target.start]
                     + moved_text.rstrip() + "\n"
                     + remainder.lstrip("\n")
                 )
+                # A move earns its keep by the gate's own count: accepted
+                # only when the sheet's descending pairs strictly drop.
+                # Convergence used to rest on the insertion argument alone,
+                # and the shelf broke it the day the value-aware conflicts
+                # allowed more moves — a lawful move fixed its pair and
+                # minted refused ones, 83 findings became 95. Monotone
+                # descent cannot regress by construction.
+                candidate_count = descending_count(
+                    infos_of(candidate, stylesheet.top_level_rules(candidate))
+                )
+                if candidate_count >= current:
+                    refused.add(signature)
+                    continue
+                css_text = candidate
+                current = candidate_count
                 moves += 1
                 progress = True
                 break
