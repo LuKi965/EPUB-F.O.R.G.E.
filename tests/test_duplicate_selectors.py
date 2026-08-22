@@ -265,3 +265,65 @@ class TestTheBookProvedRoads:
         out = sheet_of(result)
         assert out.count("p.jeden") == 3
         assert "css.duplicate-selectors-merged" not in rules_of(result)
+
+
+class TestTheContestQuestion:
+    """D-037: a pair the prover refuses over a readable conflict becomes a
+    person's question. Unanswered, the publisher's cascade stays (S-05);
+    answered, the copies fold and the moved value starts winning on the
+    shared elements — which is exactly what the question says out loud."""
+
+    def _build(self, tmp_path, sheet, option=None):
+        from epubforge.decisions import Answer
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        class Chooser:
+            def __init__(self, picked):
+                self.picked = picked
+                self.asked = []
+
+            def ask(self, question):
+                self.asked.append(question)
+                return Answer(option=self.picked)
+
+        source = make_book(
+            tmp_path / "in.epub",
+            {"c0.xhtml": PAGE.format(body=BODY)},
+            extra_items='<item id="s" href="s.css" media-type="text/css"/>',
+            extra_files={"OEBPS/s.css": sheet.encode()},
+        )
+        chooser = Chooser(option) if option else None
+        result = rebuild(
+            source, str(tmp_path / "out.epub"),
+            Policy.preset("preserve", render_gate="off"), resolver=chooser,
+        )
+        return result, chooser
+
+    CONTESTED = (
+        "p.jeden { color: green; } "
+        "p.dwa { color: blue; } "
+        "p.jeden { margin: 0; }"
+    )
+
+    def test_an_answer_merges_past_the_contest(self, tmp_path):
+        result, chooser = self._build(tmp_path, self.CONTESTED, option="merge")
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 1
+        assert "color: green" in out
+        assert "css.duplicate-selectors-resolved" in rules_of(result)
+        assert [q for q in chooser.asked if q.group == "style:dupsel"]
+
+    def test_an_opaque_blocker_has_nothing_to_ask_about(self, tmp_path):
+        """`text-align="center"` between the copies is a body no parser
+        reads — there is no contest to describe, so there is no question,
+        and the pair stays. The mutation that asks anyway fails here."""
+        sheet = (
+            "p.jeden { color: green; } "
+            'p.trzy {text-align="center"} '
+            "p.jeden { margin: 0; }"
+        )
+        result, chooser = self._build(tmp_path, sheet, option="merge")
+        out = sheet_of(result)
+        assert out.count("p.jeden") == 2
+        assert not [q for q in chooser.asked if q.group == "style:dupsel"]

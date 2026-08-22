@@ -290,3 +290,46 @@ class TestTheGuard:
         out = sheet_of(result)
         assert "margin: 0; /* uwaga wydawcy */ line-height: 1.2;" in out
         assert "css.specificity-reordered" in rules_of(result)
+
+
+class TestTheTieQuestion:
+    """D-037: a tie the prover cannot dissolve becomes a person's question.
+    Unanswered, the publisher's order keeps deciding (S-05); answered, the
+    rule moves and the blocker starts winning on the shared elements —
+    with the monotone guard still holding the door."""
+
+    def test_an_answer_moves_past_the_tie(self, tmp_path):
+        from epubforge.decisions import Answer
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+        from tests.test_shelf_refusals import make_book
+        from tests.test_class_translation import PAGE
+
+        class Chooser:
+            def __init__(self):
+                self.asked = []
+
+            def ask(self, question):
+                self.asked.append(question)
+                return Answer(option="move")
+
+        sheet = (
+            ".rozdzial p.jeden { margin: 2em; } "
+            ".toc p { margin: 1em; } "
+            "p.jeden { margin: 0; }"
+        )
+        source = make_book(
+            tmp_path / "in.epub",
+            {"c0.xhtml": PAGE.format(body=BODY_NESTED)},
+            extra_items='<item id="s" href="s.css" media-type="text/css"/>',
+            extra_files={"OEBPS/s.css": sheet.encode()},
+        )
+        chooser = Chooser()
+        result = rebuild(
+            source, str(tmp_path / "out.epub"),
+            Policy.preset("preserve", render_gate="off"), resolver=chooser,
+        )
+        out = sheet_of(result)
+        assert out.index("p.jeden { margin: 0") < out.index(".toc p")
+        assert "css.specificity-resolved" in rules_of(result)
+        assert [q for q in chooser.asked if q.group == "style:tie"]

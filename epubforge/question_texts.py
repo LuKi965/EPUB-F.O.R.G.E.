@@ -171,6 +171,65 @@ TEXTS_PL: dict[str, str] = {
         "miejsce"
     ),
     # --- a declaration written `property="value"` in a hand-touched rule ----
+    "style.dupsel.summary": (
+        "Dwie reguły `{selector}` nie dają się scalić bez zmiany zwycięzcy"
+    ),
+    "style.dupsel.detail": (
+        "W {where} selektor `{selector}` występuje dwukrotnie, a między "
+        "kopiami stoi `{blocker}`, walcząca o to samo ({contest}). "
+        "Scalenie przeniesie deklaracje wcześniejszej kopii za `{blocker}` "
+        "— tam, gdzie obie reguły trafiają ten sam element, wygrywać "
+        "zacznie wartość przeniesiona."
+    ),
+    "style.dupsel.keep": "Zostaw jak jest",
+    "style.dupsel.keep.why": (
+        "Nic się nie zmienia; kaskada wydawcy zostaje kaskadą wydawcy"
+    ),
+    "style.dupsel.merge": "Scal mimo sporu",
+    "style.dupsel.merge.why": (
+        "Kopie stają się jedną regułą; na wspólnych elementach przeniesiona "
+        "wartość zaczyna wygrywać z `{blocker}`"
+    ),
+    "style.tie.summary": (
+        "Reguła `{selector}` stoi za bardziej specyficzną, a remis na "
+        "drodze nie pozwala jej przestawić"
+    ),
+    "style.tie.detail": (
+        "W {where} lint chce, by `{selector}` stała przed `{target}`, ale "
+        "po drodze remisuje z `{blocker}` o to samo ({contest}) na "
+        "elementach, które ta książka naprawdę ma. Przestawienie sprawi, "
+        "że na wspólnych elementach `{blocker}` zacznie wygrywać."
+    ),
+    "style.tie.keep": "Zostaw jak jest",
+    "style.tie.keep.why": (
+        "Nic się nie zmienia; kolejność wydawcy dalej rozstrzyga remis"
+    ),
+    "style.tie.move": "Przestaw mimo remisu",
+    "style.tie.move.why": (
+        "Reguła idzie na miejsce wskazane przez lint, a `{blocker}` "
+        "zaczyna wygrywać na wspólnych elementach; ruch wejdzie tylko, "
+        "jeśli nie pogorszy sumy lintu"
+    ),
+    "style.important.summary": (
+        "Właściwość `{prop}` powtórzona w jednym bloku z mieszanym "
+        "`!important` i różnymi wartościami — czytniki liczą ją różnie"
+    ),
+    "style.important.detail": (
+        "W {where} jeden blok deklaruje `{prop}` kilkukrotnie: {values}. "
+        "Współczesny czytnik bierze wartość z `!important` ({winner}); "
+        "czytnik nieznający ważności — ostatnią zwykłą. Którą wersję "
+        "książka ma znaczyć, wie tylko człowiek."
+    ),
+    "style.important.keep": "Zostaw jak jest",
+    "style.important.keep.why": (
+        "Nic się nie zmienia; rozbieżność między czytnikami zostaje taka, "
+        "jaka była"
+    ),
+    "style.important.resolve": "Zostaw zwycięzcę współczesnej kaskady",
+    "style.important.resolve.why": (
+        "Zostaje tylko `{winner}`; każdy czytnik, stary i nowy, policzy "
+        "odtąd to samo"
+    ),
     "style.generic.summary": (
         "{count} deklaracji fontów wskazuje kroje, których książka nie "
         "dołącza, bez rodziny zapasowej ({generic}?)"
@@ -355,6 +414,64 @@ TEXTS_EN: dict[str, str] = {
         "wrong place"
     ),
     # --- a declaration written `property="value"` in a hand-touched rule ----
+    "style.dupsel.summary": (
+        "Two `{selector}` rules cannot be merged without changing a winner"
+    ),
+    "style.dupsel.detail": (
+        "In {where} the selector `{selector}` appears twice, and between "
+        "the copies stands `{blocker}`, fighting over the same thing "
+        "({contest}). Merging moves the earlier copy's declarations past "
+        "`{blocker}` — where both rules hit the same element, the moved "
+        "value starts winning."
+    ),
+    "style.dupsel.keep": "Leave as is",
+    "style.dupsel.keep.why": (
+        "Nothing changes; the publisher's cascade stays the publisher's"
+    ),
+    "style.dupsel.merge": "Merge despite the contest",
+    "style.dupsel.merge.why": (
+        "The copies become one rule; on shared elements the moved value "
+        "starts beating `{blocker}`"
+    ),
+    "style.tie.summary": (
+        "Rule `{selector}` stands below a more specific one, and a tie on "
+        "the road will not let it move"
+    ),
+    "style.tie.detail": (
+        "In {where} the lint wants `{selector}` before `{target}`, but on "
+        "the way it ties with `{blocker}` over the same thing ({contest}) "
+        "on elements this book really has. Moving it makes `{blocker}` "
+        "start winning on the shared elements."
+    ),
+    "style.tie.keep": "Leave as is",
+    "style.tie.keep.why": (
+        "Nothing changes; the publisher's order keeps deciding the tie"
+    ),
+    "style.tie.move": "Move despite the tie",
+    "style.tie.move.why": (
+        "The rule goes where the lint wants it, and `{blocker}` starts "
+        "winning on the shared elements; the move lands only if it does "
+        "not worsen the lint total"
+    ),
+    "style.important.summary": (
+        "Property `{prop}` repeated in one block with mixed `!important` "
+        "and different values — readers compute it differently"
+    ),
+    "style.important.detail": (
+        "In {where} one block declares `{prop}` several times: {values}. "
+        "A modern reader takes the `!important` value ({winner}); a reader "
+        "that never learned importance takes the last plain one. Which of "
+        "the two the book means, only a person knows."
+    ),
+    "style.important.keep": "Leave as is",
+    "style.important.keep.why": (
+        "Nothing changes; the divergence between readers stays as it was"
+    ),
+    "style.important.resolve": "Keep the modern cascade's winner",
+    "style.important.resolve.why": (
+        "Only `{winner}` remains; every reader, old and new, computes the "
+        "same thing from now on"
+    ),
     "style.generic.summary": (
         "{count} font declaration(s) name faces the book does not embed, "
         "with no generic fallback ({generic}?)"

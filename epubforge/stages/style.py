@@ -1287,23 +1287,36 @@ class StyleStage(Stage):
 
         road_cache: dict = {}
 
-        def road_is_clear(earlier, last, moved_values: dict) -> bool:
+        def conflicting(some: dict, other: dict) -> str:
+            names = sorted(
+                name for name in set(some) & set(other)
+                if some[name] != other[name]
+            )
+            if names:
+                name = names[0]
+                return f"{name}: {some[name]} / {other[name]}"
+            return "wspólna rodzina skrótów"
+
+        def road_blocker(earlier, last, moved_values: dict):
+            """None for a clear road, or `(mover branch, blocking selector,
+            contested property)` — the sentence a question needs. An opaque
+            body blocks namelessly (nothing to reason with, nothing to ask
+            about) and is reported as itself."""
             earlier_branches = branch_info(earlier.selector)
             partners = []
             for other in spans:
                 if earlier.end <= other.start < last.start and other.selector != earlier.selector:
                     other_declarations = declarations_of(other)
                     if other_declarations is None:
-                        # An opaque body offers nothing to reason with.
-                        return False
+                        return (earlier.selector, other.selector, None)
                     partners.append((branch_info(other.selector),
-                                     values_of(other_declarations)))
+                                     values_of(other_declarations), other.selector))
             crossed = css_text[earlier.end:last.start]
             partners.extend(
-                (branch_info(selector), _declared_values(body))
+                (branch_info(selector), _declared_values(body), f"@… {selector}")
                 for selector, body in stylesheet.conditional_rules(crossed)
             )
-            for partner_branches, partner_values in partners:
+            for partner_branches, partner_values, partner_name in partners:
                 if not _properties_conflict(partner_values, moved_values):
                     continue
                 for branch_t, spec_t in partner_branches:
@@ -1316,14 +1329,17 @@ class StyleStage(Stage):
                         chain_t = _simple_chain(branch_t)
                         chain_e = _simple_chain(branch_e)
                         if chain_t is None or chain_e is None:
-                            return False
+                            return (branch_e, partner_name,
+                                    conflicting(moved_values, partner_values))
                         if self._element_hits(ctx, branch_t, chain_t, road_cache) \
                                 & self._element_hits(ctx, branch_e, chain_e, road_cache):
-                            return False
-            return True
+                            return (branch_e, partner_name,
+                                    conflicting(moved_values, partner_values))
+            return None
 
         to_drop: list = []
         prepend: dict[int, list] = {}
+        resolved_merges: list = []
         kept = 0
         for selector, group in doubled.items():
             last = group[-1]
@@ -1346,15 +1362,49 @@ class StyleStage(Stage):
                 if normalized(earlier_declarations) == last_norm:
                     to_drop.append(earlier)
                     continue
-                if not blocked_below and road_is_clear(
-                    earlier, last, values_of(earlier_declarations)
-                ):
-                    approved.append((earlier, earlier_declarations))
-                else:
-                    kept += 1
-                    blocked_below = True
-            for earlier, earlier_declarations in reversed(approved):
+                blocker = None
+                if not blocked_below:
+                    blocker = road_blocker(
+                        earlier, last, values_of(earlier_declarations)
+                    )
+                    if blocker is None:
+                        approved.append((earlier, earlier_declarations, False))
+                        continue
+                # D-037: a pair the prover refuses over a readable conflict
+                # becomes a person's question — merging moves the earlier
+                # declarations past the blocker, and from then on they win
+                # where the blocker used to. An opaque blocker (None
+                # contest) has nothing to ask about and stays silent.
+                if (not blocked_below) and blocker and blocker[2] is not None:
+                    question = Question(
+                        kind=STYLE,
+                        where=resource.path,
+                        summary=say("style.dupsel.summary", selector=selector),
+                        detail=say("style.dupsel.detail", where=resource.path,
+                                   selector=selector, blocker=blocker[1],
+                                   contest=blocker[2]),
+                        options=(
+                            Option(KEEP, say("style.dupsel.keep"),
+                                   say("style.dupsel.keep.why")),
+                            Option("merge", say("style.dupsel.merge"),
+                                   say("style.dupsel.merge.why",
+                                       blocker=blocker[1])),
+                        ),
+                        recommended=KEEP,
+                        reversible=False,
+                        risk=Risk.APPEARANCE,
+                        group="style:dupsel",
+                        subject=selector,
+                    )
+                    if ctx.decide(question).option == "merge":
+                        approved.append((earlier, earlier_declarations, True))
+                        continue
+                kept += 1
+                blocked_below = True
+            for earlier, earlier_declarations, asked in reversed(approved):
                 to_drop.append(earlier)
+                if asked:
+                    resolved_merges.append(earlier)
                 if earlier_declarations:
                     prepend.setdefault(last.start, []).extend(earlier_declarations)
         if not to_drop:
@@ -1386,6 +1436,18 @@ class StyleStage(Stage):
             return css_text
         self.note(ctx, Level.FIX, "css.duplicate-selectors-merged",
                   values={"count": len(to_drop)}, location=resource.path)
+        if resolved_merges:
+            self.note(ctx, Level.FIX, "css.duplicate-selectors-resolved",
+                      values={"count": len(resolved_merges)},
+                      location=resource.path)
+            self.changed(
+                ctx, Action.REMOVED, resource.path,
+                before=f"{len(resolved_merges)} repeated-selector rule(s) the cascade could not release",
+                after="folded past the contested road, on a person's word",
+                automation=Automation.ASKED,
+                risk=Risk.APPEARANCE, reversible=False,
+                rule="css.duplicate-selectors-resolved",
+            )
         if kept:
             self.note(ctx, Level.PRESERVED, "css.duplicate-selectors-kept",
                       values={"count": kept}, location=resource.path)
@@ -1510,6 +1572,7 @@ class StyleStage(Stage):
         cuts: list = []
         kept = 0
         total = 0
+        askable: list = []
         for body_start, body_end in stylesheet.declaration_blocks(css_text):
             wrapped = "{" + css_text[body_start:body_end] + "}"
             declarations = list(_DECLARATION_RE.finditer(wrapped))
@@ -1606,6 +1669,7 @@ class StyleStage(Stage):
         cuts: list = []
         kept = 0
         total = 0
+        askable: list = []
         for body_start, body_end in stylesheet.declaration_blocks(css_text):
             wrapped = "{" + css_text[body_start:body_end] + "}"
             groups: dict = {}
@@ -1627,7 +1691,12 @@ class StyleStage(Stage):
                     winner = (important_ones or parsed)[-1]
                     losers = [entry for entry in parsed if entry is not winner]
                 elif important_ones:
-                    kept += len(occurrences) - 1
+                    # D-037: mixed importance over different values is a real
+                    # divergence — modern readers compute the last important
+                    # value, importance-blind ones the last plain — and which
+                    # of the two the book *means* is a person's call, not a
+                    # proof's. Collected here, asked past the opt-out gate.
+                    askable.append((prop, parsed, body_start))
                     continue
                 elif _css1_safe(prop, parsed[-1][1]):
                     losers = parsed[:-1]
@@ -1644,6 +1713,38 @@ class StyleStage(Stage):
             self.note(ctx, Level.INFO, "css.duplicate-properties-found",
                       values={"count": total}, location=resource.path)
             return css_text
+        resolved = 0
+        for prop, parsed, body_start in askable:
+            winner = [entry for entry in parsed if entry[2]][-1]
+            shown = " | ".join(
+                value + (" !important" if important else "")
+                for _, value, important in parsed
+            )
+            question = Question(
+                kind=STYLE,
+                where=resource.path,
+                summary=say("style.important.summary", prop=prop),
+                detail=say("style.important.detail", where=resource.path,
+                           prop=prop, values=shown, winner=winner[1]),
+                options=(
+                    Option(KEEP, say("style.important.keep"),
+                           say("style.important.keep.why")),
+                    Option("resolve", say("style.important.resolve"),
+                           say("style.important.resolve.why", winner=winner[1])),
+                ),
+                recommended="resolve",
+                reversible=False,
+                risk=Risk.APPEARANCE,
+                group="style:important",
+                subject=prop,
+            )
+            if ctx.decide(question).option == "resolve":
+                for match, _, _ in (e for e in parsed if e is not winner):
+                    cuts.append((body_start - 1 + match.start(),
+                                 body_start - 1 + match.end()))
+                resolved += len(parsed) - 1
+            else:
+                kept += len(parsed) - 1
         if not cuts:
             self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
                       values={"count": kept}, location=resource.path)
@@ -1662,18 +1763,31 @@ class StyleStage(Stage):
             self.note(ctx, Level.WARN, "css.duplicate-properties-unverified",
                       values={"count": len(cuts)}, location=resource.path)
             return css_text
-        self.note(ctx, Level.FIX, "css.duplicate-properties-removed",
-                  values={"count": len(cuts)}, location=resource.path)
+        provable = len(cuts) - resolved
+        if provable:
+            self.note(ctx, Level.FIX, "css.duplicate-properties-removed",
+                      values={"count": provable}, location=resource.path)
+            self.changed(
+                ctx, Action.REMOVED, resource.path,
+                before=f"{provable} in-block duplicate declaration(s) that could never win",
+                after="removed; each property's winning declaration stays where it stood",
+                risk=Risk.NONE, reversible=False,
+                rule="css.duplicate-properties-removed",
+            )
+        if resolved:
+            self.note(ctx, Level.FIX, "css.duplicate-properties-resolved",
+                      values={"count": resolved}, location=resource.path)
+            self.changed(
+                ctx, Action.REMOVED, resource.path,
+                before=f"{resolved} duplicate declaration(s) with mixed !important over different values",
+                after="the modern cascade's winner stands alone, on a person's word",
+                automation=Automation.ASKED,
+                risk=Risk.APPEARANCE, reversible=False,
+                rule="css.duplicate-properties-resolved",
+            )
         if kept:
             self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
                       values={"count": kept}, location=resource.path)
-        self.changed(
-            ctx, Action.REMOVED, resource.path,
-            before=f"{len(cuts)} in-block duplicate declaration(s) that could never win",
-            after="removed; each property's winning declaration stays where it stood",
-            risk=Risk.NONE, reversible=False,
-            rule="css.duplicate-properties-removed",
-        )
         return cleaned
 
     def _ascending_specificity(self, ctx: Context, css_text: str, resource) -> str:
@@ -1741,26 +1855,39 @@ class StyleStage(Stage):
             brace = text.index("{", span.start)
             return text[brace + 1:span.end - 1]
 
-        def move_is_safe(text, infos, i, j) -> bool:
+        def contested(some: dict, other: dict) -> str:
+            names = sorted(
+                name for name in set(some) & set(other)
+                if some[name] != other[name]
+            )
+            if names:
+                name = names[0]
+                return f"{name}: {some[name]} / {other[name]}"
+            return "wspólna rodzina skrótów"
+
+        def move_blocker(text, infos, i, j):
+            """None when the move is safe, else `(blocking selector,
+            contested property)` — the sentence a question needs.
+            Every rule the mover crosses is a potential tie partner —
+            the jumped top-level rules, and the rules *inside* any
+            at-rule standing on the road. Reading an at-rule is not
+            cutting one: whatever its condition, it turns both sides
+            of a tie on together or off together."""
             mover_branches = infos[j][1]
             mover_props = _declared_values(body_of(text, infos[j][0]))
-            # Every rule the mover crosses is a potential tie partner —
-            # the jumped top-level rules, and the rules *inside* any
-            # at-rule standing on the road. Reading an at-rule is not
-            # cutting one: whatever its condition, it turns both sides
-            # of a tie on together or off together.
             partners = [
-                (infos[t][1], _declared_values(body_of(text, infos[t][0])))
+                (infos[t][1], _declared_values(body_of(text, infos[t][0])),
+                 infos[t][0].selector)
                 for t in range(i, j)
             ]
             crossed = text[infos[i][0].start:infos[j][0].start]
             partners.extend(
                 ([(b, _nds_key(b), _selector_specificity(b))
                   for b in [part.strip() for part in selector.split(",") if part.strip()]],
-                 _declared_values(body))
+                 _declared_values(body), f"@… {selector}")
                 for selector, body in stylesheet.conditional_rules(crossed)
             )
-            for partner_branches, partner_props in partners:
+            for partner_branches, partner_props, partner_name in partners:
                 # A tie is decided by order only where the two rules fight
                 # over a property with different values — disjoint or
                 # agreeing declarations have no winner for order to flip.
@@ -1776,11 +1903,13 @@ class StyleStage(Stage):
                         chain_t = _simple_chain(branch_t)
                         chain_r = _simple_chain(branch_r)
                         if chain_t is None or chain_r is None:
-                            return False
+                            return (partner_name,
+                                    contested(mover_props, partner_props))
                         if self._element_hits(ctx, branch_t, chain_t, cache) \
                                 & self._element_hits(ctx, branch_r, chain_r, cache):
-                            return False
-            return True
+                            return (partner_name,
+                                    contested(mover_props, partner_props))
+            return None
 
         spans = stylesheet.top_level_rules(css_text)
         infos = infos_of(css_text, spans)
@@ -1794,6 +1923,8 @@ class StyleStage(Stage):
 
         original = css_text
         refused: set = set()
+        approved_ties: set = set()
+        resolved_moves = 0
         moves = 0
         current = found
         cap = 2 * len(spans) + 10
@@ -1824,9 +1955,38 @@ class StyleStage(Stage):
                              css_text[target.start:target.end])
                 if signature in refused:
                     continue
-                if not move_is_safe(css_text, infos, top, j):
-                    refused.add(signature)
-                    continue
+                blocker = move_blocker(css_text, infos, top, j)
+                if blocker is not None:
+                    # D-037: a tie the prover cannot dissolve becomes a
+                    # person's question. The monotone guard below still
+                    # gates an approved move — the option text promises
+                    # exactly that.
+                    question = Question(
+                        kind=STYLE,
+                        where=resource.path,
+                        summary=say("style.tie.summary",
+                                    selector=mover.selector),
+                        detail=say("style.tie.detail", where=resource.path,
+                                   selector=mover.selector,
+                                   target=target.selector,
+                                   blocker=blocker[0], contest=blocker[1]),
+                        options=(
+                            Option(KEEP, say("style.tie.keep"),
+                                   say("style.tie.keep.why")),
+                            Option("move", say("style.tie.move"),
+                                   say("style.tie.move.why",
+                                       blocker=blocker[0])),
+                        ),
+                        recommended=KEEP,
+                        reversible=False,
+                        risk=Risk.APPEARANCE,
+                        group="style:tie",
+                        subject=mover.selector,
+                    )
+                    if ctx.decide(question).option != "move":
+                        refused.add(signature)
+                        continue
+                    approved_ties.add(signature)
                 moved_text = css_text[mover.start:mover.end]
                 remainder = (
                     css_text[target.start:mover.start] + css_text[mover.end:]
@@ -1852,6 +2012,8 @@ class StyleStage(Stage):
                 css_text = candidate
                 current = candidate_count
                 moves += 1
+                if signature in approved_ties:
+                    resolved_moves += 1
                 progress = True
                 break
         if not moves:
@@ -1869,8 +2031,21 @@ class StyleStage(Stage):
             self.note(ctx, Level.WARN, "css.specificity-unverified",
                       values={"count": moves}, location=resource.path)
             return original
-        self.note(ctx, Level.FIX, "css.specificity-reordered",
-                  values={"count": moves}, location=resource.path)
+        if moves - resolved_moves:
+            self.note(ctx, Level.FIX, "css.specificity-reordered",
+                      values={"count": moves - resolved_moves},
+                      location=resource.path)
+        if resolved_moves:
+            self.note(ctx, Level.FIX, "css.specificity-resolved",
+                      values={"count": resolved_moves}, location=resource.path)
+            self.changed(
+                ctx, Action.MOVED, resource.path,
+                before=f"{resolved_moves} rule(s) held below their place by a tie the book confirms",
+                after="moved past the contested road, on a person's word; the gate's count strictly fell",
+                automation=Automation.ASKED,
+                risk=Risk.APPEARANCE, reversible=False,
+                rule="css.specificity-resolved",
+            )
         remaining = descending_count(infos_of(css_text, final_spans))
         if remaining:
             self.note(ctx, Level.PRESERVED, "css.specificity-kept",

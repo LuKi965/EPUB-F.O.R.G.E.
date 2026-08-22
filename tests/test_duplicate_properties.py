@@ -161,3 +161,61 @@ class TestTheGuard:
         out = sheet_of(result)
         assert out.count("margin-bottom") == 2
         assert "css.duplicate-properties-unverified" in rules_of(result)
+
+
+class TestTheMixedImportanceQuestion:
+    """D-037: mixed `!important` over different values is a real divergence
+    between readers, and which version the book means is a person's call.
+    Unanswered, nothing changes (S-05); answered, the modern cascade's
+    winner stands alone and every reader computes the same thing."""
+
+    def _build(self, tmp_path, sheet, option=None):
+        from epubforge.decisions import Answer
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+        from tests.test_shelf_refusals import make_book
+        from tests.test_class_translation import PAGE
+
+        class Chooser:
+            def __init__(self, picked):
+                self.picked = picked
+                self.asked = []
+
+            def ask(self, question):
+                self.asked.append(question)
+                return Answer(option=self.picked)
+
+        source = make_book(
+            tmp_path / "in.epub",
+            {"c0.xhtml": PAGE.format(body='<p class="jeden">Akapit.</p>')},
+            extra_items='<item id="s" href="s.css" media-type="text/css"/>',
+            extra_files={"OEBPS/s.css": sheet.encode()},
+        )
+        chooser = Chooser(option) if option else None
+        result = rebuild(
+            source, str(tmp_path / "out.epub"),
+            Policy.preset("preserve", render_gate="off"), resolver=chooser,
+        )
+        return result, chooser
+
+    def test_nobody_answers_nothing_changes(self, tmp_path):
+        sheet = "p.jeden { text-indent: 2em !important; text-indent: 1em; }"
+        result, _ = self._build(tmp_path, sheet)
+        out = sheet_of(result)
+        assert "2em" in out and "1em" in out
+        assert "css.duplicate-properties-resolved" not in rules_of(result)
+
+    def test_an_answer_leaves_the_modern_winner_alone(self, tmp_path):
+        """The shelf's own shape — a triple with mixed importance. The
+        mutation that keeps the last plain occurrence instead of the last
+        important one fails here."""
+        sheet = (
+            "p.jeden { line-height: 0.8; line-height: 100% !important; "
+            "line-height: 100%; }"
+        )
+        result, chooser = self._build(tmp_path, sheet, option="resolve")
+        out = sheet_of(result)
+        assert out.count("line-height") == 1
+        assert "line-height: 100% !important" in out
+        assert "css.duplicate-properties-resolved" in rules_of(result)
+        assert [q for q in chooser.asked if q.group == "style:important"]
