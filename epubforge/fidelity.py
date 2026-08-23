@@ -540,6 +540,24 @@ NOT_PROSE = ("style", "script")
 #: the shelf for a repair that is named in every one of those reports.
 NOT_IN_THE_READING_FLOW = ("title",)
 
+#: Elements a reading system lays out as their own block. Their boundaries get
+#: a separator in the extraction, and the reason is a repair this program makes:
+#: a paragraph a converter left in `<head>` is moved to the top of the body,
+#: and the indentation that sat between the tags does not travel with it. The
+#: source then read `…akapit. Rozdział…` and the output `…akapit.Rozdział…` —
+#: a difference of one space that **no reader can see**, because two blocks are
+#: two blocks whatever whitespace separates their tags.
+#:
+#: Inline elements deliberately get no separator: `sro<em>dku</em>` is one
+#: word and inserting a space there would invent the very damage this is
+#: supposed to detect.
+BLOCK_LEVEL = frozenset({
+    "address", "article", "aside", "blockquote", "body", "caption", "div",
+    "dd", "dl", "dt", "figcaption", "figure", "footer", "h1", "h2", "h3",
+    "h4", "h5", "h6", "header", "hr", "li", "main", "nav", "ol", "p", "pre",
+    "section", "table", "tbody", "td", "tfoot", "th", "thead", "tr", "ul",
+})
+
 
 def document_text(data: bytes) -> "str | None":
     """The prose of one document, or None when it will not parse.
@@ -558,19 +576,40 @@ def document_text(data: bytes) -> "str | None":
     if root is None:
         return None
     pieces: list[str] = []
-    for element in root.iter():
+
+    def walk(element) -> None:
+        """Document order, which is not what `iter()` plus tails gives you.
+
+        The first version of this appended each element's text and tail
+        together as `iter()` walked, and that is wrong the moment anything
+        nests: for `<p>a<span>b<em>c</em>d</span>e</p>` the span's tail `e`
+        landed in front of the `<em>`, so a document whose markup this
+        program legitimately unwrapped read as changed text. Caught by
+        `test_stylesheet.py::test_text_around_a_span_keeps_its_order`, which
+        exists because the unwrap helper made the same mistake first — every
+        character present and two of them in the wrong order.
+
+        A tail belongs after the element's whole subtree, so the walk has to
+        be a walk.
+        """
         if not isinstance(element.tag, str):
-            continue
+            return
         local = element.tag.rpartition("}")[2].lower()
-        if local in NOT_IN_THE_READING_FLOW:
-            pieces.append(element.tail or "")
-            continue
-        if local in NOT_PROSE:
-            # Skip what it says, keep what follows it in its parent.
-            pieces.append(element.tail or "")
-            continue
-        pieces.append(element.text or "")
+        if local not in NOT_PROSE and local not in NOT_IN_THE_READING_FLOW:
+            block = local in BLOCK_LEVEL
+            if block:
+                pieces.append("\n")
+            pieces.append(element.text or "")
+            for child in element:
+                walk(child)
+            if block:
+                pieces.append("\n")
+        # The tail is the parent's text and belongs to it whatever the
+        # element itself was — skipping a `<style>` skips what it *says*,
+        # never the sentence that follows it.
         pieces.append(element.tail or "")
+
+    walk(root)
     return canonical_text("".join(pieces))
 
 

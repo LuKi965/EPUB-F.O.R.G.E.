@@ -4,7 +4,7 @@
   "minimal": {
     "written": true,
     "report": {
-      "info": 7,
+      "info": 8,
       "fix": 1
     },
     "rules": {
@@ -13,6 +13,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.layout-kept": 1,
+      "package.prose-check-unpaired": 1,
       "package.regenerated": 1,
       "reader.page-direction-carried": 1,
       "xhtml.untouched": 1

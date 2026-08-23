@@ -170,3 +170,169 @@ class TestTheTwoWaysMeasuringThisWentWrong:
         here."""
         found = compare(tmp_path, '<p>Powiedział "tak".</p>', "<p>Powiedział „tak”.</p>")
         assert found, "a changed quotation mark was folded away"
+
+
+class TestAtTheGate:
+    """Wired in front of the writer, beside the subsequence rule it sharpens.
+
+    Measured before wiring, on the owner's 160 books: every carried document
+    already comes out character for character, so this refuses nothing that
+    runs today. What it closes is the direction the correction subsystem
+    cannot leave open (D-020).
+    """
+
+    @staticmethod
+    def _book(tmp_path):
+        from tests.test_class_translation import PAGE
+        from tests.test_shelf_refusals import make_book
+
+        return make_book(
+            tmp_path / "in.epub",
+            {"c0.xhtml": PAGE.format(body="<p>Ala ma kota i psa.</p>")},
+        )
+
+    def test_a_clean_rebuild_is_published(self, tmp_path):
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        result = rebuild(
+            self._book(tmp_path), str(tmp_path / "out.epub"),
+            Policy.preset("preserve", render_gate="off", validate_before_publish="off"),
+        )
+        assert result.output_path, result.report.to_text()
+        assert "package.prose-changed" not in {
+            f.rule for f in result.report.findings if f.rule
+        }
+
+    def test_a_document_whose_text_changed_is_refused(self, tmp_path, monkeypatch):
+        """The gate's whole point, forced by making the check report a
+        divergence nobody consented to. The mutation that reports it and
+        publishes anyway fails here."""
+        from epubforge import fidelity
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        monkeypatch.setattr(
+            fidelity,
+            "prose_is_identical",
+            lambda *_args, **_kw: [
+                fidelity.TextDivergence("a.xhtml", "b.xhtml", 7, "kota", "kotu")
+            ],
+        )
+        result = rebuild(
+            self._book(tmp_path), str(tmp_path / "out.epub"),
+            Policy.preset("preserve", render_gate="off", validate_before_publish="off"),
+        )
+        assert result.output_path is None, "a changed book was published"
+        assert "package.prose-changed" in {
+            f.rule for f in result.report.findings if f.rule
+        }
+
+    def test_a_change_the_person_asked_for_is_reported_not_refused(
+        self, tmp_path, monkeypatch
+    ):
+        """Removing a shop's watermark takes text out on purpose. The
+        invariant stops holding character for character and the report says
+        so — refusing there would refuse the feature."""
+        from epubforge import fidelity
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+        from epubforge.report import Level
+
+        monkeypatch.setattr(
+            fidelity,
+            "prose_is_identical",
+            lambda *_args, **_kw: [
+                fidelity.TextDivergence("a.xhtml", "b.xhtml", 0, "znak wodny", "")
+            ],
+        )
+        real = rebuild
+
+        def with_consent(*args, **kwargs):
+            result = real(*args, **kwargs)
+            return result
+
+        source = self._book(tmp_path)
+        policy = Policy.preset("preserve", render_gate="off", validate_before_publish="off")
+        # The consent the gate looks for is a finding, so put one in the way
+        # the stage would have.
+        from epubforge import pipeline
+
+        original = pipeline._text_gate
+
+        def gate_with_a_consent(src, pol, report):
+            report.add("xhtml", Level.FIX, "xhtml.watermark-removed")
+            return original(src, pol, report)
+
+        monkeypatch.setattr(pipeline, "_text_gate", gate_with_a_consent)
+        result = with_consent(source, str(tmp_path / "out.epub"), policy)
+        assert result.output_path, result.report.to_text()
+        assert "package.prose-changed-on-request" in {
+            f.rule for f in result.report.findings if f.rule
+        }
+
+
+class TestDocumentOrderIsNotIterationOrder:
+    """The bug this code shipped with for an hour, kept as a test.
+
+    `iter()` walks elements; a *tail* belongs after the element's whole
+    subtree, not next to its text. Appending the two together put a span's
+    tail in front of its own child's text — so a document whose markup this
+    program legitimately unwrapped read as changed prose and the gate refused
+    it. Found by `test_stylesheet.py::test_text_around_a_span_keeps_its_order`,
+    which exists because the unwrap helper made the identical mistake first.
+    """
+
+    def test_a_tail_follows_the_whole_subtree(self, tmp_path):
+        nested = "<p>przed <span>w <em>srodku</em> koniec</span> po</p>"
+        assert fidelity.document_text(page(nested)) == "przed w srodku koniec po"
+
+    def test_unwrapping_a_span_is_not_a_change_of_prose(self, tmp_path):
+        """What the rebuild actually does to a span that says nothing, and
+        what the gate must not call damage."""
+        assert not compare(
+            tmp_path,
+            "<p>przed <span>w <em>srodku</em> koniec</span> po</p>",
+            "<p>przed w <em>srodku</em> koniec po</p>",
+        )
+
+    def test_and_a_real_reordering_is_still_caught(self, tmp_path):
+        """The other side, so the fix cannot be a blanket forgiveness: two
+        words genuinely swapped are still a difference."""
+        found = compare(
+            tmp_path,
+            "<p>przed w srodku koniec po</p>",
+            "<p>przed w koniec srodku po</p>",
+        )
+        assert found
+
+
+class TestABlockBoundaryIsNotAWord:
+    """A repair that moves a paragraph moves it away from its indentation.
+
+    Measured on the suite's own fixture: a paragraph a converter left in
+    `<head>` is moved to the top of the body, and the whitespace that sat
+    between the tags does not travel with it. The source then reads
+    `…akapit. Rozdział…` and the output `…akapit.Rozdział…` — one space, and
+    no reader can see it, because two blocks are two blocks whatever
+    separates their tags.
+    """
+
+    def test_two_paragraphs_read_the_same_however_their_tags_are_spaced(self, tmp_path):
+        assert not compare(
+            tmp_path,
+            "<p>Zabłąkany akapit.</p>\n   <p>Rozdział drugi</p>",
+            "<p>Zabłąkany akapit.</p><p>Rozdział drugi</p>",
+        )
+
+    def test_an_inline_element_gets_no_separator(self, tmp_path):
+        """The other side, and the one that matters: inserting a boundary
+        inside a word would invent the damage this exists to detect. The
+        mutation that treats every element as a block fails here."""
+        assert fidelity.document_text(page("<p>sro<em>d</em>ku</p>")) == "srodku"
+
+    def test_a_word_that_really_lost_its_space_is_still_caught(self, tmp_path):
+        """Two words run together *inside* one block is a change a reader
+        sees, and no boundary rule may forgive it."""
+        found = compare(tmp_path, "<p>Ala ma kota</p>", "<p>Alama kota</p>")
+        assert found

@@ -582,6 +582,36 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str, q
 #: Named rather than inferred. A rule added later that removes or moves text and
 #: is not listed here will be refused by the gate — the burden is on the change
 #: to declare itself.
+#: Rules whose whole job is to change the *shape* of text the book keeps —
+#: three dots into an ellipsis, straight quotes into the book's own
+#: convention, a space after a one-letter word made unbreakable. Every one of
+#: them is behind a switch, checks its own work, and is named in the report.
+#:
+#: The sharpened half of K1 consults this set for the reason the subsequence
+#: half consults `REMOVES_TEXT_ON_PURPOSE`: a difference a named pass made and
+#: reported is accounted for, and the invariant is about the difference nobody
+#: accounted for. Wiring the sharpened check without this refused sixteen
+#: tests inside one run — every one of them a legitimate typographic repair,
+#: which is how the two got told apart.
+#:
+#: The alternative was to fold quotes and dashes away in the comparison, the
+#: way today's subsequence half does. That was rejected: it would mean a quote
+#: changed by *anything at all* passes unseen, including the correction
+#: subsystem D-020 is being built for, and the whole point of sharpening K1 is
+#: that such a change stops being invisible.
+CHANGES_TEXT_SHAPE_ON_PURPOSE = frozenset({
+    "typography.ellipsis-normalised",
+    "typography.quotes-retyped",
+    "typography.conjunctions-bound",
+    "typography.reverted",
+    # Not a reshaping but a restoration, and it belongs here for the same
+    # reason: a conversion left codes no font draws, the person answered
+    # "repair", and the characters came back. `xmlchars.legal` folds the
+    # broken ones out of the *source* side, so the difference the check sees
+    # is the repaired punctuation appearing — which is the answer working.
+    "xhtml.mojibake-translated",
+})
+
 REMOVES_TEXT_ON_PURPOSE = frozenset({
     "xhtml.shop-notice-removed",
     "xhtml.watermark-removed",
@@ -706,7 +736,77 @@ def _text_gate(source: str, policy: Policy, report: Report):
         )
         return f"K1: {check.detail}"
 
-    return gate
+    def sharper(candidate: str) -> str:
+        """K1's other half: a carried document's prose is *identical*.
+
+        The rule above asks for a subsequence — nothing may be lost, and
+        anything at all may be added — which leaves the gate blind in one
+        direction: a sentence that *appeared* inside an existing document
+        passes it without a word. Measured on the owner's 160 books before
+        this was wired: every carried document already comes out character
+        for character, so this refuses nothing that runs today and closes
+        the direction the correction subsystem will need closed (D-020).
+
+        The same three concessions the measurement earned, each named in
+        `fidelity`: a `<style>` block is not prose, a `<title>` is the
+        reading system's navigation rather than the reading flow (and this
+        program fills an empty one in, saying so), and a character no
+        conforming EPUB may carry is not text.
+        """
+        try:
+            if _more_than_one_rendition(source):
+                return ""
+            moved = {
+                change.before: change.after
+                for change in report.changes
+                if change.rule == "structure.relaid-out"
+                and change.before
+                and change.after
+            }
+            if not moved:
+                # Nothing was relaid out, so nothing can be paired by name —
+                # `minimal` publishes the source's own layout. Said rather
+                # than silently passed, for the reason the clause above it
+                # gives.
+                report.add("package", Level.INFO, "package.prose-check-unpaired")
+                return ""
+            divergences = fidelity.prose_is_identical(source, candidate, moved)
+        except Exception as exc:  # noqa: BLE001 — a check that cannot run is not a failure
+            report.add(
+                "package",
+                Level.WARN,
+                "package.prose-check-failed",
+                values={"detail": f"{type(exc).__name__}: {exc}"},
+            )
+            return ""
+        if not divergences:
+            return ""
+        accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+        consented = sorted({
+            finding.rule
+            for finding in report.findings
+            if finding.rule in accounted
+        })
+        if consented:
+            report.add(
+                "package",
+                Level.WARN,
+                "package.prose-changed-on-request",
+                values={"rules": ", ".join(consented), "detail": str(divergences[0])},
+            )
+            return ""
+        report.add(
+            "package",
+            Level.ERROR,
+            "package.prose-changed",
+            values={"count": len(divergences), "detail": str(divergences[0])},
+        )
+        return f"K1: {divergences[0]}"
+
+    def both(candidate: str) -> str:
+        return gate(candidate) or sharper(candidate)
+
+    return both
 
 
 def _publication_gate(source: str, policy: Policy, report: Report):
