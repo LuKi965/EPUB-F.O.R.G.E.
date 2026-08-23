@@ -362,6 +362,10 @@ def command_build(args: argparse.Namespace) -> int:
         )
     plan_room = tempfile.TemporaryDirectory(prefix="epubforge-plan-") if planning else None
 
+    # One dict for the whole run: an answer given as "do this to all of them"
+    # is an answer about a class, and asking it again for the next book is how
+    # a shelf of 160 books turns into 8 979 questions nobody can finish.
+    standing: dict = {}
     for job in batch.jobs:
         source, destination = job.source, job.destination
         if plan_room is not None:
@@ -373,9 +377,11 @@ def command_build(args: argparse.Namespace) -> int:
         # every book but a handful; where a container offers several it writes
         # each into its own file, which is the owner's decision on F-025.
         produced = (
-            [rebuild(source, destination, policy, resolver=resolver)]
+            [rebuild(source, destination, policy, resolver=resolver,
+                     standing=standing)]
             if args.first_rendition_only
-            else rebuild_all(source, destination, policy, resolver=resolver)
+            else rebuild_all(source, destination, policy, resolver=resolver,
+                             standing=standing)
         )
         if len(produced) > 1:
             console.print(

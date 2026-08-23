@@ -962,6 +962,7 @@ def rebuild_all(
     *,
     resolver: "Resolver | None" = None,
     cancelled=None,
+    standing: "dict | None" = None,
 ) -> list[Result]:
     """Rebuild every rendition the container offers, each into its own file.
 
@@ -986,7 +987,8 @@ def rebuild_all(
     offered = _renditions_of(source)
     if len(offered) < 2:
         return [
-            rebuild(source, destination, policy, resolver=resolver, cancelled=cancelled)
+            rebuild(source, destination, policy, resolver=resolver,
+                    cancelled=cancelled, standing=standing)
         ]
 
     stem, extension = os.path.splitext(destination)
@@ -1006,6 +1008,7 @@ def rebuild_all(
             rebuild(
                 source, target, policy, resolver=resolver,
                 rendition=rendition.path, cancelled=cancelled,
+                standing=standing,
             )
         )
     return results
@@ -1071,6 +1074,7 @@ def rebuild(
     rendition: str | None = None,
     asker=None,
     cancelled=None,
+    standing: "dict | None" = None,
 ) -> Result:
     """Rebuild *source* into a conforming EPUB 3.3 at *destination*.
 
@@ -1110,7 +1114,7 @@ def rebuild(
         with budget_module.active(budget):
             return _rebuild_inside_budget_or_cancelled(
                 source, destination, policy, report, budget, stages, resolver,
-                rendition, asker,
+                rendition, asker, standing=standing,
             )
     finally:
         # A batch runs a shelf one book after another in the same process, and
@@ -1124,12 +1128,13 @@ def rebuild(
 
 
 def _rebuild_inside_budget_or_cancelled(
-    source, destination, policy, report, budget, stages, resolver, rendition, asker
+    source, destination, policy, report, budget, stages, resolver, rendition, asker,
+    standing=None,
 ) -> "Result":
     try:
         return _rebuild_inside_budget(
             source, destination, policy, report, budget, stages, resolver,
-            rendition, asker,
+            rendition, asker, standing=standing,
         )
     except Cancelled:
         # The writer unlinks its staging file on any `BaseException`, so by the
@@ -1141,7 +1146,8 @@ def _rebuild_inside_budget_or_cancelled(
 
 
 def _rebuild_inside_budget(
-    source, destination, policy, report, budget, stages, resolver, rendition, asker=None
+    source, destination, policy, report, budget, stages, resolver, rendition, asker=None,
+    standing=None,
 ) -> "Result":
     # EF-020, and the benchmark it asked for came first. `reader.py` has held a
     # ceiling of 2 GiB of content since early on, and the measurement turned it
@@ -1198,7 +1204,24 @@ def _rebuild_inside_budget(
     # it any later would be counting the rebuild against itself.
     before_side = balance.Side.of(book)
 
-    queue = decisions.Queue(asker=asker if asker is not None else _asker_from(resolver))
+    # A standing answer — "do this to all of them" — used to live and die
+    # inside one rebuild, because the queue was born here. Measured on the
+    # owner's shelf: 8 979 questions across 160 books, 8 737 of them one
+    # family, and answering "all of them" in book one meant being asked again
+    # in book two, and a hundred and fifty-eight times after that. A person
+    # cannot finish that, and everything the style work achieved sits behind
+    # it. So a caller running a batch passes one dict and the answer carries.
+    #
+    # Per-question answers deliberately do **not** carry: `stored` is keyed on
+    # the book and refused when the book has changed, because replaying
+    # somebody's judgement onto a page they have not seen is worse than asking
+    # again (BA-2026-002). A standing answer is different in kind — it is an
+    # answer about a *class*, given in the knowledge that it applies to
+    # everything of that class, and the option says so before it is chosen.
+    queue = decisions.Queue(
+        asker=asker if asker is not None else _asker_from(resolver),
+        standing=standing if standing is not None else {},
+    )
     if policy.remember_decisions:
         stored = decisions.Queue.load(
             decisions.answers_path(source), source=source, asker=queue.asker

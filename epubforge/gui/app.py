@@ -126,6 +126,13 @@ class Worker(QObject):
         #: whole reason it is an object with a blocking signal rather than a
         #: function.
         self._resolver = resolver
+        #: Standing answers — "do this to all of them" — for the *batch* rather
+        #: than for one book. Measured before this existed: 8 979 questions
+        #: across the owner's 160 books, 8 737 of them one family, and
+        #: answering "all of them" in book one meant being asked again in book
+        #: two. One dict, handed to every rebuild in the loop, is the whole of
+        #: the fix.
+        self._standing: dict = {}
         self._cancelled = False
 
     def cancel(self) -> None:
@@ -142,6 +149,7 @@ class Worker(QObject):
                 # `rebuild` did, and the list has one entry.
                 produced = rebuild_all(
                     source, destination, self._policy, resolver=self._resolver,
+                    standing=self._standing,
                     # DELTA-2026-08-15-001: the loop above only looked between
                     # books, so Cancel on a large one meant "finish this one
                     # first". Handed down, it is asked once per document.
