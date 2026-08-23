@@ -732,6 +732,12 @@ class MainWindow(QMainWindow):
         # safe answer is "leave it"; this tick declines the question in advance.
         self.footnotes_check = self._checkbox(layout, "policy.footnotes", checked=True)
         self.hyphens_check = self._checkbox(layout, "policy.hyphens", checked=True)
+        # Filar D. Same argument as the tick above it: detection changes
+        # nothing, one question carries the whole book, and no setting makes it
+        # act on its own — so it may be on by default.
+        self.substitutions_check = self._checkbox(
+            layout, "policy.substitutions", checked=True
+        )
         # BA-2026-001's remaining half. 67 evidenced candidates against 189
         # that the book itself does not settle — so the weaker classes are one
         # question carrying the words rather than 189 questions.
@@ -1065,6 +1071,7 @@ class MainWindow(QMainWindow):
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.hyphen_review = self.hyphen_review_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
+        policy.detect_substitutions = self.substitutions_check.isChecked()
         policy.relative_units = self.relative_units_check.isChecked()
         policy.remove_shop_notices = self.shop_notices_check.isChecked()
         policy.repair_encoding = self.encoding_check.isChecked()

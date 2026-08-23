@@ -298,6 +298,16 @@ class Policy:
     #: its own, which is deliberate and is why the detector may be on.
     detect_hyphens: bool = True
 
+    #: Look for one letter systematically written in place of another.
+    #:
+    #: Filar D. On by default for the same reason as the line above: detecting
+    #: changes nothing, and the pattern is rare enough that finding it is worth
+    #: saying — one book in a hundred and sixty on the owner's shelf, which
+    #: writes `h` where it means `r` a hundred and nineteen times. Repairing it
+    #: takes an answer from a person; there is no setting that makes this act on
+    #: its own.
+    detect_substitutions: bool = True
+
     #: Rewrite absolute font sizes so the reader's own font setting works again.
     #:
     #: EF-029 / WP-13. A book that writes `font-size: 12px` has taken the size

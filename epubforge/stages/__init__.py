@@ -14,6 +14,9 @@ Order is load-bearing:
   device concessions layered on top of it;
 * typography after content — it edits the text, and the content stage moves
   markup around it;
+* substitutions after hyphens — both edit words, and a word the conversion
+  broke with a hyphen has to be whole again before anything asks a dictionary
+  whether it is spelled right;
 * footnotes after hyphens and before navigation — the linking question needs
   the text in its final shape, and the anchors it may add exist before
   anything counts or validates references. Running it first would mean unwrapping a `<span>` through a
@@ -36,6 +39,7 @@ from .profile import ProfileStage
 from .style import StyleStage
 from .structure import StructureStage
 from .hyphens import HyphenStage
+from .substitutions import SubstitutionStage
 from .typography import TypographyStage
 
 DEFAULT_STAGES = (
@@ -48,6 +52,7 @@ DEFAULT_STAGES = (
     StyleStage,
     TypographyStage,
     HyphenStage,
+    SubstitutionStage,
     FootnoteStage,
     NavigationStage,
     AccessibilityStage,
@@ -74,6 +79,7 @@ __all__ = [
     "StyleStage",
     "TypographyStage",
     "HyphenStage",
+    "SubstitutionStage",
     "NavigationStage",
     "AccessibilityStage",
     "CompatibilityStage",

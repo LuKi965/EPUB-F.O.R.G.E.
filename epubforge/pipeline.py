@@ -617,6 +617,13 @@ REMOVES_TEXT_ON_PURPOSE = frozenset({
     "xhtml.watermark-removed",
     "xhtml.watermark-relocated",
     "hyphens.joined",
+    # A substitution puts one letter in and takes another out, so it fails the
+    # subsequence half as squarely as joining a word does — and this is the
+    # set that half consults. It is named here rather than beside the mojibake
+    # translation above, even though it reshapes the prose too, because the
+    # sharper half reads the union of both sets and the subsequence half reads
+    # only this one; one home for the fact is enough, and it has to be this one.
+    "substitutions.replaced",
 })
 
 #: **`xhtml.watermark-consolidated` is deliberately not in the set above**, and

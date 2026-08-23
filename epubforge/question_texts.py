@@ -322,6 +322,29 @@ TEXTS_PL: dict[str, str] = {
         "{count} kodów bez kształtu zamieni się w cudzysłowy, myślniki i "
         "wielokropki. To zmiana treści; z samego wyniku nie da się jej cofnąć"
     ),
+    "substitution.summary": (
+        "W tej książce „{wrong}” stoi tam, gdzie ma być „{right}” — {count} razy"
+    ),
+    "substitution.detail": (
+        "To nie są pojedyncze literówki, tylko jeden wzorzec przez całą "
+        "książkę: litera „{wrong}” zapisana zamiast „{right}”. Świadczy o tym "
+        "{evidence} słów, które ta sama książka w innych miejscach pisze "
+        "poprawnie — więc nie chodzi o styl autora ani o słowo, którego nie ma "
+        "w słowniku.\n\nKażde słowo z listy poniżej jest sprawdzone z dwóch "
+        "stron: tak jak stoi, słownik go nie zna, a po zamianie litery — "
+        "zna.\n\n{shown}{more}"
+    ),
+    "substitution.more": " … i {count} dalszych",
+    "substitution.keep": "Zostaw jak jest",
+    "substitution.keep.why": (
+        "Tekst nie zmieni się o żadną literę; słowa zostaną w książce tak, jak "
+        "zapisał je konwerter"
+    ),
+    "substitution.repair": "Popraw wszystkie",
+    "substitution.repair.why": (
+        "{count} słów odzyska właściwą literę. To zmiana treści; z samego "
+        "wyniku nie da się jej cofnąć"
+    ),
 }
 
 TEXTS_EN: dict[str, str] = {
@@ -584,6 +607,29 @@ TEXTS_EN: dict[str, str] = {
     "encoding.mojibake.repair.why": (
         "{count} shapeless codes become quotation marks, dashes and ellipses. "
         "This changes the text and cannot be undone from the output alone"
+    ),
+    "substitution.summary": (
+        "This book writes “{wrong}” where “{right}” belongs — {count} times"
+    ),
+    "substitution.detail": (
+        "These are not separate typos but one pattern running through the whole "
+        "book: the letter “{wrong}” written in place of “{right}”. The evidence "
+        "is {evidence} words that this same book spells correctly elsewhere — "
+        "so this is not the author's style, and not a word the dictionary "
+        "happens not to know.\n\nEvery word below is checked from both sides: as "
+        "it stands the dictionary does not know it, and with the letter put "
+        "back it does.\n\n{shown}{more}"
+    ),
+    "substitution.more": " … and {count} more",
+    "substitution.keep": "Leave it as it is",
+    "substitution.keep.why": (
+        "Not one letter of the text changes; the words stay in the book exactly "
+        "as the conversion wrote them"
+    ),
+    "substitution.repair": "Repair all of them",
+    "substitution.repair.why": (
+        "{count} words get their letter back. This changes the text and cannot "
+        "be undone from the output alone"
     ),
 }
 

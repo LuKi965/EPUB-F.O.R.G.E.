@@ -475,6 +475,21 @@ PL: dict[str, str] = {
         "tego, czy ten przełącznik jest włączony."
     ),
     "policy.hyphens": "Szukaj łączników zostawionych w środku słów",
+    "policy.substitutions": "Szukaj litery zapisanej systematycznie zamiast innej",
+    "policy.substitutions.tip": (
+        "Bywa, że konwersja zapisała w całej książce jedną literę zamiast innej "
+        "— „phawda” zamiast „prawda”, „bahdzo” zamiast „bardzo”. To nie są "
+        "literówki autora: to jeden wzorzec, powtórzony setki razy.\n\n"
+        "Ten przełącznik włącza samo **wykrywanie**. Nic nie jest poprawiane bez "
+        "twojej odpowiedzi, a odpowiadasz raz na całą książkę, nie raz na "
+        "słowo.\n\n"
+        "Słowo trafia na listę tylko wtedy, gdy słownik nie zna go tak, jak "
+        "stoi, i zna po odwróceniu litery. Słowo, którego książka używa często, "
+        "zostaje nietknięte — częsta pisownia jest słownictwem książki, a nie "
+        "jej pomyłką, i to trzyma imiona bohaterów poza listą.\n\n"
+        "Na półce 160 książek taki wzorzec ma jedna. Cisza jest tu normalną "
+        "odpowiedzią."
+    ),
     "policy.hyphens.tip": (
         "Zła konwersja PDF-a zostawia w tekście łącznik z podziału wiersza: "
         "„obo-jętna”, „ko-rytarz”, „Ce-laena”. Czytelnik to widzi i jest to błąd, "
@@ -1404,6 +1419,23 @@ EN: dict[str, str] = {
         "not this is switched on."
     ),
     "policy.hyphens": "Look for hyphens left inside words",
+    "policy.substitutions": "Look for one letter systematically written for another",
+    "policy.substitutions.tip": (
+        "A conversion sometimes writes one letter in place of another right "
+        "through a book — „phawda” for „prawda”, „bahdzo” for „bardzo”. These "
+        "are not the author's typos: it is one pattern, repeated hundreds of "
+        "times.\n\n"
+        "This switch turns on **detection**. Nothing is repaired without your "
+        "answer, and you answer once for the whole book rather than once per "
+        "word.\n\n"
+        "A word reaches the list only when the dictionary does not know it as "
+        "written and does know it with the letter put back. A word the book "
+        "uses often is left alone — a book's frequent spelling is its "
+        "vocabulary, not its mistake, and that is what keeps characters' names "
+        "off the list.\n\n"
+        "On a shelf of 160 books, one has such a pattern. Silence is the normal "
+        "answer here."
+    ),
     "policy.hyphens.tip": (
         "A bad PDF conversion leaves the line-break hyphen in the text: "
         "„obo-jętna”, „ko-rytarz”, „Ce-laena”. The reader sees them, they are "

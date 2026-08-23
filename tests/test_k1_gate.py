@@ -460,13 +460,18 @@ class TestOnlyRulesThatActuallyRemoveTextExcuseALoss:
     def test_every_excusing_rule_belongs_to_a_stage_that_can_remove_text(self):
         """Reguła, której kod nigdy nie usuwa ani nie przenosi tekstu, nie ma
         prawa usprawiedliwiać straty. Sprawdzane przez nazwę etapu, bo to
-        jedyne, co da się sprawdzić bez uruchomienia przebudowy."""
+        jedyne, co da się sprawdzić bez uruchomienia przebudowy.
+
+        `replaced` doszło do słownika razem z filarem D i mówi dokładnie to, co
+        ma mówić: podmiana litery **zabiera** znak, który był w źródle, a wstawia
+        inny. To ta sama klasa co `Action.REPLACED` w rejestrze zmian, gdzie
+        stoi od początku obok złączonego słowa."""
         from epubforge.pipeline import REMOVES_TEXT_ON_PURPOSE
 
         for rule in REMOVES_TEXT_ON_PURPOSE:
             assert any(
                 word in rule
-                for word in ("removed", "relocated", "joined", "notice")
+                for word in ("removed", "relocated", "joined", "notice", "replaced")
             ), f"{rule}: nazwa nie mówi, że cokolwiek ubywa albo się przenosi"
 
     def test_consolidation_really_does_leave_the_token_alone(self):
