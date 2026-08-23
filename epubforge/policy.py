@@ -111,6 +111,23 @@ class Policy:
     #: Deobfuscate embedded fonts and drop META-INF/encryption.xml.
     deobfuscate_fonts: bool = True
 
+    #: Cut embedded fonts down to the characters the book actually uses.
+    #:
+    #: **Off by default in every mode, and that is the decision rather than a
+    #: default** (filar E). Measured on the owner's shelf: 62 books of 160
+    #: carry 491 font files weighing 116 MB, and the heaviest book spends
+    #: 11.05 MB on roughly a hundred distinct characters — subsetting it comes
+    #: to 0.33 MB, three per cent. So the saving is real and large.
+    #:
+    #: What is *not* measurable is the right to make it. `fsType` states what
+    #: may be embedded, and this program refuses on every bit that touches the
+    #: question (`fonts_meta.may_be_subset`); the right to **modify** a font
+    #: lives in a text licence that no bit carries. Nobody but the person who
+    #: owns the book can weigh that, so the program does not weigh it for
+    #: them: the switch stays off until it is turned on, and the report says
+    #: what each font weighed before and after.
+    subset_fonts: bool = False
+
     #: Transcode non-core image formats (WebP, BMP, TIFF) to PNG.
     transcode_images: bool = True
 

@@ -152,3 +152,63 @@ SYMBOL_FAMILIES: frozenset = frozenset({
 def well_known(family: str) -> "str | None":
     """The generic common knowledge assigns to *family*, or None."""
     return WELL_KNOWN_GENERICS.get(family.strip().strip("\"'").lower())
+
+
+#: `OS/2.fsType`, the one place a font file states what may be done with it.
+#: The bits this program reads, and what each of them costs:
+#:
+#: * `0x0002` **restricted licence** — the font may not be embedded at all,
+#:   so it may certainly not be embedded in a cut-down form;
+#: * `0x0004` **preview and print only** — embedding is for looking at and
+#:   printing, not for carrying the font onward;
+#: * `0x0100` **no subsetting** — the one bit that names *exactly* the
+#:   operation this program would perform. It was absent from the shelf
+#:   measurement (fsType 0, 8, 12, 4 and 2 were all that appeared), which is
+#:   a fact about 491 files and not a licence to skip the check.
+#:
+#: `0x0008` (editable embedding) and `0x0000` (installable) say nothing
+#: against it. None of this makes subsetting *lawful* — fsType speaks about
+#: embedding, and the right to modify lives in a text licence no bit
+#: carries — which is why the switch is off until a person turns it on.
+FSTYPE_RESTRICTED = 0x0002
+FSTYPE_PREVIEW_PRINT = 0x0004
+FSTYPE_NO_SUBSETTING = 0x0100
+
+#: Offset of `fsType` inside the OS/2 table: version (2) + xAvgCharWidth (2)
+#: + usWeightClass (2) + usWidthClass (2).
+_FSTYPE_OFFSET = 8
+
+
+def embedding_flags(data: bytes) -> "int | None":
+    """`OS/2.fsType`, or None when the file will not say.
+
+    None is a real answer and stays one: a file this program cannot read is
+    a file whose licence it cannot read either, and the caller must treat
+    that as a refusal rather than as a zero.
+    """
+    table = _os2_table(data)
+    if table is None or len(table) < _FSTYPE_OFFSET + 2:
+        return None
+    try:
+        return struct.unpack(">H", table[_FSTYPE_OFFSET:_FSTYPE_OFFSET + 2])[0]
+    except struct.error:
+        return None
+
+
+def may_be_subset(data: bytes) -> "tuple[bool, str]":
+    """Whether this font's own file permits cutting it down, and why not.
+
+    The reason is returned rather than logged because it belongs in the
+    report: a font left at full weight in a run that asked for subsetting is
+    a decision the person needs to see explained, not a silent omission.
+    """
+    flags = embedding_flags(data)
+    if flags is None:
+        return False, "unreadable"
+    if flags & FSTYPE_NO_SUBSETTING:
+        return False, "no-subsetting"
+    if flags & FSTYPE_RESTRICTED:
+        return False, "restricted"
+    if flags & FSTYPE_PREVIEW_PRINT:
+        return False, "preview-print"
+    return True, ""

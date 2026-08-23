@@ -106,6 +106,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.remove_shop_notices = True
     if getattr(args, "repair_encoding", False):
         policy.repair_encoding = True
+    if getattr(args, "subset_fonts", False):
+        policy.subset_fonts = True
     if getattr(args, "sweep_style_blocks", False):
         policy.sweep_style_blocks = True
     if getattr(args, "keep_style_junk", False):
@@ -1160,6 +1162,17 @@ def build_parser() -> argparse.ArgumentParser:
             "keep <style> blocks and stylesheets exactly as the converter "
             "left them; the report still counts what a sweep would have "
             "removed"
+        ),
+    )
+    build.add_argument(
+        "--subset-fonts",
+        action="store_true",
+        help=(
+            "cut embedded fonts down to the characters the book uses. Off "
+            "unless asked for, and it stays that way: a font file states what "
+            "may be embedded, never what may be modified, so only you can "
+            "weigh that. Fonts whose own file forbids it are left whole and "
+            "the report says which and why"
         ),
     )
     build.add_argument(

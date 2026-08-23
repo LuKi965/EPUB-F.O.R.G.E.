@@ -653,6 +653,14 @@ class MainWindow(QMainWindow):
         # Pillar 1 of the 0.3 plan (D-031); on by default since D-032, the
         # same road the sweep travelled.
         self.class_names_check = self._checkbox(layout, "policy.class-names", checked=True)
+        # Filar E, and off for the reason the tooltip gives: a font file
+        # states what may be embedded, never what may be modified, so the
+        # switch belongs to the person who owns the book. In the window and
+        # not only behind a flag, because S-04 says the person deciding gets
+        # to see the switch.
+        self.subset_fonts_check = self._checkbox(
+            layout, "policy.subset-fonts", checked=False
+        )
         # EF-029. Off by default and in the window rather than only behind a
         # flag, because it is a change to the publisher's stylesheet and S-04
         # says the person deciding gets to see the switch.
@@ -1035,6 +1043,7 @@ class MainWindow(QMainWindow):
             policy.remove_dead = self.dead_check.isChecked()
             policy.sweep_style_blocks = self.style_sweep_check.isChecked()
             policy.translate_class_names = self.class_names_check.isChecked()
+            policy.subset_fonts = self.subset_fonts_check.isChecked()
             policy.link_footnotes = self.footnotes_check.isChecked()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()

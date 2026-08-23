@@ -26,6 +26,7 @@ from .accessibility import AccessibilityStage
 from .base import Context, Stage
 from .compat import CompatibilityStage
 from .content import ContentStage
+from .font_subset import FontSubsetStage
 from .fonts import FontStage
 from .footnotes import FootnoteStage
 from .images import ImageStage
@@ -51,6 +52,11 @@ DEFAULT_STAGES = (
     NavigationStage,
     AccessibilityStage,
     CompatibilityStage,
+    # Last, and the reason is the glyph set: the navigation document this
+    # program generates and the cover page it synthesises carry text the
+    # source never had, so a font cut before them would lose exactly the
+    # glyphs the rebuild had just added (filar E).
+    FontSubsetStage,
 )
 
 __all__ = [
@@ -58,6 +64,7 @@ __all__ = [
     "Stage",
     "DEFAULT_STAGES",
     "FontStage",
+    "FontSubsetStage",
     "FootnoteStage",
     "ImageStage",
     "StructureStage",

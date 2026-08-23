@@ -631,6 +631,15 @@ PL: dict[str, str] = {
     "policy.section.gates": "Bramy jakości",
     "policy.section.run": "Ten przebieg",
     "policy.class-names": "Tłumacz nazwy klas na słownik epubforge",
+    "policy.subset-fonts": "Przytnij osadzone fonty do używanych znaków",
+    "policy.subset-fonts.tip": (
+        "Wyłączone, dopóki sam nie włączysz — i tak zostaje. Plik fontu mówi, "
+        "co wolno OSADZIĆ, nigdy co wolno ZMIENIĆ; to drugie jest w licencji "
+        "tekstowej, której żaden bit nie niesie, więc waży to tylko właściciel "
+        "książki. Fonty, których własny plik tego zabrania, zostają w całości, "
+        "a raport mówi które i dlaczego. Zmierzone: najcięższa książka półki "
+        "traci 7,36 MB na rzecz 415 KB."
+    ),
     "policy.class-names.tip": (
         "Konwertery nazywają style po swojemu: calibre7, sgc-1, Hoofdtekst9a "
         "— czytelne dla nikogo. Po zaznaczeniu takie nazwy dostają nazwy ze "
@@ -1551,6 +1560,15 @@ EN: dict[str, str] = {
     "policy.section.gates": "Quality gates",
     "policy.section.run": "This run",
     "policy.class-names": "Translate class names to the epubforge dictionary",
+    "policy.subset-fonts": "Cut embedded fonts to the characters used",
+    "policy.subset-fonts.tip": (
+        "Off until you turn it on, and it stays that way. A font file states "
+        "what may be EMBEDDED, never what may be MODIFIED; the second lives "
+        "in a text licence no bit carries, so only the book's owner can weigh "
+        "it. Fonts whose own file forbids it are left whole and the report "
+        "says which and why. Measured: the shelf's heaviest book goes from "
+        "7.36 MB to 415 KB."
+    ),
     "policy.class-names.tip": (
         "Converters name styles after themselves: calibre7, sgc-1, "
         "Hoofdtekst9a — readable to nobody. Ticked, such names become "
