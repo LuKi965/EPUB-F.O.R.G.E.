@@ -1419,6 +1419,14 @@ def _rebuild_inside_budget(
     # in the report worth reading. The same goes for a document that only
     # parsed after a tag-soup recovery: what came out of that is a
     # reconstruction, and this program cannot show it means what went in.
+    # Pillar C. The summary says whether anything is waiting for the person,
+    # and it must say it from the record rather than from the shape of a rule
+    # name: the queue knows exactly which questions came back `UNANSWERED`,
+    # and guessing it from findings would tell somebody their book is waiting
+    # on them when it is not.
+    report.stats["questions_unanswered"] = sum(
+        1 for _, answer in queue.given if answer.source == "unanswered"
+    )
     clean = report.ok and not ctx.unresolved and not ctx.recovered
     # And a package document that had to be guessed at is the same argument one
     # level up from a guessed-at chapter: what came out is a reconstruction, and

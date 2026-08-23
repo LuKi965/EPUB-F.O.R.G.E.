@@ -18,10 +18,117 @@ class Level(str, Enum):
 
 _ORDER = {Level.ERROR: 0, Level.WARN: 1, Level.PRESERVED: 2, Level.FIX: 3, Level.INFO: 4}
 
+#: What each stage of the pipeline is *about*, said the way somebody who owns
+#: books would say it rather than the way the code is organised. Pillar C:
+#: "pojęcia tłumaczone, nie rzucane". A stage with no entry falls back to its
+#: own name, which is ugly and honest — better than a summary that invents a
+#: friendly word for something it has not been taught.
+_SUMMARY_STAGES_PL = {
+    "xhtml": "treść stron",
+    "css": "arkusze stylów",
+    "structure": "układ i nazwy plików",
+    "navigation": "spis treści",
+    "metadata": "metadane",
+    "accessibility": "dostępność",
+    "fonts": "fonty",
+    "profile": "zgodność z czytnikami",
+    "hyphens": "łączniki w słowach",
+    "reader": "odczyt źródła",
+    "package": "pakiet książki",
+    "render": "wygląd stron",
+    "epubcheck": "walidator EPUBCheck",
+    "encoding": "kodowanie znaków",
+}
+_SUMMARY_STAGES_EN = {
+    "xhtml": "page content",
+    "css": "stylesheets",
+    "structure": "file layout and names",
+    "navigation": "table of contents",
+    "metadata": "metadata",
+    "accessibility": "accessibility",
+    "fonts": "fonts",
+    "profile": "reading-system compatibility",
+    "hyphens": "hyphens inside words",
+    "reader": "reading the source",
+    "package": "the book's package",
+    "render": "how the pages look",
+    "epubcheck": "the EPUBCheck validator",
+    "encoding": "character encoding",
+}
+
+#: The summary's own sentences. Kept here rather than in `rules.py` because
+#: they describe the *report*, not the book — nothing in them names a finding.
+_SUMMARY_WORDS_PL = {
+    "heading": "W skrócie",
+    "healthy": "Książka jest zdrowa — nic nie wymaga Twojej uwagi.",
+    "warned": (
+        "Książka jest sprawna, ale {count} {count:sprawę warto|sprawy warto|spraw warto} "
+        "obejrzeć — {count:jest ona|są one|są one} niżej, oznaczona jako WARN."
+    ),
+    "errors": (
+        "Książka ma {count} {count:błąd|błędy|błędów}, {count:który|które|których} program "
+        "nie umiał rozstrzygnąć sam — są niżej, oznaczone jako ERROR."
+    ),
+    "refused": (
+        "Plik nie powstał. Program woli nie zapisać nic, niż zapisać książkę, "
+        "o której nie umie powiedzieć, że jest cała — powód jest niżej."
+    ),
+    "fixed": "Naprawiono {count} {count:rzecz|rzeczy|rzeczy}, najwięcej w tym: {where}.",
+    "kept": (
+        "{count} {count:rzecz zostawiono|rzeczy zostawiono|rzeczy zostawiono} celowo — "
+        "przy każdej stoi powód, dla którego zmiana należy do Ciebie, a nie do programu."
+    ),
+    "warnings": "{count} {count:sprawa jest|sprawy są|spraw jest} do obejrzenia.",
+    "notes": "{count} {count:sprawa jest|sprawy są|spraw jest} tylko do wiadomości.",
+    "answered": (
+        "{count} {count:zmiana weszła|zmiany weszły|zmian weszło} na Twoją odpowiedź "
+        "w pytaniach."
+    ),
+    "waiting": (
+        "{count} {count:pytanie czeka|pytania czekają|pytań czeka} na Twoją odpowiedź — "
+        "bez niej nic się przy nich nie zmienia."
+    ),
+}
+_SUMMARY_WORDS_EN = {
+    "heading": "In short",
+    "healthy": "The book is healthy — nothing here needs your attention.",
+    "warned": (
+        "The book is sound, but {count} thing(s) are worth a look — they are below, "
+        "marked WARN."
+    ),
+    "errors": (
+        "The book carries {count} problem(s) the program could not settle on its own — "
+        "they are below, marked ERROR."
+    ),
+    "refused": (
+        "No file was written. The program would rather write nothing than write a book "
+        "it cannot say is whole — the reason is below."
+    ),
+    "fixed": "{count} thing(s) were repaired, most of them in: {where}.",
+    "kept": (
+        "{count} thing(s) were deliberately left alone — each one carries the reason "
+        "why that change is yours to make and not the program's."
+    ),
+    "warnings": "{count} thing(s) are worth a look.",
+    "notes": "{count} thing(s) are there for information only.",
+    "answered": "{count} change(s) went in on your answer to a question.",
+    "waiting": (
+        "{count} question(s) are waiting for your answer — until it comes, nothing "
+        "about them changes."
+    ),
+}
+
 #: Version of the JSON shape written by :meth:`Report.to_dict`. The moment
 #: anything outside this project reads ``--report`` output, that shape is an
 #: interface; stamping it costs one field and means a change can be announced
 #: instead of guessed at.
+#:
+#: **5** — one field added: `in_short`, the summary sentences the text report
+#: opens with (pillar C), so a front end shows the same words rather than
+#: composing its own out of the counts. It is deliberately not called
+#: `summary`: that name has meant the per-level counts since version 1, and
+#: changing what an existing field means breaks a consumer without saying so.
+#: `stats` also gains `questions_unanswered`. Nothing was removed.
 #:
 #: **3** — two fields added: `changes`, the balance sheet of high-risk
 #: transformations (see :class:`Change`), and `change_summary` beside it.
@@ -33,7 +140,7 @@ _ORDER = {Level.ERROR: 0, Level.WARN: 1, Level.PRESERVED: 2, Level.FIX: 3, Level
 #: were added: `description`, the finding in the language asked for, and
 #: `detail_description`, the same for the paragraph beneath it. Nothing was
 #: removed.
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 class Action(str, Enum):
@@ -231,6 +338,86 @@ class Report:
     def count(self, level: Level) -> int:
         return sum(1 for f in self.findings if f.level is level)
 
+    def summary(self, language: str = "en") -> "list[str]":
+        """The report in a few sentences, before the technical account.
+
+        Pillar C of the 0.4 plan, and the owner's own words for what was
+        wrong with the report as it stood: *„dla czytającego to zupa"*.
+        Measured on four books of his shelf — 39, 61, 94 and 122 findings —
+        so what a reader met first was between forty and a hundred and
+        twenty lines of stage names, bracketed level tags and repeated
+        rules, and nowhere in it the one sentence anybody actually opens a
+        report for: **is my book all right**.
+
+        So this answers, in order, the four questions a person has:
+
+        1. is the book healthy, and was it written;
+        2. what was repaired — by area, in words, not by rule name;
+        3. what was left alone deliberately, and that the reason is on the
+           line below in each case;
+        4. what is waiting for an answer, because until it comes nothing
+           about it changes (S-05).
+
+        Nothing here is a new fact. It is the same findings counted, which
+        matters twice over: the summary cannot drift from the account below
+        it, and a reader who distrusts a sentence can go and count.
+        """
+        from . import rules
+
+        stages = _SUMMARY_STAGES_PL if language != "en" else _SUMMARY_STAGES_EN
+        words = _SUMMARY_WORDS_PL if language != "en" else _SUMMARY_WORDS_EN
+
+        def say(key: str, **values) -> str:
+            # The report's own plural machinery, so "4 sprawy" and "5 spraw"
+            # agree here exactly as they do in every finding below.
+            return rules.fill(words[key], values) if values else words[key]
+        errors = self.count(Level.ERROR)
+        warnings = self.count(Level.WARN)
+        fixes = self.count(Level.FIX)
+        kept = self.count(Level.PRESERVED)
+        notes = self.count(Level.INFO)
+
+        if not self.output:
+            verdict = say("refused")
+        elif errors:
+            verdict = say("errors", count=errors)
+        elif warnings:
+            verdict = say("warned", count=warnings)
+        else:
+            verdict = say("healthy")
+        lines = [words["heading"], f"  {verdict}"]
+
+        if fixes:
+            counted: dict[str, int] = {}
+            for finding in self.findings:
+                if finding.level is Level.FIX:
+                    name = stages.get(finding.stage, finding.stage)
+                    counted[name] = counted.get(name, 0) + 1
+            biggest = sorted(counted.items(), key=lambda pair: (-pair[1], pair[0]))[:3]
+            where = ", ".join(f"{name} ({count})" for name, count in biggest)
+            lines.append(f"  {say('fixed', count=fixes, where=where)}")
+        if kept:
+            lines.append(f"  {say('kept', count=kept)}")
+        # Only when the verdict was spent on something worse; otherwise the
+        # first line already said it and a second one is padding.
+        if warnings and errors and self.output:
+            lines.append(f"  {say('warnings', count=warnings)}")
+        if notes:
+            lines.append(f"  {say('notes', count=notes)}")
+
+        asked = sum(
+            1 for change in self.changes if change.automation is Automation.ASKED
+        )
+        if asked:
+            lines.append(f"  {say('answered', count=asked)}")
+        # From the queue's own record (`pipeline` puts it here), never guessed
+        # from the shape of a rule name: telling somebody their book waits on
+        # them when it does not is the same kind of untruth as saying nothing.
+        unanswered = self.stats.get("questions_unanswered") or 0
+        if unanswered:
+            lines.append(f"  {say('waiting', count=unanswered)}")
+        return lines
+
     @property
     def ok(self) -> bool:
         return self.count(Level.ERROR) == 0
@@ -265,6 +452,16 @@ class Report:
             "output": self.output,
             "ok": self.ok,
             "stats": self.stats,
+            # Pillar C. The window and any other front end get the same
+            # sentences the text report opens with, rather than each one
+            # inventing its own summary out of the counts.
+            #
+            # *Not* `summary` — that name is taken, by the per-level counts
+            # below, and has been in the JSON since anything outside this
+            # project could read it. Adding a field is a schema bump; quietly
+            # changing what an existing one means is how a consumer breaks
+            # without a message.
+            "in_short": self.summary(language)[1:],
             "balance": self.balance.as_dict() if self.balance is not None else None,
             "summary": {level.value: self.count(level) for level in Level},
             "findings": findings,
@@ -341,7 +538,12 @@ class Report:
         disappears one finding at a time as the templates are written.
         """
         header = "EPUB-Forge report" if language == "en" else "Raport EPUB F.O.R.G.E."
-        lines = [header, f"  source: {self.source}", f"  output: {self.output}", ""]
+        # Pillar C: the summary stands above the technical account, because a
+        # reader who only reads the first six lines should still learn whether
+        # the book is all right — and on this shelf that account runs from 39
+        # to 122 findings.
+        lines = [header, ""] + self.summary(language)
+        lines += ["", f"  source: {self.source}", f"  output: {self.output}", ""]
         for key, value in self.stats.items():
             lines.append(f"  {key}: {value}")
         lines.append("")
