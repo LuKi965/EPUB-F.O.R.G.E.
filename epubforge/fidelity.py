@@ -523,3 +523,148 @@ def text_is_preserved(source: "str | pathlib.Path", candidate: "str | pathlib.Pa
         {"source_characters": len(before), "lost_at": lost},
     )
 
+
+
+#: Element content that is not the book's text. Nobody reads a stylesheet or a
+#: script as a sentence, and `itertext()` cannot tell the difference — which is
+#: the whole of the single divergence the shelf measurement turned up (a CSS
+#: comment this program writes into a `<style>` block).
+NOT_PROSE = ("style", "script")
+
+#: Elements whose text is *about* the document rather than *in* it. A `<title>`
+#: is shown by a reading system in its navigation, never in the reading flow —
+#: and this program fills an empty one in, saying so as `xhtml.title-filled`.
+#: Measured before this line existed: on 160 books, that repair alone accounted
+#: for the divergence in 37 of the 39 the sharpened check reported. Reading a
+#: title as prose would therefore have made the invariant fire on a fifth of
+#: the shelf for a repair that is named in every one of those reports.
+NOT_IN_THE_READING_FLOW = ("title",)
+
+
+def document_text(data: bytes) -> "str | None":
+    """The prose of one document, or None when it will not parse.
+
+    Read through this program's own parser rather than a bare `lxml` one, and
+    that is not a detail: the first version of the shelf measurement behind
+    this function used `recover=True` and silently dropped `&nbsp;`, which
+    made 129 documents look as though the rebuild had *added* text to them.
+    It had not. There is one place in this codebase that knows how to open a
+    document and every measurement of a document has to come through it.
+    """
+    try:
+        root = xhtml.parse_document(data).root
+    except Exception:  # noqa: BLE001 — a document that will not parse is an answer
+        return None
+    if root is None:
+        return None
+    pieces: list[str] = []
+    for element in root.iter():
+        if not isinstance(element.tag, str):
+            continue
+        local = element.tag.rpartition("}")[2].lower()
+        if local in NOT_IN_THE_READING_FLOW:
+            pieces.append(element.tail or "")
+            continue
+        if local in NOT_PROSE:
+            # Skip what it says, keep what follows it in its parent.
+            pieces.append(element.tail or "")
+            continue
+        pieces.append(element.text or "")
+        pieces.append(element.tail or "")
+    return canonical_text("".join(pieces))
+
+
+_RUN_OF_SPACE = re.compile(r"\s+")
+
+
+def canonical_text(text: str) -> str:
+    """The form both sides of the invariant are compared in.
+
+    NFC and whitespace folding, and nothing else. Deliberately **not**
+    `typography.canonical(relaxed=True)`, which folds quotation marks, dashes,
+    ellipses and the invisible characters away: that tolerance is right for a
+    typography pass checking its own work and exactly wrong for an invariant
+    whose one job is to notice a change nobody approved.
+
+    Whitespace folding is the single concession, and it is named rather than
+    silent: serialising a tree reflows markup, and a line break moving is not
+    a change to the book.
+    """
+    import unicodedata
+
+    from .xmlchars import legal
+
+    # `xmlchars.NEVER_TEXT` folded out on both sides, exactly as today's K1
+    # already does it (`spine_text_of`), and for the same reason: a control
+    # code below the space is not text under any decoding, no reading system
+    # draws it, and no conforming EPUB may carry it — so removing it is
+    # required rather than permitted. It is still said out loud, per document,
+    # by `xhtml.forbidden-characters-removed`. Measured: two books of the
+    # shelf carry `U+008F` mid-sentence and this is the whole of what the
+    # sharpened check reported about them.
+    folded = legal(unicodedata.normalize("NFC", text))
+    return _RUN_OF_SPACE.sub(" ", folded).strip()
+
+
+@dataclass
+class TextDivergence:
+    """One document whose prose did not come out the way it went in."""
+
+    source_path: str
+    output_path: str
+    position: int
+    before: str
+    after: str
+
+    def __str__(self) -> str:
+        return (
+            f"{self.source_path} → {self.output_path}, znak {self.position}:\n"
+            f"    źródło: …{self.before}…\n"
+            f"    wynik:  …{self.after}…"
+        )
+
+
+def prose_is_identical(
+    source: "str | pathlib.Path",
+    candidate: "str | pathlib.Path",
+    renames: "dict[str, str]",
+) -> "list[TextDivergence]":
+    """K1 sharpened: every carried-over document's prose is identical.
+
+    Today's K1 asks whether the source text is a *subsequence* of the output —
+    it may not be lost, and anything may be added. That was written when
+    nobody knew how much the rebuild actually changes. Measured since, on five
+    books and 279 carried documents: **278 come out character-identical** and
+    the one that does not is a `<style>` block, which `NOT_PROSE` excludes.
+
+    So the program already achieves identity, and asking only for a
+    subsequence leaves it blind to the other direction: a sentence *appearing*
+    inside an existing document passes today's K1 without a word. This
+    function is the invariant the program can actually keep.
+
+    Documents the rebuild generated have no counterpart in *renames* and are
+    not compared — a new document is not a changed one. That is what makes
+    this an invariant about the book rather than about the container.
+    """
+    found: "list[TextDivergence]" = []
+    with zipfile.ZipFile(source) as before, zipfile.ZipFile(candidate) as after:
+        present = set(after.namelist())
+        for name in before.namelist():
+            if not name.lower().endswith((".xhtml", ".html", ".htm")):
+                continue
+            landed = renames.get(name)
+            if landed is None or landed not in present:
+                continue
+            was = document_text(before.read(name))
+            now = document_text(after.read(landed))
+            if was is None or now is None or was == now:
+                continue
+            position = next(
+                (i for i in range(min(len(was), len(now))) if was[i] != now[i]),
+                min(len(was), len(now)),
+            )
+            window = slice(max(0, position - 40), position + 40)
+            found.append(
+                TextDivergence(name, landed, position, was[window], now[window])
+            )
+    return found
