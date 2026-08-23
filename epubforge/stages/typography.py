@@ -36,8 +36,25 @@ from __future__ import annotations
 import re
 
 from .. import typography, xhtml
-from ..report import Level
+from ..decisions import KEEP, Option, Question, TEXT
+from ..question_texts import say
+from ..report import Level, Risk
 from .base import Context, Stage
+
+#: The three rules, named once so the question, the answer, the repair and the
+#: report cannot drift apart into four spellings of the same thing.
+ELLIPSIS = "ellipsis"
+CONJUNCTIONS = "conjunctions"
+QUOTES = "quotes"
+
+#: How many places a question shows before it stops showing and starts
+#: counting. Three, because these are one-line excerpts and the question is
+#: about a habit running through a whole book, not about the excerpts.
+SAMPLES = 3
+
+#: The straight quote, as an expression, so the sample finder can treat all
+#: three rules the same way.
+_STRAIGHT = re.compile(r'"')
 
 #: Three dots, and not four or two. A run of four is somebody's own punctuation
 #: and an ellipsis is not longer than itself.
@@ -56,13 +73,31 @@ _CONJUNCTION = re.compile(r"(?<![^\s(„«\"])([aiouwzAIOUWZ]) (?=\w)")
 NBSP = " "
 
 
+#: How much of the sentence a sample carries on each side of what was found.
+AROUND = 34
+
+
+def _around(text: str, expression) -> str:
+    """One short excerpt showing the first place *expression* matches.
+
+    A count says how much; an excerpt says what. Both are needed: "1 174
+    places" is answerable, and "1 174 places, the first of them here" is
+    answerable with confidence.
+    """
+    found = expression.search(text)
+    if found is None:
+        return ""
+    excerpt = text[max(0, found.start() - AROUND): found.end() + AROUND]
+    return " ".join(excerpt.split())
+
+
 class TypographyStage(Stage):
-    """Repairs the text itself, behind a flag, and verifies its own work."""
+    """Repairs the text itself, once asked, and verifies its own work."""
 
     name = "typography"
 
     def run(self, ctx: Context) -> None:
-        if not getattr(ctx.policy, "typography", False):
+        if not getattr(ctx.policy, "detect_typography", True) and not ctx.policy.typography:
             return
         if not ctx.policy.rewrite_content:
             # Container-only mode promises the content files come out byte for
@@ -84,15 +119,24 @@ class TypographyStage(Stage):
             except Exception:  # noqa: BLE001 — the content stage reports this
                 continue
 
-        convention, marks = self._convention(documents)
+        convention, marks, straight = self._convention(documents)
+
+        # Counted before anything is touched, because the question has to say
+        # how much of the book it is about — "1 174 places" is something a
+        # person can answer and "some typography" is not.
+        found = self._survey(documents, language, marks)
+        agreed = self._agree(ctx, found, convention)
+        if not agreed:
+            self._report(ctx, 0, 0, 0, convention, [], found, agreed, straight)
+            return
+
         ellipses = conjunctions = quotes = 0
         reverted: list[str] = []
-
         for resource, root in documents:
             before = "".join(root.itertext())
 
-            found = self._repair(root, language, marks)
-            if not any(found):
+            changed = self._repair(root, language, marks, agreed)
+            if not any(changed):
                 continue
 
             after = "".join(root.itertext())
@@ -104,11 +148,111 @@ class TypographyStage(Stage):
                 continue
 
             resource.data = xhtml.serialize(root)
-            ellipses += found[0]
-            conjunctions += found[1]
-            quotes += found[2]
+            ellipses += changed[0]
+            conjunctions += changed[1]
+            quotes += changed[2]
 
-        self._report(ctx, ellipses, conjunctions, quotes, convention, reverted)
+        self._report(
+            ctx, ellipses, conjunctions, quotes, convention, reverted, found,
+            agreed, straight,
+        )
+
+    def _survey(self, documents, language: str, marks) -> "dict[str, dict]":
+        """How many places each rule would touch, and a few of them to look at.
+
+        Nothing is changed here. This is the half that lets the stage ask before
+        it acts: a rule with no candidates puts no question, and a rule with
+        candidates puts one that names them.
+        """
+        polish = language.startswith("pl")
+        found: dict[str, dict] = {}
+
+        def seen(rule: str, count: int, sample: str) -> None:
+            entry = found.setdefault(rule, {"count": 0, "samples": []})
+            entry["count"] += count
+            if len(entry["samples"]) < SAMPLES and sample:
+                entry["samples"].append(sample)
+
+        for _, root in documents:
+            for element, attribute in typography.text_nodes(
+                root, language=language or None
+            ):
+                text = getattr(element, attribute)
+                if not text:
+                    continue
+                hits = _THREE_DOTS.findall(text)
+                if hits:
+                    seen(ELLIPSIS, len(hits), _around(text, _THREE_DOTS))
+                if polish:
+                    hits = _CONJUNCTION.findall(text)
+                    if hits:
+                        seen(CONJUNCTIONS, len(hits), _around(text, _CONJUNCTION))
+                if marks is not None and '"' in text:
+                    seen(QUOTES, text.count('"'), _around(text, _STRAIGHT))
+        return {rule: entry for rule, entry in found.items() if entry["count"]}
+
+    def _agree(self, ctx: Context, found: dict, convention) -> "set[str]":
+        """Which rules somebody said yes to. Never more than that.
+
+        One question per rule rather than one for "typography", because the
+        three are different in kind: an ellipsis typed as three dots is nobody's
+        style, binding a single-letter conjunction is a Polish convention, and
+        retyping a straight quote is repairing this book's inconsistency with
+        itself. Somebody can want one and not another, and a single question
+        would make that impossible to say.
+
+        The policy flag is a standing yes given in advance — the same shape the
+        mojibake repair uses — and not a fourth way of changing text unasked.
+        """
+        agreed = set()
+        for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES):
+            entry = found.get(rule)
+            if not entry:
+                continue
+            if ctx.policy.typography:
+                agreed.add(rule)
+                continue
+            answer = ctx.decide(self._question(rule, entry, convention))
+            if answer.option == "repair":
+                agreed.add(rule)
+        return agreed
+
+    def _question(self, rule: str, entry: dict, convention) -> Question:
+        shown = "\n".join(f"…{sample}…" for sample in entry["samples"])
+        count = entry["count"]
+        return Question(
+            kind=TEXT,
+            where="",
+            summary=say(f"typography.{rule}.summary", count=count),
+            detail=say(
+                f"typography.{rule}.detail",
+                count=count,
+                shown=shown,
+                convention=say(f"typography.convention.{convention}")
+                if convention
+                else "",
+            ),
+            options=(
+                Option(
+                    KEEP,
+                    say(f"typography.{rule}.keep"),
+                    say(f"typography.{rule}.keep.why"),
+                ),
+                Option(
+                    "repair",
+                    say(f"typography.{rule}.repair"),
+                    say(f"typography.{rule}.repair.why", count=count),
+                ),
+            ),
+            # An opinion, and the queue never acts on one by itself.
+            recommended="repair",
+            # The old shape is gone from the output; nothing in the result says
+            # what stood there before.
+            reversible=False,
+            risk=Risk.CONTENT,
+            group=f"typography:{rule}",
+            subject=f"{rule}:{count}",
+        )
 
     def _convention(self, documents):
         """The book's own quoting convention, over the whole book.
@@ -123,23 +267,47 @@ class TypographyStage(Stage):
         in `„…”` came back with fourteen straight quotes it did not have, no
         convention reached two thirds, and the rule declined to fire on the book
         it was written for.
+
+        **Counted over the prose, and `itertext` is not the prose.** The
+        paragraph above records the first half of this lesson — reading the
+        serialised document counts attribute delimiters as quotes — and the
+        second half was still here afterwards: `itertext` yields the contents of
+        `<style>` and `<script>` too, and a stylesheet is full of straight
+        quotes. Measured on 160 books: **twelve get a different answer** once
+        those are excluded. Nine that read as "straight" turn out to have no
+        settled convention at all (the straight quotes were CSS), and three
+        change to a real convention — including one the rule had been declining
+        to serve. Both directions are wrong the same way: a convention read out
+        of a stylesheet is not the book's.
+
+        So the count walks the same nodes the repair walks. That is the point:
+        the evidence and the edit have to be about the same text.
         """
         counts: dict[str, int] = {}
         for _, root in documents:
-            for shape, count in typography.count_quotes("".join(root.itertext())).items():
+            prose = "".join(
+                getattr(element, attribute) or ""
+                for element, attribute in typography.text_nodes(root)
+            )
+            for shape, count in typography.count_quotes(prose).items():
                 counts[shape] = counts.get(shape, 0) + count
         name = typography.convention(counts)
+        straight = counts.get("straight", 0)
         if name is None or name == "straight":
             # "straight" is a settled convention and retyping it into itself is
             # not a repair; it is also what a book that simply never used curly
             # marks looks like, and that book has not made a mistake.
-            return name, None
-        return name, typography.marks_for(name)
+            return name, None, straight
+        return name, typography.marks_for(name), straight
 
-    def _repair(self, root, language: str, marks) -> tuple[int, int, int]:
-        """Apply the rules to every editable text node. Returns what changed."""
+    def _repair(self, root, language: str, marks, agreed) -> tuple[int, int, int]:
+        """Apply the agreed rules to every editable text node.
+
+        *agreed* is the set somebody said yes to, and a rule outside it does not
+        run at all — not "runs and is discarded". Returns what changed.
+        """
         ellipses = conjunctions = quotes = 0
-        polish = language.startswith("pl")
+        polish = language.startswith("pl") and CONJUNCTIONS in agreed
         # Per document, not per book: an unbalanced quote in one chapter must
         # not invert every quotation in the next one.
         inside = False
@@ -147,8 +315,10 @@ class TypographyStage(Stage):
             text = getattr(element, attribute)
             if not text:
                 continue
-            repaired, count = _THREE_DOTS.subn("…", text)
-            ellipses += count
+            repaired = text
+            if ELLIPSIS in agreed:
+                repaired, count = _THREE_DOTS.subn("…", repaired)
+                ellipses += count
             if polish:
                 # Polish typographic convention, gated on the language the
                 # *metadata stage settled* — which is the declared one unless
@@ -159,7 +329,7 @@ class TypographyStage(Stage):
                 # be skipped by the rule written for them.
                 repaired, count = _CONJUNCTION.subn(rf"\1{NBSP}", repaired)
                 conjunctions += count
-            if marks is not None:
+            if marks is not None and QUOTES in agreed:
                 repaired, count, inside = typography.retype_quotes(
                     repaired, marks[0], marks[1], inside=inside
                 )
@@ -176,7 +346,31 @@ class TypographyStage(Stage):
         quotes: int,
         convention: str | None,
         reverted: list[str],
+        found: dict,
+        agreed: set,
+        straight: int,
     ) -> None:
+        # What was found and not agreed to. Said first, because a rule that
+        # declined to act has to say what it declined to act on — otherwise a
+        # book with a thousand candidates and a book with none produce the same
+        # silent report (S-05 leaves the book alone; it does not leave the
+        # reader uninformed).
+        for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES):
+            entry = found.get(rule)
+            if not entry or rule in agreed:
+                continue
+            # Spelled out three times rather than built from `rule`. A computed
+            # identifier is invisible to every tool that reads this source —
+            # the catalogue check, the translation check, the survey that says
+            # which stage reports what — and the project keeps that invariant
+            # as a test. Three literals is the price and it is worth paying.
+            count = {"count": entry["count"]}
+            if rule == ELLIPSIS:
+                self.note(ctx, Level.PRESERVED, "typography.ellipsis-left-alone", values=count)
+            elif rule == CONJUNCTIONS:
+                self.note(ctx, Level.PRESERVED, "typography.conjunctions-left-alone", values=count)
+            else:
+                self.note(ctx, Level.PRESERVED, "typography.quotes-left-alone", values=count)
         if ellipses:
             self.note(
                 ctx, Level.FIX, "typography.ellipsis-normalised", values={"count": ellipses}
@@ -195,10 +389,17 @@ class TypographyStage(Stage):
                 "typography.quotes-retyped",
                 values={"count": quotes, "convention": convention},
             )
-        elif convention is None:
+        elif convention is None and straight:
             # Said out loud rather than skipped in silence: "this book has not
             # settled on a convention" is a fact about the book, and a rule that
             # declines to fire should say why it declined.
+            #
+            # **Only when there was something to decline.** Since filar E the
+            # stage looks at every book instead of only the ones somebody
+            # switched it on for, and without this second condition every book
+            # with no straight quotes at all — most of them — would carry a line
+            # explaining why a rule with no work did not do it. A report that
+            # says something about every book says nothing.
             self.note(ctx, Level.INFO, "typography.quotes-unsettled")
         if reverted:
             # A warning rather than an error: the book is intact, which is what

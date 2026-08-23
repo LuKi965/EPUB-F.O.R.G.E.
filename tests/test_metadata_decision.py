@@ -197,6 +197,12 @@ class TestAllThreeClassesShareOneApi:
             # judgement — the publisher's own `=`-for-`:` declaration,
             # enabled or removed only at a person's word.
             decisions.STYLE,
+            # The seventh, with filar E: a typographic habit running through
+            # the whole book. Its own kind because nothing here is broken and
+            # nothing is lost either way — what is being asked is whether the
+            # reader wants this book's typography tidied at all, which is
+            # taste, and taste should not hide among defects in the tally.
+            decisions.TEXT,
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):

@@ -193,8 +193,14 @@ class TestAnsweringChangesTheWord:
             tmp_path,
             asker,
         )
-        assert len(asker.asked) == 1
-        assert "obo-jętna" in asker.asked[0].summary
+        # Counted within the hyphen family rather than over the whole queue.
+        # The claim is "only the evidenced hyphens are put to anybody", not
+        # "this program asks exactly one question about anything" — and since
+        # filar E the typography rules put their own, about the same Polish
+        # paragraph.
+        hyphens = [q for q in asker.asked if q.group.startswith("hyphen")]
+        assert len(hyphens) == 1, [q.summary for q in asker.asked]
+        assert "obo-jętna" in hyphens[0].summary
 
 
 class TestTheTextIsCheckedAfterwards:
@@ -231,13 +237,14 @@ class TestAnswersSurviveToTheNextRebuild:
         source = book(tmp_path / "in.epub", DAMAGED)
         asker = Joins()
         result = rebuild_with(source, tmp_path, asker)
-        assert len(asker.asked) == 1
+        hyphens = [q for q in asker.asked if q.group.startswith("hyphen")]
+        assert len(hyphens) == 1
         assert result.status.wrote_a_file
 
         # The pipeline does not write the store itself — the front end does,
         # once the person has finished. Simulated here.
         queue = decisions.Queue()
-        queue.given = [(asker.asked[0], Answer(option="join"))]
+        queue.given = [(hyphens[0], Answer(option="join"))]
         queue.save(decisions.answers_path(source), source=source)
 
         class Never:
@@ -474,7 +481,11 @@ class TestTheClassesWithoutEvidence:
             Policy.preset("preserve"),
             asker=asker,
         )
-        asked = sorted(question.summary for question in asker.asked)
+        asked = sorted(
+            question.summary
+            for question in asker.asked
+            if question.group.startswith("hyphen")
+        )
         assert len(asked) == 2, asked
         assert any("obo-jętna" in summary for summary in asked)
         assert any("bia-ły" in summary for summary in asked)

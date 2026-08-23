@@ -670,10 +670,26 @@ PL: dict[str, str] = {
         "Książka ze skryptem albo z selektorami atrybutów w CSS nie jest "
         "ruszana — tam nazwa może żyć poza zasięgiem tej zamiany."
     ),
+    "policy.detect.typography": "Szukaj usterek typograficznych i pytaj",
+    "policy.detect.typography.tip": (
+        "Samo **szukanie**. Program liczy, ile razy w książce stoją trzy kropki "
+        "zamiast wielokropka, ile jednoliterowych spójników może zostać na "
+        "końcu wiersza i ile prostych cudzysłowów wpadło do książki, która poza "
+        "tym trzyma się jednej formy — i pyta o każdą z tych rzeczy osobno, raz "
+        "na książkę.\n\n"
+        "Nic nie zmienia się bez twojej odpowiedzi. Bez odpowiedzi tekst "
+        "zostaje dokładnie taki, jaki był, a raport i tak mówi, ile tego jest.\n\n"
+        "Zmierzone na 160 książkach: trzy kropki w 88 z nich (43 746 miejsc), "
+        "spójniki w 141, proste cudzysłowy przy ustalonej konwencji w 11."
+    ),
     "policy.typography": "Popraw typografię tekstu",
     "policy.typography.tip": (
         "Jedyne miejsce, w którym narzędzie zmienia sam tekst, a nie znaczniki "
         "wokół niego. Dlatego jest wyłączone i nie włącza go żaden tryb.\n\n"
+        "Ten przełącznik to **zgoda z góry**: odpowiada „tak” na wszystkie trzy "
+        "pytania typograficzne, zanim padną. Do partii bez nikogo przy oknie. "
+        "Jeżeli chcesz je zobaczyć i wybrać, zostaw to odznaczone, a zaznaczone "
+        "trzymaj szukanie wyżej.\n\n"
         "Trzy kropki stają się wielokropkiem, a w książkach polskich "
         "jednoliterowe spójniki (a i o u w z) dostają twardą spację, żeby nie "
         "zostawały na końcu wiersza.\n\n"
@@ -1617,10 +1633,26 @@ EN: dict[str, str] = {
         "A book carrying a script, or CSS with attribute selectors, is left "
         "alone — there a name can live beyond this rename's reach."
     ),
+    "policy.detect.typography": "Look for typographic faults and ask",
+    "policy.detect.typography.tip": (
+        "**Looking** only. The program counts how many places in the book type "
+        "three dots where an ellipsis belongs, how many single-letter "
+        "conjunctions can be left at the end of a line, and how many straight "
+        "quotes got into a book that otherwise keeps to one form — and asks "
+        "about each of those separately, once per book.\n\n"
+        "Nothing changes without your answer. With no answer the text stays "
+        "exactly as it was, and the report still says how much there is.\n\n"
+        "Measured on 160 books: three dots in 88 of them (43 746 places), "
+        "conjunctions in 141, straight quotes against a settled convention in 11."
+    ),
     "policy.typography": "Repair the text's typography",
     "policy.typography.tip": (
         "The only place this tool changes the text itself rather than the markup "
         "around it. That is why it is off, and why no mode turns it on.\n\n"
+        "This tick is **consent in advance**: it answers yes to all three "
+        "typography questions before they are put. For a batch with nobody at "
+        "the window. To see them and choose, leave this unticked and keep the "
+        "looking switch above it ticked.\n\n"
         "Three dots become an ellipsis, and in Polish books single-letter "
         "conjunctions (a i o u w z) get a hard space so they do not end a line."
         "\n\nAfter each document it checks its own work: if it cannot show it "

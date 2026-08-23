@@ -37,9 +37,9 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 16,
+      "info": 17,
       "fix": 8,
-      "preserved": 3,
+      "preserved": 5,
       "warn": 2
     },
     "rules": {
@@ -65,6 +65,9 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "structure.role-named": 1,
+      "typography.conjunctions-left-alone": 1,
+      "typography.ellipsis-left-alone": 1,
+      "typography.quotes-unsettled": 1,
       "xhtml.document-language-kept": 1,
       "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-kept": 1,
@@ -80,9 +83,9 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 13,
+      "info": 14,
       "fix": 11,
-      "preserved": 3,
+      "preserved": 5,
       "warn": 2
     },
     "rules": {
@@ -108,6 +111,9 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "structure.role-named": 1,
+      "typography.conjunctions-left-alone": 1,
+      "typography.ellipsis-left-alone": 1,
+      "typography.quotes-unsettled": 1,
       "xhtml.document-language-kept": 1,
       "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-kept": 1,

@@ -154,10 +154,15 @@ class TestTheCheckIsTheWholePoint:
     def test_a_rule_that_eats_text_reverts_the_document(self, tmp_path, monkeypatch):
         """The failure this stage exists to make impossible: a rule that loses
         a word. The document has to come back exactly as it arrived, and the
-        report has to say so."""
+        report has to say so.
+
+        The sentence carries three dots so that the pass has a reason to run at
+        all: since filar E each rule is asked about and a rule with no
+        candidates never reaches the document. That is the honest shape of this
+        test — the guard is exercised on a pass that was actually invited in."""
         from epubforge.stages import typography as stage
 
-        def eats(root, language, marks):
+        def eats(root, language, marks, agreed):
             for element, attribute in stage.typography.text_nodes(root):
                 text = getattr(element, attribute)
                 if text and "zniknie" in text:
@@ -166,14 +171,14 @@ class TestTheCheckIsTheWholePoint:
             return (0, 0, 0)
 
         monkeypatch.setattr(stage.TypographyStage, "_repair", staticmethod(eats))
-        result, html = forge(tmp_path, "<p>To slowo zniknie stad.</p>", name="k")
+        result, html = forge(tmp_path, "<p>To slowo zniknie stad... i tyle.</p>", name="k")
         assert "zniknie" in html
         assert "typography.reverted" in {f.rule for f in result.report.findings}
 
     def test_the_revert_is_a_warning_not_a_silent_no_op(self, tmp_path, monkeypatch):
         from epubforge.stages import typography as stage
 
-        def eats(root, language, marks):
+        def eats(root, language, marks, agreed):
             for element, attribute in stage.typography.text_nodes(root):
                 text = getattr(element, attribute)
                 if text and text.strip():
@@ -182,7 +187,7 @@ class TestTheCheckIsTheWholePoint:
             return (0, 0, 0)
 
         monkeypatch.setattr(stage.TypographyStage, "_repair", staticmethod(eats))
-        result, _ = forge(tmp_path, "<p>Zdanie ktore straci ogon.</p>", name="l")
+        result, _ = forge(tmp_path, "<p>Zdanie ktore straci ogon... i juz.</p>", name="l")
         found = [f for f in result.report.findings if f.rule == "typography.reverted"]
         assert found and found[0].level is Level.WARN
 
@@ -242,3 +247,257 @@ class TestTheQuotes:
         body = "<p>«Tak» rzekl.</p>" * 12 + '<p>Potem "nie".</p>'
         _, html = forge(tmp_path, body, name="q6")
         assert "«nie»" in html
+
+
+# ---------------------------------------------------------------------------
+# Filar E: the pass asks instead of being switched on, and counts the prose
+# rather than the stylesheet.
+# ---------------------------------------------------------------------------
+
+
+class Answering:
+    """Answers every typography question the same way, and remembers them."""
+
+    def __init__(self, option: str = "repair"):
+        self.option = option
+        self.asked: list = []
+
+    def ask(self, question):
+        self.asked.append(question)
+        from epubforge.decisions import Answer
+
+        return Answer(option=self.option, apply_to_group=True)
+
+
+def ask_about(tmp_path, body, *, option="repair", language="pl", name="ask", **policy):
+    """Rebuild with somebody at the window and the flag *off*."""
+    source = book(tmp_path, language, body, name=f"{name}-in.epub")
+    answering = Answering(option)
+    result = rebuild(
+        source,
+        str(tmp_path / f"{name}.epub"),
+        Policy.preset("preserve", typography=False, **policy),
+        resolver=answering,
+    )
+    assert result.output_path, result.report.to_text()
+    with zipfile.ZipFile(result.output_path) as archive:
+        path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+        return result, archive.read(path).decode(), answering
+
+
+def ours(answering) -> list:
+    return [q for q in answering.asked if q.group.startswith("typography:")]
+
+
+class TestItAsksInsteadOfBeingSwitchedOn:
+    """The plan's word for filar E was *wyłącznie trybem pytań*, and until now
+    the pass had no way of being asked — only of being switched on. A feature
+    reachable by one tick that no preset sets and that changes text without
+    a word is, in practice, a feature nobody uses and nobody consented to."""
+
+    def test_three_dots_are_asked_about_and_repaired_on_a_yes(self, tmp_path):
+        result, html, answering = ask_about(
+            tmp_path, "<p>Czekaj... juz ide.</p>", name="r1"
+        )
+        assert [q.group for q in ours(answering)] == ["typography:ellipsis"]
+        assert "Czekaj… juz ide." in html
+
+    def test_a_no_leaves_every_character_alone(self, tmp_path):
+        result, html, answering = ask_about(
+            tmp_path, "<p>Czekaj... juz ide.</p>", option="keep", name="r2"
+        )
+        assert ours(answering)
+        assert "Czekaj... juz ide." in html
+        assert "typography.ellipsis-normalised" not in {
+            f.rule for f in result.report.findings
+        }
+
+    def test_a_no_is_still_reported(self, tmp_path):
+        """S-05 leaves the book alone; it does not leave the reader
+        uninformed. A book with a thousand candidates and a book with none
+        must not produce the same silent report."""
+        result, _, _ = ask_about(
+            tmp_path, "<p>A... b... c...</p>", option="keep", name="r3"
+        )
+        found = [
+            f for f in result.report.findings
+            if f.rule == "typography.ellipsis-left-alone"
+        ]
+        assert found and found[0].values["count"] == 3
+        assert found[0].level is Level.PRESERVED
+
+    def test_nobody_answering_changes_nothing(self, tmp_path):
+        source = book(tmp_path, "pl", "<p>Czekaj... juz ide.</p>", name="r4-in.epub")
+        result = rebuild(
+            source, str(tmp_path / "r4.epub"), Policy.preset("preserve", typography=False)
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+            assert "Czekaj..." in archive.read(path).decode()
+
+    def test_the_flag_is_a_standing_yes_and_asks_nothing(self, tmp_path):
+        """Kept for a batch with nobody at the window — the same shape the
+        mojibake repair uses, and the reason the old behaviour is not lost."""
+        source = book(tmp_path, "pl", "<p>Czekaj... juz ide.</p>", name="r5-in.epub")
+        answering = Answering("keep")
+        result = rebuild(
+            source,
+            str(tmp_path / "r5.epub"),
+            Policy.preset("preserve", typography=True),
+            resolver=answering,
+        )
+        assert not ours(answering)
+        with zipfile.ZipFile(result.output_path) as archive:
+            path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+            assert "Czekaj…" in archive.read(path).decode()
+
+    def test_switching_the_detector_off_asks_nothing(self, tmp_path):
+        _, html, answering = ask_about(
+            tmp_path, "<p>Czekaj... juz ide.</p>", name="r6", detect_typography=False
+        )
+        assert not ours(answering)
+        assert "Czekaj..." in html
+
+
+class TestOneQuestionPerRule:
+    """Three rules, three questions. Somebody can want the ellipsis and not
+    the non-breaking spaces, and one question would make that impossible to
+    say."""
+
+    BOOK = "<p>„Tak” rzekl w lesie...</p>" * 12 + '<p>Potem "nie" i tyle.</p>'
+
+    def test_each_rule_puts_its_own(self, tmp_path):
+        _, _, answering = ask_about(tmp_path, self.BOOK, name="s1")
+        assert {q.group for q in ours(answering)} == {
+            "typography:ellipsis",
+            "typography:conjunctions",
+            "typography:quotes",
+        }
+
+    def test_a_rule_with_nothing_to_do_puts_none(self, tmp_path):
+        _, _, answering = ask_about(
+            tmp_path, "<p>Zdanie zupelnie zwyczajne.</p>", name="s2"
+        )
+        assert not ours(answering)
+
+    def test_the_question_says_how_many_and_shows_some(self, tmp_path):
+        """A count says how much; an excerpt says what. Both are needed to
+        answer with any confidence."""
+        _, _, answering = ask_about(tmp_path, "<p>A... b... c...</p>", name="s3")
+        question = next(q for q in ours(answering) if q.group == "typography:ellipsis")
+        assert "3" in question.summary
+        assert "A… b… c…" not in question.detail, "the excerpt must show the source"
+        assert "A... b..." in question.detail
+
+    def test_answering_one_does_not_answer_another(self, tmp_path):
+        """The whole reason for three questions rather than one."""
+
+        class OnlyDots(Answering):
+            def ask(self, question):
+                self.asked.append(question)
+                from epubforge.decisions import Answer
+
+                return Answer(
+                    option="repair" if question.group == "typography:ellipsis" else "keep",
+                    apply_to_group=True,
+                )
+
+        source = book(tmp_path, "pl", "<p>Poszedl w las i zniknal...</p>", name="s4-in.epub")
+        answering = OnlyDots()
+        result = rebuild(
+            source,
+            str(tmp_path / "s4.epub"),
+            Policy.preset("preserve", typography=False),
+            resolver=answering,
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+            html = archive.read(path).decode()
+        assert "zniknal…" in html, "the answered rule did not run"
+        assert " " not in html, "the declined rule ran anyway"
+
+    def test_and_the_same_the_other_way_round(self, tmp_path):
+        """The mirror case, and it is here because its absence was a dead
+        tooth. With only one rule in play a "no" makes the agreed set empty and
+        the pass never reaches the document at all — so the guard *inside* the
+        repair was never exercised, and a version that always normalised the
+        ellipsis passed every test in this file. It has to be a book where one
+        rule is agreed to and another refused."""
+
+        class OnlySpaces(Answering):
+            def ask(self, question):
+                self.asked.append(question)
+                from epubforge.decisions import Answer
+
+                return Answer(
+                    option="keep" if question.group == "typography:ellipsis" else "repair",
+                    apply_to_group=True,
+                )
+
+        source = book(tmp_path, "pl", "<p>Poszedl w las i zniknal...</p>", name="s5-in.epub")
+        answering = OnlySpaces()
+        result = rebuild(
+            source,
+            str(tmp_path / "s5.epub"),
+            Policy.preset("preserve", typography=False),
+            resolver=answering,
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+            html = archive.read(path).decode()
+        assert " " in html, "the answered rule did not run"
+        assert "zniknal..." in html, "the declined rule ran anyway"
+
+    def test_a_declined_quote_rule_leaves_the_stray_mark(self, tmp_path):
+        """Third rule, same guard, and it needed its own case for the same
+        reason as the one above: the quote rule is the only one that also needs
+        a settled convention, so it is the only one whose guard can hide behind
+        that condition."""
+
+        class NotTheQuotes(Answering):
+            def ask(self, question):
+                self.asked.append(question)
+                from epubforge.decisions import Answer
+
+                return Answer(
+                    option="keep" if question.group == "typography:quotes" else "repair",
+                    apply_to_group=True,
+                )
+
+        body = "<p>\u201eTak\u201d rzekl.</p>" * 12 + '<p>Potem "nie", czekaj...</p>'
+        source = book(tmp_path, "pl", body, name="s6-in.epub")
+        answering = NotTheQuotes()
+        result = rebuild(
+            source,
+            str(tmp_path / "s6.epub"),
+            Policy.preset("preserve", typography=False),
+            resolver=answering,
+        )
+        with zipfile.ZipFile(result.output_path) as archive:
+            path = next(n for n in archive.namelist() if n.endswith("doc.xhtml"))
+            html = archive.read(path).decode()
+        assert "czekaj\u2026" in html, "the answered rule did not run"
+        assert '"nie"' in html, "the declined rule ran anyway"
+
+
+class TestTheConventionIsReadFromTheProseOnly:
+    """Measured on 160 books: twelve get a different answer once `<style>` and
+    `<script>` are excluded — nine that read as "straight" have no settled
+    convention at all, and three change to a real one. A stylesheet is full of
+    straight quotes, and a convention read out of one is not the book's."""
+
+    def test_a_stylesheet_cannot_make_a_book_look_straight(self, tmp_path):
+        css = "".join(
+            'p.k%d:before{content:"x";font-family:"Serif"}' % n for n in range(40)
+        )
+        body = f"<style>{css}</style>" + "<p>„Tak” rzekl.</p>" * 12 + '<p>Potem "nie".</p>'
+        _, html, _ = ask_about(tmp_path, body, name="t1")
+        # With the CSS counted the book reads as "straight" and nothing is
+        # retyped; counted over the prose it is Polish and the stray mark goes.
+        assert "„nie”" in html
+
+    def test_the_stylesheet_itself_is_never_retyped(self, tmp_path):
+        css = 'p:before{content:"x"}'
+        body = f"<style>{css}</style>" + "<p>„Tak” rzekl.</p>" * 12 + '<p>Potem "nie".</p>'
+        _, html, _ = ask_about(tmp_path, body, name="t2")
+        assert 'content:"x"' in html.replace(" ", "")

@@ -675,6 +675,13 @@ class MainWindow(QMainWindow):
         self.relative_units_check = self._checkbox(
             layout, "policy.relative.units", checked=False
         )
+        # Filar E. Two ticks rather than one, and the split is the point: the
+        # first only *looks* and asks, the second answers all three questions
+        # yes in advance. Before this, the pass was reachable only by the
+        # second, so a person who wanted to be asked had no way to be.
+        self.detect_typography_check = self._checkbox(
+            layout, "policy.detect.typography", checked=True
+        )
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
 
         layout = card("policy.section.store")
@@ -1061,6 +1068,7 @@ class MainWindow(QMainWindow):
             policy.link_footnotes = self.footnotes_check.isChecked()
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()
+            policy.detect_typography = self.detect_typography_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()

@@ -73,7 +73,15 @@ ENCODING = "encoding"
 #: (The kind existed once before, for the typo question D-030 removed;
 #: the name returns because the judgement is again about one CSS rule.)
 STYLE = "style"
-KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE)
+#: A typographic habit running through the whole book — three dots typed where
+#: an ellipsis belongs, a single-letter conjunction left to fall off the end of
+#: a line, a straight quote in a book set in curly ones. Its own kind rather
+#: than an `ENCODING`, because the judgement is different again: nothing here is
+#: broken and nothing is lost either way, and what is being asked is whether the
+#: reader wants this book's typography tidied at all. That is taste, and the
+#: per-kind tally should not let taste hide among defects.
+TEXT = "text"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE, TEXT)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that

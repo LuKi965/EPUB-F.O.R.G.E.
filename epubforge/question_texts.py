@@ -345,6 +345,72 @@ TEXTS_PL: dict[str, str] = {
         "{count} słów odzyska właściwą literę. To zmiana treści; z samego "
         "wyniku nie da się jej cofnąć"
     ),
+    "typography.convention.polish": "„…”",
+    "typography.convention.english": "“…”",
+    "typography.convention.german": "„…“",
+    "typography.convention.french": "«…»",
+    "typography.convention.straight": "\"…\"",
+    "typography.ellipsis.summary": (
+        "{count} razy w tej książce stoją trzy kropki tam, gdzie należy się wielokropek"
+    ),
+    "typography.ellipsis.detail": (
+        "Trzy kropki z klawiatury to trzy znaki; wielokropek to jeden i czytnik "
+        "traktuje go inaczej przy łamaniu wiersza — trzy kropki potrafią zostać "
+        "rozdzielone końcem linii.\n\n{shown}\n\n"
+        "Zamiana idzie tylko tam, gdzie kropki są dokładnie trzy. Cztery to "
+        "czyjaś własna interpunkcja i zostają nietknięte."
+    ),
+    "typography.ellipsis.keep": "Zostaw trzy kropki",
+    "typography.ellipsis.keep.why": (
+        "Tekst nie zmieni się o żaden znak; kropki zostaną tak, jak je zapisano"
+    ),
+    "typography.ellipsis.repair": "Zamień na wielokropek",
+    "typography.ellipsis.repair.why": (
+        "{count} miejsc dostanie jeden znak zamiast trzech. To zmiana treści; "
+        "z samego wyniku nie da się jej cofnąć"
+    ),
+    "typography.conjunctions.summary": (
+        "{count} razy jednoliterowy spójnik może zostać na końcu wiersza"
+    ),
+    "typography.conjunctions.detail": (
+        "Polska konwencja składu nie zostawia „i”, „w”, „z”, „a” na końcu "
+        "linijki. Twarda spacja przykleja spójnik do następnego słowa, więc "
+        "przechodzą razem.\n\n{shown}\n\n"
+        "Zmienia się tylko rodzaj spacji — żadna litera nie znika ani nie "
+        "dochodzi. Reguła rusza wyłącznie literę stojącą samodzielnie."
+    ),
+    "typography.conjunctions.keep": "Zostaw zwykłe spacje",
+    "typography.conjunctions.keep.why": (
+        "Tekst nie zmieni się o żaden znak; spójniki dalej będą mogły zostawać "
+        "na końcu wiersza"
+    ),
+    "typography.conjunctions.repair": "Przyklej spójniki do następnego słowa",
+    "typography.conjunctions.repair.why": (
+        "{count} spacji zamieni się w twarde. Wygląd akapitów się zmieni — "
+        "wiersze będą łamane w innych miejscach"
+    ),
+    "typography.quotes.summary": (
+        "{count} prostych cudzysłowów w książce, która poza tym trzyma się jednej formy"
+    ),
+    "typography.quotes.detail": (
+        "Ta książka używa cudzysłowów {convention} i tylko w tych miejscach "
+        "wpadł prosty znak z klawiatury — czyli to niekonsekwencja wewnątrz "
+        "książki, a nie jej styl.\n\n{shown}\n\n"
+        "Zamiana idzie **do formy tej książki**, nigdy do „poprawnej "
+        "typograficznie”: książka złożona w innej konwencji podjęła decyzję i "
+        "nie jest naszą rzeczą jej zmieniać. Który koniec pary to jest, wynika "
+        "z kolejności w dokumencie, a nie z sąsiednich znaków."
+    ),
+    "typography.quotes.keep": "Zostaw proste cudzysłowy",
+    "typography.quotes.keep.why": (
+        "Tekst nie zmieni się o żaden znak; książka zostanie niekonsekwentna "
+        "tak, jak jest"
+    ),
+    "typography.quotes.repair": "Ujednolić do formy tej książki",
+    "typography.quotes.repair.why": (
+        "{count} prostych znaków zamieni się w cudzysłowy tej książki. To "
+        "zmiana treści; z samego wyniku nie da się jej cofnąć"
+    ),
 }
 
 TEXTS_EN: dict[str, str] = {
@@ -630,6 +696,73 @@ TEXTS_EN: dict[str, str] = {
     "substitution.repair.why": (
         "{count} words get their letter back. This changes the text and cannot "
         "be undone from the output alone"
+    ),
+    "typography.convention.polish": "„…”",
+    "typography.convention.english": "“…”",
+    "typography.convention.german": "„…“",
+    "typography.convention.french": "«…»",
+    "typography.convention.straight": "\"…\"",
+    "typography.ellipsis.summary": (
+        "{count} places in this book type three dots where an ellipsis belongs"
+    ),
+    "typography.ellipsis.detail": (
+        "Three dots from a keyboard are three characters; an ellipsis is one, "
+        "and a reading system treats it differently when breaking a line — "
+        "three dots can end up split across it.\n\n{shown}\n\n"
+        "Only runs of exactly three are replaced. Four dots are somebody's own "
+        "punctuation and are left alone."
+    ),
+    "typography.ellipsis.keep": "Leave the three dots",
+    "typography.ellipsis.keep.why": (
+        "Not one character of the text changes; the dots stay as they were typed"
+    ),
+    "typography.ellipsis.repair": "Replace with an ellipsis",
+    "typography.ellipsis.repair.why": (
+        "{count} places get one character instead of three. This changes the "
+        "text and cannot be undone from the output alone"
+    ),
+    "typography.conjunctions.summary": (
+        "{count} places where a single-letter conjunction can be left at the end of a line"
+    ),
+    "typography.conjunctions.detail": (
+        "Polish typesetting does not leave „i”, „w”, „z”, „a” at the end of a "
+        "line. A non-breaking space binds the conjunction to the word after it, "
+        "so the two move together.\n\n{shown}\n\n"
+        "Only the kind of space changes — no letter goes and none arrives. The "
+        "rule touches a letter only where it stands on its own."
+    ),
+    "typography.conjunctions.keep": "Leave ordinary spaces",
+    "typography.conjunctions.keep.why": (
+        "Not one character of the text changes; conjunctions can still be left "
+        "at the end of a line"
+    ),
+    "typography.conjunctions.repair": "Bind conjunctions to the next word",
+    "typography.conjunctions.repair.why": (
+        "{count} spaces become non-breaking. Paragraphs will look different — "
+        "lines will break in other places"
+    ),
+    "typography.quotes.summary": (
+        "{count} straight quotes in a book that otherwise keeps to one form"
+    ),
+    "typography.quotes.detail": (
+        "This book quotes with {convention}, and only in these places did a "
+        "straight keyboard mark get in — so this is the book being inconsistent "
+        "with itself rather than its style.\n\n{shown}\n\n"
+        "They are retyped into **this book's** form, never into the "
+        "typographically correct one: a book set in another convention has made "
+        "a decision, and changing it is not ours to make. Which end of a pair a "
+        "mark is comes from its place in the document, not from its "
+        "neighbours."
+    ),
+    "typography.quotes.keep": "Leave the straight quotes",
+    "typography.quotes.keep.why": (
+        "Not one character of the text changes; the book stays as inconsistent "
+        "as it is"
+    ),
+    "typography.quotes.repair": "Make them match this book",
+    "typography.quotes.repair.why": (
+        "{count} straight marks become this book's quotation marks. This "
+        "changes the text and cannot be undone from the output alone"
     ),
 }
 

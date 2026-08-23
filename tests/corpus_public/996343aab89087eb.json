@@ -26,7 +26,8 @@
     "written": true,
     "report": {
       "info": 4,
-      "fix": 2
+      "fix": 2,
+      "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -34,7 +35,8 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "profile.body-text-found": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "typography.conjunctions-left-alone": 1
     },
     "output": "sha256:6e7fc3a9f77b5a7a4e446fa99ba23b7ba5c4e09b9c08f8011617ce16077a36f8",
     "text_characters": 246899,
@@ -46,7 +48,8 @@
     "written": true,
     "report": {
       "info": 4,
-      "fix": 2
+      "fix": 2,
+      "preserved": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -54,7 +57,8 @@
       "nav.regenerated": 1,
       "package.regenerated": 1,
       "profile.body-text-found": 1,
-      "structure.relaid-out": 1
+      "structure.relaid-out": 1,
+      "typography.conjunctions-left-alone": 1
     },
     "output": "sha256:6e7fc3a9f77b5a7a4e446fa99ba23b7ba5c4e09b9c08f8011617ce16077a36f8",
     "text_characters": 246899,

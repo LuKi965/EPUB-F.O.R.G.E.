@@ -440,14 +440,30 @@ class Policy:
     #: caller are.
     repair_encoding: bool = False
 
-    #: Repair the typography of the text itself — roadmap [7].
+    #: Repair the typography of the text itself, **without being asked** —
+    #: roadmap [7], and now a standing yes rather than the only way in.
     #:
     #: Off everywhere, reached by no preset, and that is the point rather than
     #: caution about an unfinished feature. Every other switch in this file
     #: decides how markup is arranged around a text nothing may touch; this one
     #: lets a stage retype the text. A book comes back with characters it did
     #: not have, and no reader should discover that because a default changed.
+    #:
+    #: What changed with filar E: this used to be the *only* way the rules ever
+    #: ran, so the whole pass was unreachable from the window — a feature nobody
+    #: could get at is a feature that does not exist. Now each rule puts its own
+    #: question, and this flag is what a batch sets to answer them all in
+    #: advance. Same shape as `repair_encoding`, and the same reason.
     typography: bool = False
+
+    #: Look for the typographic habits above, count them, and ask.
+    #:
+    #: On by default, and the argument is the one `detect_hyphens` makes:
+    #: looking changes nothing. The report gains a line saying how many places
+    #: this book types three dots where an ellipsis belongs — measured, 88 books
+    #: on the owner's shelf and 43 746 places. Retyping any of them takes an
+    #: answer from a person.
+    detect_typography: bool = True
 
     #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
     accessibility_metadata: bool = True
