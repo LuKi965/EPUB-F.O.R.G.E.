@@ -667,3 +667,41 @@ class TestEveryStatusHasAColour:
             window._set_status(row, status)
             item = window.table.item(row, 1)
             assert item is not None and item.text()
+
+
+class TestTheShelfSummaryIsReachableWithoutKnowingItExists:
+    """Pillar C's second half, and S-04: a person who has just rebuilt a
+    hundred and sixty books should not have to click a hundred and sixty rows
+    to find out which ones need them. The summary takes the place the empty
+    report panel used to occupy, so it is what the window shows the moment a
+    batch ends and nothing is selected."""
+
+    @staticmethod
+    def _result(level, stage="css"):
+        from epubforge.pipeline import Result
+        from epubforge.report import Level, Report
+
+        report = Report(source="a.epub", output="b.epub")
+        report.add(stage, level, "x")
+        return Result(report, None, "b.epub")
+
+    def test_no_selection_shows_the_whole_shelf(self, window):
+        from epubforge.report import Level
+
+        window._results = {
+            0: self._result(Level.FIX),
+            1: self._result(Level.WARN, "xhtml"),
+        }
+        window.table.setCurrentCell(-1, -1)
+        window._show_selected_report()
+        shown = window.report_view.toPlainText()
+        assert shown.strip(), "the panel used to go blank here"
+        assert "2" in shown, shown
+
+    def test_an_empty_queue_still_shows_nothing(self, window):
+        """The invitation to drop books in belongs to the empty state; a
+        summary of nothing would push it out of the way."""
+        window._results = {}
+        window.table.setCurrentCell(-1, -1)
+        window._show_selected_report()
+        assert window.report_view.toPlainText().strip() == ""

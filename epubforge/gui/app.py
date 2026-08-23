@@ -38,7 +38,7 @@ from .. import resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
 from ..policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
 from ..quips import quip_for
-from ..report import Level, Report, batch_to_json
+from ..report import Level, Report, batch_summary, batch_to_json
 from ..validate import find_epubcheck, validate
 from . import theme
 from .about import AboutDialog
@@ -1194,11 +1194,34 @@ class MainWindow(QMainWindow):
         )
 
     # ---------------------------------------------------------------- output
+    def _show_shelf_summary(self) -> None:
+        """The whole run in a few sentences — pillar C's second half.
+
+        It goes where the empty report panel was, and that is the point:
+        after a batch, the question stops being *what does this book say*
+        and becomes *which of these do I have to look at*. Answering it by
+        clicking through a hundred and sixty rows is slower than not asking,
+        which is the argument `batch_to_dict` was written on. Here it is,
+        for the person rather than for a JSON file — and reachable without
+        knowing it exists, because it is what the panel shows when no row is
+        selected (S-04).
+        """
+        reports = [result.report for result in self._results.values()]
+        self.report_view.clear()
+        if not reports:
+            return
+        self.report_view.setTextColor(QColor(self.palette_colors.text))
+        lines = batch_summary(reports, language())
+        self.report_view.append(lines[0])
+        self.report_view.setTextColor(QColor(self.palette_colors.text_muted))
+        for line in lines[1:]:
+            self.report_view.append(line)
+
     def _show_selected_report(self) -> None:
         row = self.table.currentRow()
         result = self._results.get(row)
         if result is None:
-            self.report_view.clear()
+            self._show_shelf_summary()
             return
 
         colors = {

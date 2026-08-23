@@ -149,3 +149,70 @@ class TestBothLanguagesAndBothConsumers:
         # and the field that was already called `summary` still means what it
         # meant, because a consumer is reading it
         assert data["summary"] == {level.value: report.count(level) for level in Level}
+
+
+class TestTheWholeShelfGetsTheSameTreatment:
+    """Pillar C's second half. After a run over a hundred and sixty books the
+    question stops being *what does this book say* and becomes *which of these
+    do I have to look at* — the argument `batch_to_dict` was already written
+    on, carried from the JSON to the person."""
+
+    @staticmethod
+    def shelf():
+        healthy = report_with(("css", Level.FIX, "a"))
+        warned = report_with(("xhtml", Level.WARN, "w"), ("css", Level.FIX, "a"))
+        broken = report_with(("fonts", Level.ERROR, "e"))
+        refused = report_with(output="")
+        asking = report_with(("css", Level.FIX, "a"), questions_unanswered=2)
+        return [healthy, warned, broken, refused, asking]
+
+    def test_it_counts_books_not_findings(self):
+        """`survey.py`'s rule and the right one here for its reason: one book
+        with forty of something is a curiosity, forty books with one each is a
+        fact about the shelf. The mutation that totals findings fails here —
+        one book carries four style repairs and three others carry one each."""
+        from epubforge.report import batch_summary
+
+        crowded = report_with(*[("css", Level.FIX, str(i)) for i in range(40)])
+        plain = [report_with(("xhtml", Level.FIX, "a")) for _ in range(3)]
+        line = next(
+            l for l in batch_summary([crowded] + plain, "pl") if "Najczęściej" in l
+        )
+        assert "treść stron (3)" in line
+        assert "arkusze stylów (1)" in line
+
+    def test_every_kind_of_book_is_accounted_for(self):
+        from epubforge.report import batch_summary
+
+        lines = " ".join(batch_summary(self.shelf(), "pl"))
+        assert "Przebudowano 5 książek" in lines
+        # Two: the plain one and the one with questions waiting. A book nobody
+        # has answered yet has nothing *wrong* with it — S-05 means nothing
+        # about it changed — so it is healthy and it is also on the waiting
+        # line below. Those are two different facts about one book.
+        assert "2 z nich są zdrowe" in lines
+        assert "1 książka nie powstała" in lines
+        assert "1 książka ma błąd" in lines
+        assert "W 1 książce są sprawy warte obejrzenia" in lines
+        assert "W 1 książce pytania czekają" in lines
+
+    def test_a_book_with_an_error_is_not_also_counted_as_merely_worth_a_look(self):
+        """Each book lands in exactly one bucket, or the numbers stop adding
+        up to the total and the summary starts lying quietly."""
+        from epubforge.report import batch_summary
+
+        both = report_with(("x", Level.ERROR, "e"), ("x", Level.WARN, "w"))
+        lines = " ".join(batch_summary([both], "pl"))
+        assert "1 książka ma błąd" in lines
+        assert "warte obejrzenia" not in lines
+
+    def test_an_empty_run_says_so_rather_than_dividing_by_nothing(self):
+        from epubforge.report import batch_summary
+
+        assert "Nie przebudowano" in " ".join(batch_summary([], "pl"))
+
+    def test_a_front_end_gets_the_same_sentences(self):
+        from epubforge.report import batch_summary, batch_to_dict
+
+        data = batch_to_dict(self.shelf(), "pl")
+        assert data["in_short"] == batch_summary(self.shelf(), "pl")[1:]

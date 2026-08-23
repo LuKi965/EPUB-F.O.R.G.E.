@@ -594,11 +594,118 @@ def batch_to_dict(reports: "list[Report]", language: str = "en") -> dict:
         "with_errors": sum(1 for r in reports if r.count(Level.ERROR)),
         "with_warnings": sum(1 for r in reports if r.count(Level.WARN)),
         "summary": summary,
+        # Pillar C, one level up: the same sentences the window shows when a
+        # batch finishes, so a front end never composes its own.
+        "in_short": batch_summary(reports, language)[1:],
         # Worst first: a batch report is read from the top and abandoned as
         # soon as it stops being interesting.
         "language": language,
         "reports": [report.to_dict(language) for report in ordered],
     }
+
+
+def batch_summary(reports: "list[Report]", language: str = "en") -> "list[str]":
+    """The whole shelf in a few sentences — pillar C, one level up.
+
+    `Report.summary` answers *is this book all right*. After a run over a
+    hundred and sixty books that question becomes *which of them do I have
+    to look at*, and answering it by opening a hundred and sixty reports is
+    slower than not asking — the same argument `batch_to_dict` was written
+    on, carried from the JSON to the person.
+
+    Frequencies are counted **by book, not by finding**, which is
+    `survey.py`'s rule and it is the right one here for the same reason:
+    one book with forty of something is a curiosity, forty books with one
+    each is a fact about the shelf. A total mixes the two and reads like
+    the fact.
+    """
+    words = _BATCH_WORDS_PL if language != "en" else _BATCH_WORDS_EN
+    stages = _SUMMARY_STAGES_PL if language != "en" else _SUMMARY_STAGES_EN
+    from . import rules
+
+    def say(key: str, **values) -> str:
+        return rules.fill(words[key], values) if values else words[key]
+
+    total = len(reports)
+    if not total:
+        return [words["heading"], f"  {say('nothing')}"]
+
+    refused = sum(1 for report in reports if not report.output)
+    with_errors = sum(
+        1 for report in reports if report.output and report.count(Level.ERROR)
+    )
+    with_warnings = sum(
+        1 for report in reports
+        if report.output and not report.count(Level.ERROR) and report.count(Level.WARN)
+    )
+    healthy = total - refused - with_errors - with_warnings
+
+    lines = [words["heading"], f"  {say('books', count=total, healthy=healthy)}"]
+    if refused:
+        lines.append(f"  {say('refused', count=refused)}")
+    if with_errors:
+        lines.append(f"  {say('errors', count=with_errors)}")
+    if with_warnings:
+        lines.append(f"  {say('warnings', count=with_warnings)}")
+
+    repaired: dict[str, int] = {}
+    for report in reports:
+        for stage in {f.stage for f in report.findings if f.level is Level.FIX}:
+            name = stages.get(stage, stage)
+            repaired[name] = repaired.get(name, 0) + 1
+    if repaired:
+        biggest = sorted(repaired.items(), key=lambda pair: (-pair[1], pair[0]))[:3]
+        where = ", ".join(f"{name} ({count})" for name, count in biggest)
+        lines.append(f"  {say('repaired', where=where)}")
+
+    waiting = sum(
+        1 for report in reports if report.stats.get("questions_unanswered")
+    )
+    if waiting:
+        lines.append(f"  {say('waiting', count=waiting)}")
+    return lines
+
+
+#: The shelf summary's sentences. Separate from the single-book table because
+#: they count books rather than findings, and a word reused across the two
+#: would end up meaning both.
+_BATCH_WORDS_PL = {
+    "heading": "W skrócie — cała półka",
+    "nothing": "Nie przebudowano żadnej książki.",
+    "books": (
+        "Przebudowano {count} {count:książkę|książki|książek}; "
+        "{healthy} z nich {healthy:jest zdrowa|są zdrowe|jest zdrowych}."
+    ),
+    "refused": (
+        "{count} {count:książka nie powstała|książki nie powstały|książek nie powstało} — "
+        "program wolał nie zapisać nic, niż zapisać książkę, o której nie umie "
+        "powiedzieć, że jest cała."
+    ),
+    "errors": (
+        "{count} {count:książka ma błąd|książki mają błędy|książek ma błędy}, "
+        "{count:którego|których|których} program nie umiał rozstrzygnąć sam."
+    ),
+    "warnings": (
+        "W {count} {count:książce|książkach|książkach} są sprawy warte obejrzenia."
+    ),
+    "repaired": "Najczęściej naprawiane obszary (w ilu książkach): {where}.",
+    "waiting": (
+        "W {count} {count:książce|książkach|książkach} pytania czekają na Twoją odpowiedź."
+    ),
+}
+_BATCH_WORDS_EN = {
+    "heading": "In short — the whole shelf",
+    "nothing": "No book was rebuilt.",
+    "books": "{count} book(s) were rebuilt; {healthy} of them are healthy.",
+    "refused": (
+        "{count} book(s) were not written — the program would rather write nothing "
+        "than write a book it cannot say is whole."
+    ),
+    "errors": "{count} book(s) carry a problem the program could not settle on its own.",
+    "warnings": "{count} book(s) have things worth a look.",
+    "repaired": "Most often repaired (in how many books): {where}.",
+    "waiting": "{count} book(s) have questions waiting for your answer.",
+}
 
 
 def batch_to_json(reports: "list[Report]", language: str = "en") -> str:
