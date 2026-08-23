@@ -169,23 +169,48 @@ class TestWhatIsNotATypo:
         assert "nietoperz: fruwa" in sheet_of(result)
         assert not [q for q in chooser.asked if q.group == "style:typo"]
 
-    def test_what_a_converter_signed_is_kept_but_never_in_silence(self, tmp_path):
-        """The third shape the owner listed, and what measuring it turned up.
+    def test_what_a_converter_signed_is_swept_in_preserve_too(self, tmp_path):
+        """The third shape the owner listed, and where measuring it led.
 
         A declaration written `text-align="center"` inside a rule a converter
-        signed takes the measured path rather than a question — the anti-flood
-        exception (S-02). Preserve keeps it, which is that mode's promise; the
-        defect was that it kept it and **said nothing**, so the output carried
-        a line no reader applies and the report did not name it. Measured on
-        the shelf: exactly one such declaration in 160 books.
+        signed is not asked about — that is the anti-flood exception (S-02).
+        What it *was* doing was surviving `preserve` in total silence: the
+        output carried a line no reader applies and the report did not name
+        it. Measured on the shelf: exactly one such declaration in 160 books.
 
-        The mutation that keeps it silently fails here.
+        Then the owner asked the question that settles it — *czy po Sigilu
+        też nie powinniśmy sprzątać* — and his own D-029 already answers it:
+        `remove_dead` divides the modes over deviations **a reader can see**,
+        and a declaration CSS cannot parse draws nothing anywhere. So it goes
+        with the generator basket, in both modes.
+
+        The mutation that hangs this on `remove_dead` again fails here.
         """
         sheet = 'p.sgc-1 { text-align="center" }'
         result, chooser = build(tmp_path, sheet, option="fix")
         assert not [q for q in chooser.asked if q.group == "style:equals"], (
             "a converter's own class is not asked about — that is the exception"
         )
+        assert 'text-align="center"' not in sheet_of(result)
+        assert "css.malformed-declaration-dropped" in rules_of(result)
+
+    def test_the_tick_that_keeps_the_junk_keeps_this_too(self, tmp_path):
+        """S-02 requires an opt-out for every removal, and this removal is
+        behind the one the rest of the style sweep is behind. The mutation
+        that sweeps regardless of the tick fails here."""
+        from epubforge.pipeline import rebuild as _rebuild
+
+        sheet = 'p.sgc-1 { text-align="center" }'
+        source = make_book(
+            tmp_path / "in.epub",
+            {"c0.xhtml": PAGE.format(body='<p class="sgc-1">Akapit.</p>')},
+            extra_items='<item id="s" href="s.css" media-type="text/css"/>',
+            extra_files={"OEBPS/s.css": sheet.encode()},
+        )
+        policy = Policy.preset("preserve", render_gate="off")
+        policy.sweep_style_blocks = False
+        result = _rebuild(source, str(tmp_path / "out.epub"), policy)
+        assert 'text-align="center"' in sheet_of(result)
         assert "css.malformed-declaration-converter-kept" in rules_of(result)
 
     def test_a_healthy_sheet_asks_nothing(self, tmp_path):

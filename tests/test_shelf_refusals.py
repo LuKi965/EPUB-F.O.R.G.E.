@@ -363,16 +363,23 @@ class TestCssInsideADocumentIsRepairedToo:
         )
         assert "text-align" not in style_of(result)
 
-    def test_preserve_keeps_it_and_says_nothing_was_removed(self, tmp_path):
-        """Removal is gated the same way every other removal in this stage is:
-        `preserve` publishes the book as the publisher wrote it."""
+    def test_preserve_sweeps_it_too(self, tmp_path):
+        """This used to assert the opposite, on the reading that `preserve`
+        publishes the book as the publisher wrote it. The owner corrected the
+        reading (2026-08-22: *czy po Sigilu też nie powinniśmy sprzątać*), and
+        his own D-029 is the argument: `remove_dead` divides the modes over
+        deviations **a reader can see**, and the publisher never wrote this —
+        a converter did, in a syntax CSS cannot parse, so nothing draws it
+        anywhere. It goes with the generator basket in both modes, behind the
+        same tick, which `tests/test_publisher_typos.py` holds.
+        """
         result = rebuild(
             make_book(tmp_path / "in.epub", {"chapter.xhtml": INLINE_MALFORMED}),
             str(tmp_path / "out.epub"),
             Policy.preset("preserve"),
         )
-        assert 'text-align="center"' in style_of(result)
-        assert "css.malformed-declaration-dropped" not in rules_of(result)
+        assert 'text-align="center"' not in style_of(result)
+        assert "css.malformed-declaration-dropped" in rules_of(result)
 
     def test_an_attribute_selector_is_not_a_malformed_declaration(self, tmp_path):
         """`a[href="x"]` carries the same three characters in the same order.

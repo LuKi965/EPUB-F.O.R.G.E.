@@ -2674,7 +2674,17 @@ class StyleStage(Stage):
 
         def repl(match: "re.Match[str]") -> str:
             if match.start() in machine_positions:
-                action = "drop" if ctx.policy.remove_dead else "keep"
+                # D-029/D-030, applied to the one case they had left behind
+                # (owner, 2026-08-22: "czy po Sigilu też nie powinniśmy
+                # sprzątać"). This used to hang on `remove_dead`, which is the
+                # gate that divides preserve from strict over deviations **a
+                # reader can see** — and a declaration written the way an HTML
+                # attribute is written draws nothing anywhere, in any reader,
+                # because CSS wants a colon where this has an `=`. So it is
+                # not that kind of deviation: it belongs to the generator
+                # basket, removed in both modes, reported, and behind the very
+                # tick the rest of that sweep is behind.
+                action = "drop" if ctx.policy.sweep_style_blocks else "keep"
             else:
                 action = human_action
             token = f'{match.group("prop")}="{match.group("value")}"'
