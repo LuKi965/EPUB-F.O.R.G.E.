@@ -67,6 +67,187 @@ errors; every CSS parser since 1997 was ignoring it. Only the leading and
 trailing shield is taken: an arrow inside somebody's `content:` string is
 content and stays.
 
+### The rest of the stylesheet rebuild, slice by slice
+
+Eight more passes over the same measured baseline, each with the same shape:
+a repair is made only where the book itself proves it safe, and where the proof
+is missing the finding is reported and nothing is touched.
+
+Rules repeating a selector are folded together where the cascade proves the
+merge cannot change an outcome; a property declared twice in one block loses
+the loser, again only where the values cannot both matter; a component set
+before a shorthand that resets it goes, with a CSS1 proof of what the shorthand
+covers; descending specificity is repaired by a *move* rather than a rewrite,
+accepted only when a gate's own counter shows the number of descending pairs
+strictly falling; empty comments, empty rules and empty at-rules go, since
+every parser was already ignoring all three; and a stylesheet written as one
+long line is retyped one declaration per line, which changes no byte a reader
+sees and makes the rest of these entries legible to anybody checking them.
+
+The two-part guard that runs after every cut is worth naming on its own: the
+structure is checked after each individual removal, and a full CSS parse is
+paid once at the end of the chain. A chain whose product does not parse hands
+the whole stylesheet back untouched — which step broke it is a question for the
+suite, not for a reader's book.
+
+### Three families that cannot be proved are put to a person instead
+
+Duplicate declarations that are genuinely ambiguous, ties the cascade cannot
+break, and blocks mixing `!important` with ordinary declarations no longer get
+a machine's guess. They become questions, with the declarations shown, and an
+unanswered question leaves the stylesheet exactly as the publisher wrote it.
+
+Missing generic font families are the same shape and got the same treatment,
+with three sources for the answer — the book's own embedded faces, the family
+name itself, and failing both, a question.
+
+A publisher's typo in a declaration is now a question **carrying a proposal**
+rather than an entry on an exception list: 7 proposals across 5 books on the
+owner's shelf, each showing what would start working if it were repaired.
+
+### `adobe-*` removed by default, and a compatibility profile that keeps it
+
+Bare, unlisted, and honoured by old RMSDK engines — PocketBooks among them.
+Removed by default in both modes now that the argument is settled, and kept by
+a named legacy profile for anybody who has such a reader. The report says which
+happened either way.
+
+### Class names in the book are always English
+
+`.rozdzial` is a name this program invented and wrote into somebody's file;
+the window and the report keep speaking Polish, because those are read by a
+person, while the book is read by software and by whoever opens it next.
+
+### File names say what a file is
+
+`0001-index_split_000.xhtml` tells nobody anything. Files are now named from
+their role — `cover`, `toc`, `chapter-05` — read from the landmarks, then from
+`epub:type`, then from the table of contents, with an honest fallback that
+keeps the source's own stem when none of the three can answer. On the shelf:
+5 548 documents renamed across 150 books.
+
+The render gate was the first casualty and the first proof: it had been pairing
+before and after **by name**, and after the rename it refused ten books it
+should have passed. It now reads the rebuild's own ledger of moved files
+instead of guessing at names this program had itself changed.
+
+### K1 got sharper, and then became a publication gate
+
+The invariant said *nothing of the source's text is lost* — a subsequence rule,
+which is blind in one direction: a sentence that **appears** inside an existing
+document passes it without a word. It now also asks that a carried document's
+prose come out *identical*, with three concessions each named in the code: a
+`<style>` block is not prose, a `<title>` is navigation rather than reading
+flow, and a character no conforming EPUB may carry is not text.
+
+Measured on 160 books before it was wired: every carried document already comes
+out character for character. So it refuses nothing that runs today and closes
+the direction a correction subsystem needs closed — which is exactly why it was
+wired before that subsystem existed rather than after.
+
+### One answer is enough for a batch, not for one book
+
+Measured on 160 books: **8 979 questions**, of which 8 737 were one family. The
+decision queue was born inside each rebuild, so "do this to all of them" died
+with the book it was given about — answer it in book one and you are asked again
+in book two, and a hundred and fifty-eight times after that. The queue's
+standing answers now belong to the batch: **8 979 questions became 10.**
+
+What deliberately does not carry is a per-question answer. Replaying somebody's
+judgement onto a page they have not seen is worse than asking again.
+
+### Fonts are cut to the glyphs a book uses, if you ask
+
+Behind a switch that is off by default, and the reason is not caution about the
+technique: `fsType` says what may be **embedded**, while the right to **modify**
+a font lives in a licence no bit carries. That is the book owner's call, not the
+program's. Refusals are read from the font file itself — restricted, preview-only,
+no-subsetting — and each one leaves the original bytes with a line in the report
+saying why. Measured with the render gate on: 10.54 → 3.58 MB and 5.50 → 0.23 MB,
+24 page comparisons each, nothing lost.
+
+The stage runs last in the pipeline, because the glyph set has to come from the
+finished book: a generated table of contents and a synthesised cover carry text
+the source never had.
+
+### The report starts with a sentence for a person
+
+Two halves. A rebuilt book's report now opens with a few sentences saying what
+happened to *that book* in words somebody who owns books would use, before any
+rule identifier appears. And a batch — a whole shelf — gets the same treatment
+in the window, where an empty panel used to be.
+
+### One letter written in place of another, all through a book
+
+The 0.4 plan called for language correction. Measuring 12 264 words no
+dictionary knows, across 25 Polish books, said that word-by-word correction
+cannot be done honestly: 35.8% are capitalised names, 28.4% are the book's own
+vocabulary, 24.8% are rare words with nothing near them. What is left is
+dominated by one shape — **a single letter standing for another, the same letter
+every time**.
+
+So the program looks for the *pattern*, not the word. One book on the shelf
+writes `h` where it means `r`, in 121 words, and writes the correct form
+elsewhere: that is one question with a whole book behind it. Each word must fail
+both ways — the dictionary does not know it as written and does know it with the
+letter put back — and a word the book uses often is left alone whatever it looks
+like, which is what keeps a character's name out of the list.
+
+Rare, and that is the finding: **one book in a hundred and sixty**.
+
+### Typography asks instead of being switched on
+
+The pass that repairs the text's own typography sat behind one switch that no
+preset sets, and switching it on changed text without a word — three rules at
+once. Each rule now puts its own question, once per book: three dots where an
+ellipsis belongs (88 books, 43 746 places), a single-letter conjunction that can
+fall off the end of a line, a straight quote in a book that otherwise keeps to
+one form. The old switch remains and now means *yes to all three, in advance*.
+
+Two defects surfaced with it. The book's quoting convention was being counted
+over `itertext`, which yields the contents of `<style>` too — and a stylesheet is
+full of straight quotes; **twelve books in 160 got a different answer** once
+those were excluded, nine of them turning out to have no settled convention at
+all. And a paragraph ending in a full stop before one opening with three dots
+reads as four dots to everything downstream: four documents came back reverted,
+one of them losing a hundred and forty honest repairs, and correcting only the
+stage's own guard moved the refusal up to K1, which then refused whole books.
+The rule now declines at a seam it cannot see past.
+
+**Not built:** en dashes in numeric ranges, which the plan asked for. 795
+candidates on the shelf; after postal codes, telephone numbers and chapter
+numbering in tables of contents, perhaps a dozen are real ranges. A rule that
+would mistake a phone number for a range in order to replace a hyphen nobody can
+see is not worth its risk. Recorded with the measurement so the decision can be
+revisited.
+
+### `@font-face` rules that can load nothing are removed
+
+`src` is a required descriptor: a face that names a family and no file is
+dropped by every parser. This program already said so where a dead url can empty
+a face; this is the same sentence about a face that never had a source. Ten
+books, all exported from a word processor that writes its font table into every
+document, carry **60 782 such rules — 3.93 MB of CSS, and in one book more,
+uncompressed, than the whole compressed file**.
+
+Removing them cannot change a pixel, and that is measured rather than argued:
+the five most affected books were rebuilt with the rule and without it and
+compared page by page — **930 comparisons, no differences**. A face **with** a
+`src` is never touched, however odd, and the comment heading the block stays.
+
+### Smaller things
+
+* A determinism test was a coin toss — it compared two rebuilds whose
+  `dcterms:modified` came from the wall clock. The clock is pinned and the
+  difference measured.
+* The `font` shorthand got a real CSS1 grammar, taking the safety gate's
+  unprovable cases from eight to zero.
+* A declaration written the way an HTML attribute is written —
+  `text-align="center"` — is generator litter that no reader has ever applied,
+  so it is swept in preserve too, behind the same opt-out.
+* The at-rule scanner stopped being blinded by a comment in front of an
+  at-rule, the second face of the same defect as the HTML shield.
+
 ## 0.3.0 — alpha — 2026-08-20
 
 The number `0.2.30` was never released — the owner skipped it (D-032) when its
