@@ -569,6 +569,11 @@ _DIRECTION_DEFAULT = {"direction": "ltr", "unicode-bidi": "normal"}
 
 _FONT_FACE_RE = re.compile(r"@font-face\s*\{[^}]*\}", re.IGNORECASE)
 
+#: `src` as a descriptor of its own, not the word inside some other value.
+#: Anchored to the start of a declaration so that `font-family: "src"` and a
+#: url containing `src` cannot pass for one.
+_DECLARES_SRC = re.compile(r"(?:^|[;{])\s*src\s*:", re.IGNORECASE)
+
 _FONT_FAMILY_RE = re.compile(r"font-family\s*:\s*([^;}]+)", re.IGNORECASE)
 
 #: Adobe Digital Editions inventions; unprefixed, so validators call them unknown.
@@ -771,6 +776,7 @@ class StyleStage(Stage):
         css_text = self._shorthand_overrides(ctx, css_text, resource)
         css_text = self._ascending_specificity(ctx, css_text, resource)
         css_text = self._empty_noise(ctx, css_text, resource)
+        css_text = self._faces_that_load_nothing(ctx, css_text, resource)
         css_text = self._page_plumbing(ctx, css_text, resource)
         css_text = self._absolute_font_sizes(ctx, css_text, resource)
         css_text = self._vendor_properties(ctx, css_text, resource)
@@ -2337,6 +2343,75 @@ class StyleStage(Stage):
             after="removed; they said nothing and every parser ignored them",
             risk=Risk.NONE, reversible=False,
             rule="css.empty-noise-removed",
+        )
+        return cleaned
+
+    def _faces_that_load_nothing(self, ctx: Context, css_text: str, resource) -> str:
+        """Remove `@font-face` rules with no `src` — they declare no font.
+
+        **`src` is required.** A face without one names a family and gives no
+        way to fetch it, so every parser drops the rule on the floor. The
+        program already says this out loud one method along, where neutralising
+        a dead url can empty a face: *a face that can load nothing is not a
+        face*. This is the same sentence about a face that never had a source
+        to begin with.
+
+        **Measured, and the number is why this exists.** The shelf's largest
+        remaining block of lint warnings — 48 963 of them, more than every other
+        rule put together — was one obsolete descriptor, `panose-1`, and it sits
+        inside exactly this kind of rule. Ten books, all of them exported from a
+        word processor that writes its font table into every document:
+
+            /* Font Definitions */
+            @font-face {font-family:Helvetica; panose-1:2 11 6 4 2 2 2 2 2 4;}
+
+        **49 177 such rules, 3.93 MB of CSS, and not one with a `src`.** In one
+        book that is 68% of the file, in another 82%, and in a third the
+        uncompressed rules outweigh the whole compressed book. None of it can
+        render anything.
+
+        Removing it cannot change a pixel, which is the D-029/D-030 test for
+        this basket and the same argument D-039 used for a declaration written
+        as an HTML attribute: no reading system has ever applied it. So it goes
+        in both modes, with a line in the report, behind the sweep's own opt-out
+        like the rest of the family.
+
+        **What is deliberately not touched:** a face *with* a `src`, however
+        strange — that is a font somebody meant to load. And the comment above
+        the block stays; `/* Font Definitions */` is a note somebody wrote, and
+        removing the rules is not a reason to remove the note.
+        """
+        faces = stylesheet.at_rules(css_text, "font-face")
+        if not faces:
+            return css_text
+        empty = [
+            face for face in faces
+            if not _DECLARES_SRC.search(stylesheet.body_of(css_text, face))
+        ]
+        if not empty:
+            return css_text
+        if not ctx.policy.sweep_style_blocks:
+            self.note(ctx, Level.INFO, "css.faces-without-src-found",
+                      values={"count": len(empty)}, location=resource.path)
+            return css_text
+        cleaned = stylesheet.without(css_text, empty)
+        # The same guard the rest of the family uses, and it earns its keep
+        # here: these rules come in their thousands, and a walk that miscounted
+        # one brace would take a stylesheet apart.
+        if not _structurally_sound(cleaned) or len(
+            stylesheet.at_rules(cleaned, "font-face")
+        ) != len(faces) - len(empty):
+            self.note(ctx, Level.WARN, "css.faces-without-src-unverified",
+                      values={"count": len(empty)}, location=resource.path)
+            return css_text
+        self.note(ctx, Level.FIX, "css.faces-without-src-removed",
+                  values={"count": len(empty)}, location=resource.path)
+        self.changed(
+            ctx, Action.REMOVED, resource.path,
+            before=f"{len(empty)} @font-face rule(s) with no src",
+            after="removed; a face that names no file cannot load one",
+            risk=Risk.NONE, reversible=False,
+            rule="css.faces-without-src-removed",
         )
         return cleaned
 

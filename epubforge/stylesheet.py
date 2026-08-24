@@ -364,9 +364,69 @@ def top_level_rules(text: str) -> list[RuleSpan]:
 
     Rules nested inside an at-rule are not returned, and neither is the at-rule
     itself: this module offers no way to remove something whose condition it
-    cannot read.
+    cannot read. :func:`at_rules` is how a caller asks for one it *can* read.
     """
-    spans: list[RuleSpan] = []
+    return [span for kind, span in _walk(text) if kind is None]
+
+
+def at_rules(text: str, name: str) -> list[RuleSpan]:
+    """Every top-level at-rule called *name*, with its span and its body.
+
+    Separate from :func:`top_level_rules`, and the reason is the sentence
+    above: an at-rule is a condition, and removing something whose condition
+    this module cannot read would be removing on a guess. Asking for one **by
+    name** is a caller saying it knows what that condition means — `@font-face`
+    is not a condition at all, it is a declaration block with a required
+    descriptor, and a caller can judge it.
+
+    `span.selector` is the at-rule's prelude as written, so `@font-face` and
+    `@media print` are told apart by the caller rather than here.
+    """
+    wanted = "@" + name.lower().lstrip("@")
+    return [
+        span
+        for kind, span in _walk(text)
+        if kind is not None and kind.lower() == wanted
+    ]
+
+
+def body_of(text: str, span: RuleSpan) -> str:
+    """What sits between the braces of *span*, without them."""
+    opening = text.index("{", span.start)
+    return text[opening + 1:text.rindex("}", opening, span.end)]
+
+
+def _at_sign(prelude: str) -> int:
+    """Where the at-rule's `@` actually starts, past any comment in front.
+
+    The same courtesy the selector walk pays: `/* Font Definitions */` heading
+    a block of `@font-face` rules is a note somebody wrote, and removing the
+    rules is not a reason to remove the note. Without this the span swallowed
+    the comment and the header vanished with the first face under it.
+    """
+    cursor = 0
+    while cursor < len(prelude):
+        if prelude[cursor] in "\"'" or prelude.startswith("/*", cursor):
+            moved = _skip_noise(prelude, cursor)
+            if moved != cursor:
+                cursor = moved
+                continue
+        if prelude[cursor] == "@":
+            return cursor
+        cursor += 1
+    return len(prelude) - len(prelude.lstrip())
+
+
+def _walk(text: str):
+    """Every brace-delimited block at the top level, in source order.
+
+    Yields `(at_rule_name_or_None, RuleSpan)`. One walk rather than two: the
+    rules for what counts as a prelude are subtle — Word writes `--> @page …`
+    and `/* Font Definitions */ @font-face …`, and both have already been
+    misread once (EF-070, both of its faces) — so there is one place that can
+    be got wrong and one place to fix.
+    """
+    spans: list = []
     cursor = 0
     prelude_start = 0
     length = len(text)
@@ -390,7 +450,15 @@ def top_level_rules(text: str) -> list[RuleSpan]:
             # must see the prelude the way a CSS parser does, noise removed.
             judged = _COMMENT.sub(" ", _HTML_SHIELD.sub(" ", prelude))
             if judged.lstrip().startswith("@"):
-                # An at-rule, contents and all. Left whole, deliberately.
+                # An at-rule, contents and all. Handed over whole, named by
+                # its keyword so that a caller who understands that keyword can
+                # act and one who does not is not tempted to.
+                offset = _at_sign(prelude)
+                keyword = judged.split(None, 1)[0] if judged.split() else "@"
+                spans.append((
+                    keyword,
+                    RuleSpan(" ".join(judged.split()), prelude_start + offset, end),
+                ))
                 cursor = end
             else:
                 # A comment sitting in front of a rule is not part of its
@@ -400,7 +468,7 @@ def top_level_rules(text: str) -> list[RuleSpan]:
                 # publisher's note about the section stays.
                 offset, selector = _selector_of(prelude)
                 if selector:
-                    spans.append(RuleSpan(selector, prelude_start + offset, end))
+                    spans.append((None, RuleSpan(selector, prelude_start + offset, end)))
                 cursor = end
             prelude_start = cursor
             continue
