@@ -91,6 +91,97 @@ def _around(text: str, expression) -> str:
     return " ".join(excerpt.split())
 
 
+def _neighbourhood(texts: "list[str]", index: int) -> "tuple[str, str]":
+    """The character on each side of `texts[index]`, across the node boundary.
+
+    A rule looking only inside one text node cannot see that the run of dots it
+    is about to fold has a fourth one in the node next door.
+    """
+    left = ""
+    for earlier in reversed(texts[:index]):
+        if earlier:
+            left = earlier[-1]
+            break
+    right = ""
+    for later in texts[index + 1:]:
+        if later:
+            right = later[0]
+            break
+    return left, right
+
+
+def ellipses(text: str, left: str = "", right: str = "") -> "tuple[str, int]":
+    """*text* with each run of exactly three dots folded into an ellipsis.
+
+    *left* and *right* are the characters the reading order puts either side of
+    this text node, and they are the whole reason this is a function rather than
+    a call to `subn`.
+
+    **Why the neighbours matter.** "A run of four is somebody's own punctuation"
+    is a statement about the *reading order*, not about one text node — and a
+    paragraph ending `poszukiwań.` followed by one opening `...i wtedy` is a run
+    of four to everything downstream that reads the document as a stream. Folded
+    without looking, the rule produces a dot followed by an ellipsis where the
+    source had four dots: the stage's own guard refuses the document, and K1 —
+    which compares the whole reading order — refuses the *book*. Measured on 160
+    books: four documents, one of them losing a hundred and forty honest repairs
+    with it, and after the guard was corrected the same seam refused the whole
+    publication instead.
+
+    So the rule declines at a seam it cannot see past. That is the conservative
+    answer and the consistent one: everything that reads this text later reads it
+    joined, and a rule may not be the only party with a different opinion.
+    """
+    if "..." not in text:
+        return text, 0
+    padded = left + text + right
+    out: list[str] = []
+    count = 0
+    at = 0
+    for found in _THREE_DOTS.finditer(padded):
+        start, end = found.span()
+        if start < len(left) or end > len(left) + len(text):
+            continue  # the run straddles the boundary; not ours to judge
+        out.append(padded[at:start])
+        out.append("…")
+        at = end
+        count += 1
+    if not count:
+        return text, 0
+    out.append(padded[at:])
+    whole = "".join(out)
+    return whole[len(left): len(whole) - len(right) or None], count
+
+
+def _kept_the_text(before: "list[str]", after: "list[str]") -> bool:
+    """Did the pass keep the text — checked **piece by piece**.
+
+    The comparison itself is unchanged: each side is folded to the canonical
+    form, which forgives exactly the shapes a typographic rule may alter and
+    forgives nothing else. What changed is that the fold is applied to one text
+    node at a time instead of to the document's whole text joined together.
+
+    **Joining first invents runs at the seams.** Measured on 160 books: four
+    documents came back reverted, and every one for the same reason. A
+    paragraph ends `…poszukiwań.` and the next begins `...cerca trova`. Joined,
+    that reads as four dots, and the fold turns the first three into an
+    ellipsis — putting the ellipsis *before* the stray dot. The rule, working
+    inside one node where there is no fourth dot, correctly rewrites the run and
+    the ellipsis lands *after* it. Same characters, different order, comparison
+    fails — and the document goes back, taking a hundred and forty honest
+    repairs with it.
+
+    So the guard was refusing correct work over an artefact of its own
+    measurement. The same lesson the substitution rule learned, in the same
+    week, one module away.
+    """
+    if len(before) != len(after):
+        return False
+    return all(
+        typography.unchanged(was, is_now) for was, is_now in zip(before, after)
+    )
+
+
 class TypographyStage(Stage):
     """Repairs the text itself, once asked, and verifies its own work."""
 
@@ -133,14 +224,13 @@ class TypographyStage(Stage):
         ellipses = conjunctions = quotes = 0
         reverted: list[str] = []
         for resource, root in documents:
-            before = "".join(root.itertext())
+            before = list(root.itertext())
 
             changed = self._repair(root, language, marks, agreed)
             if not any(changed):
                 continue
 
-            after = "".join(root.itertext())
-            if not typography.unchanged(before, after):
+            if not _kept_the_text(before, list(root.itertext())):
                 # Not "log it and carry on". The document goes back as it came
                 # in, because a stage that cannot show it kept the text has no
                 # business having edited it.
@@ -174,15 +264,16 @@ class TypographyStage(Stage):
                 entry["samples"].append(sample)
 
         for _, root in documents:
-            for element, attribute in typography.text_nodes(
-                root, language=language or None
-            ):
-                text = getattr(element, attribute)
+            nodes = list(typography.text_nodes(root, language=language or None))
+            texts = [getattr(element, attribute) or "" for element, attribute in nodes]
+            for index, text in enumerate(texts):
                 if not text:
                     continue
-                hits = _THREE_DOTS.findall(text)
+                # The same neighbourhood the repair will use, so that the count
+                # in the question is the count the answer produces.
+                _, hits = ellipses(text, *_neighbourhood(texts, index))
                 if hits:
-                    seen(ELLIPSIS, len(hits), _around(text, _THREE_DOTS))
+                    seen(ELLIPSIS, hits, _around(text, _THREE_DOTS))
                 if polish:
                     hits = _CONJUNCTION.findall(text)
                     if hits:
@@ -306,19 +397,21 @@ class TypographyStage(Stage):
         *agreed* is the set somebody said yes to, and a rule outside it does not
         run at all — not "runs and is discarded". Returns what changed.
         """
-        ellipses = conjunctions = quotes = 0
+        folded = conjunctions = quotes = 0
         polish = language.startswith("pl") and CONJUNCTIONS in agreed
         # Per document, not per book: an unbalanced quote in one chapter must
         # not invert every quotation in the next one.
         inside = False
-        for element, attribute in typography.text_nodes(root, language=language or None):
-            text = getattr(element, attribute)
+        nodes = list(typography.text_nodes(root, language=language or None))
+        texts = [getattr(element, attribute) or "" for element, attribute in nodes]
+        for index, (element, attribute) in enumerate(nodes):
+            text = texts[index]
             if not text:
                 continue
             repaired = text
             if ELLIPSIS in agreed:
-                repaired, count = _THREE_DOTS.subn("…", repaired)
-                ellipses += count
+                repaired, count = ellipses(repaired, *_neighbourhood(texts, index))
+                folded += count
             if polish:
                 # Polish typographic convention, gated on the language the
                 # *metadata stage settled* — which is the declared one unless
@@ -336,7 +429,7 @@ class TypographyStage(Stage):
                 quotes += count
             if repaired != text:
                 setattr(element, attribute, repaired)
-        return ellipses, conjunctions, quotes
+        return folded, conjunctions, quotes
 
     def _report(
         self,

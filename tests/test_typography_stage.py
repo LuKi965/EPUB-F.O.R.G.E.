@@ -501,3 +501,118 @@ class TestTheConventionIsReadFromTheProseOnly:
         body = f"<style>{css}</style>" + "<p>„Tak” rzekl.</p>" * 12 + '<p>Potem "nie".</p>'
         _, html, _ = ask_about(tmp_path, body, name="t2")
         assert 'content:"x"' in html.replace(" ", "")
+
+
+class TestASeamIsNotAPlaceToGuess:
+    """Two defects met here, and the second is why the first could not simply
+    be loosened.
+
+    A paragraph ending `poszukiwań.` and the next opening `...i wtedy` is a run
+    of four dots to everything that reads the document as a stream — and both
+    guards downstream do exactly that. Measured on 160 books: four documents
+    came back reverted, one of them losing a hundred and forty honest repairs;
+    and once the stage's own guard was corrected to compare piece by piece, the
+    same seam refused the whole *book* at K1 instead, which is worse.
+
+    So the rule declines at a seam it cannot see past. Conservative, and
+    consistent: everything reading this text later reads it joined, and a rule
+    may not be the only party with a different opinion.
+    """
+
+    #: A full stop, a paragraph break, and three dots.
+    SEAM = "<p>Doszedł do celu poszukiwań.</p><p>...i wtedy zobaczył.</p>"
+
+    def test_the_dots_at_the_seam_are_left_alone(self, tmp_path):
+        result, html = forge(tmp_path, self.SEAM, name="u1")
+        assert "<p>...i wtedy zobaczył.</p>" in html
+        assert "poszukiwań.</p>" in html
+
+    def test_and_the_book_is_written(self, tmp_path):
+        """The point of declining rather than folding: K1 compares the whole
+        reading order, and a dot followed by an ellipsis where the source had
+        four dots is a book it refuses outright."""
+        result, _ = forge(tmp_path, self.SEAM, name="u2")
+        rules = {f.rule for f in result.report.findings}
+        assert "package.text-lost" not in rules
+        assert "typography.reverted" not in rules
+
+    def test_the_rest_of_the_document_is_still_repaired(self, tmp_path):
+        """The seam declines itself, not the document around it."""
+        _, html = forge(
+            tmp_path, self.SEAM + "<p>Czekaj... juz ide.</p>", name="u3"
+        )
+        assert "Czekaj… juz ide." in html
+        assert "<p>...i wtedy zobaczył.</p>" in html
+
+    def test_the_question_counts_what_the_answer_will_do(self, tmp_path):
+        """A question saying "2 places" that then repairs one is a question
+        somebody answered about something else."""
+        _, _, answering = ask_about(
+            tmp_path, self.SEAM + "<p>Czekaj... juz ide.</p>", name="u4"
+        )
+        question = next(q for q in ours(answering) if q.group == "typography:ellipsis")
+        assert "1" in question.summary
+
+    def test_a_rule_that_moves_text_between_nodes_is_still_refused(self, tmp_path, monkeypatch):
+        """The guard compares piece by piece, which is *stricter* than the
+        whole-document comparison it replaced: text carried from one node into
+        another passes that one and fails this."""
+        from epubforge.stages import typography as stage
+
+        def moves(root, language, marks, agreed):
+            nodes = [
+                (element, attribute)
+                for element, attribute in stage.typography.text_nodes(root)
+                if getattr(element, attribute) and getattr(element, attribute).strip()
+            ]
+            if len(nodes) < 2:
+                return (0, 0, 0)
+            (one, first), (two, second) = nodes[0], nodes[1]
+            text = getattr(one, first)
+            setattr(one, first, text[:-6])
+            setattr(two, second, text[-6:] + getattr(two, second))
+            return (1, 0, 0)
+
+        monkeypatch.setattr(stage.TypographyStage, "_repair", staticmethod(moves))
+        result, html = forge(
+            tmp_path, "<p>Pierwszy akapit...</p><p>Drugi akapit.</p>", name="u5"
+        )
+        assert "typography.reverted" in {f.rule for f in result.report.findings}
+        assert "Pierwszy akapit..." in html
+
+
+class TestTheSeamRuleItself:
+    """`ellipses` in isolation, because the interesting cases are cheap here
+    and expensive through a rebuild."""
+
+    def test_three_dots_alone_are_folded(self):
+        from epubforge.stages.typography import ellipses
+
+        assert ellipses("Czekaj... juz") == ("Czekaj… juz", 1)
+
+    def test_four_dots_are_left_alone(self):
+        from epubforge.stages.typography import ellipses
+
+        assert ellipses("Czekaj....") == ("Czekaj....", 0)
+
+    def test_a_dot_in_the_node_before_makes_it_four(self):
+        from epubforge.stages.typography import ellipses
+
+        assert ellipses("...i wtedy", left=".") == ("...i wtedy", 0)
+
+    def test_a_dot_in_the_node_after_makes_it_four(self):
+        from epubforge.stages.typography import ellipses
+
+        assert ellipses("wtedy...", right=".") == ("wtedy...", 0)
+
+    def test_an_ordinary_neighbour_changes_nothing(self):
+        from epubforge.stages.typography import ellipses
+
+        assert ellipses("...i wtedy", left="a", right="b") == ("…i wtedy", 1)
+
+    def test_the_neighbours_never_end_up_in_the_text(self):
+        """The one way this could quietly corrupt a book: returning the padded
+        string instead of the slice of it that belongs to this node."""
+        from epubforge.stages.typography import ellipses
+
+        assert ellipses("a... b... c", left="X", right="Y") == ("a… b… c", 2)
