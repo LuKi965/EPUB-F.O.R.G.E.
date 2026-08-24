@@ -214,12 +214,37 @@ one of them losing a hundred and forty honest repairs, and correcting only the
 stage's own guard moved the refusal up to K1, which then refused whole books.
 The rule now declines at a seam it cannot see past.
 
-**Not built:** en dashes in numeric ranges, which the plan asked for. 795
-candidates on the shelf; after postal codes, telephone numbers and chapter
-numbering in tables of contents, perhaps a dozen are real ranges. A rule that
-would mistake a phone number for a range in order to replace a hyphen nobody can
-see is not worth its risk. Recorded with the measurement so the decision can be
-revisited.
+### A range takes an en dash — and every place is shown before one is changed
+
+A range is set with `–`, not with the hyphen a keyboard produces. This was very
+nearly not built: 795 candidates on the shelf, of which — after telephone
+numbers, postal codes and chapter numbering — perhaps a dozen are real ranges,
+and a rule mistaking a phone number for a range in order to replace a hyphen
+nobody can see is a poor trade. The owner's answer moved the question rather
+than settling it: *ask*. Which is a different proposal, and a better one.
+
+So three sieves reject by **form** and never by meaning — no list of words: a
+colon after it makes it a label; a range's endpoints are the same size; a range
+counts up. Two hundred candidates become forty-two, in seventeen books, usually
+two or three per book. What form cannot settle stays on the list and goes to a
+person: a licence plate, a grade of motor oil, a police radio code, a Japanese
+street address all look exactly like ranges.
+
+Three things make this question unlike the other typographic ones. It lists
+**every** place rather than three examples, because these are separate things
+rather than one habit. Each carries its surroundings, because `1996-2001` alone
+is unjudgeable and `w latach 1996-2001` is not. And the answer **stops at the
+book it was given about** — the next book's list is a different list, with
+somebody's licence plate in it.
+
+Two defects surfaced while writing it, both by mutation. A fourth sieve, for the
+Polish postal code shape, could never change an outcome — `dd-ddd` is uneven by
+definition, so the sieve below it was doing the work — and it was removed rather
+than kept as decoration. And the rule was not named in the set K1's prose half
+reads: the stage's own guard folds every dash to a hyphen, that half deliberately
+does not, and a book whose *only* typographic change is a dash was being refused.
+On the shelf it passed by accident, because the two rules beside it were named
+and covered the difference.
 
 ### `@font-face` rules that can load nothing are removed
 
