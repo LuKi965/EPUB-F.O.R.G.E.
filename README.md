@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.3.0` · alpha · **Windows**
+`0.3.1` · alpha · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
@@ -222,14 +222,14 @@ nie jest słowem, więc takie złożenie nie istnieje. `savoir-vivre` i
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Wersja `0.2.x` **jest** alfą: zakres funkcji jest ustalony,
+- **Alpha.** Wersja `0.3.x` **jest** alfą: zakres funkcji jest ustalony,
   a poprawność sprawdzana na prawdziwych książkach, nie tylko na atrapach.
 - **Tryb ścisły potrafi odmówić wydania pliku.** Pyta EPUBCheck *zanim* plik
   trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje za niepoprawne —
-  również wtedy, gdy defekt przyszedł razem z książką. Zmierzone na całym
-  korpusie publicznym: **17 książek na 19 wychodzi, 2 są odmówione**, obie za
-  wady, które przyszły ze źródłem. Odmowa **nie rusza** pliku leżącego już pod
-  tą nazwą.
+  również wtedy, gdy defekt przyszedł razem z książką. Zmierzone na półce
+  160 prawdziwych książek: **157 wychodzi, 3 są odmówione**, wszystkie trzy za
+  odnośnik do kotwicy, której w książce nigdy nie było — dorobienie jej byłoby
+  fałszerstwem. Odmowa **nie rusza** pliku leżącego już pod tą nazwą.
 - **Sprawdzenie wyglądu też potrafi zatrzymać zapis i jest obowiązkowe.**
   Program rysuje strony przed i po przebudowie i porównuje je; przy wykrytej
   stracie treści domyślnie nie zapisuje nic. Trzy stany: wyłączone / raportuj /
@@ -253,7 +253,9 @@ Rzeczy, o których lepiej wiedzieć przed, niż po:
 Pięć niezależnych siatek bezpieczeństwa, poza zwykłymi testami jednostkowymi:
 
 - **niezmiennik K1** — cały tekst źródła musi być w wyniku, w tej samej
-  kolejności;
+  kolejności, a proza dokumentu przeniesionego ze źródła musi wyjść **co do
+  znaku identyczna**. Zmiana, o którą poprosiłeś odpowiedzią, jest nazwana
+  w raporcie zamiast przemilczana;
 - **bilans wejście→wyjście** — co weszło, co wyszło, i czy różnicę tłumaczy wpis
   w rejestrze zmian. K1 pilnuje tekstu, a to pilnuje wszystkiego innego: obrazek,
   który zniknął po cichu, nie zabiera ze sobą ani jednej litery i przez to jest

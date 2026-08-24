@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.3.0` · alpha · **Windows**
+`0.3.1` · alpha · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md)
@@ -226,14 +226,14 @@ first half is not a word, so no such compound exists. `savoir-vivre` and
 
 Things worth knowing before rather than after:
 
-- **Alpha.** `0.2.x` **is** alpha: the feature set is settled, and correctness
+- **Alpha.** `0.3.x` **is** alpha: the feature set is settled, and correctness
   is checked against real books rather than fixtures alone.
 - **Strict mode can refuse to produce a file.** It asks EPUBCheck *before* the
   file takes its name and will not publish something the validator calls invalid
-  — including when the defect arrived with the book. Measured over the whole
-  public corpus: **17 books of 19 come out, 2 are refused**, both for defects
-  that came from the source. A refusal **does not touch** the file already
-  sitting under that name.
+  — including when the defect arrived with the book. Measured over a shelf of
+  160 real books: **157 come out, 3 are refused**, every one of them for a link
+  to an anchor the book never had — inventing one would be forgery. A refusal
+  **does not touch** the file already sitting under that name.
 - **The appearance check can also stop the write, and is mandatory.** The
   program draws the pages before and after and compares them; where content is
   lost it writes nothing by default. Three states: off / report / stop.
@@ -256,7 +256,9 @@ Things worth knowing before rather than after:
 Five independent safety nets, on top of the ordinary unit tests:
 
 - **the K1 invariant** — all of the source's text must be in the output, in the
-  same order;
+  same order, and the prose of a document carried over from the source must come
+  out **character for character identical**. A change you asked for by answering
+  a question is named in the report rather than passed over;
 - **the input→output balance** — what went in, what came out, and whether the
   ledger explains the difference. K1 watches the text; this watches everything
   else, because an image that vanishes quietly takes no letter with it and is

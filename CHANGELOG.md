@@ -40,6 +40,21 @@ written; only the current version was reset.
 
 ## Unreleased
 
+## 0.3.1 — alpha — 2026-08-24
+
+The whole of the 0.4 plan, which is a plan name and not a version: MINOR here
+moves with the maturity stage and nothing else, so a cycle's work lands as a
+patch. Five pillars — the stylesheet rebuild, file names from roles, a report
+written for a person, language correction, and typography with font subsetting
+— plus what the shelf turned up while they were being built.
+
+Verified before the tag by a strict run over 160 real books with both gates on:
+**157 written, 3 refused, none of them this program's doing**. The previous such
+run refused nine, six of them its own fault. Separately, every book validated
+before and after: **no EPUBCheck error introduced anywhere, 500 fixed**, and
+books arriving clean rose from 73 to 155.
+
+
 ### Properties CSS does not have are removed, in both modes
 
 The first slice of the 0.4 plan's stylesheet rebuild, and the largest single
