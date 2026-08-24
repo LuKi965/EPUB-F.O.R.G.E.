@@ -46,11 +46,19 @@ from .base import Context, Stage
 ELLIPSIS = "ellipsis"
 CONJUNCTIONS = "conjunctions"
 QUOTES = "quotes"
+RANGES = "ranges"
 
 #: How many places a question shows before it stops showing and starts
 #: counting. Three, because these are one-line excerpts and the question is
 #: about a habit running through a whole book, not about the excerpts.
 SAMPLES = 3
+
+#: The ranges question shows **all** of them, up to this many. It is a different
+#: kind of question: not "does this book have a habit" but "are these particular
+#: places ranges", and three examples would be asking somebody to vouch for
+#: forty things after seeing three. Measured on 160 books: at most twelve in one
+#: book, usually two or three.
+SHOWN_RANGES = 40
 
 #: The straight quote, as an expression, so the sample finder can treat all
 #: three rules the same way.
@@ -75,6 +83,12 @@ NBSP = " "
 
 #: How much of the sentence a sample carries on each side of what was found.
 AROUND = 34
+
+
+def _excerpt(text: str, start: int, end: int) -> str:
+    """The text around one exact place, with what was found in the middle."""
+    excerpt = text[max(0, start - AROUND): end + AROUND]
+    return " ".join(excerpt.split())
 
 
 def _around(text: str, expression) -> str:
@@ -218,10 +232,10 @@ class TypographyStage(Stage):
         found = self._survey(documents, language, marks)
         agreed = self._agree(ctx, found, convention)
         if not agreed:
-            self._report(ctx, 0, 0, 0, convention, [], found, agreed, straight)
+            self._report(ctx, 0, 0, 0, 0, convention, [], found, agreed, straight)
             return
 
-        ellipses = conjunctions = quotes = 0
+        ellipses = conjunctions = quotes = dashes = 0
         reverted: list[str] = []
         for resource, root in documents:
             before = list(root.itertext())
@@ -241,10 +255,11 @@ class TypographyStage(Stage):
             ellipses += changed[0]
             conjunctions += changed[1]
             quotes += changed[2]
+            dashes += changed[3]
 
         self._report(
-            ctx, ellipses, conjunctions, quotes, convention, reverted, found,
-            agreed, straight,
+            ctx, ellipses, conjunctions, quotes, dashes, convention, reverted,
+            found, agreed, straight,
         )
 
     def _survey(self, documents, language: str, marks) -> "dict[str, dict]":
@@ -260,7 +275,8 @@ class TypographyStage(Stage):
         def seen(rule: str, count: int, sample: str) -> None:
             entry = found.setdefault(rule, {"count": 0, "samples": []})
             entry["count"] += count
-            if len(entry["samples"]) < SAMPLES and sample:
+            cap = SHOWN_RANGES if rule == RANGES else SAMPLES
+            if len(entry["samples"]) < cap and sample:
                 entry["samples"].append(sample)
 
         for _, root in documents:
@@ -280,7 +296,39 @@ class TypographyStage(Stage):
                         seen(CONJUNCTIONS, len(hits), _around(text, _CONJUNCTION))
                 if marks is not None and '"' in text:
                     seen(QUOTES, text.count('"'), _around(text, _STRAIGHT))
+                places = typography.ranges(text)
+                if places:
+                    # Every one of them, not three: unlike the other rules this
+                    # is not a habit running through the book but a handful of
+                    # separate places, and the person is judging the places.
+                    for start, end in places:
+                        seen(RANGES, 1, _excerpt(text, start, end))
         return {rule: entry for rule, entry in found.items() if entry["count"]}
+
+    @staticmethod
+    def _group(ctx: Context, rule: str) -> str:
+        """Which set an answer of "all of them" is an answer about.
+
+        For the three habit rules it is the habit: three dots typed for an
+        ellipsis are the same thing in every book, so one answer settles the
+        shelf and the batch carries it (record 029).
+
+        **Ranges are not a habit and their group is one book.** The list is
+        different in every book and cannot be judged from another one's:
+        measured over 160 books, what survives the form sieves is `w latach
+        1996-2001` and a gravestone's dates in one book, and a licence plate,
+        a grade of motor oil and a police radio code in others. An answer about
+        the first list is not an answer about the second, so the group carries
+        the book's identifier and a standing "yes" stops at the book it was
+        given about.
+        """
+        if rule != RANGES:
+            return f"typography:{rule}"
+        named = [
+            one.value for one in (ctx.book.metadata.identifiers or []) if one.value
+        ]
+        which = named[0] if named else (ctx.book.nav_path or "?")
+        return f"typography:{rule}:{which}"
 
     def _agree(self, ctx: Context, found: dict, convention) -> "set[str]":
         """Which rules somebody said yes to. Never more than that.
@@ -296,21 +344,27 @@ class TypographyStage(Stage):
         mojibake repair uses — and not a fourth way of changing text unasked.
         """
         agreed = set()
-        for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES):
+        for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES, RANGES):
             entry = found.get(rule)
             if not entry:
                 continue
             if ctx.policy.typography:
                 agreed.add(rule)
                 continue
-            answer = ctx.decide(self._question(rule, entry, convention))
+            answer = ctx.decide(self._question(ctx, rule, entry, convention))
             if answer.option == "repair":
                 agreed.add(rule)
         return agreed
 
-    def _question(self, rule: str, entry: dict, convention) -> Question:
+    def _question(self, ctx: Context, rule: str, entry: dict, convention) -> Question:
         shown = "\n".join(f"…{sample}…" for sample in entry["samples"])
         count = entry["count"]
+        # A question that shows part of a list has to say so. `say` swallows a
+        # missing placeholder and hands back the template, so this is passed for
+        # every rule even though only the ranges text uses it — an unfilled
+        # `{more}` in front of a person is worse than an unused argument.
+        left = count - len(entry["samples"])
+        more = say(f"typography.{rule}.more", count=left) if left > 0 else ""
         return Question(
             kind=TEXT,
             where="",
@@ -319,6 +373,7 @@ class TypographyStage(Stage):
                 f"typography.{rule}.detail",
                 count=count,
                 shown=shown,
+                more=more,
                 convention=say(f"typography.convention.{convention}")
                 if convention
                 else "",
@@ -341,7 +396,7 @@ class TypographyStage(Stage):
             # what stood there before.
             reversible=False,
             risk=Risk.CONTENT,
-            group=f"typography:{rule}",
+            group=self._group(ctx, rule),
             subject=f"{rule}:{count}",
         )
 
@@ -397,7 +452,7 @@ class TypographyStage(Stage):
         *agreed* is the set somebody said yes to, and a rule outside it does not
         run at all — not "runs and is discarded". Returns what changed.
         """
-        folded = conjunctions = quotes = 0
+        folded = conjunctions = quotes = dashes = 0
         polish = language.startswith("pl") and CONJUNCTIONS in agreed
         # Per document, not per book: an unbalanced quote in one chapter must
         # not invert every quotation in the next one.
@@ -422,6 +477,11 @@ class TypographyStage(Stage):
                 # be skipped by the rule written for them.
                 repaired, count = _CONJUNCTION.subn(rf"\1{NBSP}", repaired)
                 conjunctions += count
+            if RANGES in agreed:
+                places = typography.ranges(repaired)
+                if places:
+                    repaired = typography.dashed(repaired, places)
+                    dashes += len(places)
             if marks is not None and QUOTES in agreed:
                 repaired, count, inside = typography.retype_quotes(
                     repaired, marks[0], marks[1], inside=inside
@@ -429,7 +489,7 @@ class TypographyStage(Stage):
                 quotes += count
             if repaired != text:
                 setattr(element, attribute, repaired)
-        return folded, conjunctions, quotes
+        return folded, conjunctions, quotes, dashes
 
     def _report(
         self,
@@ -437,6 +497,7 @@ class TypographyStage(Stage):
         ellipses: int,
         conjunctions: int,
         quotes: int,
+        dashes: int,
         convention: str | None,
         reverted: list[str],
         found: dict,
@@ -448,7 +509,7 @@ class TypographyStage(Stage):
         # book with a thousand candidates and a book with none produce the same
         # silent report (S-05 leaves the book alone; it does not leave the
         # reader uninformed).
-        for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES):
+        for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES, RANGES):
             entry = found.get(rule)
             if not entry or rule in agreed:
                 continue
@@ -462,6 +523,8 @@ class TypographyStage(Stage):
                 self.note(ctx, Level.PRESERVED, "typography.ellipsis-left-alone", values=count)
             elif rule == CONJUNCTIONS:
                 self.note(ctx, Level.PRESERVED, "typography.conjunctions-left-alone", values=count)
+            elif rule == RANGES:
+                self.note(ctx, Level.PRESERVED, "typography.ranges-left-alone", values=count)
             else:
                 self.note(ctx, Level.PRESERVED, "typography.quotes-left-alone", values=count)
         if ellipses:
@@ -474,6 +537,10 @@ class TypographyStage(Stage):
                 Level.FIX,
                 "typography.conjunctions-bound",
                 values={"count": conjunctions},
+            )
+        if dashes:
+            self.note(
+                ctx, Level.FIX, "typography.ranges-dashed", values={"count": dashes}
             )
         if quotes:
             self.note(

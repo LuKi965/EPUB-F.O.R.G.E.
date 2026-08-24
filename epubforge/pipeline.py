@@ -610,6 +610,14 @@ CHANGES_TEXT_SHAPE_ON_PURPOSE = frozenset({
     # broken ones out of the *source* side, so the difference the check sees
     # is the repaired punctuation appearing — which is the answer working.
     "xhtml.mojibake-translated",
+    # A hyphen between the endpoints of a range becomes an en dash. The
+    # stage's own guard forgives it — its canonical form folds every dash to a
+    # hyphen — but the prose half of K1 does not fold dashes, deliberately, so
+    # the rule has to be named here or a book whose only typographic change is
+    # this one is refused. It was: measured on a book with nothing else to
+    # repair, and hidden on the shelf because the two rules beside it were
+    # already named and covered the difference by accident.
+    "typography.ranges-dashed",
 })
 
 REMOVES_TEXT_ON_PURPOSE = frozenset({

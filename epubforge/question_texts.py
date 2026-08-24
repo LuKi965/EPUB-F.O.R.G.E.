@@ -411,6 +411,37 @@ TEXTS_PL: dict[str, str] = {
         "{count} prostych znaków zamieni się w cudzysłowy tej książki. To "
         "zmiana treści; z samego wyniku nie da się jej cofnąć"
     ),
+    "typography.ranges.summary": (
+        "{count} miejsc, w których między liczbami stoi łącznik, a zakres "
+        "składa się półpauzą"
+    ),
+    "typography.ranges.detail": (
+        "Zakres „od–do” składa się półpauzą („1996–2001”), a nie łącznikiem "
+        "z klawiatury („1996-2001”).\n\n"
+        "**To pytanie jest inne od pozostałych typograficznych** i dlatego "
+        "wypisuje wszystkie miejsca, a nie trzy przykłady. Tamte dotyczą "
+        "nawyku, który w całej książce jest ten sam; tutaj każde miejsce to "
+        "osobna rzecz i tylko po sąsiedztwie widać, czy to naprawdę zakres. "
+        "Odpowiedź obejmuje **tę książkę**, a nie całą partię — bo lista "
+        "w następnej książce będzie inna.\n\n"
+        "Program odsiał już to, co zakresem nie jest po samym kształcie: kody "
+        "pocztowe, numery telefonów, liczby nierosnące i numerację z "
+        "dwukropkiem. Czego kształt nie rozstrzyga, to na przykład numer "
+        "rejestracyjny, oznaczenie oleju albo kod radiowy — one wyglądają jak "
+        "zakres i zakresem nie są. Dlatego pytam.\n\n{shown}{more}"
+    ),
+    "typography.ranges.more": "\n… i {count} dalszych",
+    "typography.ranges.keep": "Zostaw łączniki",
+    "typography.ranges.keep.why": (
+        "Tekst nie zmieni się o żaden znak; w każdym z tych miejsc zostanie "
+        "łącznik"
+    ),
+    "typography.ranges.repair": "Zamień na półpauzy w tej książce",
+    "typography.ranges.repair.why": (
+        "{count} łączników zamieni się w półpauzy — we wszystkich miejscach z "
+        "listy, także w tych, które zakresem nie są. To zmiana treści; z samego "
+        "wyniku nie da się jej cofnąć"
+    ),
 }
 
 TEXTS_EN: dict[str, str] = {
@@ -763,6 +794,37 @@ TEXTS_EN: dict[str, str] = {
     "typography.quotes.repair.why": (
         "{count} straight marks become this book's quotation marks. This "
         "changes the text and cannot be undone from the output alone"
+    ),
+    "typography.ranges.summary": (
+        "{count} places where a hyphen stands between numbers, where a range "
+        "takes an en dash"
+    ),
+    "typography.ranges.detail": (
+        "A range is set with an en dash („1996–2001”), not with the hyphen a "
+        "keyboard produces („1996-2001”).\n\n"
+        "**This question is unlike the other typographic ones**, which is why "
+        "it lists every place rather than three examples. Those are about a "
+        "habit that is the same throughout a book; here each place is its own "
+        "thing, and only its surroundings show whether it really is a range. "
+        "The answer covers **this book**, not the batch — the next book's list "
+        "will be a different list.\n\n"
+        "What is not a range by shape has already been sieved out: postal "
+        "codes, telephone numbers, endpoints that do not count up, and "
+        "numbering followed by a colon. What shape cannot settle is a licence "
+        "plate, a grade of motor oil, a radio code — they look like ranges and "
+        "are not. Hence the question.\n\n{shown}{more}"
+    ),
+    "typography.ranges.more": "\n… and {count} more",
+    "typography.ranges.keep": "Leave the hyphens",
+    "typography.ranges.keep.why": (
+        "Not one character of the text changes; every one of these places keeps "
+        "its hyphen"
+    ),
+    "typography.ranges.repair": "Use en dashes in this book",
+    "typography.ranges.repair.why": (
+        "{count} hyphens become en dashes — in every place on the list, "
+        "including any that is not a range. This changes the text and cannot be "
+        "undone from the output alone"
     ),
 }
 

@@ -161,6 +161,76 @@ _ELLIPSIS = re.compile(r"\.\.\.")
 _WHITESPACE = re.compile(r"\s+")
 
 
+#: A hyphen standing between two numbers, each of them free-standing: not glued
+#: to a word, not part of a longer run of digits or dashes, not a decimal.
+_RANGE = re.compile(r"(?<![\w\-\u2013/.])(\d{1,4})-(\d{1,4})(?![\w\-\u2013/]|\.\d)")
+
+#: The dash a range is set with. Narrower than a hyphen is short and than a
+#: dash-for-a-clause is long, which is exactly the distinction it carries.
+EN_DASH = "\u2013"
+
+
+def not_a_range(text: str, found) -> "str | None":
+    """Why this candidate is not a numeric range, or `None` if it may be one.
+
+    Every one of these was written after reading what the shelf actually
+    carries under this shape, and each rejects by **form** rather than by
+    meaning — no list of words, no guess at what a number is for. Measured
+    over 160 books: 200 candidates, of which these three sieves reject 158.
+
+    * `1-2: NAN BALAT` — a colon after it makes it a label. Seventeen of them,
+      all chapter numbering in one book's table of contents.
+    * `621-9288`, `60-171 Poznań` — a range's endpoints are the same size.
+      A hundred and twenty-three: telephone numbers, and Polish postal codes,
+      which are two digits and then three.
+    * `27-18` — a range counts up. Eighteen, mostly scores and codes.
+
+    **There was a fourth, and it was a fake.** A separate test for the postal
+    code shape ran first and reported `postcode` as the reason — but `dd-ddd`
+    is uneven by definition, so the sieve below it rejected every one of them
+    anyway. It could never change an outcome, only a label, and a mutation
+    that deleted it changed nothing a behaviour test could see. Removed, and
+    the count above merged into the sieve that was really doing the work.
+
+    What survives is **still not certain**, and that is the point: forty-two
+    candidates in seventeen books, among them real ranges (`w latach
+    1996-2001`, `zie p. 10-18`, dates on a gravestone) and real non-ranges
+    (a licence plate, a grade of motor oil, a police radio code). A form test
+    cannot separate those, so the program does not try — it asks.
+    """
+    left, right = found.group(1), found.group(2)
+    if text[found.end():found.end() + 1] == ":":
+        return "label"
+    if len(left) != len(right):
+        return "uneven"
+    if int(right) <= int(left):
+        return "not-ascending"
+    return None
+
+
+def ranges(text: str) -> "list[tuple[int, int]]":
+    """Where in *text* a hyphen stands between the endpoints of a range."""
+    return [
+        found.span()
+        for found in _RANGE.finditer(text or "")
+        if not_a_range(text, found) is None
+    ]
+
+
+def dashed(text: str, places: "list[tuple[int, int]]") -> str:
+    """*text* with the hyphen at each of *places* replaced by an en dash.
+
+    Rebuilt back to front. Today that changes nothing — an en dash is exactly
+    as long as a hyphen, so no replacement moves a later span, and a mutation
+    reversing the order fails no test. It is written this way so that the
+    statement *the spans are into the string as it was handed in* stays true
+    if the replacement ever stops being the same length.
+    """
+    for start, end in sorted(places, reverse=True):
+        text = text[:start] + text[start:end].replace("-", EN_DASH, 1) + text[end:]
+    return text
+
+
 def is_protected(element) -> bool:
     """True for an element a typography rule may not reach into.
 

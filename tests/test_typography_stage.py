@@ -12,6 +12,7 @@ import zipfile
 
 import pytest
 
+from epubforge import typography
 from epubforge.pipeline import rebuild
 from epubforge.policy import Policy
 from epubforge.report import Level
@@ -616,3 +617,202 @@ class TestTheSeamRuleItself:
         from epubforge.stages.typography import ellipses
 
         assert ellipses("a... b... c", left="X", right="Y") == ("a… b… c", 2)
+
+
+class TestRangesAreAskedPlaceByPlace:
+    """The owner's decision, against my recommendation: *„pytanie jest zawsze
+    najlepsze w takich kwestiach. Human in the loop."*
+
+    So the rule exists — and everything below is what makes a question worth
+    answering. Measured over 160 books: 200 candidates by shape, of which the
+    form sieves reject 158, leaving 42 in 17 books, at most twelve in one and
+    usually two or three. Among those forty-two: real ranges (`w latach
+    1996-2001`, dates on a gravestone) and real non-ranges (a licence plate,
+    a grade of motor oil, a police radio code). No form test separates those,
+    so the program shows them and asks.
+    """
+
+    #: One of each: a range, a postal code, a telephone number, a score, a
+    #: label, and a time that is not two whole numbers.
+    BOOK = (
+        "<p>W latach 1996-2001 mieszkał tam.</p>"
+        "<p>Adres: 60-171 Poznań, tel. 621-9288.</p>"
+        "<p>Wynik meczu 27-18, rozdział 1-2: Tytuł.</p>"
+        "<p>Godziny 10-11.30 rano.</p>"
+    )
+
+    def test_only_the_range_is_offered(self, tmp_path):
+        _, _, answering = ask_about(tmp_path, self.BOOK, option="keep", name="w1")
+        question = next(
+            q for q in ours(answering) if q.group.startswith("typography:ranges")
+        )
+        assert "1" in question.summary
+        assert "1996-2001" in question.detail
+        for other in ("60-171", "621-9288", "27-18", "1-2", "10-11"):
+            assert other not in question.detail, other
+
+    def test_a_yes_changes_the_range_and_nothing_else(self, tmp_path):
+        _, html, _ = ask_about(tmp_path, self.BOOK, name="w2")
+        assert "1996–2001" in html
+        for untouched in ("60-171", "621-9288", "27-18", "1-2:", "10-11.30"):
+            assert untouched in html, untouched
+
+    def test_a_no_leaves_the_hyphen(self, tmp_path):
+        result, html, _ = ask_about(tmp_path, self.BOOK, option="keep", name="w3")
+        assert "1996-2001" in html
+        assert "typography.ranges-left-alone" in {f.rule for f in result.report.findings}
+
+    def test_every_place_is_shown_not_a_sample(self, tmp_path):
+        """Three examples would be asking somebody to vouch for a list after
+        seeing part of it. The other three rules show three; this one shows
+        them all."""
+        body = "".join(
+            f"<p>W latach {1900 + n}-{1910 + n} coś się działo.</p>" for n in range(7)
+        )
+        _, _, answering = ask_about(tmp_path, body, option="keep", name="w4")
+        question = next(
+            q for q in ours(answering) if q.group.startswith("typography:ranges")
+        )
+        assert question.detail.count("…") >= 14, question.detail
+
+    def test_the_answer_stops_at_this_book(self, tmp_path):
+        """The whole reason this group is not `typography:ranges`. A list of
+        numeric ranges is a different list in every book, so "yes to all of
+        them" cannot mean the next book's list — which will contain somebody's
+        licence plate."""
+        _, _, answering = ask_about(tmp_path, self.BOOK, option="keep", name="w5")
+        question = next(
+            q for q in ours(answering) if q.group.startswith("typography:ranges")
+        )
+        assert question.group != "typography:ranges"
+        assert question.group.startswith("typography:ranges:")
+
+    def test_the_other_rules_still_share_one_group(self, tmp_path):
+        """The other side of it: an ellipsis is the same thing in every book and
+        one answer must still settle the shelf."""
+        _, _, answering = ask_about(
+            tmp_path, "<p>Czekaj... juz ide.</p>", option="keep", name="w6"
+        )
+        groups = {q.group for q in ours(answering)}
+        assert "typography:ellipsis" in groups
+
+
+class TestTheSieveItself:
+    """Each rejection is by form, never by meaning — there is no list of words
+    here and there is not going to be one. Tested one sieve at a time so a
+    failure names which."""
+
+    def test_a_plain_range_survives(self):
+        assert typography.ranges("w latach 1996-2001 i potem") == [(9, 18)]
+
+    def test_a_label_is_rejected(self):
+        assert typography.ranges("rozdział 1-2: Tytuł") == []
+
+    def test_a_postal_code_is_rejected(self):
+        """By the length sieve, not by a sieve of its own: `dd-ddd` is uneven
+        by definition. A separate postcode test used to run first and could
+        never change an outcome — only the reason string — which is why it is
+        gone."""
+        assert typography.ranges("kod 60-171 Poznań") == []
+
+    def test_uneven_endpoints_are_rejected(self):
+        assert typography.ranges("tel. 621-9288") == []
+
+    def test_endpoints_that_do_not_count_up_are_rejected(self):
+        assert typography.ranges("wynik 27-18") == []
+        assert typography.ranges("wynik 18-18") == []
+
+    def test_a_decimal_after_it_is_rejected(self):
+        assert typography.ranges("godziny 10-11.30") == []
+
+    def test_glued_to_a_word_is_rejected(self):
+        assert typography.ranges("numer X20-513") == []
+        assert typography.ranges("1971-1974a") == []
+
+    def test_part_of_a_longer_run_is_rejected(self):
+        assert typography.ranges("61-867-47-0") == []
+
+    def test_the_reason_is_named(self):
+        """The sieve says *why*, because a rule that rejects without a reason
+        is a rule nobody can check."""
+        import re
+
+        found = re.search(r"(\d+)-(\d+)", "kod 60-171")
+        assert typography.not_a_range("kod 60-171", found) == "uneven"
+
+    def test_dashing_replaces_only_the_hyphen_between_the_numbers(self):
+        text = "w latach 1996-2001 i tel. 621-9288"
+        assert typography.dashed(text, typography.ranges(text)) == (
+            "w latach 1996–2001 i tel. 621-9288"
+        )
+
+    def test_several_places_in_one_string_all_change(self):
+        """Deliberately not claiming more than it checks: an en dash is as long
+        as a hyphen, so nothing here can prove the back-to-front rebuild
+        matters. It is in the code for the day the replacement stops being the
+        same length, and that is said in the code rather than pretended here."""
+        text = "1996-2001, 2001-2005, 2005-2012"
+        assert typography.dashed(text, typography.ranges(text)) == (
+            "1996–2001, 2001–2005, 2005–2012"
+        )
+
+
+class TestTheGateAccountsForTheDash:
+    """Found by probing what the shelf could not show. On a real book the
+    ranges rule fires beside the ellipsis and the conjunctions, both of which
+    K1 already knows about — so their names covered this rule's difference and
+    everything passed. A book whose *only* typographic change is a dash was
+    refused outright."""
+
+    #: No three dots and no single-letter conjunction anywhere: those two rules
+    #: are already named in the gate, and a fixture that lets them fire has the
+    #: dash covered by their names. The first version of this test did exactly
+    #: that and passed with the rule removed.
+    ONLY_A_RANGE = "<p>Mieszkal tam w latach 1996-2001 oraz pisal ksiazki.</p>" * 6
+
+    @staticmethod
+    def _only_ranges(tmp_path, name):
+        source = book(tmp_path, "pl", TestTheGateAccountsForTheDash.ONLY_A_RANGE,
+                      name=f"{name}-in.epub")
+
+        class OnlyRanges:
+            def ask(self, question):
+                from epubforge.decisions import Answer
+
+                return Answer(
+                    option="repair"
+                    if question.group.startswith("typography:ranges")
+                    else "keep",
+                    apply_to_group=True,
+                )
+
+        result = rebuild(
+            source, str(tmp_path / f"{name}.epub"),
+            Policy.preset("preserve", typography=False), resolver=OnlyRanges(),
+        )
+        return result
+
+    def test_a_book_changed_only_by_a_dash_is_still_written(self, tmp_path):
+        result = self._only_ranges(tmp_path, "x1")
+        assert result.output_path, result.report.to_text()
+        said = {f.rule for f in result.report.findings}
+        assert "typography.ranges-dashed" in said
+        assert "typography.conjunctions-bound" not in said, "fixture is not isolated"
+        assert "typography.ellipsis-normalised" not in said, "fixture is not isolated"
+        assert "package.prose-changed" not in said
+
+    def test_and_the_report_says_the_prose_changed_on_request(self, tmp_path):
+        """Named rather than passed over: the invariant no longer holds
+        character for character and the person reading is entitled to know."""
+        result = self._only_ranges(tmp_path, "x2")
+        assert "package.prose-changed-on-request" in {
+            f.rule for f in result.report.findings
+        }
+
+    def test_the_rule_is_named_in_the_set_the_prose_half_reads(self):
+        from epubforge import pipeline
+
+        assert (
+            "typography.ranges-dashed"
+            in pipeline.CHANGES_TEXT_SHAPE_ON_PURPOSE | pipeline.REMOVES_TEXT_ON_PURPOSE
+        )

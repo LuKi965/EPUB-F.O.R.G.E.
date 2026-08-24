@@ -120,6 +120,8 @@ CATALOGUE: dict[str, str] = {
     "typography.ellipsis-left-alone": "{count} run(s) of three dots were left exactly as the file has them, because nobody was asked or nobody answered",
     "typography.conjunctions-left-alone": "{count} single-letter conjunction(s) can still be left at the end of a line: nobody was asked or nobody answered",
     "typography.quotes-left-alone": "{count} straight quote(s) were left exactly as the file has them, in a book that otherwise keeps to one form, because nobody was asked or nobody answered",
+    "typography.ranges-dashed": "{count} hyphen(s) standing between the endpoints of a range became en dashes, each place looked at and agreed to for this book",
+    "typography.ranges-left-alone": "{count} hyphen(s) stand between numbers where a range takes an en dash, and every one was left as the file has it, because nobody was asked or nobody answered",
     "typography.reverted": "{count} document(s) were put back unchanged: the typography pass could not show it kept the text",
     # -- profile -------------------------------------------------------------
     "profile.made-by": "the book carries traces of {count} tool(s): {tools}",
@@ -481,6 +483,8 @@ CATALOGUE_PL: dict[str, str] = {
     'typography.ellipsis-left-alone': '{count} {count:ciąg trzech kropek został|ciągi trzech kropek zostały|ciągów trzech kropek zostało} dokładnie tak, jak w pliku — nie było kogo zapytać albo nikt nie odpowiedział',
     'typography.conjunctions-left-alone': '{count} {count:jednoliterowy spójnik nadal może zostać|jednoliterowe spójniki nadal mogą zostać|jednoliterowych spójników nadal może zostać} na końcu wiersza: nie było kogo zapytać albo nikt nie odpowiedział',
     'typography.quotes-left-alone': '{count} {count:prosty cudzysłów został|proste cudzysłowy zostały|prostych cudzysłowów zostało} dokładnie tak, jak w pliku, w książce, która poza tym trzyma się jednej formy — nie było kogo zapytać albo nikt nie odpowiedział',
+    'typography.ranges-dashed': '{count} {count:łącznik między krańcami zakresu stał się półpauzą|łączniki między krańcami zakresu stały się półpauzami|łączników między krańcami zakresu stało się półpauzami}, każde miejsce obejrzane i potwierdzone dla tej książki',
+    'typography.ranges-left-alone': '{count} {count:łącznik stoi|łączniki stoją|łączników stoi} między liczbami tam, gdzie zakres składa się półpauzą, i {count:został|zostały|zostało} dokładnie tak, jak w pliku — nie było kogo zapytać albo nikt nie odpowiedział',
     'typography.reverted': '{count} {count:dokument przywrócono|dokumenty przywrócono|dokumentów przywrócono} bez zmian: przebieg typograficzny nie potrafił wykazać, że zachował tekst',
     'profile.made-by': 'książka nosi ślady {count} {count:narzędzia|narzędzi|narzędzi}: {tools}',
     'profile.body-text-found': 'tekst główny to {shape}: {percent}% z {blocks} {blocks:akapitu|akapitów|akapitów}',
