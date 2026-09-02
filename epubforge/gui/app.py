@@ -683,6 +683,12 @@ class MainWindow(QMainWindow):
             layout, "policy.detect.typography", checked=True
         )
         self.typography_check = self._checkbox(layout, "policy.typography", checked=False)
+        # Record 038: images without a usable text alternative, one question
+        # per file, sorted by evidence. Looking changes nothing; every mark
+        # and every description is a person's answer.
+        self.detect_images_check = self._checkbox(
+            layout, "policy.detect.images", checked=True
+        )
 
         layout = card("policy.section.store")
         watermark_label = QLabel(tr("policy.watermark.label"))
@@ -1069,6 +1075,7 @@ class MainWindow(QMainWindow):
             policy.watermarks = self.watermark_combo.currentData()
             policy.typography = self.typography_check.isChecked()
             policy.detect_typography = self.detect_typography_check.isChecked()
+            policy.detect_undescribed_images = self.detect_images_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()

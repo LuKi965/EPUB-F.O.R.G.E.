@@ -1,6 +1,6 @@
 {
   "source": "sha256:796fc4ab089f661817d3be9e3a5ba6787ec52b41a2b0f1347b5a39e77708f8f3",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "minimal": {
     "written": true,
     "report": {
@@ -28,8 +28,9 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 4,
+      "preserved": 1,
       "warn": 1
     },
     "rules": {
@@ -38,6 +39,8 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "pictures.left-alone": 1,
+      "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
       "xhtml.image-paragraph-centred-unstyled": 1,
@@ -52,8 +55,9 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 4,
+      "info": 5,
       "fix": 4,
+      "preserved": 1,
       "warn": 1
     },
     "rules": {
@@ -62,6 +66,8 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "pictures.left-alone": 1,
+      "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
       "xhtml.image-paragraph-centred-unstyled": 1,

@@ -40,6 +40,44 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Pictures nobody described: sorted by evidence, asked about, never described by the program
+
+The largest thing left on the shelf after 0.3.1, measured before it was
+designed: **1 140 image places in 109 of the 160 books** carry no text
+alternative a screen reader could use — no `alt`, an empty `alt` nobody
+vouched for, or an `alt` that repeats the file name. The accessibility stage
+has counted them honestly since it existed and declined to claim
+`alternativeText` over them; this is the other half, and the thing it does is
+ask.
+
+A new stage, `pictures`, between the footnotes and the navigation, puts one
+question per image *file* to a person, with the evidence attached and a
+recommendation drawn from it. An **ornament** — the same file standing alone,
+with no running text beside it, in three or more documents, and no bigger
+than a rose over a chapter title (339 places on the shelf: a rose, a brush
+stroke, a scroll between scenes) — is recommended decorative. A **tiny**
+picture — a hundred pixels or less on its longer side, or under two
+kilobytes (148 places) — is recommended decorative when it stands alone and
+left to the person when it sits inside a line of text, because at that size a
+separator and a signature look the same to a program. Everything else is an
+**illustration** (649 places, half of them in five books), and the only
+honest recommendation is to leave it; the person can type a description, and
+nothing else can. The first run on real books called a 2.2 MB plate repeated
+in five documents an ornament and recommended hiding it, which is why the
+ornament now has a size.
+
+Three options on every question, the same three: leave it, mark decorative,
+type a description. Marking decorative writes `alt=""` *and*
+`role="presentation"`, because a bare empty `alt` is exactly the unverifiable
+claim the accessibility stage refuses to read as one; the count of
+undescribed pictures in the report goes down by exactly the pictures a
+person answered for. "All of them" means the same kind of picture in this
+book and stops at this book — the group carries the book's identifier, as
+the ranges question does. Nothing changes without an answer. The cover is
+not asked about: the content stage already names it with the book's own
+title, a fact from the package. A checkbox in the window switches the
+looking off; there is no setting that acts on its own.
+
 ### Font stacks: the font's own name is read, and the shelf's names join common knowledge
 
 After 0.3.1, 387 font stacks in 33 of the 160 books still ended on a named

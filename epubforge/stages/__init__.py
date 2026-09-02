@@ -21,11 +21,16 @@ Order is load-bearing:
   the text in its final shape, and the anchors it may add exist before
   anything counts or validates references. Running it first would mean unwrapping a `<span>` through a
   paragraph the text of which had just been retyped, for no gain;
+* alt text after content and before accessibility — it writes attributes on
+  markup the content stage may have moved, and the accessibility stage counts
+  what it left: a picture marked decorative on a person's word is no longer
+  an undescribed one;
 * compatibility last — every measure there is a step away from the standard,
   taken for a named device, and nothing earlier should have to know about it.
 """
 
 from .accessibility import AccessibilityStage
+from .alt_text import AltTextStage
 from .base import Context, Stage
 from .compat import CompatibilityStage
 from .content import ContentStage
@@ -54,6 +59,7 @@ DEFAULT_STAGES = (
     HyphenStage,
     SubstitutionStage,
     FootnoteStage,
+    AltTextStage,
     NavigationStage,
     AccessibilityStage,
     CompatibilityStage,
@@ -82,5 +88,6 @@ __all__ = [
     "SubstitutionStage",
     "NavigationStage",
     "AccessibilityStage",
+    "AltTextStage",
     "CompatibilityStage",
 ]

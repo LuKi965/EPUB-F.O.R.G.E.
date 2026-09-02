@@ -133,6 +133,75 @@ TEXTS_PL: dict[str, str] = {
     "metadata.reconstructed.write.why": "W książce będzie to, co wpiszesz",
     # --- punctuation a conversion turned into unprintable codes -------------
     # --- bare footnote markers whose notes exist ----------------------------
+    # Images without a usable text alternative (record 038). One question per
+    # image file; the kind names the evidence, the options are the same four.
+    "images.ornament.summary": (
+        "Ozdobnik {file} bez opisu — ten sam plik stoi samodzielnie w {uses} "
+        "dokumentach ({px}, {size})"
+    ),
+    "images.ornament.detail": (
+        "Obraz {file} ({px}, {size}) pojawia się w {uses} dokumentach "
+        "({where}{more}), za każdym razem sam w bloku, bez tekstu obok. Tak "
+        "wygląda ozdobnik nad tytułem rozdziału albo separator między scenami: "
+        "czytelnik ekranu słyszałby go {count} razy jako „obraz” bez treści.\n\n"
+        "{alt}"
+        "Program nie umie opisać obrazu i nie wymyśla opisu. Może natomiast "
+        "oznaczyć go jako ozdobnik (alt=\"\" i role=\"presentation\" — "
+        "czytnik ekranu go pomija), albo wpisać opis, który podasz. Odpowiedź "
+        "„dla wszystkich” obejmuje ozdobniki **tej książki**."
+    ),
+    "images.tiny.summary": (
+        "Malutki obraz {file} bez opisu ({px}, {size}) — separator, ozdobnik "
+        "czy znak?"
+    ),
+    "images.tiny.detail": (
+        "Obraz {file} ma {px} i waży {size}; {text}. Występuje w {uses} "
+        "dokumentach ({where}{more}), łącznie {count} razy. Tej wielkości są "
+        "kreski, gwiazdki i zawijasy — ale też podpis autora, logo wydawcy "
+        "albo znak, którym opowieść coś oznacza; po samej wielkości tego nie "
+        "widać.\n\n"
+        "{alt}"
+        "Program nie umie opisać obrazu i nie wymyśla opisu. Może oznaczyć go "
+        "jako ozdobnik (alt=\"\" i role=\"presentation\" — czytnik ekranu go "
+        "pomija) albo wpisać opis, który podasz. Odpowiedź „dla wszystkich” "
+        "obejmuje malutkie obrazy **tej książki**."
+    ),
+    "images.illustration.summary": (
+        "Ilustracja {file} bez opisu ({px}, {size}, {uses} dok.)"
+    ),
+    "images.illustration.detail": (
+        "Obraz {file} ({px}, {size}) w {where}{more}; {text}. Nic w pliku ani "
+        "w książce nie mówi, co przedstawia, i **program tego nie wymyśli** — "
+        "opis może wpisać tylko człowiek, który obraz widział.\n\n"
+        "{alt}"
+        "Możesz wpisać opis (jedno zdanie o tym, co widać), oznaczyć obraz "
+        "jako ozdobnik, jeśli niczego nie znaczy, albo zostawić bez opisu. "
+        "Odpowiedź „dla wszystkich” obejmuje ilustracje **tej książki** — "
+        "„zostaw” dla wszystkich to uczciwa odpowiedź, gdy nie ma kto opisać."
+    ),
+    "images.keep": "Zostaw bez opisu",
+    "images.keep.why": (
+        "Nic się nie zmienia; raport dalej liczy ten obraz jako nieopisany, "
+        "a metadane dostępności nie twierdzą, że opisy są"
+    ),
+    "images.decorative": "Oznacz jako ozdobnik",
+    "images.decorative.why": (
+        "Dostaje alt=\"\" i role=\"presentation\": czytnik ekranu go pomija "
+        "jako niewnoszący treści; dla oka nic się nie zmienia"
+    ),
+    "images.describe": "Wpisz opis",
+    "images.describe.why": (
+        "Twoje zdanie trafia do alt tego obrazu we wszystkich miejscach, "
+        "gdzie występuje; czytnik ekranu je odczyta"
+    ),
+    "images.more": " i {count} więcej",
+    "images.px.unknown": "wymiary nieznane",
+    "images.placeholder": (
+        "Obecny alt to „{alt}” — powtarza tylko nazwę pliku, czyli nie mówi "
+        "nic.\n\n"
+    ),
+    "images.alone": "stoi sam w bloku, bez tekstu obok",
+    "images.in.text": "stoi wewnątrz tekstu",
     "footnote.summary": "{count} znaczników przypisów [N] bez odnośnika, a sekcja przypisów istnieje",
     "footnote.detail": (
         "W treści stoją gołe znaczniki w rodzaju [1], a w sekcji przypisów "
@@ -532,6 +601,77 @@ TEXTS_EN: dict[str, str] = {
     "metadata.reconstructed.write": "Type the correct value",
     "metadata.reconstructed.write.why": "The book will carry whatever you type",
     # --- bare footnote markers whose notes exist ----------------------------
+    # Images without a usable text alternative (record 038). One question per
+    # image file; the kind names the evidence, the options are the same four.
+    "images.ornament.summary": (
+        "Ornament {file} with no description — the same file stands alone in "
+        "{uses} documents ({px}, {size})"
+    ),
+    "images.ornament.detail": (
+        "The image {file} ({px}, {size}) appears in {uses} documents "
+        "({where}{more}), each time alone in its block with no text beside "
+        "it. That is the shape of an ornament over a chapter title or a "
+        "separator between scenes: a screen reader would announce it {count} "
+        "times as \"image\", with nothing to say.\n\n"
+        "{alt}"
+        "This program cannot describe a picture and invents no description. "
+        "It can mark it decorative (alt=\"\" with role=\"presentation\" — a "
+        "screen reader skips it), or write the description you supply. "
+        "\"All of them\" covers the ornaments of **this book**."
+    ),
+    "images.tiny.summary": (
+        "Tiny image {file} with no description ({px}, {size}) — a separator, "
+        "an ornament, or a symbol?"
+    ),
+    "images.tiny.detail": (
+        "The image {file} is {px} and weighs {size}; it {text}. It appears in "
+        "{uses} documents ({where}{more}), {count} times in all. Rules, stars "
+        "and flourishes are this size — but so are an author's signature, a "
+        "publisher's logo and a symbol the story uses; size alone cannot "
+        "tell.\n\n"
+        "{alt}"
+        "This program cannot describe a picture and invents no description. "
+        "It can mark it decorative (alt=\"\" with role=\"presentation\" — a "
+        "screen reader skips it), or write the description you supply. "
+        "\"All of them\" covers the tiny images of **this book**."
+    ),
+    "images.illustration.summary": (
+        "Illustration {file} with no description ({px}, {size}, {uses} doc.)"
+    ),
+    "images.illustration.detail": (
+        "The image {file} ({px}, {size}) in {where}{more}; it {text}. Nothing "
+        "in the file or the book says what it shows, and **this program will "
+        "not invent it** — only a person who has seen the picture can write "
+        "the description.\n\n"
+        "{alt}"
+        "You can type a description (one sentence on what is shown), mark the "
+        "image decorative if it means nothing, or leave it undescribed. "
+        "\"All of them\" covers the illustrations of **this book** — \"leave\" "
+        "for all of them is an honest answer when nobody is there to describe."
+    ),
+    "images.keep": "Leave it undescribed",
+    "images.keep.why": (
+        "Nothing changes; the report keeps counting this image as undescribed, "
+        "and the accessibility metadata does not claim descriptions exist"
+    ),
+    "images.decorative": "Mark as decorative",
+    "images.decorative.why": (
+        "Gets alt=\"\" and role=\"presentation\": a screen reader skips it as "
+        "carrying no content; to the eye nothing changes"
+    ),
+    "images.describe": "Type a description",
+    "images.describe.why": (
+        "Your sentence goes into this image's alt everywhere it appears; a "
+        "screen reader reads it out"
+    ),
+    "images.more": " and {count} more",
+    "images.px.unknown": "size in pixels unknown",
+    "images.placeholder": (
+        "The current alt is \"{alt}\" — it only repeats the file name, which "
+        "says nothing.\n\n"
+    ),
+    "images.alone": "stands alone in its block, with no text beside it",
+    "images.in.text": "sits inside running text",
     "footnote.summary": "{count} footnote marker(s) [N] with no link, and a notes section exists",
     "footnote.detail": (
         "The text carries bare markers like [1], and notes with those numbers "

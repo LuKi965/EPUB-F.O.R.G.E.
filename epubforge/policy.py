@@ -465,6 +465,17 @@ class Policy:
     #: answer from a person.
     detect_typography: bool = True
 
+    #: Look for images without a usable text alternative, sort them by
+    #: evidence, and ask about each file.
+    #:
+    #: On by default for the same reason as the detectors above: looking
+    #: changes nothing. Measured on the owner's shelf — 1 140 image places in
+    #: 109 of 160 books, 339 of them one ornament repeated over every chapter
+    #: and 148 tiny separators — and the largest thing left after 0.3.1.
+    #: Marking a picture decorative or describing it takes an answer from a
+    #: person; the program never writes a description of its own.
+    detect_undescribed_images: bool = True
+
     #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
     accessibility_metadata: bool = True
 

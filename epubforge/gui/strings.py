@@ -670,6 +670,20 @@ PL: dict[str, str] = {
         "Książka ze skryptem albo z selektorami atrybutów w CSS nie jest "
         "ruszana — tam nazwa może żyć poza zasięgiem tej zamiany."
     ),
+    "policy.detect.images": "Szukaj obrazów bez opisu i pytaj",
+    "policy.detect.images.tip": (
+        "Samo **szukanie**. Program znajduje obrazy bez używalnego tekstu "
+        "alternatywnego — bez atrybutu alt, z pustym alt, za którym nikt nie "
+        "ręczy, albo z alt powtarzającym nazwę pliku — i sortuje je po "
+        "dowodach: ozdobnik powtarzany samodzielnie w wielu rozdziałach, "
+        "malutki separator, okładka z pakietu, ilustracja. O każdy plik pyta "
+        "osobno: oznaczyć jako ozdobnik, wpisać opis, zostawić.\n\n"
+        "Opisu nie wymyśla — może go wpisać tylko człowiek, który obraz "
+        "widział. Bez odpowiedzi nic się nie zmienia, a raport i tak mówi, "
+        "ile tego jest.\n\n"
+        "Zmierzone na 160 książkach: 1 140 miejsc w 109 książkach, z tego "
+        "339 powtarzanych ozdobników i 148 malutkich obrazów."
+    ),
     "policy.detect.typography": "Szukaj usterek typograficznych i pytaj",
     "policy.detect.typography.tip": (
         "Samo **szukanie**. Program liczy, ile razy w książce stoją trzy kropki "
@@ -1632,6 +1646,20 @@ EN: dict[str, str] = {
         "old-to-new map. The names in the file are always English — identifiers in source code are international; the help's dictionary explains each one.\n\n"
         "A book carrying a script, or CSS with attribute selectors, is left "
         "alone — there a name can live beyond this rename's reach."
+    ),
+    "policy.detect.images": "Look for undescribed images and ask",
+    "policy.detect.images.tip": (
+        "**Looking** only. The program finds images with no usable text "
+        "alternative — no alt attribute, an empty alt nobody vouches for, or "
+        "an alt that repeats the file name — and sorts them by evidence: an "
+        "ornament standing alone in many chapters, a tiny separator, the "
+        "cover named by the package, an illustration. It asks about each file "
+        "separately: mark it decorative, type a description, leave it.\n\n"
+        "It invents no description — only a person who has seen the picture "
+        "can write one. Without an answer nothing changes, and the report "
+        "says how many there are either way.\n\n"
+        "Measured on 160 books: 1 140 places in 109 books, 339 of them "
+        "repeated ornaments and 148 tiny images."
     ),
     "policy.detect.typography": "Look for typographic faults and ask",
     "policy.detect.typography.tip": (

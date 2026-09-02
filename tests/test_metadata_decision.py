@@ -203,6 +203,11 @@ class TestAllThreeClassesShareOneApi:
             # reader wants this book's typography tidied at all, which is
             # taste, and taste should not hide among defects in the tally.
             decisions.TEXT,
+            # The eighth, from the largest thing left on the shelf after
+            # 0.3.1: a picture nobody described. Its own kind because the
+            # judgement is about what a picture shows, which the program can
+            # sort by evidence and recommend on, and can never answer.
+            decisions.IMAGE,
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):

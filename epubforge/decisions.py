@@ -81,7 +81,14 @@ STYLE = "style"
 #: reader wants this book's typography tidied at all. That is taste, and the
 #: per-kind tally should not let taste hide among defects.
 TEXT = "text"
-KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE, TEXT)
+#: An image without a usable text alternative — what it shows, only a person
+#: can say. Its own kind because the judgement is about a picture, not about
+#: text, markup or metadata: the program sorts by evidence (an ornament
+#: repeated over every chapter, a separator twelve pixels tall, the cover the
+#: package names) and recommends, and it can never describe. The eighth kind,
+#: from the largest thing left on the shelf after 0.3.1 (record 038).
+IMAGE = "image"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE, TEXT, IMAGE)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that
