@@ -27,6 +27,7 @@ what the rebuild does with no resolver at all.
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -165,6 +166,21 @@ class DecideDialog(QDialog):
         detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(detail)
 
+        # The picture the question is about, when it carries one. A person
+        # asked to describe a picture has to see it (record 039, the owner's
+        # answer): the file name, the pixel size and the weight say what the
+        # evidence was, and the picture says what the picture is. Scaled to
+        # fit, never enlarged — a twelve-pixel scroll blown up to a screen
+        # would look like something it is not.
+        self.preview = None
+        pixmap = _pixmap_of(getattr(question, "preview", None))
+        if pixmap is not None:
+            self.preview = QLabel()
+            self.preview.setPixmap(pixmap)
+            self.preview.setAlignment(Qt.AlignCenter)
+            self.preview.setToolTip(tr("decide.preview"))
+            layout.addWidget(self.preview)
+
         self.buttons_for = {}
         self.value_edit = QLineEdit()
         self.value_edit.setPlaceholderText(tr("decide.value"))
@@ -218,6 +234,32 @@ class DecideDialog(QDialog):
             value=self.value_edit.text().strip(),
             apply_to_group=self.all_check.isChecked(),
         )
+
+
+#: The box a preview is scaled into. Wide enough for a chapter ornament to be
+#: recognisable, small enough that a full-page plate does not push the
+#: options off the screen.
+PREVIEW_BOX = 360
+
+
+def _pixmap_of(preview) -> "QPixmap | None":
+    """A pixmap for a question's preview, scaled to fit, or None.
+
+    None whenever the bytes cannot be drawn — a format Qt has no plugin for,
+    a broken file, no preview at all. The question is then shown without a
+    picture rather than not shown, which is the same rule the front end
+    applies to everything it cannot render.
+    """
+    if preview is None or not getattr(preview, "data", None):
+        return None
+    pixmap = QPixmap()
+    if not pixmap.loadFromData(preview.data) or pixmap.isNull():
+        return None
+    if pixmap.width() > PREVIEW_BOX or pixmap.height() > PREVIEW_BOX:
+        pixmap = pixmap.scaled(
+            PREVIEW_BOX, PREVIEW_BOX, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+    return pixmap
 
 
 class Ask(QObject):

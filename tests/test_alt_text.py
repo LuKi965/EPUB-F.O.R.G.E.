@@ -189,6 +189,11 @@ class TestAnIllustration:
         assert asked[0].group.startswith("images:illustration:")
         assert [o.id for o in asked[0].options] == ["keep", "decorative", "describe"]
         assert next(o for o in asked[0].options if o.id == "describe").needs_value
+        # A person asked to describe a picture has to see it (owner,
+        # 2026-09-02): the question carries the book's own bytes for it.
+        assert asked[0].preview is not None
+        assert asked[0].preview.media_type == "image/png"
+        assert asked[0].preview.data[:8] == b"\x89PNG\r\n\x1a\n"
         assert images_of(result)[0].get("alt") == "Mapa wybrzeża"
         assert "pictures.described" in rules_of(result)
         assert "a11y.missing-alt" not in rules_of(result)

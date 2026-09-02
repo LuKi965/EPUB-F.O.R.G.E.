@@ -49,7 +49,7 @@ import struct
 from dataclasses import dataclass, field
 
 from .. import paths, xhtml
-from ..decisions import IMAGE, KEEP, Option, Question
+from ..decisions import IMAGE, KEEP, Option, Preview, Question
 from ..question_texts import say
 from ..report import Action, Automation, Level, Risk
 from .accessibility import is_placeholder_alt
@@ -176,6 +176,11 @@ class Picture:
     reasons: "set[str]" = field(default_factory=set)
     #: An existing placeholder alt, shown so the person sees what stands there.
     placeholder: str = ""
+    #: The picture itself, for the question to show. The book's own bytes,
+    #: not a copy — a person asked to describe a picture has to see it
+    #: (owner, 2026-09-02).
+    media_type: str = ""
+    data: bytes = b""
 
     @property
     def count(self) -> int:
@@ -285,6 +290,8 @@ class AltTextStage(Stage):
                         target=target, size=len(data),
                         width=dims[0] if dims else None,
                         height=dims[1] if dims else None,
+                        media_type=(image.media_type if image is not None else ""),
+                        data=data,
                     )
                     pictures[target] = picture
                 picture.places[resource.path] = picture.places.get(resource.path, 0) + 1
@@ -356,6 +363,7 @@ class AltTextStage(Stage):
             risk=Risk.CONTENT,
             group=self._group(ctx, kind),
             subject=picture.target,
+            preview=(Preview(picture.media_type, picture.data) if picture.data else None),
         )
 
     # ----------------------------------------------------------------- apply

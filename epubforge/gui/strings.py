@@ -317,6 +317,7 @@ PL: dict[str, str] = {
     "decide.title": "Decyzja",
     "decide.value": "wpisz własną formę",
     "decide.irreversible": "Tego nie da się cofnąć z samego pliku wynikowego.",
+    "decide.preview": "Obraz, o który chodzi w pytaniu — pomniejszony, jeśli był większy",
     "decide.all": "Tak samo dla wszystkich takich przypadków w tej książce",
     "decide.all.tip": (
         "Dotyczy tylko przypadków o tym samym stopniu pewności. Opcja, w której "
@@ -1292,6 +1293,7 @@ EN: dict[str, str] = {
     "decide.title": "Decision",
     "decide.value": "type your own form",
     "decide.irreversible": "This cannot be undone from the output file alone.",
+    "decide.preview": "The picture the question is about — scaled down if it was larger",
     "decide.all": "The same for every case like this in this book",
     "decide.all.tip": (
         "Only cases carrying the same strength of evidence. The option where you "

@@ -112,6 +112,20 @@ class Option:
 
 
 @dataclass(frozen=True)
+class Preview:
+    """Something to *show* beside a question — today, the picture it is about.
+
+    The owner's answer to record 039's open question (2026-09-02): a person
+    asked to describe a picture has to see it. Bytes and their media type,
+    nothing more; a front end that cannot draw them shows the question
+    without them, and the queue never writes them anywhere.
+    """
+
+    media_type: str
+    data: bytes
+
+
+@dataclass(frozen=True)
 class Question:
     """Something this program will not decide on somebody's behalf."""
 
@@ -134,6 +148,9 @@ class Question:
     #: Whatever makes this question this question — the word, the reference,
     #: the field. Feeds the stable id and nothing else.
     subject: str = ""
+    #: What to show beside the words, when words are not enough. Not part of
+    #: the id: the same picture asked about twice is the same question.
+    preview: "Preview | None" = None
 
     def __post_init__(self) -> None:
         if self.kind not in KINDS:

@@ -78,6 +78,13 @@ not asked about: the content stage already names it with the book's own
 title, a fact from the package. A checkbox in the window switches the
 looking off; there is no setting that acts on its own.
 
+A person asked to describe a picture has to see it, so a question can now
+carry a preview — the book's own bytes for the picture — and the window
+draws it beside the words, scaled to fit and never enlarged. Bytes the
+window cannot draw leave the question standing without them. The preview
+is never written into the answers file beside the book; that file records
+decisions, not pictures.
+
 ### Font stacks: the font's own name is read, and the shelf's names join common knowledge
 
 After 0.3.1, 387 font stacks in 33 of the 160 books still ended on a named
