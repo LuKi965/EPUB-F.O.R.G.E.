@@ -25,12 +25,18 @@ is more machinery than the answer is worth.
 The OS/2 table is not the only place a font speaks. On the shelf, 224 of the
 391 stacks left without a generic named faces the book *did* embed — TeX Gyre
 Heros, Alegreya Sans, Adagio Serif — whose designers left PANOSE at "any" and
-`sFamilyClass` at 0. Two more of the font's own declarations are read then:
-the fixed-pitch flag of its `post` table, and the family name it carries in
-its own `name` table. `Alegreya Sans` saying *sans* is the designer's word as
-much as a PANOSE byte is; the whole-word rule keeps `Sansita` and `Serifa`
-from passing for declarations. The name written in the CSS is never read for
-this — that would be the guess again.
+`sFamilyClass` at 0. Two more places are read then, and they are not equal:
+
+* the fixed-pitch flag of the `post` table is a number with one defined
+  meaning, so `classify` reads it the way it reads PANOSE — deterministic;
+* the family name in the `name` table is a **word**. `Alegreya Sans` saying
+  *sans* is the designer's word, and the whole-word rule keeps `Sansita` and
+  `Serifa` from passing for declarations — but a word is read by a person,
+  not applied by a program. `named` returns what the name says and the style
+  stage puts it to the question queue, recommended and never applied on its
+  own (owner, 2026-09-02: everything uncertain goes through a person, this
+  included). The name written in the CSS is never read for either — that
+  would be the guess again.
 """
 
 from __future__ import annotations
@@ -194,20 +200,31 @@ def _from_os2(data: bytes) -> str | None:
 
 
 def classify(data: bytes) -> str | None:
-    """The CSS generic family this font belongs to, or None if it will not say.
+    """The CSS generic family this font declares in numbers, or None.
 
-    Three of the font's own declarations, in order of precision: the OS/2
-    table (PANOSE, then `sFamilyClass`), the `post` table's fixed-pitch flag,
-    and the family name in the `name` table. None is a real answer and has to
-    stay one. A font whose designer left PANOSE at "any" *and* named it
-    nothing that says what it is has declared nothing, and inventing a family
-    for it would be exactly the guess this module exists to avoid.
+    Two of the font's own declarations, in order of precision: the OS/2 table
+    (PANOSE, then `sFamilyClass`) and the `post` table's fixed-pitch flag.
+    None is a real answer and has to stay one. A font whose designer left
+    PANOSE at "any" has declared nothing here, and inventing a family for it
+    would be exactly the guess this module exists to avoid. What its *name*
+    says is a separate question — see `named` — and a separate answer, because
+    a word is for a person to confirm.
     """
     generic = _from_os2(data)
     if generic:
         return generic
     if _fixed_pitch(data):
         return "monospace"
+    return None
+
+
+def named(data: bytes) -> str | None:
+    """The generic family this font's own name says in words, or None.
+
+    Not a classification but a recommendation for a question: `Alegreya Sans`
+    calls itself sans, and the style stage offers `sans-serif` to a person on
+    that ground. Whole words only; a name that says nothing yields None.
+    """
     name = _family_name(data)
     return _kind_in_name(name) if name else None
 

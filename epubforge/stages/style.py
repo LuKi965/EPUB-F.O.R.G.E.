@@ -3324,14 +3324,19 @@ class StyleStage(Stage):
         the reader falls back to whatever it likes. Calibre calls it an error
         and it is right. Three answers, in order of authority:
 
-        * **The embedded font's own word.** Where the book embeds the face,
+        * **The embedded font's own numbers.** Where the book embeds the face,
           PANOSE says what it is (:mod:`epubforge.fonts_meta`) — or, where
-          the designer left PANOSE blank, the fixed-pitch flag and the
-          family name the font carries inside itself do — and appending that
-          generic is reading a declaration, not making one. Deterministic,
-          no question. The whole book's `@font-face` blocks answer, not just
-          this sheet's — a converter that keeps its faces in one sheet and its
-          styles in another embeds them all the same.
+          the designer left PANOSE blank, the fixed-pitch flag does — and
+          appending that generic is reading a declaration, not making one.
+          Deterministic, no question. The whole book's `@font-face` blocks
+          answer, not just this sheet's — a converter that keeps its faces in
+          one sheet and its styles in another embeds them all the same.
+        * **The embedded font's own name, on a person's word.** A face whose
+          numbers are blank but whose own name says *Sans* or *Serif*
+          (`fonts_meta.named`) has said something — in a word, which is for a
+          person to confirm, not for a program to apply. The owner's rule
+          (2026-09-02): everything uncertain goes through a person, this
+          included. So it is a question, recommended, in the shape below.
         * **Common knowledge, on a person's word.** `"Times New Roman"` with
           nothing embedded — 41 913 of the shelf's 50 173 findings — is not in
           any table this program can read, but it is not a guess either. The
@@ -3351,9 +3356,13 @@ class StyleStage(Stage):
         # Blank out @font-face bodies while keeping offsets stable.
         outside = _FONT_FACE_RE.sub(lambda match: " " * len(match.group()), css_text)
         embedded = self._embedded_families(ctx, css_text, resource)
+        named = self._embedded_families(ctx, css_text, resource, fonts_meta.named)
         offenders: list[str] = []
         completed: list[str] = []
         edits: list[tuple[int, int, str]] = []
+        # Two question queues with one shape: what the embedded font's own
+        # name says, and what common knowledge says about a name.
+        self_named: dict[str, list] = {}
         askable: dict[str, list] = {}
 
         for match in _FONT_FAMILY_RE.finditer(outside):
@@ -3376,6 +3385,14 @@ class StyleStage(Stage):
             if any(f.lower() in fonts_meta.SYMBOL_FAMILIES for f in families):
                 offenders.append(families[-1])
                 continue
+            said = None
+            for family in families:
+                said = named.get(family.lower())
+                if said:
+                    break
+            if said:
+                self_named.setdefault(said, []).append((match, families[-1]))
+                continue
             known = None
             for family in families:
                 known = fonts_meta.well_known(family)
@@ -3387,35 +3404,39 @@ class StyleStage(Stage):
                 offenders.append(families[-1])
 
         approved: dict[str, int] = {}
-        for generic in sorted(askable):
-            entries = askable[generic]
-            names = sorted({name for _, name in entries})
-            question = Question(
-                kind=STYLE,
-                where=resource.path,
-                summary=say("style.generic.summary",
-                            count=len(entries), generic=generic),
-                detail=say("style.generic.detail", where=resource.path,
-                           count=len(entries), generic=generic,
-                           examples=", ".join(names[:4])),
-                options=(
-                    Option(KEEP, say("style.generic.keep"),
-                           say("style.generic.keep.why")),
-                    Option("append", say("style.generic.append", generic=generic),
-                           say("style.generic.append.why", generic=generic)),
-                ),
-                recommended="append",
-                reversible=True,
-                risk=Risk.APPEARANCE,
-                group=f"style:generic-{generic}",
-                subject=f"{len(entries)} declarations",
-            )
-            if ctx.decide(question).option == "append":
-                for match, _ in entries:
-                    edits.append((match.end(1), match.end(1), f", {generic}"))
-                approved[generic] = len(entries)
-            else:
-                offenders.extend(name for _, name in entries)
+        queues = (
+            ("style.generic.named.summary", "style.generic.named.detail", self_named),
+            ("style.generic.summary", "style.generic.detail", askable),
+        )
+        for summary_key, detail_key, queue in queues:
+            for generic in sorted(queue):
+                entries = queue[generic]
+                names = sorted({name for _, name in entries})
+                question = Question(
+                    kind=STYLE,
+                    where=resource.path,
+                    summary=say(summary_key, count=len(entries), generic=generic),
+                    detail=say(detail_key, where=resource.path,
+                               count=len(entries), generic=generic,
+                               examples=", ".join(names[:4])),
+                    options=(
+                        Option(KEEP, say("style.generic.keep"),
+                               say("style.generic.keep.why")),
+                        Option("append", say("style.generic.append", generic=generic),
+                               say("style.generic.append.why", generic=generic)),
+                    ),
+                    recommended="append",
+                    reversible=True,
+                    risk=Risk.APPEARANCE,
+                    group=f"style:generic-{generic}",
+                    subject=f"{len(entries)} declarations",
+                )
+                if ctx.decide(question).option == "append":
+                    for match, _ in entries:
+                        edits.append((match.end(1), match.end(1), f", {generic}"))
+                    approved[generic] = approved.get(generic, 0) + len(entries)
+                else:
+                    offenders.extend(name for _, name in entries)
 
         for start, end, insertion in sorted(edits, reverse=True):
             css_text = css_text[:start] + insertion + css_text[end:]
@@ -3463,26 +3484,32 @@ class StyleStage(Stage):
             )
         return css_text
 
-    def _embedded_families(self, ctx: Context, css_text: str, resource) -> dict[str, str]:
+    def _embedded_families(
+        self, ctx: Context, css_text: str, resource, reader=fonts_meta.classify,
+    ) -> dict[str, str]:
         """`{family name: generic}` for every font the **book** embeds and reads.
 
-        The whole book's stylesheets are consulted, this sheet's entries
-        winning: a converter that keeps its `@font-face` in one sheet and its
-        text styles in another (or in `<style>` blocks) embeds the font all
-        the same, and reading only the local sheet was leaving the embedded
-        answer on the table.
+        *reader* is what is asked of the font file: `fonts_meta.classify` for
+        what it declares in numbers, `fonts_meta.named` for what its own name
+        says in words. The whole book's stylesheets are consulted, this
+        sheet's entries winning: a converter that keeps its `@font-face` in
+        one sheet and its text styles in another (or in `<style>` blocks)
+        embeds the font all the same, and reading only the local sheet was
+        leaving the embedded answer on the table.
         """
-        found = self._families_declared(ctx, css_text, resource)
+        found = self._families_declared(ctx, css_text, resource, reader)
         for sheet in ctx.book.by_type("style"):
             if sheet.path == resource.path:
                 continue
             for family, generic in self._families_declared(
-                ctx, sheet.text(), sheet
+                ctx, sheet.text(), sheet, reader
             ).items():
                 found.setdefault(family, generic)
         return found
 
-    def _families_declared(self, ctx: Context, css_text: str, sheet) -> dict[str, str]:
+    def _families_declared(
+        self, ctx: Context, css_text: str, sheet, reader=fonts_meta.classify,
+    ) -> dict[str, str]:
         """`{family name: generic}` for the `@font-face` blocks of one sheet.
 
         A url is tried against the sheet's current path first, then against
@@ -3506,7 +3533,7 @@ class StyleStage(Stage):
                     font = ctx.book.get(remapped) if remapped else None
                 if font is None:
                     continue
-                generic = fonts_meta.classify(font.data)
+                generic = reader(font.data)
                 if generic:
                     found[family.lower()] = generic
                     break

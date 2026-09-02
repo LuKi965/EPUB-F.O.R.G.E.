@@ -244,6 +244,20 @@ TEXTS_PL: dict[str, str] = {
         "widoczna wyłącznie na czytnikach, którym kroju brakuje — i tam "
         "przybliża wygląd do zamysłu wydawcy."
     ),
+    "style.generic.named.summary": (
+        "{count} deklaracji fontów wskazuje osadzony krój, którego własna "
+        "nazwa mówi „{generic}”, bez rodziny zapasowej ({generic}?)"
+    ),
+    "style.generic.named.detail": (
+        "W {where} deklaracje font-family kończą się na krojach ({examples}), "
+        "które książka osadza. Ich pliki nie deklarują rodzaju liczbami "
+        "(tablica OS/2 pusta), za to noszą go we własnej nazwie — słowo "
+        "„Sans”, „Serif”, „Mono” albo „Script”. Słowo to czyta człowiek, nie "
+        "program, dlatego pytanie. Czytnik, który osadzonego kroju nie "
+        "wczyta, użyje swojego domyślnego — jakiegokolwiek. Dopisanie "
+        "`{generic}` mówi mu: „jak nie wczytasz tego kroju, weź swój "
+        "{generic}”. Widoczne wyłącznie tam, gdzie osadzony krój zawiódł."
+    ),
     "style.generic.keep": "Zostaw jak jest",
     "style.generic.keep.why": (
         "Nic się nie zmienia; czytnik bez nazwanego kroju dalej bierze swój "
@@ -628,6 +642,20 @@ TEXTS_EN: dict[str, str] = {
         "the generic family `{generic}` tells it: \"if you lack this face, "
         "use your {generic}\". Visible only on readers missing the face — "
         "and there it moves the look toward the publisher's intent."
+    ),
+    "style.generic.named.summary": (
+        "{count} font declaration(s) name an embedded face whose own name "
+        "says {generic}, with no generic fallback ({generic}?)"
+    ),
+    "style.generic.named.detail": (
+        "In {where}, font-family declarations end on faces ({examples}) the "
+        "book embeds. Their files declare no kind in numbers (the OS/2 table "
+        "is blank) but carry it in their own name — the word \"Sans\", "
+        "\"Serif\", \"Mono\" or \"Script\". A word is read by a person, not by "
+        "a program, hence the question. A reader that fails to load the "
+        "embedded face falls back to its default — whatever that is. "
+        "Appending `{generic}` tells it: \"if you cannot load this face, use "
+        "your {generic}\". Visible only where the embedded face has failed."
     ),
     "style.generic.keep": "Leave as is",
     "style.generic.keep.why": (

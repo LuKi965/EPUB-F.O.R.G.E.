@@ -242,12 +242,25 @@ class TestItClassifiesWithoutAskingTheMachineForFonts:
 SILENT = (0,) * 10  # PANOSE "any" throughout: the designer declined to say
 
 
-class TestTheNameIsAlsoTheFontsWord:
+class TestTheFixedPitchFlagIsANumber:
+    """The `post` table's fixed-pitch flag has one defined meaning, so it is
+    read like PANOSE: a declaration, deterministic."""
+
+    def test_the_fixed_pitch_flag_is_a_declaration(self):
+        assert fonts_meta.classify(sfnt(panose=SILENT, fixed_pitch=True)) == "monospace"
+        assert fonts_meta.classify(sfnt(panose=SILENT, fixed_pitch=False)) is None
+
+    def test_the_flag_speaks_even_without_an_os2_table(self):
+        assert fonts_meta.classify(sfnt(panose=None, fixed_pitch=True)) == "monospace"
+
+
+class TestTheNameIsAWordForAPerson:
     """The shelf's second wave: 224 of 391 leftover stacks named faces the book
-    embedded whose OS/2 table was blank. Two more of the font's own
-    declarations are read then — the `post` fixed-pitch flag and the family
-    name in the `name` table — and the name written in the CSS still never
-    is."""
+    embedded whose OS/2 table was blank, and most of those faces say what
+    they are in their own name. A word is not a number: `named` reports it,
+    `classify` never applies it, and the style stage puts it to a person
+    (owner, 2026-09-02: everything uncertain goes through a question, this
+    included)."""
 
     @pytest.mark.parametrize(
         "family, expected",
@@ -260,65 +273,66 @@ class TestTheNameIsAlsoTheFontsWord:
             ("Brush Script", "cursive"),
         ],
     )
-    def test_a_blank_os2_falls_through_to_the_family_name(self, family, expected):
-        assert fonts_meta.classify(sfnt(panose=SILENT, family=family)) == expected
+    def test_what_the_family_name_says(self, family, expected):
+        font = sfnt(panose=SILENT, family=family)
+        assert fonts_meta.named(font) == expected
+
+    @pytest.mark.parametrize("family", ["Alegreya Sans", "Adagio_Serif", "Liberation Mono"])
+    def test_the_name_never_becomes_a_classification(self, family):
+        """The mutation that lets `classify` fall through to the name — the
+        first version of this change, before the owner's rule — fails here."""
+        assert fonts_meta.classify(sfnt(panose=SILENT, family=family)) is None
 
     def test_a_camel_cased_name_still_says_sans(self):
         """A designer who wrote `AlegreyaSans` without the space still wrote
         *Sans*. The mutation that matches only space-separated words fails
         here."""
-        assert fonts_meta.classify(sfnt(panose=SILENT, family="AlegreyaSans")) == "sans-serif"
+        assert fonts_meta.named(sfnt(panose=SILENT, family="AlegreyaSans")) == "sans-serif"
 
     @pytest.mark.parametrize("family", ["Sansita", "Serifa", "Monoton", "Scriptina"])
     def test_only_whole_words_count(self, family):
         """`Sansita` is not `Sans` and `Serifa` is not `Serif`: a word inside
-        another word declares nothing. The mutation that substring-matches
-        fails here."""
-        assert fonts_meta.classify(sfnt(panose=SILENT, family=family)) is None
+        another word says nothing. The mutation that substring-matches fails
+        here."""
+        assert fonts_meta.named(sfnt(panose=SILENT, family=family)) is None
 
     def test_sans_serif_in_words_is_a_sans_serif(self):
-        assert fonts_meta.classify(sfnt(panose=SILENT, family="Open Sans Serif")) == "sans-serif"
+        assert fonts_meta.named(sfnt(panose=SILENT, family="Open Sans Serif")) == "sans-serif"
 
     def test_mono_beats_sans_in_the_name(self):
         """`DejaVu Sans Mono` is monospaced whatever its serifs do — the same
         precedence PANOSE proportion 9 gets."""
-        assert fonts_meta.classify(sfnt(panose=SILENT, family="DejaVu Sans Mono")) == "monospace"
+        assert fonts_meta.named(sfnt(panose=SILENT, family="DejaVu Sans Mono")) == "monospace"
 
     def test_the_typographic_family_wins_over_the_style_split_name(self):
         """`Alegreya Sans Medium` is name 1 and `Alegreya Sans` is name 16;
         either says sans, but the typographic family is the one the designer
         set on purpose."""
         font = sfnt(panose=SILENT, family="Kroj Medium", typographic_family="Kroj Serif")
-        assert fonts_meta.classify(font) == "serif"
+        assert fonts_meta.named(font) == "serif"
 
     def test_a_macintosh_name_record_is_read_too(self):
         font = sfnt(panose=SILENT, family="Alegreya Sans", name_platform=1)
-        assert fonts_meta.classify(font) == "sans-serif"
+        assert fonts_meta.named(font) == "sans-serif"
 
-    def test_the_fixed_pitch_flag_is_a_declaration(self):
-        assert fonts_meta.classify(sfnt(panose=SILENT, fixed_pitch=True)) == "monospace"
-        assert fonts_meta.classify(sfnt(panose=SILENT, fixed_pitch=False)) is None
+    def test_the_name_is_reported_whatever_the_numbers_say(self):
+        """`named` answers for the name alone; which of the two wins is the
+        style stage's business, and there the numbers go first."""
+        assert fonts_meta.named(sfnt(panose=text_panose(2), family="Kroj Sans")) == "sans-serif"
 
-    def test_os2_speaks_first(self):
-        """When PANOSE does say something, the name does not overrule it: the
-        ten bytes are the field made for this question, the name is a word
-        in passing."""
-        font = sfnt(panose=text_panose(2), family="Kroj Sans")
-        assert fonts_meta.classify(font) == "serif"
-
-    def test_no_os2_table_at_all_still_lets_the_name_speak(self):
-        assert fonts_meta.classify(sfnt(panose=None, family="Kroj Sans")) == "sans-serif"
-
-    def test_a_name_that_says_nothing_is_still_nothing(self):
+    def test_a_name_that_says_nothing_is_nothing(self):
         """TeX Gyre Heros: embedded, readable, blank PANOSE, a name with no
-        word in it. The answer stays None — common knowledge about that name
-        is a question's business, not this module's."""
-        assert fonts_meta.classify(sfnt(panose=SILENT, family="TeX Gyre Heros")) is None
+        word in it. Common knowledge about that name is the table's business,
+        not this module's."""
+        assert fonts_meta.named(sfnt(panose=SILENT, family="TeX Gyre Heros")) is None
+
+    def test_no_name_table_is_nothing(self):
+        assert fonts_meta.named(sfnt(panose=SILENT)) is None
+        assert fonts_meta.named(b"nie jest czcionka") is None
 
     def test_a_truncated_name_table_does_not_raise(self):
-        from tests.test_fonts_meta import _sfnt_of
-
         broken = _sfnt_of({b"name": b"\x00\x00\x00\x05\x00"})
+        assert fonts_meta.named(broken) is None
         assert fonts_meta.classify(broken) is None
 
 

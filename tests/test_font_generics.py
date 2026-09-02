@@ -14,10 +14,17 @@ from __future__ import annotations
 from epubforge.decisions import Answer
 from epubforge.pipeline import rebuild
 from epubforge.policy import Policy
+from epubforge.question_texts import say
 
 from tests.test_shelf_refusals import make_book, rules_of
 from tests.test_class_translation import PAGE
 from tests.test_fonts_meta import sfnt, text_panose
+
+
+def say_common(count: int, generic: str) -> str:
+    """The summary of the common-knowledge question, for telling the two
+    questions apart."""
+    return say("style.generic.summary", count=count, generic=generic)
 
 BODY = (
     '<p class="jeden">Akapit z treścią.</p>'
@@ -181,20 +188,51 @@ def embed(tmp_path, *, font: bytes, declared: str, stack: str, option="append"):
 class TestAnEmbeddedFaceThatIsSilentInOS2:
     """The shelf after the first wave: 224 of the 391 stacks still without a
     generic named faces the book embedded, whose designers left PANOSE at
-    "any". What the font says elsewhere about itself is read; what it says
-    nowhere goes to the question on its name; what is neither stays."""
+    "any". What the font says in numbers elsewhere is read; what it says in
+    its own name, or what common knowledge says about that name, goes to a
+    person; what is neither stays."""
 
-    def test_its_own_name_saying_sans_is_read_not_asked(self, tmp_path):
-        """`Alegreya Sans` with a blank OS/2 table: the name is the font's
-        word, so the generic is added deterministically and no question is
-        put."""
+    def test_its_own_name_saying_sans_is_asked_not_applied(self, tmp_path):
+        """`Alegreya Sans` with a blank OS/2 table: the name says sans, and
+        a word goes to a person (owner, 2026-09-02). Answered, the generic is
+        appended on that person's word; the deterministic rule stays silent.
+        The mutation that applies the name without asking fails here."""
         font = sfnt(panose=(0,) * 10, family="Alegreya Sans")
         result, chooser = embed(
             tmp_path, font=font, declared="AlegreyaSans", stack="AlegreyaSans",
         )
         assert '"AlegreyaSans", sans-serif' in sheet_of(result)
+        assert "css.font-stack-generic-approved" in rules_of(result)
+        assert "css.font-stack-generic-added" not in rules_of(result)
+        asked = [q for q in chooser.asked if q.group.startswith("style:generic-")]
+        assert [q.group for q in asked] == ["style:generic-sans-serif"]
+        assert asked[0].recommended == "append"
+        assert "AlegreyaSans" in asked[0].detail
+        # The question says where the recommendation comes from: the font's
+        # own name, not a table about names.
+        assert asked[0].summary != say_common(len(asked), "sans-serif")
+
+    def test_nobody_answering_leaves_the_named_face_alone(self, tmp_path):
+        """S-05 for the name as for everything else."""
+        font = sfnt(panose=(0,) * 10, family="Alegreya Sans")
+        result, _ = embed(
+            tmp_path, font=font, declared="AlegreyaSans", stack="AlegreyaSans",
+            option=None,
+        )
+        assert '"AlegreyaSans";' in sheet_of(result)
+        assert "css.font-stack-generic-missing" in rules_of(result)
+        assert "css.font-stack-generic-approved" not in rules_of(result)
+
+    def test_the_numbers_go_first_and_need_nobody(self, tmp_path):
+        """PANOSE says serif and the name says Sans: the numbers are the
+        field made for this question and are read without asking; the name
+        is never put to anybody for a face that already declared itself."""
+        font = sfnt(panose=text_panose(2), family="Kroj Sans")
+        result, chooser = embed(
+            tmp_path, font=font, declared="Kroj", stack="Kroj",
+        )
+        assert '"Kroj", serif' in sheet_of(result)
         assert "css.font-stack-generic-added" in rules_of(result)
-        assert "css.font-stack-generic-missing" not in rules_of(result)
         assert not [q for q in chooser.asked
                     if q.group.startswith("style:generic-")]
 

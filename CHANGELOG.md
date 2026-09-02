@@ -50,28 +50,32 @@ OS/2 table honestly said nothing. Another 102 named faces nobody embedded and
 the common-knowledge table did not hold; 57 pointed at embedded files
 obfuscated with a key nobody has; 8 at a file the book does not contain.
 
-Two changes. When the OS/2 table is blank, `classify` now reads two more of
-the font's own declarations: the fixed-pitch flag of its `post` table, and the
-family name it carries in its own `name` table — a face whose designer named
-it with the word *Sans* (or *Serif*, *Slab*, *Mono*, *Script*) has said what
-it is. Whole words only, so `Sansita` declares nothing; a name that says
-nothing anywhere still yields None; and the name written in the CSS is still
-never read for this. That is the font's word, read the same way PANOSE is —
-deterministic, no question. Second, the common-knowledge table gains the
-names the shelf showed and their kin (the TeX Gyre family, Alegreya, Charis
-SIL, Judson, Aharoni, Garamond BE, Ex Ponto, Lucida Handwriting), looked up
-with spacing ignored so that `TexGyreHeros` in a stylesheet and `TeX Gyre
-Heros` in a font are one face. Those still go through the question and never
-on the program's own word — and an embedded face that says nothing about
-itself anywhere now takes that road too, which the question's text now says
-instead of claiming the face is not in the book.
+Three changes, and a line between numbers and words that the owner drew.
+When the OS/2 table is blank, `classify` now also reads the fixed-pitch flag
+of the font's `post` table — a number with one defined meaning, read the way
+PANOSE is, deterministically. The family name the font carries in its own
+`name` table is read too, but a name is a word: a face whose designer called
+it *Sans* (or *Serif*, *Slab*, *Mono*, *Script*) has said what it is, and
+what it said goes to a person as a question, recommended and never applied
+on the program's own word. Whole words only, so `Sansita` says nothing; the
+name written in the CSS is still never read for this. Second, the
+common-knowledge table gains the names the shelf showed and their kin (the
+TeX Gyre family, Alegreya, Charis SIL, Judson, Aharoni, Garamond BE, Ex
+Ponto, Lucida Handwriting), looked up with spacing ignored so that
+`TexGyreHeros` in a stylesheet and `TeX Gyre Heros` in a font are one face.
+Those go through the question as before — and an embedded face that says
+nothing about itself anywhere now takes that road too, which the question's
+text now says instead of claiming the face is not in the book. Third, the
+questions themselves say where their recommendation comes from: the font's
+own name is one question, common knowledge about a name is another, and one
+answer per generic family still stands for both.
 
 On the shelf, the 388 stacks left as unknown become 22 in 8 books, under
 five names: a publisher's typo, a face whose file is not in the book, a face
 whose embedded file names itself differently from the CSS, and two names this
 program holds no common knowledge about — plus three symbol-face stacks left
-alone by design. 146 stacks gain their generic from the font's own name; 220
-more reach the question.
+alone by design. 146 stacks reach the question on the font's own name; 220
+more on common knowledge.
 
 ## 0.3.1 — alpha — 2026-08-24
 
