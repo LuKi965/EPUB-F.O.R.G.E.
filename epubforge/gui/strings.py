@@ -685,6 +685,19 @@ PL: dict[str, str] = {
         "Zmierzone na 160 książkach: 1 140 miejsc w 109 książkach, z tego "
         "339 powtarzanych ozdobników i 148 malutkich obrazów."
     ),
+    "policy.detect.tables": "Szukaj tekstu wsadzonego w tabelę i pytaj",
+    "policy.detect.tables.tip": (
+        "Samo **szukanie**. Program znajduje tabele, które nie są tabelami: "
+        "zwykły akapit w jednej komórce albo jednej kolumnie, bez nagłówka — "
+        "ramka lub margines zrobiony z tabeli. Dla oka akapit; czytnik ekranu "
+        "przed każdym takim mówi „tabela, jeden wiersz, jedna kolumna”.\n\n"
+        "Pyta raz na książkę, z całą listą. Odpowiedź „oznacz” daje im "
+        "role=\"presentation\" — technikę WCAG dla tabel układu: czytnik "
+        "ekranu czyta samą treść, dla oka nic się nie zmienia, tekst co do "
+        "znaku ten sam. Bez odpowiedzi nic się nie zmienia.\n\n"
+        "Zmierzone na 160 książkach: 31 takich tabel w 7 książkach — obok "
+        "66 prawdziwych tabel danych, których program nie rusza."
+    ),
     "policy.detect.typography": "Szukaj usterek typograficznych i pytaj",
     "policy.detect.typography.tip": (
         "Samo **szukanie**. Program liczy, ile razy w książce stoją trzy kropki "
@@ -1662,6 +1675,20 @@ EN: dict[str, str] = {
         "says how many there are either way.\n\n"
         "Measured on 160 books: 1 140 places in 109 books, 339 of them "
         "repeated ornaments and 148 tiny images."
+    ),
+    "policy.detect.tables": "Look for text put in a table and ask",
+    "policy.detect.tables.tip": (
+        "**Looking** only. The program finds tables that are not tables: a "
+        "plain paragraph in one cell or one column, with no header — a border "
+        "or a margin made out of a table. To the eye a paragraph; a screen "
+        "reader says \"table, one row, one column\" before every one.\n\n"
+        "It asks once per book, with the whole list. \"Mark\" gives them "
+        "role=\"presentation\" — the WCAG technique for layout tables: a "
+        "screen reader reads the content alone, nothing changes to the eye, "
+        "the text is the same to the character. Without an answer nothing "
+        "changes.\n\n"
+        "Measured on 160 books: 31 such tables in 7 books — beside 66 real "
+        "tables of data, which the program does not touch."
     ),
     "policy.detect.typography": "Look for typographic faults and ask",
     "policy.detect.typography.tip": (

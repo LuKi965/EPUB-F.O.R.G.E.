@@ -476,6 +476,16 @@ class Policy:
     #: person; the program never writes a description of its own.
     detect_undescribed_images: bool = True
 
+    #: Look for prose put in a table — one cell, or one column of cells, no
+    #: header — list it, and ask whether to tell assistive software it is
+    #: layout (`role="presentation"`).
+    #:
+    #: On by default: looking changes nothing, and the mark changes nothing a
+    #: sighted reader sees. Measured on the owner's shelf: 31 such tables in 7
+    #: books, beside 66 real tables of data that get no mark because nothing
+    #: honest can be done to them (record 040).
+    detect_layout_tables: bool = True
+
     #: Emit EPUB Accessibility 1.1 discovery metadata derived from the content.
     accessibility_metadata: bool = True
 

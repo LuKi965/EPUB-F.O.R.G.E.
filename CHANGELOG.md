@@ -40,6 +40,32 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Prose put in a table: listed, asked about, and told to assistive software on request
+
+The accessibility stage had counted 97 tables without header cells on the
+shelf. Measured before anything was designed, they are two different things.
+Sixty-six are tables of data with no trace of a header row — a timeline whose
+first row is a year, a letter square from a puzzle, a song in two languages —
+and nothing honest can be done to those: promoting a row to `<th>` would
+tell a screen reader that "1982" heads a column of fifty years, so they are
+left exactly as they are and still counted. The other thirty-one, in seven
+books, are not tables at all: a paragraph of prose in a one-cell or
+one-column table, put there for a border or a margin. To the eye a
+paragraph; to a screen reader "table, one row, one column" before every
+one of them.
+
+A new stage, `tables`, finds those by shape — no header cell, no nested
+table, no row with more than one cell, so nothing in them stands beside
+anything else — and asks once per book with the whole list, recommending
+the WCAG technique for layout tables: `role="presentation"` on the
+`<table>`. A screen reader then reads the content alone; nothing changes to
+the eye and no character of the text changes. Without an answer nothing
+changes, "all of them" is this book's list, and the accessibility stage no
+longer counts a table declared layout as one lacking headers — that is what
+the declaration says. Heading-level jumps, the other thing measured, stay a
+report line: renumbering headings changes the look of every book whose
+stylesheet styles them by name, for a gain only a screen reader would feel.
+
 ### Pictures nobody described: sorted by evidence, asked about, never described by the program
 
 The largest thing left on the shelf after 0.3.1, measured before it was

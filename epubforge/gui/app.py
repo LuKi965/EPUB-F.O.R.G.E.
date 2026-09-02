@@ -689,6 +689,11 @@ class MainWindow(QMainWindow):
         self.detect_images_check = self._checkbox(
             layout, "policy.detect.images", checked=True
         )
+        # Record 040: prose put in a one-cell table, announced to a screen
+        # reader as a table. Same rule — looking only, the mark is an answer.
+        self.detect_tables_check = self._checkbox(
+            layout, "policy.detect.tables", checked=True
+        )
 
         layout = card("policy.section.store")
         watermark_label = QLabel(tr("policy.watermark.label"))
@@ -1076,6 +1081,7 @@ class MainWindow(QMainWindow):
             policy.typography = self.typography_check.isChecked()
             policy.detect_typography = self.detect_typography_check.isChecked()
             policy.detect_undescribed_images = self.detect_images_check.isChecked()
+            policy.detect_layout_tables = self.detect_tables_check.isChecked()
             policy.transcode_images = self.images_check.isChecked()
         policy.deobfuscate_fonts = self.fonts_check.isChecked()
         policy.reproducible = self.reproducible_check.isChecked()

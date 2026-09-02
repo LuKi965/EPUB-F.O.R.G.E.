@@ -208,6 +208,10 @@ class TestAllThreeClassesShareOneApi:
             # judgement is about what a picture shows, which the program can
             # sort by evidence and recommend on, and can never answer.
             decisions.IMAGE,
+            # The ninth: prose put in a table, announced to a screen reader
+            # as a grid. About what the markup says to assistive software —
+            # no character, no pixel — and the owner's call on record 040.
+            decisions.TABLE,
         }
 
     def test_each_class_is_asked_through_the_same_queue(self, tmp_path):

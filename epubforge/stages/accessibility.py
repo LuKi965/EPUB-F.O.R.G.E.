@@ -126,6 +126,10 @@ class AccessibilityStage(Stage):
             "heading_jumps": [],
             "tables": 0,
             "tables_without_headers": 0,
+            #: Tables the markup declares to be layout (`role="presentation"`
+            #: or `role="none"`). Not tables of data, so not counted as ones
+            #: lacking headers — that is exactly what the declaration says.
+            "layout_tables": 0,
             "mathml": False,
             "svg": False,
             "audio": False,
@@ -230,11 +234,18 @@ class AccessibilityStage(Stage):
                     survey["motion_sources"].append(f"CSS animation: {resource.path}")
 
                 elif tag == "table":
-                    survey["tables"] += 1
-                    if not any(
-                        xhtml.local_name(cell).lower() == "th" for cell in element.iter()
-                    ):
-                        survey["tables_without_headers"] += 1
+                    role = (element.get("role") or "").strip().lower()
+                    if role in ("presentation", "none"):
+                        # Declared layout: a screen reader reads the content
+                        # and skips the grid, so a missing header is not a
+                        # gap. The tables stage writes this on a person's word.
+                        survey["layout_tables"] += 1
+                    else:
+                        survey["tables"] += 1
+                        if not any(
+                            xhtml.local_name(cell).lower() == "th" for cell in element.iter()
+                        ):
+                            survey["tables_without_headers"] += 1
 
         return survey
 

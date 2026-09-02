@@ -202,6 +202,38 @@ TEXTS_PL: dict[str, str] = {
     ),
     "images.alone": "stoi sam w bloku, bez tekstu obok",
     "images.in.text": "stoi wewnątrz tekstu",
+    # Prose put in a table (record 040, the owner's decision). One question
+    # per book, the whole list, the answer stops at this book.
+    "tables.layout.summary": (
+        "{count} tabel trzyma zwykły tekst w jednej komórce albo jednej "
+        "kolumnie — czytnik ekranu zapowiada je jako tabele"
+    ),
+    "tables.layout.detail": (
+        "Te tabele nie mają nagłówka i żaden wiersz nie ma więcej niż jednej "
+        "komórki: nic w nich nie stoi obok niczego, więc to nie są tabele "
+        "danych, tylko ramka albo margines zrobiony z tabeli. Dla oka to "
+        "akapit. Czytnik ekranu przed każdym z nich mówi „tabela, jeden "
+        "wiersz, jedna kolumna”.\n\n{shown}{more}\n\n"
+        "Oznaczenie ich jako układ strony (`role=\"presentation\"`) to "
+        "technika WCAG dla takich tabel: czytnik ekranu czyta samą treść, "
+        "a dla oka nic się nie zmienia. Odpowiedź „dla wszystkich” obejmuje "
+        "listę **tej książki**."
+    ),
+    "tables.layout.line": "{where}: {rows} w. — „{text}”",
+    "tables.layout.image": "[tabela wokół obrazu, bez tekstu]",
+    "tables.layout.empty": "[pusta tabela]",
+    "tables.layout.more": "\n… i {count} więcej",
+    "tables.layout.keep": "Zostaw jak jest",
+    "tables.layout.keep.why": (
+        "Nic się nie zmienia; czytnik ekranu dalej zapowiada te tabele, "
+        "a raport dalej liczy je jako tabele bez nagłówków"
+    ),
+    "tables.layout.mark": "Oznacz jako układ strony",
+    "tables.layout.mark.why": (
+        "{count} tabel dostaje role=\"presentation\"; czytnik ekranu czyta "
+        "ich treść jak zwykły tekst, dla oka bez zmian, tekst co do znaku "
+        "ten sam"
+    ),
     "footnote.summary": "{count} znaczników przypisów [N] bez odnośnika, a sekcja przypisów istnieje",
     "footnote.detail": (
         "W treści stoją gołe znaczniki w rodzaju [1], a w sekcji przypisów "
@@ -672,6 +704,38 @@ TEXTS_EN: dict[str, str] = {
     ),
     "images.alone": "stands alone in its block, with no text beside it",
     "images.in.text": "sits inside running text",
+    # Prose put in a table (record 040, the owner's decision). One question
+    # per book, the whole list, the answer stops at this book.
+    "tables.layout.summary": (
+        "{count} table(s) hold plain text in one cell or one column — a "
+        "screen reader announces them as tables"
+    ),
+    "tables.layout.detail": (
+        "These tables have no header and no row with more than one cell: "
+        "nothing in them stands beside anything else, so they are not tables "
+        "of data but a border or a margin made out of a table. To the eye "
+        "each is a paragraph. A screen reader says \"table, one row, one "
+        "column\" before every one of them.\n\n{shown}{more}\n\n"
+        "Marking them as layout (`role=\"presentation\"`) is the WCAG "
+        "technique for such tables: a screen reader reads the content alone, "
+        "and to the eye nothing changes. \"All of them\" covers the list of "
+        "**this book**."
+    ),
+    "tables.layout.line": "{where}: {rows} row(s) — \"{text}\"",
+    "tables.layout.image": "[a table around a picture, no text]",
+    "tables.layout.empty": "[an empty table]",
+    "tables.layout.more": "\n… and {count} more",
+    "tables.layout.keep": "Leave them as they are",
+    "tables.layout.keep.why": (
+        "Nothing changes; a screen reader keeps announcing these tables, and "
+        "the report keeps counting them as tables without headers"
+    ),
+    "tables.layout.mark": "Mark as layout",
+    "tables.layout.mark.why": (
+        "{count} table(s) get role=\"presentation\"; a screen reader reads "
+        "their content as plain text, nothing changes to the eye, the text "
+        "is the same to the character"
+    ),
     "footnote.summary": "{count} footnote marker(s) [N] with no link, and a notes section exists",
     "footnote.detail": (
         "The text carries bare markers like [1], and notes with those numbers "

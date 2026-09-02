@@ -13,7 +13,10 @@ import os
 
 import pytest
 
-pytest.importorskip("PySide6")
+# The widgets module, not the package: a host with PySide6 installed and no
+# EGL library imports the package fine and fails on the widgets, which is a
+# collection error rather than a skip. Seen on a fresh container 2026-09-02.
+pytest.importorskip("PySide6.QtWidgets")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402

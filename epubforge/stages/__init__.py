@@ -25,6 +25,8 @@ Order is load-bearing:
   markup the content stage may have moved, and the accessibility stage counts
   what it left: a picture marked decorative on a person's word is no longer
   an undescribed one;
+* tables beside it, for the same reason — a one-cell table declared layout
+  on a person's word is no longer a table without headers;
 * compatibility last — every measure there is a step away from the standard,
   taken for a named device, and nothing earlier should have to know about it.
 """
@@ -43,6 +45,7 @@ from .navigation import NavigationStage
 from .profile import ProfileStage
 from .style import StyleStage
 from .structure import StructureStage
+from .tables import TableStage
 from .hyphens import HyphenStage
 from .substitutions import SubstitutionStage
 from .typography import TypographyStage
@@ -60,6 +63,7 @@ DEFAULT_STAGES = (
     SubstitutionStage,
     FootnoteStage,
     AltTextStage,
+    TableStage,
     NavigationStage,
     AccessibilityStage,
     CompatibilityStage,
@@ -89,5 +93,6 @@ __all__ = [
     "NavigationStage",
     "AccessibilityStage",
     "AltTextStage",
+    "TableStage",
     "CompatibilityStage",
 ]

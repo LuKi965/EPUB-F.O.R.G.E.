@@ -88,7 +88,14 @@ TEXT = "text"
 #: package names) and recommends, and it can never describe. The eighth kind,
 #: from the largest thing left on the shelf after 0.3.1 (record 038).
 IMAGE = "image"
-KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE, TEXT, IMAGE)
+#: A table that is not a table — prose in a one-cell box, a one-column stack
+#: of paragraphs — announced to a screen reader as a grid. Its own kind
+#: because the judgement is about what the markup *says* to assistive
+#: software, not about text, appearance or a picture; the answer changes no
+#: character and no pixel. The ninth kind, the owner's decision on record 040
+#: (2026-09-02): "nielogiczne jest wspieranie WCAG bez wspierania WCAG".
+TABLE = "table"
+KINDS = (REFERENCE, HYPHEN, METADATA, VERIFICATION, ENCODING, STYLE, TEXT, IMAGE, TABLE)
 
 #: Every question has this option and it is always the safe one: change nothing.
 #: Named rather than spelled out at each call site, because "the option that
