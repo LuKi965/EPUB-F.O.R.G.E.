@@ -3325,8 +3325,10 @@ class StyleStage(Stage):
         and it is right. Three answers, in order of authority:
 
         * **The embedded font's own word.** Where the book embeds the face,
-          PANOSE says what it is (:mod:`epubforge.fonts_meta`), and appending
-          that generic is reading a declaration, not making one. Deterministic,
+          PANOSE says what it is (:mod:`epubforge.fonts_meta`) — or, where
+          the designer left PANOSE blank, the fixed-pitch flag and the
+          family name the font carries inside itself do — and appending that
+          generic is reading a declaration, not making one. Deterministic,
           no question. The whole book's `@font-face` blocks answer, not just
           this sheet's — a converter that keeps its faces in one sheet and its
           styles in another embeds them all the same.
@@ -3338,7 +3340,10 @@ class StyleStage(Stage):
           stand for all of them, recommended but **never applied on its own**
           (S-05: no answer, no change). Appending is visible only on a reader
           that lacks the face, and there it moves the look toward the
-          publisher's intent.
+          publisher's intent. An embedded face that says nothing about itself
+          anywhere — TeX Gyre Heros is one — takes this road too, on its
+          name: the book carries it, but what kind of face it is the book
+          does not state.
         * **Nothing.** A symbol face (Wingdings) gets no question — no generic
           family draws pictures — and an unknown name stays a guess. Both are
           left alone and counted, exactly as before.
@@ -3439,7 +3444,7 @@ class StyleStage(Stage):
             )
             self.changed(
                 ctx, Action.ADDED, resource.path,
-                before=f"{sum(approved.values())} font stack(s) naming faces the book does not carry, with no fallback",
+                before=f"{sum(approved.values())} font stack(s) naming faces whose kind the book itself does not state, with no fallback",
                 after="the generic family common knowledge assigns, appended on a person's word",
                 automation=Automation.ASKED,
                 risk=Risk.APPEARANCE, reversible=True,

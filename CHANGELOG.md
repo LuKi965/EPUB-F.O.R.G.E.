@@ -40,6 +40,39 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Font stacks: the font's own name is read, and the shelf's names join common knowledge
+
+After 0.3.1, 387 font stacks in 33 of the 160 books still ended on a named
+face with no generic family, the class question notwithstanding. Measured
+rather than guessed at: 224 of them named faces the book *embeds* — readable
+files whose designers left PANOSE at "any" and `sFamilyClass` at 0, so the
+OS/2 table honestly said nothing. Another 102 named faces nobody embedded and
+the common-knowledge table did not hold; 57 pointed at embedded files
+obfuscated with a key nobody has; 8 at a file the book does not contain.
+
+Two changes. When the OS/2 table is blank, `classify` now reads two more of
+the font's own declarations: the fixed-pitch flag of its `post` table, and the
+family name it carries in its own `name` table — a face whose designer named
+it with the word *Sans* (or *Serif*, *Slab*, *Mono*, *Script*) has said what
+it is. Whole words only, so `Sansita` declares nothing; a name that says
+nothing anywhere still yields None; and the name written in the CSS is still
+never read for this. That is the font's word, read the same way PANOSE is —
+deterministic, no question. Second, the common-knowledge table gains the
+names the shelf showed and their kin (the TeX Gyre family, Alegreya, Charis
+SIL, Judson, Aharoni, Garamond BE, Ex Ponto, Lucida Handwriting), looked up
+with spacing ignored so that `TexGyreHeros` in a stylesheet and `TeX Gyre
+Heros` in a font are one face. Those still go through the question and never
+on the program's own word — and an embedded face that says nothing about
+itself anywhere now takes that road too, which the question's text now says
+instead of claiming the face is not in the book.
+
+On the shelf, the 388 stacks left as unknown become 22 in 8 books, under
+five names: a publisher's typo, a face whose file is not in the book, a face
+whose embedded file names itself differently from the CSS, and two names this
+program holds no common knowledge about — plus three symbol-face stacks left
+alone by design. 146 stacks gain their generic from the font's own name; 220
+more reach the question.
+
 ## 0.3.1 — alpha — 2026-08-24
 
 The whole of the 0.4 plan, which is a plan name and not a version: MINOR here

@@ -231,16 +231,18 @@ TEXTS_PL: dict[str, str] = {
         "odtąd to samo"
     ),
     "style.generic.summary": (
-        "{count} deklaracji fontów wskazuje kroje, których książka nie "
-        "dołącza, bez rodziny zapasowej ({generic}?)"
+        "{count} deklaracji fontów kończy się na krojach bez rodziny "
+        "zapasowej ({generic}?)"
     ),
     "style.generic.detail": (
         "W {where} deklaracje font-family kończą się na nazwanych krojach "
-        "({examples}), których nie ma w paczce książki. Czytnik bez takiego "
-        "kroju użyje swojego domyślnego — jakiegokolwiek. Dopisanie rodziny "
-        "zapasowej `{generic}` mówi mu: „jak nie masz tego kroju, weź swój "
-        "{generic}”. Zmiana widoczna wyłącznie na czytnikach, którym kroju "
-        "brakuje — i tam przybliża wygląd do zamysłu wydawcy."
+        "({examples}), o których sama paczka książki nie mówi, jakiego są "
+        "rodzaju — albo ich nie dołącza, albo dołączony plik o sobie milczy. "
+        "Czytnik, który takiego kroju nie ma lub go nie wczyta, użyje swojego "
+        "domyślnego — jakiegokolwiek. Dopisanie rodziny zapasowej `{generic}` "
+        "mówi mu: „jak nie masz tego kroju, weź swój {generic}”. Zmiana "
+        "widoczna wyłącznie na czytnikach, którym kroju brakuje — i tam "
+        "przybliża wygląd do zamysłu wydawcy."
     ),
     "style.generic.keep": "Zostaw jak jest",
     "style.generic.keep.why": (
@@ -614,13 +616,15 @@ TEXTS_EN: dict[str, str] = {
         "same thing from now on"
     ),
     "style.generic.summary": (
-        "{count} font declaration(s) name faces the book does not embed, "
-        "with no generic fallback ({generic}?)"
+        "{count} font declaration(s) end on named faces with no generic "
+        "fallback ({generic}?)"
     ),
     "style.generic.detail": (
         "In {where}, font-family declarations end on named faces "
-        "({examples}) that are not in the book's package. A reader without "
-        "such a face falls back to its default — whatever that is. Appending "
+        "({examples}) whose kind the book's own package does not state — "
+        "either it does not embed them, or the embedded file says nothing "
+        "about itself. A reader without such a face, or one that fails to "
+        "load it, falls back to its default — whatever that is. Appending "
         "the generic family `{generic}` tells it: \"if you lack this face, "
         "use your {generic}\". Visible only on readers missing the face — "
         "and there it moves the look toward the publisher's intent."

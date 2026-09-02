@@ -159,3 +159,93 @@ class TestTheBookAnswersFirst:
         assert "css.font-stack-generic-added" in rules_of(result)
         assert not [q for q in chooser.asked
                     if q.group.startswith("style:generic-")]
+
+
+def embed(tmp_path, *, font: bytes, declared: str, stack: str, option="append"):
+    """One embedded face under *declared*, one stack naming *stack*."""
+    fonts_css = f'@font-face {{ font-family: "{declared}"; src: url(f.ttf); }}'
+    sheet = f'p.jeden {{ font-family: "{stack}"; }}'
+    return build(
+        tmp_path, sheet=sheet, option=option,
+        extra_items=(
+            '<item id="fc" href="fonts.css" media-type="text/css"/>'
+            '<item id="f" href="f.ttf" media-type="font/ttf"/>'
+        ),
+        extra_files={
+            "OEBPS/fonts.css": fonts_css.encode(),
+            "OEBPS/f.ttf": font,
+        },
+    )
+
+
+class TestAnEmbeddedFaceThatIsSilentInOS2:
+    """The shelf after the first wave: 224 of the 391 stacks still without a
+    generic named faces the book embedded, whose designers left PANOSE at
+    "any". What the font says elsewhere about itself is read; what it says
+    nowhere goes to the question on its name; what is neither stays."""
+
+    def test_its_own_name_saying_sans_is_read_not_asked(self, tmp_path):
+        """`Alegreya Sans` with a blank OS/2 table: the name is the font's
+        word, so the generic is added deterministically and no question is
+        put."""
+        font = sfnt(panose=(0,) * 10, family="Alegreya Sans")
+        result, chooser = embed(
+            tmp_path, font=font, declared="AlegreyaSans", stack="AlegreyaSans",
+        )
+        assert '"AlegreyaSans", sans-serif' in sheet_of(result)
+        assert "css.font-stack-generic-added" in rules_of(result)
+        assert "css.font-stack-generic-missing" not in rules_of(result)
+        assert not [q for q in chooser.asked
+                    if q.group.startswith("style:generic-")]
+
+    def test_a_face_that_says_nothing_anywhere_goes_to_the_question(self, tmp_path):
+        """TeX Gyre Heros: embedded, readable, blank OS/2, a name with no
+        word in it. The book carries the face but does not state its kind,
+        so common knowledge about the name is offered — through the question,
+        never on the program's own authority. The mutation that treats
+        "embedded" as "answered" fails here, and so does the one that skips
+        the table for embedded faces."""
+        font = sfnt(panose=(0,) * 10, family="TeX Gyre Heros")
+        result, chooser = embed(
+            tmp_path, font=font, declared="TexGyreHeros", stack="TexGyreHeros",
+        )
+        assert '"TexGyreHeros", sans-serif' in sheet_of(result)
+        assert "css.font-stack-generic-approved" in rules_of(result)
+        asked = [q for q in chooser.asked if q.group.startswith("style:generic-")]
+        assert [q.group for q in asked] == ["style:generic-sans-serif"]
+        assert asked[0].recommended == "append"
+
+    def test_nobody_answering_leaves_the_silent_face_alone(self, tmp_path):
+        font = sfnt(panose=(0,) * 10, family="TeX Gyre Heros")
+        result, _ = embed(
+            tmp_path, font=font, declared="TexGyreHeros", stack="TexGyreHeros",
+            option=None,
+        )
+        assert '"TexGyreHeros";' in sheet_of(result)
+        assert "css.font-stack-generic-missing" in rules_of(result)
+
+    def test_a_face_nobody_knows_stays_a_guess(self, tmp_path):
+        font = sfnt(panose=(0,) * 10, family="Krojwlasny")
+        result, chooser = embed(
+            tmp_path, font=font, declared="Krojwlasny", stack="Krojwlasny",
+        )
+        assert '"Krojwlasny";' in sheet_of(result)
+        assert "css.font-stack-generic-missing" in rules_of(result)
+        assert not [q for q in chooser.asked
+                    if q.group.startswith("style:generic-")]
+
+
+class TestSpellingOfACommonName:
+    def test_a_name_written_without_spaces_is_the_same_face(self, tmp_path):
+        """Word writes `TimesNewRoman` as readily as `Times New Roman`; both
+        are the one serif question."""
+        sheet = (
+            'p.jeden { font-family: TimesNewRoman; } '
+            'p.dwa { font-family: "Times New Roman"; }'
+        )
+        result, chooser = build(tmp_path, sheet=sheet, option="append")
+        out = sheet_of(result)
+        assert "font-family: TimesNewRoman, serif" in out
+        assert '"Times New Roman", serif' in out
+        assert len([q for q in chooser.asked
+                    if q.group.startswith("style:generic-")]) == 1

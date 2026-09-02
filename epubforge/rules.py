@@ -165,7 +165,7 @@ CATALOGUE: dict[str, str] = {
     "css.reader-property-kept": "{count} reader-specific CSS propert(ies) were kept for the legacy reader profile ({names})",
     "css.reader-property-removed": "{count} reader-specific CSS propert(ies) were removed",
     "css.font-stack-generic-added": "{count} font stack(s) gained the generic family the embedded font declares about itself",
-    "css.font-stack-generic-approved": "{count} font stack(s) naming faces the book does not carry gained the generic family common knowledge assigns ({generics}), appended on a person's word",
+    "css.font-stack-generic-approved": "{count} font stack(s) naming faces whose kind the book itself does not state gained the generic family common knowledge assigns ({generics}), appended on a person's word",
     "css.font-stack-generic-missing": "{count} font stack(s) end without a generic family",
     "css.unparseable": "a stylesheet could not be parsed for validation: {error}",
     "css.no-usable-rules": "a stylesheet contains no usable rules",
@@ -527,7 +527,7 @@ CATALOGUE_PL: dict[str, str] = {
     'css.reader-property-kept': 'zachowano {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników — profil zgodności legacy mówi, że ta książka ma działać na czytnikach RMSDK ({names})',
     'css.reader-property-removed': 'usunięto {count} {count:właściwość CSS|właściwości CSS|właściwości CSS} charakterystyczną dla czytników',
     'css.font-stack-generic-added': '{count} {count:stos czcionek dostał|stosy czcionek dostały|stosów czcionek dostało} generyczną rodzinę, którą osadzona czcionka deklaruje o sobie sama',
-    'css.font-stack-generic-approved': '{count} {count:stos fontów wskazujący|stosy fontów wskazujące|stosów fontów wskazujących} kroje spoza paczki {count:dostał|dostały|dostało} rodzinę zapasową z powszechnej wiedzy ({generics}) — dopisaną na słowo człowieka',
+    'css.font-stack-generic-approved': '{count} {count:stos fontów wskazujący|stosy fontów wskazujące|stosów fontów wskazujących} kroje, o których rodzaju paczka książki nie mówi, {count:dostał|dostały|dostało} rodzinę zapasową z powszechnej wiedzy ({generics}) — dopisaną na słowo człowieka',
     'css.font-stack-generic-missing': '{count} {count:lista krojów kończy się|listy krojów kończą się|list krojów kończy się} bez rodziny generycznej',
     'css.unparseable': 'arkusza stylów nie dało się sparsować do sprawdzenia: {error}',
     'css.no-usable-rules': 'arkusz stylów nie zawiera żadnych używalnych reguł',
@@ -951,7 +951,7 @@ DETAILS: dict[str, str] = {
     "metadata.language-corrected":
         "{rate} Polish-only letters per 1000 characters of the book's own text. A reading system speaks dc:language to its text-to-speech engine and hyphenates by it, so a wrong declaration is read aloud in the wrong voice and broken across lines by the wrong rules — neither of which any validator mentions. --language overrides this.",
     "css.font-stack-generic-added":
-        "Read from the font's OS/2 table — PANOSE, ten bytes the designer filled in — not inferred from its name. A stack with no generic family falls back to whatever the reader likes when the embedded font fails to load, which on an e-reader it often does.",
+        "Read from the embedded font file itself: its OS/2 table — PANOSE, ten bytes the designer filled in — or, where the designer left that blank, the fixed-pitch flag of its post table and the family name it carries in its own name table (a family whose own name holds the word *sans* says sans; whole words only). Never inferred from the name written in the CSS. A stack with no generic family falls back to whatever the reader likes when the embedded font fails to load, which on an e-reader it often does.",
     "xhtml.watermark-kept":
         "Meant to be read, so left exactly as the publisher wrote it.",
     "xhtml.watermark-kept-personal-data":
@@ -998,7 +998,7 @@ DETAILS_PL: dict[str, str] = {
     "metadata.language-corrected":
         "{rate} liter wyłącznie polskich na 1000 znaków własnego tekstu książki. Czytnik podaje dc:language syntezatorowi mowy i po nim dzieli wyrazy, więc zła deklaracja to czytanie niewłaściwym głosem i łamanie niewłaściwymi regułami — o żadnym z tych dwóch nie powie ci walidator. --language to nadpisuje.",
     "css.font-stack-generic-added":
-        "Odczytane z tablicy OS/2 samej czcionki — PANOSE, dziesięć bajtów wpisanych przez projektanta — a nie wywnioskowane z nazwy. Stos bez rodziny generycznej spada na cokolwiek, co czytnik uzna za stosowne, gdy osadzona czcionka się nie wczyta, a na czytniku zdarza się to często.",
+        "Odczytane z samego pliku osadzonej czcionki: z tablicy OS/2 — PANOSE, dziesięć bajtów wpisanych przez projektanta — a gdy projektant zostawił ją pustą, z flagi stałej szerokości w tablicy post i z nazwy rodziny, którą czcionka nosi we własnej tablicy name (rodzina, której własna nazwa niesie słowo „sans”, mówi „sans”; liczą się tylko całe słowa). Nigdy nie wywnioskowane z nazwy zapisanej w CSS. Stos bez rodziny generycznej spada na cokolwiek, co czytnik uzna za stosowne, gdy osadzona czcionka się nie wczyta, a na czytniku zdarza się to często.",
     "xhtml.watermark-kept":
         "Ma być czytane, więc zostawione dokładnie tak, jak napisał to wydawca.",
     "xhtml.watermark-kept-personal-data":
