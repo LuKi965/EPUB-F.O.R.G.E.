@@ -31,9 +31,9 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 6,
       "fix": 6,
-      "preserved": 2,
+      "preserved": 3,
       "warn": 3
     },
     "rules": {
@@ -49,6 +49,8 @@
       "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
+      "tables.layout-found": 1,
+      "tables.layout-left-alone": 1,
       "xhtml.cover-fitted": 1,
       "xhtml.image-paragraph-centred": 1,
       "xhtml.image-paragraph-kept": 1,
@@ -63,9 +65,9 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 5,
+      "info": 6,
       "fix": 6,
-      "preserved": 2,
+      "preserved": 3,
       "warn": 3
     },
     "rules": {
@@ -81,6 +83,8 @@
       "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
+      "tables.layout-found": 1,
+      "tables.layout-left-alone": 1,
       "xhtml.cover-fitted": 1,
       "xhtml.image-paragraph-centred": 1,
       "xhtml.image-paragraph-kept": 1,

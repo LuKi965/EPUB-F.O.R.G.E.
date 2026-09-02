@@ -34,9 +34,9 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 14,
+      "info": 15,
       "fix": 7,
-      "preserved": 4,
+      "preserved": 5,
       "warn": 1
     },
     "rules": {
@@ -59,6 +59,8 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "structure.role-named": 1,
+      "tables.layout-found": 1,
+      "tables.layout-left-alone": 1,
       "typography.ellipsis-left-alone": 1,
       "typography.quotes-left-alone": 1,
       "xhtml.entities-rewritten": 1,
@@ -74,9 +76,9 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 11,
+      "info": 12,
       "fix": 10,
-      "preserved": 4,
+      "preserved": 5,
       "warn": 1
     },
     "rules": {
@@ -99,6 +101,8 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "structure.role-named": 1,
+      "tables.layout-found": 1,
+      "tables.layout-left-alone": 1,
       "typography.ellipsis-left-alone": 1,
       "typography.quotes-left-alone": 1,
       "xhtml.entities-rewritten": 1,
