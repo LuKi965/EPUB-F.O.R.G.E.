@@ -99,6 +99,14 @@ the same order. Held to a stronger fingerprint still: every book on the
 shelf rebuilt reproducibly before and after, whole output file hashed, no
 byte moved.
 
+Then the reader's entry point itself, at 51: choosing the package
+document, re-keying durations, the rendition properties, the navigation in
+its three forms, the unmanifested files and the rebuilt spine are each a
+function now, called in the order the one function ran them. The
+fingerprint for this one covers everything `read_epub` decides — reading
+order, every navigation form, every path it chose, every resource's bytes,
+every finding with its values — and it is identical on all 160 books.
+
 ### The validator's allowance grows with the file
 
 The largest book on the owner's shelf (28.6 MB, 9 810 documents) got no

@@ -1501,36 +1501,7 @@ def read_epub(
         report.add("reader", Level.FIX, "reader.mimetype-invalid")
 
     offered = rootfiles(entries)
-    if rendition and rendition in entries:
-        opf_path = rendition
-        # Asked for one rendition of several, which means somebody is producing
-        # the whole set — `pipeline.rebuild_all` is the only caller that does
-        # this. The other renditions' own files are then left to their own
-        # output rather than copied into this one, so each file is a publication
-        # instead of a publication plus somebody else's chapters.
-        #
-        # Only on this path. A plain `rebuild` of a multi-rendition book still
-        # carries everything, because there no sibling file is being written and
-        # dropping them would be a deletion with nowhere for them to go.
-        mine = manifest_paths(entries, opf_path)
-        foreign = {
-            path
-            for other in offered
-            if other.path != opf_path
-            for path in manifest_paths(entries, other.path)
-        } - mine
-        if foreign:
-            for path in foreign:
-                entries.pop(path, None)
-            report.add(
-                "reader",
-                Level.INFO,
-                "reader.other-rendition-skipped",
-                values={"count": len(foreign)},
-                location=opf_path,
-            )
-    else:
-        opf_path = _locate_opf(entries, report)
+    opf_path = _choose_package(entries, offered, rendition, report)
     opf_dir = posixpath.dirname(opf_path)
     package = parse_xml(entries[opf_path], opf_path, report)
     if package is None:
@@ -1562,15 +1533,7 @@ def read_epub(
         book.add(resource)
     book.remote_resources = list(remote.values())
     book.collections = _parse_collections(package, opf_dir, by_id)
-
-    # Durations arrive keyed by the id they refine, because the metadata is
-    # parsed before the manifest. Re-key them by path so they survive renaming
-    # along with everything else that points at a file.
-    if book.metadata.media_durations:
-        book.metadata.media_durations = {
-            (by_id[key.lstrip("#")].path if key and key.lstrip("#") in by_id else None): value
-            for key, value in book.metadata.media_durations.items()
-        }
+    _rekey_durations_by_path(book.metadata, by_id)
 
     book.source_package = entries.get(opf_path)
     book.spine, book.ncx_path, book.page_progression_direction = _parse_spine(
@@ -1583,20 +1546,91 @@ def read_epub(
             "reader.page-direction-carried",
             values={"direction": book.page_progression_direction},
         )
+    _read_rendition_properties(package, book)
+    book.landmarks = _parse_guide(package, opf_path)
+    book.nav_path = _declared_nav(book)
+    _read_navigation(book, report)
 
+    book.cover_path = _detect_cover(package, by_id, book)
+    _parse_encryption(entries, book, report)
+    _carry_meta_inf(entries, book, report)
+    _add_unmanifested_files(entries, book, opf_path, report)
+    _rebuild_missing_spine(book, report)
+
+    report.stats["source_version"] = book.source_version
+    report.stats["source_resources"] = len(book.resources)
+    report.stats["source_spine_items"] = len(book.spine)
+    return book
+
+
+def _choose_package(entries: dict, offered, rendition: str | None, report: Report) -> str:
+    """Which package document this read is about.
+
+    Asked for one rendition of several, which means somebody is producing the
+    whole set — `pipeline.rebuild_all` is the only caller that does this. The
+    other renditions' own files are then left to their own output rather than
+    copied into this one, so each file is a publication instead of a
+    publication plus somebody else's chapters.
+
+    Only on this path. A plain `rebuild` of a multi-rendition book still
+    carries everything, because there no sibling file is being written and
+    dropping them would be a deletion with nowhere for them to go.
+    """
+    if not (rendition and rendition in entries):
+        return _locate_opf(entries, report)
+    opf_path = rendition
+    mine = manifest_paths(entries, opf_path)
+    foreign = {
+        path
+        for other in offered
+        if other.path != opf_path
+        for path in manifest_paths(entries, other.path)
+    } - mine
+    if foreign:
+        for path in foreign:
+            entries.pop(path, None)
+        report.add(
+            "reader",
+            Level.INFO,
+            "reader.other-rendition-skipped",
+            values={"count": len(foreign)},
+            location=opf_path,
+        )
+    return opf_path
+
+
+def _rekey_durations_by_path(metadata, by_id: dict) -> None:
+    """Durations arrive keyed by the id they refine, because the metadata is
+    parsed before the manifest. Re-key them by path so they survive renaming
+    along with everything else that points at a file."""
+    if metadata.media_durations:
+        metadata.media_durations = {
+            (by_id[key.lstrip("#")].path if key and key.lstrip("#") in by_id else None): value
+            for key, value in metadata.media_durations.items()
+        }
+
+
+def _read_rendition_properties(package, book: Book) -> None:
+    """The package-wide `rendition:*` properties; the last of each wins, as
+    it always has."""
     for prefix in ("rendition:layout", "rendition:orientation", "rendition:spread", "rendition:flow"):
         for metadata_node in children(package, "metadata"):
             for meta in descendants(metadata_node, "meta"):
                 if (meta.get("property") or "").strip() == prefix and not meta.get("refines"):
                     book.rendition[prefix.split(":", 1)[1]] = text_of(meta)
 
-    book.landmarks = _parse_guide(package, opf_path)
 
+def _declared_nav(book: Book) -> str | None:
+    """The first content document the manifest marks as the navigation."""
     for resource in list(book.resources.values()):
         if "nav" in resource.properties and resource.is_content_doc:
-            book.nav_path = resource.path
-            break
+            return resource.path
+    return None
 
+
+def _read_navigation(book: Book, report: Report) -> None:
+    """The table of contents from wherever the book keeps it: the navigation
+    document first, then the NCX the spine names, then an NCX nothing names."""
     if book.nav_path:
         toc, landmarks, page_list, extra, labels = _parse_nav_doc(
             book.resources[book.nav_path].data, book.nav_path, report
@@ -1634,11 +1668,10 @@ def read_epub(
             book.ncx_path = ncx_candidates[0].path
             report.add("reader", Level.FIX, "reader.ncx-unreferenced-used")
 
-    book.cover_path = _detect_cover(package, by_id, book)
-    _parse_encryption(entries, book, report)
 
-    _carry_meta_inf(entries, book, report)
-
+def _add_unmanifested_files(entries: dict, book: Book, opf_path: str, report: Report) -> None:
+    """Every file in the archive the manifest does not name, carried in as
+    unmanifested so that nothing the source had is dropped on the way in."""
     manifested = set(book.resources)
     skipped_prefixes = ("META-INF/",)
     for name, data in entries.items():
@@ -1648,6 +1681,8 @@ def read_epub(
         book.add(Resource(path=name, media_type=media_type, data=data, manifested=False))
         report.add("reader", Level.INFO, "reader.unmanifested-file", location=name)
 
+
+def _rebuild_missing_spine(book: Book, report: Report) -> None:
     if not book.spine:
         recovered = _recover_reading_order(book)
         book.spine = [SpineItem(path) for path in recovered]
@@ -1658,8 +1693,3 @@ def read_epub(
                 "reader.spine-rebuilt",
                 values={"count": len(recovered)},
             )
-
-    report.stats["source_version"] = book.source_version
-    report.stats["source_resources"] = len(book.resources)
-    report.stats["source_spine_items"] = len(book.spine)
-    return book
