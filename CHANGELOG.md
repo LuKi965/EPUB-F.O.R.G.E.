@@ -40,6 +40,17 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Two functions of a hundred branches, taken apart without moving a byte
+
+The audit found the reader's metadata parser and the writer's package
+builder at a cyclomatic complexity of 107 each — the two heaviest functions
+in the program. Each is now a dispatcher over small readers and writers of
+one element or one section, in the same order as before. Held to the same
+standard as every rebuild: the metadata every book on the shelf reads to,
+the package document it writes, and the id map beside it are byte for byte
+what they were on all 160 books, and the suite is unchanged. Nothing for a
+reader of books to notice; something for a reader of the code.
+
 ### The validator's allowance grows with the file
 
 The largest book on the owner's shelf (28.6 MB, 9 810 documents) got no

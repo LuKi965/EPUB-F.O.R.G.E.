@@ -588,12 +588,10 @@ def _locate_opf(entries: dict[str, bytes], report: Report) -> str:
     raise EpubReadError("no package document (.opf) found in the archive")
 
 
-def _parse_metadata(package, report: Report) -> Metadata:
-    metadata = Metadata()
-
-    # `prefix="ibooks: http://… rendition: http://…"`. Kept so that a property
-    # carried through can bring its declaration with it — without one it is not
-    # a property but an error, and EPUBCheck says so.
+def _read_prefixes(package, metadata: Metadata) -> None:
+    """`prefix="ibooks: http://… rendition: http://…"`. Kept so that a property
+    carried through can bring its declaration with it — without one it is not
+    a property but an error, and EPUBCheck says so."""
     declaration = (package.get("prefix") or "").strip()
     if declaration:
         tokens = declaration.replace("\n", " ").split()
@@ -602,28 +600,33 @@ def _parse_metadata(package, report: Report) -> Metadata:
             if name and tokens[index + 1].startswith(("http://", "https://")):
                 metadata.prefixes[name] = tokens[index + 1]
 
-    meta_nodes = children(package, "metadata")
-    if not meta_nodes:
-        report.add("reader", Level.WARN, "reader.metadata-missing")
-        return metadata
-    node = meta_nodes[0]
 
-    # EPUB 3 refinements are keyed by the id of the element they describe.
-    refines: dict[str, dict[str, str]] = {}
-    #: The same refinements as elements, because some of them carry attributes
-    #: that matter — `alternate-script` is meaningless without its `xml:lang`.
-    refine_nodes: dict[str, list] = {}
-    for meta in descendants(node, "meta"):
-        target = meta.get("refines")
-        prop = meta.get("property")
-        if target and prop:
-            key = target.lstrip("#")
-            refines.setdefault(key, {})[prop.strip()] = text_of(meta)
-            refine_nodes.setdefault(key, []).append(meta)
+class _Refinements:
+    """EPUB 3 refinements, keyed by the id of the element they describe.
 
-    metadata.direction = (package.get("dir") or "").strip().lower() or None
+    Held twice: as values, which is what most readers of them want, and as the
+    elements themselves, because some of them carry attributes that matter —
+    `alternate-script` is meaningless without its `xml:lang`.
+    """
 
-    def alternate_scripts(element) -> list[tuple[str, str]]:
+    def __init__(self, node) -> None:
+        self.values: dict[str, dict[str, str]] = {}
+        self.nodes: dict[str, list] = {}
+        for meta in descendants(node, "meta"):
+            target = meta.get("refines")
+            prop = meta.get("property")
+            if target and prop:
+                key = target.lstrip("#")
+                self.values.setdefault(key, {})[prop.strip()] = text_of(meta)
+                self.nodes.setdefault(key, []).append(meta)
+
+    def of(self, element, prop: str) -> str | None:
+        element_id = element.get("id")
+        if element_id and element_id in self.values:
+            return self.values[element_id].get(prop)
+        return None
+
+    def alternate_scripts(self, element) -> list[tuple[str, str]]:
         """Transliterations attached to *element*, as ``(xml:lang, value)``.
 
         A romanised title or author name is how a library catalogue finds a book
@@ -633,7 +636,7 @@ def _parse_metadata(package, report: Report) -> Metadata:
         """
         element_id = element.get("id")
         found: list[tuple[str, str]] = []
-        for meta in refine_nodes.get(element_id or "", []):
+        for meta in self.nodes.get(element_id or "", []):
             if (meta.get("property") or "").strip() != "alternate-script":
                 continue
             language = attr(meta, "lang", "http://www.w3.org/XML/1998/namespace") or ""
@@ -642,169 +645,194 @@ def _parse_metadata(package, report: Report) -> Metadata:
                 found.append((language, value))
         return found
 
-    def language_of(element) -> str | None:
-        return attr(element, "lang", "http://www.w3.org/XML/1998/namespace")
 
-    def refinement(element, prop: str) -> str | None:
-        element_id = element.get("id")
-        if element_id and element_id in refines:
-            return refines[element_id].get(prop)
-        return None
+def _language_of(element) -> str | None:
+    return attr(element, "lang", "http://www.w3.org/XML/1998/namespace")
 
-    _read_collection(node, refines, metadata)
 
-    for child in node:
-        tag = lname(child).lower()
-        if not tag:
-            # A comment or a processing instruction. Not metadata — but one
-            # Polish shop writes its order number into exactly this position,
-            # and removing a watermark is not something this tool does.
-            if child.tag is etree.Comment and (child.text or "").strip():
-                metadata.metadata_comments.append(child.text.strip())
-            continue
-        value = text_of(child)
-        if tag == "title" and value:
-            metadata.title_ids.append((child.get("id") or "").strip())
-            title_type = refinement(child, "title-type")
-            if title_type == "subtitle":
-                metadata.subtitle = value
-            elif title_type == "collection":
-                metadata.series = metadata.series or value
-            else:
-                if not metadata.titles:
-                    metadata.title_language = language_of(child)
-                    metadata.title_direction = (child.get("dir") or "").strip().lower() or None
-                    metadata.title_alternate_scripts = alternate_scripts(child)
-                metadata.titles.append(value)
-                sort_as = refinement(child, "file-as")
-                if sort_as:
-                    metadata.sort_title = sort_as
-        elif tag in ("creator", "contributor") and value:
-            default_role = "aut" if tag == "creator" else "ctb"
-            stated_role = refinement(child, "role") or attr(child, "role", OPF_NS)
-            role = stated_role or default_role
-            file_as = refinement(child, "file-as") or attr(child, "file-as", OPF_NS)
-            metadata.creators.append(
-                Creator(
-                    value,
-                    role.strip().lower()[:3] or default_role,
-                    file_as,
-                    language=language_of(child),
-                    direction=(child.get("dir") or "").strip().lower() or None,
-                    alternate_scripts=alternate_scripts(child),
-                    source_id=(child.get("id") or "").strip() or None,
-                    role_declared=bool(stated_role),
-                    file_as_declared=bool(file_as),
-                )
+def _direction_of(element) -> str | None:
+    return (element.get("dir") or "").strip().lower() or None
+
+
+def _read_title(child, value: str, metadata: Metadata, refinements: _Refinements) -> None:
+    metadata.title_ids.append((child.get("id") or "").strip())
+    title_type = refinements.of(child, "title-type")
+    if title_type == "subtitle":
+        metadata.subtitle = value
+    elif title_type == "collection":
+        metadata.series = metadata.series or value
+    else:
+        if not metadata.titles:
+            metadata.title_language = _language_of(child)
+            metadata.title_direction = _direction_of(child)
+            metadata.title_alternate_scripts = refinements.alternate_scripts(child)
+        metadata.titles.append(value)
+        sort_as = refinements.of(child, "file-as")
+        if sort_as:
+            metadata.sort_title = sort_as
+
+
+def _read_creator(tag: str, child, value: str, metadata: Metadata, refinements: _Refinements) -> None:
+    default_role = "aut" if tag == "creator" else "ctb"
+    stated_role = refinements.of(child, "role") or attr(child, "role", OPF_NS)
+    role = stated_role or default_role
+    file_as = refinements.of(child, "file-as") or attr(child, "file-as", OPF_NS)
+    metadata.creators.append(
+        Creator(
+            value,
+            role.strip().lower()[:3] or default_role,
+            file_as,
+            language=_language_of(child),
+            direction=_direction_of(child),
+            alternate_scripts=refinements.alternate_scripts(child),
+            source_id=(child.get("id") or "").strip() or None,
+            role_declared=bool(stated_role),
+            file_as_declared=bool(file_as),
+        )
+    )
+
+
+def _read_identifier(child, value: str, metadata: Metadata, refinements: _Refinements) -> None:
+    scheme = refinements.values.get(child.get("id", ""), {}).get("identifier-type") or attr(
+        child, "scheme", OPF_NS
+    )
+    metadata.identifiers.append(
+        Identifier(
+            value,
+            scheme,
+            primary=False,
+            source_id=(child.get("id") or "").strip() or None,
+        )
+    )
+
+
+def _read_dublin_core(tag: str, child, value: str, metadata: Metadata) -> None:
+    """The single-valued and list-valued Dublin Core elements: first one wins
+    where the model has one slot, the rest are collected."""
+    if tag == "language":
+        if metadata.language is None:
+            metadata.language = value
+        else:
+            metadata.languages_extra.append(value)
+    elif tag == "publisher":
+        metadata.publisher = metadata.publisher or value
+    elif tag == "date":
+        event = attr(child, "event", OPF_NS)
+        if event == "modification":
+            metadata.modified = metadata.modified or value
+        else:
+            metadata.published = metadata.published or value
+    elif tag == "description":
+        metadata.description = metadata.description or value
+    elif tag == "subject":
+        metadata.subjects.append(value)
+    elif tag == "rights":
+        metadata.rights = metadata.rights or value
+    elif tag == "source":
+        metadata.source = metadata.source or value
+    elif tag in ("type", "coverage", "relation"):
+        metadata.dublin_core_extra.append((tag, value))
+
+
+def _read_link(child, metadata: Metadata) -> None:
+    # A pointer the publication makes at something about itself: a
+    # catalogue record, an ONIX file, a rights statement. Nothing here
+    # reads it and there is nothing to read — it is carried whole or it
+    # is lost, and it was being lost.
+    attributes = {key: val for key, val in child.attrib.items() if isinstance(key, str)}
+    if attributes.get("href"):
+        metadata.links.append(attributes)
+
+
+def _read_refining_meta(child, value: str, metadata: Metadata) -> None:
+    """A `<meta refines="…">`: collections and their refinements are resolved
+    together by `_read_collection`. The one refinement read here is a Media
+    Overlay's duration, because it refines a *manifest item* rather than
+    another metadata statement — and without it the overlay it belongs to is
+    not merely poorer but invalid."""
+    prop = child.get("property")
+    if prop == "media:duration" and value:
+        # The target is an id at this point; the manifest is parsed
+        # afterwards, so `read_epub` re-keys these by path.
+        metadata.media_durations[child.get("refines")] = value
+    elif prop and value and prop not in _REFINEMENTS_HANDLED:
+        # F-011: everything else that refines something used to stop
+        # here, at a bare `continue`. `display-seq` says which title
+        # comes second; `collection-type` and `group-position` are
+        # read elsewhere; a vendor may write anything at all. Carried
+        # with the id it refines, and re-pointed by the writer at
+        # whatever id that node ends up with.
+        metadata.extra_refinements.append(
+            (
+                (child.get("refines") or "").lstrip("#"),
+                prop,
+                value,
+                {
+                    key: val
+                    for key, val in child.attrib.items()
+                    if isinstance(key, str) and key not in ("refines", "property")
+                },
             )
-        elif tag == "identifier" and value:
-            scheme = refines.get(child.get("id", ""), {}).get("identifier-type") or attr(child, "scheme", OPF_NS)
-            metadata.identifiers.append(
-                Identifier(
-                    value,
-                    scheme,
-                    primary=False,
-                    source_id=(child.get("id") or "").strip() or None,
-                )
-            )
-        elif tag == "language" and value:
-            if metadata.language is None:
-                metadata.language = value
-            else:
-                metadata.languages_extra.append(value)
-        elif tag == "publisher" and value:
-            metadata.publisher = metadata.publisher or value
-        elif tag == "date" and value:
-            event = attr(child, "event", OPF_NS)
-            if event == "modification":
-                metadata.modified = metadata.modified or value
-            else:
-                metadata.published = metadata.published or value
-        elif tag == "description" and value:
-            metadata.description = metadata.description or value
-        elif tag == "subject" and value:
-            metadata.subjects.append(value)
-        elif tag == "rights" and value:
-            metadata.rights = metadata.rights or value
-        elif tag == "source" and value:
-            metadata.source = metadata.source or value
-        elif tag in ("type", "coverage", "relation") and value:
-            metadata.dublin_core_extra.append((tag, value))
-        elif tag == "link":
-            # A pointer the publication makes at something about itself: a
-            # catalogue record, an ONIX file, a rights statement. Nothing here
-            # reads it and there is nothing to read — it is carried whole or it
-            # is lost, and it was being lost.
-            attributes = {
-                key: val for key, val in child.attrib.items() if isinstance(key, str)
-            }
-            if attributes.get("href"):
-                metadata.links.append(attributes)
-        elif tag == "meta":
-            name = child.get("name")
-            content = child.get("content")
-            prop = child.get("property")
-            if child.get("refines"):
-                # Collections and their refinements are resolved together by
-                # _read_collection, above. The one refinement that is read here
-                # is a Media Overlay's duration, because it refines a *manifest
-                # item* rather than another metadata statement — and without it
-                # the overlay it belongs to is not merely poorer but invalid.
-                if prop == "media:duration" and value:
-                    # The target is an id at this point; the manifest is parsed
-                    # afterwards, so `read_epub` re-keys these by path.
-                    metadata.media_durations[child.get("refines")] = value
-                elif prop and value and prop not in _REFINEMENTS_HANDLED:
-                    # F-011: everything else that refines something used to stop
-                    # here, at a bare `continue`. `display-seq` says which title
-                    # comes second; `collection-type` and `group-position` are
-                    # read elsewhere; a vendor may write anything at all. Carried
-                    # with the id it refines, and re-pointed by the writer at
-                    # whatever id that node ends up with.
-                    metadata.extra_refinements.append(
-                        (
-                            (child.get("refines") or "").lstrip("#"),
-                            prop,
-                            value,
-                            {
-                                key: val
-                                for key, val in child.attrib.items()
-                                if isinstance(key, str) and key not in ("refines", "property")
-                            },
-                        )
-                    )
-                continue
-            if prop == "dcterms:modified" and value:
-                metadata.modified = value
-            elif prop == "media:duration" and value:
-                metadata.media_durations[None] = value
-            elif prop in ("media:active-class", "media:playback-active-class") and value:
-                metadata.media_classes[prop] = value
-            elif name and content:
-                if name == "calibre:series":
-                    metadata.series = metadata.series or content
-                elif name == "calibre:series_index":
-                    metadata.series_index = metadata.series_index or content
-                elif name != "cover":
-                    metadata.extra_meta.append((name, content))
-            elif prop and value:
-                # Anything expressed the EPUB 3 way that this model has no
-                # field for. Carried rather than dropped: the vocabulary is
-                # open, so "not recognised" says something about this program
-                # and nothing about the book. The writer skips the ones it
-                # generates itself, so nothing appears twice.
-                metadata.extra_properties.append(
-                    (
-                        prop,
-                        value,
-                        {
-                            key: attribute_value
-                            for key, attribute_value in child.attrib.items()
-                            if key not in ("property", "id")
-                        },
-                    )
-                )
+        )
 
+
+def _read_meta(child, value: str, metadata: Metadata) -> None:
+    if child.get("refines"):
+        _read_refining_meta(child, value, metadata)
+        return
+    name = child.get("name")
+    content = child.get("content")
+    prop = child.get("property")
+    if prop == "dcterms:modified" and value:
+        metadata.modified = value
+    elif prop == "media:duration" and value:
+        metadata.media_durations[None] = value
+    elif prop in ("media:active-class", "media:playback-active-class") and value:
+        metadata.media_classes[prop] = value
+    elif name and content:
+        if name == "calibre:series":
+            metadata.series = metadata.series or content
+        elif name == "calibre:series_index":
+            metadata.series_index = metadata.series_index or content
+        elif name != "cover":
+            metadata.extra_meta.append((name, content))
+    elif prop and value:
+        # Anything expressed the EPUB 3 way that this model has no
+        # field for. Carried rather than dropped: the vocabulary is
+        # open, so "not recognised" says something about this program
+        # and nothing about the book. The writer skips the ones it
+        # generates itself, so nothing appears twice.
+        metadata.extra_properties.append(
+            (
+                prop,
+                value,
+                {
+                    key: attribute_value
+                    for key, attribute_value in child.attrib.items()
+                    if key not in ("property", "id")
+                },
+            )
+        )
+
+
+def _read_statement(tag: str, child, value: str, metadata: Metadata, refinements: _Refinements) -> None:
+    """One child of `<metadata>`, into the field it belongs to. The elements
+    with a value requirement keep it: an empty `<dc:title/>` is not a title."""
+    if tag == "title" and value:
+        _read_title(child, value, metadata, refinements)
+    elif tag in ("creator", "contributor") and value:
+        _read_creator(tag, child, value, metadata, refinements)
+    elif tag == "identifier" and value:
+        _read_identifier(child, value, metadata, refinements)
+    elif tag == "link":
+        _read_link(child, metadata)
+    elif tag == "meta":
+        _read_meta(child, value, metadata)
+    elif value:
+        _read_dublin_core(tag, child, value, metadata)
+
+
+def _settle_primary_identifier(package, node, metadata: Metadata) -> None:
     unique_id = package.get("unique-identifier")
     if unique_id:
         for child in descendants(node, "identifier"):
@@ -817,8 +845,42 @@ def _parse_metadata(package, report: Report) -> Metadata:
                 break
     if metadata.identifiers and not any(i.primary for i in metadata.identifiers):
         metadata.identifiers[0].primary = True
-    return metadata
 
+
+def _parse_metadata(package, report: Report) -> Metadata:
+    """The package's `<metadata>`, statement by statement.
+
+    Was one function of a hundred branches until the audit of 2026-09-03
+    (A-04); now a dispatcher over readers that each know one element. The
+    order of reading is the order of the children, as before, and every
+    "first one wins" rule lives with the field it protects.
+    """
+    metadata = Metadata()
+    _read_prefixes(package, metadata)
+
+    meta_nodes = children(package, "metadata")
+    if not meta_nodes:
+        report.add("reader", Level.WARN, "reader.metadata-missing")
+        return metadata
+    node = meta_nodes[0]
+
+    refinements = _Refinements(node)
+    metadata.direction = (package.get("dir") or "").strip().lower() or None
+    _read_collection(node, refinements.values, metadata)
+
+    for child in node:
+        tag = lname(child).lower()
+        if not tag:
+            # A comment or a processing instruction. Not metadata — but one
+            # Polish shop writes its order number into exactly this position,
+            # and removing a watermark is not something this tool does.
+            if child.tag is etree.Comment and (child.text or "").strip():
+                metadata.metadata_comments.append(child.text.strip())
+            continue
+        _read_statement(tag, child, text_of(child), metadata, refinements)
+
+    _settle_primary_identifier(package, node, metadata)
+    return metadata
 
 def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Report):
     """Return ``(resources_by_id, id_by_path, remote)`` for what the manifest lists."""

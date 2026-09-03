@@ -349,45 +349,25 @@ def _report_forbidden_characters(metadata, report: Report) -> None:
         )
 
 
-def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str, str]]:
-    """Render the package document; also returns the path→manifest-id map."""
-    metadata = book.metadata
-    _report_forbidden_characters(metadata, report)
-    lines: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
-    language = metadata.language or "en"
-    # "schema" only became a reserved prefix in EPUB 3.3. A reader built to
-    # 3.0 or 3.1 sees an undeclared prefix in every accessibility property and
-    # may reject the package document outright — which looks to the user like a
-    # book that will not open. Declaring it is redundant under 3.3 and legal,
-    # so it costs nothing and restores those readers.
-    # Base text direction for the whole package. A structural attribute, so it
-    # has to be carried deliberately: a Hebrew or Arabic edition that loses it
-    # renders its metadata the wrong way round.
-    direction = f" dir={quoteattr(metadata.direction)}" if metadata.direction else ""
-    # The prefix attribute is filled in at the end, from the document that was
-    # actually written. Deciding it up front means deciding it twice — once
-    # here and once wherever a property is emitted — and the two drifted: the
-    # writer declared `schema:` while emitting `rendition:` undeclared, which
-    # is exactly the package an InkBOOK Focus hangs on.
-    lines.append(_PACKAGE_PLACEHOLDER)
+def _identifier_lines(metadata, lines: list[str]) -> dict[str, str]:
+    """`dc:identifier` elements, and the start of the old-id → new-id map.
 
-    # --- metadata -----------------------------------------------------------
-    lines.append('  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">')
-    # One pass over the identifiers, and one place that decides each one's id.
-    #
-    # EF-025: there used to be two passes over two different sets. The elements
-    # were numbered over the **non-primary** identifiers and the id map over
-    # **all** of them, so a book with three identifiers wrote its third as
-    # `id-1` while every refinement aimed at it said `id-2`. A refinement whose
-    # target does not exist is not a preserved statement, it is an invalid one
-    # — which is F-011's sentence, and this was the same defect one level down.
-    # Two numberings of one thing will always eventually disagree; the repair is
-    # that there is now one.
-    #
-    # And `identifier-type` is written for **every** identifier that declares a
-    # scheme, not only for the primary one. An ISBN whose number survives while
-    # the statement that it is an ISBN does not has lost the half that a shop
-    # reads.
+    One pass over the identifiers, and one place that decides each one's id.
+
+    EF-025: there used to be two passes over two different sets. The elements
+    were numbered over the **non-primary** identifiers and the id map over
+    **all** of them, so a book with three identifiers wrote its third as
+    `id-1` while every refinement aimed at it said `id-2`. A refinement whose
+    target does not exist is not a preserved statement, it is an invalid one
+    — which is F-011's sentence, and this was the same defect one level down.
+    Two numberings of one thing will always eventually disagree; the repair is
+    that there is now one.
+
+    And `identifier-type` is written for **every** identifier that declares a
+    scheme, not only for the primary one. An ISBN whose number survives while
+    the statement that it is an ISBN does not has lost the half that a shop
+    reads.
+    """
     renamed_ids: dict[str, str] = {}
     identifier_ids: dict[int, str] = {}
     extra_index = 0
@@ -411,6 +391,10 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
                 f'    <meta refines="#{node_id}" property="identifier-type" '
                 f'scheme="{vocabulary}">{escape(code)}</meta>'
             )
+    return renamed_ids
+
+
+def _title_lines(metadata, lines: list[str], renamed_ids: dict[str, str]) -> None:
     for position, source_id in enumerate(metadata.title_ids):
         if not source_id:
             continue
@@ -444,10 +428,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for index, other in enumerate(metadata.titles[1:]):
         lines.append(f"    {_element('dc:title', other, id=f'title-{index}')}")
 
-    lines.append(f"    {_element('dc:language', language)}")
-    for extra_language in metadata.languages_extra:
-        lines.append(f"    {_element('dc:language', extra_language)}")
 
+def _creator_lines(metadata, lines: list[str], renamed_ids: dict[str, str], report: Report) -> None:
     for index, creator in enumerate(metadata.creators):
         tag = "dc:creator" if creator.role == "aut" else "dc:contributor"
         creator_id = f"creator-{index}"
@@ -499,6 +481,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         for script_language, script_value in creator.alternate_scripts:
             lines.append(_alternate_script(creator_id, script_language, script_value))
 
+
+def _dublin_core_lines(metadata, lines: list[str]) -> None:
     if metadata.publisher:
         lines.append(f"    {_element('dc:publisher', metadata.publisher)}")
     if metadata.published:
@@ -514,6 +498,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
     for element_name, element_value in metadata.dublin_core_extra:
         lines.append(f"    {_element(f'dc:{element_name}', element_value)}")
 
+
+def _collection_lines(metadata, lines: list[str]) -> None:
     # Every collection the book belongs to, not just the first series-typed
     # one. A book published inside a boxed set *and* as part of a series used
     # to keep whichever the model happened to hold.
@@ -538,8 +524,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
                 f"{escape(membership.position)}</meta>"
             )
 
-    lines.append(f'    <meta property="dcterms:modified">{escape(metadata.modified or "")}</meta>')
 
+def _accessibility_lines(metadata, lines: list[str]) -> None:
     # EPUB Accessibility 1.1. The prefixes are declared on <package> above so
     # that readers predating EPUB 3.3 accept these properties.
     for property_name, values in metadata.accessibility.items():
@@ -557,6 +543,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             else f'    <meta property="dcterms:conformsTo">{escape(metadata.conforms_to)}</meta>'
         )
 
+
+def _media_lines(book: Book, metadata, lines: list[str]) -> None:
     for key, value in book.rendition.items():
         lines.append(f'    <meta property="rendition:{escape(key)}">{escape(value)}</meta>')
 
@@ -575,6 +563,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
                 f'property="media:duration">{escape(value)}</meta>'
             )
 
+
+def _carried_property_lines(metadata, lines: list[str], report: Report) -> None:
     # `calibre:*` used to be dropped here, all of it, on one `startswith`. The
     # two entries this model *does* understand — `calibre:series` and
     # `calibre:series_index` — never reach this list; the reader consumes them
@@ -628,6 +618,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             values={"count": superseded},
         )
 
+
+def _carried_refinement_lines(metadata, lines: list[str], renamed_ids: dict[str, str], report: Report) -> None:
     # Refinements this model has no field for, re-pointed at the ids this
     # document actually gives those nodes. One whose target did not survive is
     # dropped rather than written dangling: `refines` naming nothing is an
@@ -666,6 +658,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             values={"count": lost_refinements},
         )
 
+
+def _link_lines(book: Book, metadata, lines: list[str]) -> None:
     # `<link>` inside `<metadata>`: the publication pointing at something about
     # itself — a catalogue record, an ONIX file, a rights statement. Carried
     # whole; a local href follows the file it names.
@@ -686,6 +680,8 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             rendered.append(f" {key}={quoteattr(attribute_value)}")
         lines.append(f'    <link{"".join(rendered)}/>')
 
+
+def _comment_lines(metadata, lines: list[str]) -> None:
     for comment in metadata.metadata_comments:
         # `--` cannot appear inside an XML comment and there is no escape for
         # it, so one that contains a pair is dropped rather than mangled. No
@@ -694,13 +690,40 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             continue
         lines.append(f"    <!--{comment}-->")
 
+
+def _metadata_section(book: Book, lines: list[str], report: Report, language: str) -> dict[str, str]:
+    """`<metadata>` in the order it has always been written. Returns the map
+    of source ids to the ids this document gives their nodes, which the
+    carried refinements are re-pointed with."""
+    metadata = book.metadata
+    lines.append('  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">')
+    renamed_ids = _identifier_lines(metadata, lines)
+    _title_lines(metadata, lines, renamed_ids)
+
+    lines.append(f"    {_element('dc:language', language)}")
+    for extra_language in metadata.languages_extra:
+        lines.append(f"    {_element('dc:language', extra_language)}")
+
+    _creator_lines(metadata, lines, renamed_ids, report)
+    _dublin_core_lines(metadata, lines)
+    _collection_lines(metadata, lines)
+    lines.append(f'    <meta property="dcterms:modified">{escape(metadata.modified or "")}</meta>')
+    _accessibility_lines(metadata, lines)
+    _media_lines(book, metadata, lines)
+    _carried_property_lines(metadata, lines, report)
+    _carried_refinement_lines(metadata, lines, renamed_ids, report)
+    _link_lines(book, metadata, lines)
+    _comment_lines(metadata, lines)
+
     if book.cover_path:
         # Legacy hint: EPUB 2 readers only recognise the cover this way.
         cover_id_placeholder = "__COVER_ID__"
         lines.append(f'    <meta name="cover" content="{cover_id_placeholder}"/>')
     lines.append("  </metadata>")
+    return renamed_ids
 
-    # --- manifest -----------------------------------------------------------
+
+def _manifest_section(book: Book, opf_path: str, lines: list[str]) -> dict[str, str]:
     lines.append("  <manifest>")
     taken_ids: set[str] = {"pub-id", "title", "subtitle", "series"}
     id_by_path: dict[str, str] = {}
@@ -745,8 +768,10 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         )
         lines.append(f"    <item {rendered}/>")
     lines.append("  </manifest>")
+    return id_by_path
 
-    # --- spine --------------------------------------------------------------
+
+def _spine_section(book: Book, id_by_path: dict[str, str], lines: list[str], report: Report) -> None:
     ncx_id = id_by_path.get(book.ncx_path) if book.ncx_path else None
     spine_attributes = f' toc={quoteattr(ncx_id)}' if ncx_id else ""
     if book.page_progression_direction:
@@ -767,34 +792,31 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         lines.append(f"    <itemref {' '.join(attributes)}/>")
     lines.append("  </spine>")
 
-    # --- guide (opt-in) -----------------------------------------------------
+
+def _guide_section(book: Book, opf_path: str, lines: list[str]) -> None:
     # EPUB 3.3 removed this element. It is emitted only when a compatibility
     # profile asked for it, because Amazon's converter and RMSDK-based readers
     # locate the cover and the start-reading position here and nowhere else.
-    if "guide" in book.compat:
-        references = compat.guide_references(book)
-        if references:
-            lines.append("  <guide>")
-            for guide_type, title, target in references:
-                target_path, _, fragment = target.partition("#")
-                href = paths.relative(opf_path, target_path)
-                if fragment:
-                    href = f"{href}#{fragment}"
-                lines.append(
-                    f"    <reference type={quoteattr(guide_type)} "
-                    f"title={quoteattr(title)} href={quoteattr(href)}/>"
-                )
-            lines.append("  </guide>")
+    if "guide" not in book.compat:
+        return
+    references = compat.guide_references(book)
+    if not references:
+        return
+    lines.append("  <guide>")
+    for guide_type, title, target in references:
+        target_path, _, fragment = target.partition("#")
+        href = paths.relative(opf_path, target_path)
+        if fragment:
+            href = f"{href}#{fragment}"
+        lines.append(
+            f"    <reference type={quoteattr(guide_type)} "
+            f"title={quoteattr(title)} href={quoteattr(href)}/>"
+        )
+    lines.append("  </guide>")
 
-    # `<collection>` comes after the spine and the guide. The vocabulary of
-    # `role` is open, so nothing here interprets them — what was read is what
-    # is written, with only the hrefs moved to follow their files.
-    for collection in book.collections:
-        lines += _render_collection(collection, opf_path, indent="  ")
 
-    lines.append("</package>")
-
-    opf = "\n".join(lines) + "\n"
+def _resolve_placeholders(opf: str, book: Book, id_by_path: dict[str, str]) -> str:
+    """The overlay and cover ids, filled in once the manifest exists."""
 
     def resolve_overlay(match: re.Match) -> str:
         item_id = id_by_path.get(match.group(1))
@@ -815,6 +837,50 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
             opf = opf.replace("__COVER_ID__", cover_id)
         else:
             opf = re.sub(r'\s*<meta name="cover" content="__COVER_ID__"/>\n', "\n", opf)
+    return opf
+
+
+def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str, str]]:
+    """Render the package document; also returns the path→manifest-id map.
+
+    One section at a time, in the order the document has always had; each
+    section is its own function since the audit of 2026-09-03 (A-04), and the
+    corpus signatures say the bytes did not move.
+    """
+    metadata = book.metadata
+    _report_forbidden_characters(metadata, report)
+    lines: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
+    language = metadata.language or "en"
+    # "schema" only became a reserved prefix in EPUB 3.3. A reader built to
+    # 3.0 or 3.1 sees an undeclared prefix in every accessibility property and
+    # may reject the package document outright — which looks to the user like a
+    # book that will not open. Declaring it is redundant under 3.3 and legal,
+    # so it costs nothing and restores those readers.
+    # Base text direction for the whole package. A structural attribute, so it
+    # has to be carried deliberately: a Hebrew or Arabic edition that loses it
+    # renders its metadata the wrong way round.
+    direction = f" dir={quoteattr(metadata.direction)}" if metadata.direction else ""
+    # The prefix attribute is filled in at the end, from the document that was
+    # actually written. Deciding it up front means deciding it twice — once
+    # here and once wherever a property is emitted — and the two drifted: the
+    # writer declared `schema:` while emitting `rendition:` undeclared, which
+    # is exactly the package an InkBOOK Focus hangs on.
+    lines.append(_PACKAGE_PLACEHOLDER)
+
+    _metadata_section(book, lines, report, language)
+    id_by_path = _manifest_section(book, opf_path, lines)
+    _spine_section(book, id_by_path, lines, report)
+    _guide_section(book, opf_path, lines)
+
+    # `<collection>` comes after the spine and the guide. The vocabulary of
+    # `role` is open, so nothing here interprets them — what was read is what
+    # is written, with only the hrefs moved to follow their files.
+    for collection in book.collections:
+        lines += _render_collection(collection, opf_path, indent="  ")
+
+    lines.append("</package>")
+
+    opf = _resolve_placeholders("\n".join(lines) + "\n", book, id_by_path)
 
     # Last, so it describes the finished document rather than a prediction of it.
     opf = opf.replace(
@@ -824,7 +890,6 @@ def build_opf(book: Book, opf_path: str, report: Report) -> tuple[str, dict[str,
         f"{direction}{_declare_prefixes(opf, metadata)}>",
     )
     return opf, id_by_path
-
 
 class ArchiveVerificationError(OSError):
     """The file this program just wrote is not the file it meant to write.
