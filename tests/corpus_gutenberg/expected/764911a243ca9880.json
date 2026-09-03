@@ -6,6 +6,7 @@
     "report": {
       "info": 13,
       "fix": 2,
+      "preserved": 1,
       "warn": 4
     },
     "rules": {
@@ -16,6 +17,7 @@
       "a11y.table-without-headers": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
+      "nav.labels-carried": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.layout-kept": 1,
@@ -29,7 +31,7 @@
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:798827676ef0c1016988a1521b44c3bc2c06b61a51035d9a692ac00c5311ebe8",
+    "output": "sha256:aeea671f8b58335207443947f267a6ddd805a2e1780e392338271c13b3380b94",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -40,7 +42,7 @@
     "report": {
       "info": 18,
       "fix": 5,
-      "preserved": 10,
+      "preserved": 11,
       "warn": 4
     },
     "rules": {
@@ -53,6 +55,7 @@
       "hyphens.detected": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
+      "nav.labels-carried": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
@@ -74,7 +77,7 @@
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:2f4bdc2ed463d6831312fa97dd5decce4e4a81684d831293f2c1cba45dd5c211",
+    "output": "sha256:c3244705be459606902c48bc6338f39ce69de624e1f1e6c4ac31534dc5e34f53",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -85,7 +88,7 @@
     "report": {
       "info": 13,
       "fix": 10,
-      "preserved": 10,
+      "preserved": 11,
       "warn": 4
     },
     "rules": {
@@ -98,6 +101,7 @@
       "hyphens.detected": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
+      "nav.labels-carried": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
@@ -119,7 +123,7 @@
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:5f51f6e26bc551edb972cfbd74fe58f3fcd15f97c48899fc4d6d55699b0cfaa5",
+    "output": "sha256:4f00355fa06dbd3c9bb5ba66436a94f5fa4af69f3292f17814c05fc3f69b93f4",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,

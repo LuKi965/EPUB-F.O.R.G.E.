@@ -518,6 +518,12 @@ class Book:
     #: position: their entries are labels and targets like any other, and their
     #: `epub:type` is the publisher's word for what they are.
     extra_navs: list[NavSection] = field(default_factory=list)
+    #: The publisher's `aria-label` on the navigation sections this program
+    #: *does* model by name — `toc`, `landmarks`, `page-list` — keyed by that
+    #: name. The sections themselves are regenerated from the model, and until
+    #: the audit of 2026-09-03 the label went with the source document: a
+    #: K12 loss, found by counting semantic attributes before and after.
+    nav_labels: dict[str, str] = field(default_factory=dict)
     cover_path: str | None = None
     nav_path: str | None = None
     ncx_path: str | None = None

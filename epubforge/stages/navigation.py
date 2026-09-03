@@ -772,15 +772,25 @@ class NavigationStage(Stage):
         self._nav_spine_place = old_place
         language = _escape(book.metadata.language or ctx.policy.default_language)
 
+        # The publisher's own `aria-label` on a section this program rebuilds
+        # from the model, written back word for word. Before the audit of
+        # 2026-09-03 it left with the source document — the count of semantic
+        # attributes before and after a rebuild was the first thing to notice.
+        def label_of(kind: str) -> str:
+            value = book.nav_labels.get(kind, "")
+            return f' aria-label="{_escape(value)}"' if value else ""
+
         sections = [
-            '    <nav epub:type="toc" id="toc" role="doc-toc">',
+            f'    <nav epub:type="toc" id="toc" role="doc-toc"{label_of("toc")}>',
             f"      <h1>{_escape(heading(language, 'toc'))}</h1>",
             self._render_nav_list(book.toc, nav_path, "      "),
             "    </nav>",
         ]
 
         if book.landmarks:
-            sections.append('    <nav epub:type="landmarks" id="landmarks" hidden="hidden">')
+            sections.append(
+                f'    <nav epub:type="landmarks" id="landmarks"{label_of("landmarks")} hidden="hidden">'
+            )
             sections.append(f"      <h1>{_escape(heading(language, 'landmarks'))}</h1>")
             sections.append("      <ol>")
             for landmark in book.landmarks:
@@ -797,7 +807,8 @@ class NavigationStage(Stage):
 
         if book.page_list:
             sections.append(
-                '    <nav epub:type="page-list" id="page-list" role="doc-pagelist" hidden="hidden">'
+                '    <nav epub:type="page-list" id="page-list" role="doc-pagelist"'
+                f'{label_of("page-list")} hidden="hidden">'
             )
             sections.append(f"      <h1>{_escape(heading(language, 'page-list'))}</h1>")
             sections.append("      <ol>")
@@ -834,6 +845,17 @@ class NavigationStage(Stage):
                 sections.append(f"      <h1>{_escape(section.heading)}</h1>")
             sections.append(self._render_nav_list(entries, nav_path, "      "))
             sections.append("    </nav>")
+        written_labels = [kind for kind in ("toc", "landmarks", "page-list") if book.nav_labels.get(kind)
+                          and (kind == "toc" or (kind == "landmarks" and book.landmarks)
+                               or (kind == "page-list" and book.page_list))]
+        if written_labels:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "nav.labels-carried",
+                values={"count": len(written_labels), "names": ", ".join(written_labels)},
+                location=nav_path,
+            )
         if carried:
             self.note(
                 ctx,

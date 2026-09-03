@@ -40,6 +40,18 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The publisher's `aria-label` on the contents survives the rebuild
+
+Found by the audit's third finding put into practice — counting semantic
+attributes before and after a rebuild, book by book. Over the first sixty
+books of a strict run exactly one count ever fell: `aria-label`, nine times
+in six books, every one of them on the source's own `<nav epub:type="toc">`.
+The navigation document is regenerated from the model, and the model had
+no place for that label, so it left with the old document — a K12 loss the
+way F-018's lists of tables once were. The labels on the contents, the
+landmarks and the page list are now read into the model and written back
+word for word, and the report says so; a book without one gets none.
+
 ### Two functions of a hundred branches, taken apart without moving a byte
 
 The audit found the reader's metadata parser and the writer's package

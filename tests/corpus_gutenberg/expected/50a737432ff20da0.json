@@ -6,6 +6,7 @@
     "report": {
       "info": 12,
       "fix": 2,
+      "preserved": 1,
       "warn": 1
     },
     "rules": {
@@ -13,6 +14,7 @@
       "a11y.table-without-headers": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
+      "nav.labels-carried": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.layout-kept": 1,
@@ -25,7 +27,7 @@
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:ddebcacef344b61419d33ccd2791d84709d29995c3382821bc77a3a1830a7378",
+    "output": "sha256:6d7983acf3a841f6701a31971b805b7d09ebe738a85ff4854284a856c7fa430d",
     "text_characters": 365559,
     "text_added": 2,
     "text_invariant": true,
@@ -36,7 +38,7 @@
     "report": {
       "info": 15,
       "fix": 7,
-      "preserved": 5,
+      "preserved": 6,
       "warn": 1
     },
     "rules": {
@@ -49,6 +51,7 @@
       "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
+      "nav.labels-carried": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
@@ -67,7 +70,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:8a064d0083a1e0f31a0af976b49e8f1df054c980643e0e21b02a1e7b50496407",
+    "output": "sha256:4e8187ec1981bbf5a165ec8da6201417f41888586e12da7e11b21311a58f652d",
     "text_characters": 365559,
     "text_added": 2,
     "text_invariant": true,
@@ -78,7 +81,7 @@
     "report": {
       "info": 12,
       "fix": 10,
-      "preserved": 5,
+      "preserved": 6,
       "warn": 1
     },
     "rules": {
@@ -91,6 +94,7 @@
       "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,
       "nav.cover-page-generated": 1,
+      "nav.labels-carried": 1,
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
@@ -109,7 +113,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:0d801c7f4b87e007ae4568ea0d4fef39547778543917c3c591f7593f57fb8b80",
+    "output": "sha256:00bf12c6e03b01c934a741d4aac9b9b2207a15540f2682b703a95d29bd461d4a",
     "text_characters": 365559,
     "text_added": 2,
     "text_invariant": true,

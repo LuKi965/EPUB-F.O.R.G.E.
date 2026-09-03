@@ -1198,11 +1198,18 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     landmarks: list[Landmark] = []
     page_list: list[PageTarget] = []
     extra: list[NavSection] = []
+    #: `aria-label` of the sections modelled by name, keyed by `epub:type`.
+    #: Read here and written back by the navigation stage, because the
+    #: section itself is regenerated and the label is the publisher's word.
+    labels: dict[str, str] = {}
     for nav in descendants(root, "nav"):
         nav_type = (attr(nav, "type", EPUB_NS) or "").strip().lower()
         lists = children(nav, "ol")
         if not lists:
             continue
+        label = (nav.get("aria-label") or "").strip()
+        if label and nav_type in ("toc", "landmarks", "page-list") and nav_type not in labels:
+            labels[nav_type] = label
         if nav_type == "landmarks":
             # An entry with no `epub:type` is not a landmark.
             #
@@ -1277,7 +1284,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
                         aria_label=(nav.get("aria-label") or "").strip(),
                     )
                 )
-    return toc, landmarks, page_list, extra
+    return toc, landmarks, page_list, extra, labels
 
 
 def _parse_guide(package, opf_path: str) -> list[Landmark]:
@@ -1591,7 +1598,7 @@ def read_epub(
             break
 
     if book.nav_path:
-        toc, landmarks, page_list, extra = _parse_nav_doc(
+        toc, landmarks, page_list, extra, labels = _parse_nav_doc(
             book.resources[book.nav_path].data, book.nav_path, report
         )
         book.toc = toc
@@ -1599,6 +1606,7 @@ def read_epub(
             book.landmarks = landmarks
         book.page_list = page_list
         book.extra_navs = extra
+        book.nav_labels = labels
         if extra:
             report.add(
                 "reader",
