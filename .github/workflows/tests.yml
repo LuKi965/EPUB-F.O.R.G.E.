@@ -1,0 +1,73 @@
+# The suite on every push, on the platform the author develops on.
+#
+# Until 2026-09-03 the only place the tests ran automatically was the Windows
+# build workflow, and that one is started by hand for a release. A regression
+# pushed to a working branch was therefore caught locally or not at all
+# (audit 2026-09-03, A-10). This runs the same suite on Ubuntu with the same
+# pinned EPUBCheck, so a red push is visible the day it happens.
+#
+# What it deliberately does not do: render pages. The render tests are opt-in
+# (EPUBFORGE_RENDER_TESTS=1) and need the pinned engine; the release workflow
+# stages that engine for the bundle, and running it here would double the
+# download for a signal the release run already gives.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # The window's tests draw into an offscreen surface; without this the
+      # Qt platform plugin looks for a display that a runner does not have.
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The lock was generated on 3.12 with hashes for every wheel, so the
+          # same interpreter major is the one that resolves it without a fight.
+          python-version: "3.12"
+
+      # PySide6 links against these even offscreen; a runner image has the
+      # compiler toolchain and not the desktop libraries.
+      - name: Install the desktop libraries the window needs offscreen
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libdbus-1-3 \
+            libfontconfig1 libglib2.0-0 libxcb-cursor0
+
+      - name: Install the locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+          pip install -e . --no-deps
+
+      # The same staging the release workflow does, for the same reason: strict
+      # mode asks the validator before publishing and refuses when it cannot,
+      # so a runner without one is a runner where half the suite skips itself.
+      # The archive is verified against the pinned SHA-256 before it is used.
+      - name: Stage EPUBCheck for the test run
+        run: |
+          python -c "import sys; sys.path.insert(0, 'packaging'); import build; build.stage_epubcheck(None)"
+          jar="$PWD/packaging/_bundle/epubcheck/epubcheck.jar"
+          test -f "$jar"
+          echo "EPUBCHECK_JAR=$jar" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: pytest -q -rs
+
+      # K2 says the output is a function of the input. Iterating a set is the
+      # classic way for that to stop being true, and one process can never
+      # notice: a second pass under a different seed is the cheapest catch.
+      - name: Run tests again under a different hash seed
+        env:
+          PYTHONHASHSEED: "12345"
+        run: pytest -q

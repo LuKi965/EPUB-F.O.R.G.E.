@@ -40,6 +40,17 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### The validator's allowance grows with the file
+
+The largest book on the owner's shelf (28.6 MB, 9 810 documents) got no
+answer from the warm validator within a fixed 300 s, the cold path was then
+given the same 300 s and ran out too, and strict mode refused a clean book
+over a stopwatch. The allowance is now 300 s plus 20 s per megabyte, both
+named constants; a warm validator that fell silent for the whole allowance
+is not retried cold for the same allowance again; and the report names the
+numbers — how many seconds were waited on how many megabytes — instead of
+"could not be run at all". The same file checked directly took 1 min 49 s.
+
 ### Every switch the window has, the command line has too
 
 The audit of 2026-09-03 mirrored the window's "every choice is reachable"
