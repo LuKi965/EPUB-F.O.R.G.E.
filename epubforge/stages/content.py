@@ -1443,15 +1443,71 @@ class ContentStage(Stage):
         if not broken:
             return
         if not ctx.policy.strict:
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                "xhtml.dead-reference-kept",
-                values={"count": broken},
-                location=resource.path,
-            )
+            dangling = self._drop_dead_links(ctx, dangling, resource)
+            broken = sum(len(dead) or 1 for _, _, dead in dangling)
+            if broken:
+                self.note(
+                    ctx,
+                    Level.PRESERVED,
+                    "xhtml.dead-reference-kept",
+                    values={"count": broken},
+                    location=resource.path,
+                )
             return
         self._neutralise(ctx, dangling, resource)
+
+    def _drop_dead_links(self, ctx: Context, dangling: list, resource) -> list:
+        """Preserve mode's one removal among dead references: a `<link>` in
+        the head naming a file the book does not contain.
+
+        Measured on the shelf after 0.3.1 (record 042): every one of the 313
+        dead references left in preserve mode was such a `<link>` — Word's
+        `filelist.xml` and `themedata.thmx`, a converter's pointer at a cover
+        file it never packed, one book's stylesheet that was never there. None
+        of them is a link a reader can see or follow, and none loads anything,
+        so removing them changes nothing about how the book looks — D-029's
+        criterion, the same one that sweeps a generator's dead style block —
+        while a validator counts each as an error. So they go, in both modes,
+        behind the same tick as the rest of the generator's leavings.
+
+        A dead `<a>` or `<img>` is not in this basket: a reader sees those,
+        and preserve keeps them exactly as found, as it always has.
+        """
+        if not ctx.policy.sweep_style_blocks:
+            return dangling
+        kept: list = []
+        removed = 0
+        for element, attribute, dead in dangling:
+            is_head_link = (
+                xhtml.local_name(element).lower() == "link"
+                and attribute == "href"
+                and not dead
+                and element.getparent() is not None
+            )
+            if not is_head_link:
+                kept.append((element, attribute, dead))
+                continue
+            self._unwrap(element, keep_children=False)
+            removed += 1
+        if removed:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.dead-link-removed",
+                values={"count": removed},
+                location=resource.path,
+            )
+            self.changed(
+                ctx,
+                Action.REMOVED,
+                resource.path,
+                before=f"{removed} <link> element(s) in the head naming files not in the book",
+                after="gone; nothing they pointed at ever loaded, so nothing a reader sees changes",
+                risk=Risk.NONE,
+                reversible=False,
+                rule="xhtml.dead-link-removed",
+            )
+        return kept
 
     def _neutralise(self, ctx: Context, dangling: list, resource) -> None:
         """Strict mode: make references to absent files stop being errors."""

@@ -40,6 +40,20 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A `<link>` in the head naming a file the book does not have goes, in preserve mode too
+
+Measured on the shelf after the three repairs above: every one of the 313
+dead references preserve mode had been keeping, in seven books, was a
+`<link>` element in a document's head — Word's `filelist.xml` and
+`themedata.thmx`, a converter's pointer at a cover file it never packed, one
+book's stylesheet that was never there. Not one is a link a reader can see or
+follow, and none loads anything, so removing them changes nothing about how
+the book looks — the criterion that already sweeps a generator's dead style
+block — while a validator counts each as an error. They are removed now in
+both modes, reported, behind the same tick as the rest of the generator's
+leavings. A dead `<a>` or `<img>` is a different thing: a reader sees those,
+and preserve keeps them exactly as found, as it always has.
+
 ### Prose put in a table: listed, asked about, and told to assistive software on request
 
 The accessibility stage had counted 97 tables without header cells on the
