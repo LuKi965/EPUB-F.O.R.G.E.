@@ -25,6 +25,7 @@ nothing about whether the reader lost anything.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 #: Resource kinds counted apart, because losing one of each means a different
@@ -64,6 +65,44 @@ def kind_of(path: str, media_type: str = "") -> str:
     return "other"
 
 
+#: The attributes a reader who cannot see the page depends on, and which
+#: neither K1 (prose) nor the resource counts (files) would notice losing.
+#: The audit of 2026-09-03 (A-03) asked for them to be counted before and
+#: after; the first count found EF-071 within sixty books. Counted by name
+#: inside tags, over the bytes, because a full parse of every document twice
+#: more is a cost the largest book on the shelf would feel and a count is
+#: not a parse: a decrease here is a reason to look, never a verdict.
+SEMANTIC_ATTRIBUTES = ("alt", "role", "aria-label", "aria-hidden", "aria-describedby",
+                       "epub:type", "lang", "xml:lang", "title", "dir", "hidden")
+#: A start tag, then the attribute names inside it: two passes, because one
+#: expression over the whole document stops at the first name it finds in a
+#: tag and never sees the second (`<p lang="en" dir="ltr">` counted one).
+_START_TAG_RE = re.compile(rb"<[A-Za-z][^>]*>")
+_ATTRIBUTE_RE = re.compile(
+    rb"\s(alt|role|aria-label|aria-hidden|aria-describedby|epub:type|lang|xml:lang|title|dir|hidden)\s*=",
+)
+
+
+def semantic_attributes_in(data: bytes) -> dict:
+    """How many of each semantic attribute the document's tags carry."""
+    counts: dict = {}
+    for tag in _START_TAG_RE.finditer(data):
+        for match in _ATTRIBUTE_RE.finditer(tag.group(0)):
+            name = match.group(1).decode("ascii")
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _semantic_attributes_of(book) -> dict:
+    total: dict = {}
+    for resource in book.resources.values():
+        if not getattr(resource, "is_content_doc", False):
+            continue
+        for name, count in semantic_attributes_in(resource.data).items():
+            total[name] = total.get(name, 0) + count
+    return total
+
+
 @dataclass
 class Side:
     """One end of the balance — the source, or the output."""
@@ -72,6 +111,8 @@ class Side:
     spine_items: int = 0
     metadata_entries: int = 0
     text_characters: int = 0
+    #: Per attribute name — see `SEMANTIC_ATTRIBUTES`.
+    semantic_attributes: dict = field(default_factory=dict)
 
     @classmethod
     def of(cls, book) -> "Side":
@@ -81,6 +122,7 @@ class Side:
         side.spine_items = len(book.spine)
         side.metadata_entries = _metadata_entries(book)
         side.text_characters = _characters_of(book)
+        side.semantic_attributes = _semantic_attributes_of(book)
         return side
 
     def as_dict(self) -> dict:
@@ -89,6 +131,7 @@ class Side:
             "spine_items": self.spine_items,
             "metadata_entries": self.metadata_entries,
             "text_characters": self.text_characters,
+            "semantic_attributes": dict(self.semantic_attributes),
         }
 
 
@@ -272,6 +315,12 @@ class Balance:
     after: Side
     #: `(category, lost, explained)` for every category that shrank.
     unexplained: list = field(default_factory=list)
+    #: `(attribute, before, after)` for every semantic attribute the output
+    #: carries fewer of than the source. Not part of `closes`: a count of
+    #: names inside tags is evidence to look at, not a proof of loss, and a
+    #: balance that refused a book over it would refuse on a regular
+    #: expression. It is reported, and the report is where a person looks.
+    attributes_fell: list = field(default_factory=list)
 
     @property
     def closes(self) -> bool:
@@ -285,6 +334,10 @@ class Balance:
             "unexplained": [
                 {"category": category, "lost": lost, "explained": explained}
                 for category, lost, explained in self.unexplained
+            ],
+            "attributes_fell": [
+                {"attribute": name, "before": was, "after": now}
+                for name, was, now in self.attributes_fell
             ],
         }
 
@@ -323,7 +376,14 @@ def reconcile(before: Side, after: Side, changes) -> Balance:
         covered = explained.get(category, 0)
         if covered < lost:
             unexplained.append((category, lost, covered))
-    return Balance(before=before, after=after, unexplained=unexplained)
+
+    fell = []
+    for name in SEMANTIC_ATTRIBUTES:
+        was = before.semantic_attributes.get(name, 0)
+        now = after.semantic_attributes.get(name, 0)
+        if now < was:
+            fell.append((name, was, now))
+    return Balance(before=before, after=after, unexplained=unexplained, attributes_fell=fell)
 
 
 def _category_for(change) -> str:

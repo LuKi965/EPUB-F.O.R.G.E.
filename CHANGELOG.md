@@ -40,6 +40,18 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### What a screen reader depends on is counted before and after
+
+K1 guards every character of the prose and the balance guards every file;
+an `alt`, a `role` or an `aria-label` that leaves a document was visible to
+neither. The balance now counts the attributes assistive software depends
+on — `alt`, `role`, `aria-*`, `epub:type`, `lang`, `title`, `dir`, `hidden`
+— on both sides, by name inside tags, and a fall is reported with the
+numbers. Reported, not refused: a count of names is a reason to look, not
+a proof of loss, and the first time it was taken on the shelf it found one
+(the navigation label above) that no gate had seen. On the shelf as it is
+now, no count falls in either mode.
+
 ### A Word export no longer takes four minutes to rebuild
 
 Profiled stage by stage on the slowest books of the shelf: the largest

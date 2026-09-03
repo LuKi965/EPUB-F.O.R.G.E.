@@ -1520,6 +1520,22 @@ def _rebuild_inside_budget(
                 "package.balance-unexplained",
                 values={"detail": str(reconciled)},
             )
+        # The audit's A-03: what a screen reader depends on and nothing else
+        # here counts. A fall is said, with the numbers, and the book is
+        # still published — a count of names inside tags is a reason to
+        # look, and the first time it was taken it found a loss (EF-071)
+        # that no gate had seen.
+        if reconciled.attributes_fell:
+            report.add(
+                "package",
+                Level.WARN,
+                "package.attributes-fell",
+                values={
+                    "detail": "; ".join(
+                        f"{name}: {was} → {now}" for name, was, now in reconciled.attributes_fell
+                    ),
+                },
+            )
         write_epub(
             book,
             destination,
