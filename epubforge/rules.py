@@ -389,6 +389,7 @@ CATALOGUE: dict[str, str] = {
     "epubcheck.clean": "EPUBCheck accepted the output, with {warnings} warning(s)",
     "epubcheck.unavailable": "EPUBCheck is not installed, so the output was not validated",
     "epubcheck.failed": "EPUBCheck could not be run at all: {error}",
+    "epubcheck.no-answer": "EPUBCheck gave no answer within {seconds} s on a file of {size} MB, so the book was not validated; a bigger file is allowed more time, and this one still ran out of it",
     # -- the gate before publication (K.2 invariant 12) ----------------------
     "reader.xml-recovered": "this file is not well-formed XML and was read by a parser guessing at what it meant ({detail}); what came out is a reconstruction rather than what the file says",
     "package.metadata-from-a-guess": "the package document had to be reconstructed, so the book's own description of itself is a guess: check {fields} and correct them if they are wrong",
@@ -751,6 +752,7 @@ CATALOGUE_PL: dict[str, str] = {
     'epubcheck.clean': 'EPUBCheck przyjął wynik, z {warnings} ostrzeżeniem/ami',
     'epubcheck.unavailable': 'EPUBCheck nie jest zainstalowany, więc wynik nie został zweryfikowany',
     'epubcheck.failed': 'EPUBCheck w ogóle nie dał się uruchomić: {error}',
+    'epubcheck.no-answer': 'EPUBCheck nie odpowiedział w {seconds} s na pliku {size} MB, więc książka nie została zweryfikowana; większy plik dostaje więcej czasu i ten mimo to go wyczerpał',
     # -- the gate before publication (K.2 invariant 12) ----------------------
     'reader.xml-recovered': 'ten plik nie jest poprawnym XML-em i został odczytany przez parser zgadujący, co autor miał na myśli ({detail}); to, co z niego wyszło, jest rekonstrukcją, a nie treścią pliku',
     'package.metadata-from-a-guess': 'dokument pakietu trzeba było zrekonstruować, więc opis książki o samej sobie jest domysłem: sprawdź {fields} i popraw, jeżeli się nie zgadzają',

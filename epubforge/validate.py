@@ -254,6 +254,9 @@ class SharedValidator:
 
     def __init__(self) -> None:
         self._process: subprocess.Popen | None = None
+        #: Whether the last `check` ended in silence past its allowance — the
+        #: one failure the cold path should not be asked to repeat.
+        self.timed_out = False
         #: The command the live process was started with. Checked before every
         #: book, because a process that outlives the answer to "which validator
         #: is this" is a process quietly giving the old jar's verdict: point
@@ -316,6 +319,7 @@ class SharedValidator:
 
     def check(self, epub_path: str, json_path: str, timeout: float) -> int | None:
         """EPUBCheck's exit code, or ``None`` — meaning: do it the old way."""
+        self.timed_out = False
         if not self.enabled():
             self.reason = f"{ENV_SHARED} is off"
             return None
@@ -345,6 +349,7 @@ class SharedValidator:
                 # the next answer to arrive would belong to this book and be
                 # read as the next one's. Killing it is the only honest move.
                 self.reason = f"no answer within {timeout:.0f}s"
+                self.timed_out = True
                 self._drop()
                 return None
             try:
@@ -483,6 +488,26 @@ def _detail(result: "ValidationResult", content_untouched: bool) -> str:
     )
 
 
+#: How long to wait for a verdict, by the size of the file. One fixed limit
+#: measured a book, not the validator: the largest book on the shelf (28.6 MB,
+#: 9 810 documents) got no answer in 300 s from a JVM tuned for the common
+#: case — one core, the quick compiler, the serial collector — and the strict
+#: gate then refused a clean book over a stopwatch (audit 2026-09-03, A-05).
+#: The allowance grows with the file, so a big book gets the time a big book
+#: needs and a small one still cannot hang a batch for long.
+VALIDATION_BASE_SECONDS = 300.0
+VALIDATION_SECONDS_PER_MEGABYTE = 20.0
+
+
+def validation_timeout(epub_path: str) -> float:
+    """Seconds this validator is allowed for *epub_path*, by its size."""
+    try:
+        size = os.path.getsize(epub_path)
+    except OSError:
+        size = 0
+    return VALIDATION_BASE_SECONDS + VALIDATION_SECONDS_PER_MEGABYTE * size / 1_000_000
+
+
 def validate(
     epub_path: str,
     report: Report | None = None,
@@ -514,17 +539,37 @@ def validate(
     try:
         # The warm JVM first; `None` from it means "this one goes the old way",
         # and the old way is the line below, unchanged.
-        if SHARED.check(epub_path, json_path, timeout=300) is None:
+        timeout = validation_timeout(epub_path)
+        if SHARED.check(epub_path, json_path, timeout=timeout) is None:
+            # A warm JVM that fell silent for the whole allowance is telling
+            # us about the book, not about itself; running the cold path for
+            # the same allowance again would only double the wait. Every
+            # other reason for `None` — no driver, a crash, a switched-off
+            # daemon — still goes the old way.
+            if SHARED.timed_out:
+                raise subprocess.TimeoutExpired(command, timeout)
             spawn.run(
                 command + [epub_path, "--json", json_path, "--quiet"],
                 capture_output=True,
-                timeout=300,
+                timeout=timeout,
                 check=False,
             )
         with open(json_path, encoding="utf-8") as handle:
             payload = json.load(handle)
     except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
-        if report:
+        if report and isinstance(exc, subprocess.TimeoutExpired):
+            try:
+                size = os.path.getsize(epub_path) / 1_000_000
+            except OSError:
+                size = 0.0
+            report.add(
+                "epubcheck",
+                Level.WARN,
+                "epubcheck.no-answer",
+                values={"seconds": int(validation_timeout(epub_path)), "size": f"{size:.1f}"},
+                location=epub_path,
+            )
+        elif report:
             report.add(
                 "epubcheck",
                 Level.WARN,
