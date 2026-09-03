@@ -1173,7 +1173,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     root = parse_xml(data, nav_path, report)
     if root is None:
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
-        return [], [], [], []
+        return [], [], [], [], {}
 
     def parse_list(ol) -> list[NavPoint]:
         result: list[NavPoint] = []
