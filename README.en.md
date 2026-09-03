@@ -81,7 +81,13 @@ for you at all:
   ever deletes is either optional to untick or preceded by a question carrying
   the consequences and a recommendation;
 - **it does not guess.** Where it does not know, it asks; with no answer,
-  nothing changes.
+  nothing changes;
+- **it does not repair text without a person.** Hyphens left by a conversion,
+  one letter written for another, broken encoding, footnote markers without
+  links — the program detects these and asks, but never changes a character
+  of prose on its own. Run in a batch with nobody answering, it leaves the
+  text exactly as it came and repairs the code and the container, not the
+  words.
 
 ## Three modes
 

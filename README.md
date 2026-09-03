@@ -76,7 +76,12 @@ Ciebie:
 - **nie usuwa niczego bez pytania albo bez przełącznika.** Wszystko, co ten
   program kiedykolwiek kasuje, jest albo do odznaczenia, albo poprzedzone
   pytaniem z konsekwencjami i rekomendacją;
-- **nie zgaduje.** Gdy nie wie, pyta; bez odpowiedzi nie zmienia nic.
+- **nie zgaduje.** Gdy nie wie, pyta; bez odpowiedzi nie zmienia nic;
+- **nie naprawia treści bez człowieka.** Rozcięte łączniki, litera zapisana
+  zamiast innej, zepsute kodowanie, brakujące odnośniki do przypisów —
+  program to wykrywa i pyta, ale sam nie zmienia ani jednego znaku prozy.
+  Uruchomiony wsadowo bez odpowiedzi zostawia treść dokładnie taką, jaka
+  przyszła; naprawia wtedy kod i kontener, nie tekst.
 
 ## Trzy tryby
 
