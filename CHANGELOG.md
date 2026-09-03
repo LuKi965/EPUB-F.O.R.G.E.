@@ -40,6 +40,20 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A Word export no longer takes four minutes to rebuild
+
+Profiled stage by stage on the slowest books of the shelf: the largest
+(25 MB, 9 810 documents) is expensive in proportion to its size, but two
+small novels exported from Word — 1.6 MB and 0.8 MB — took 248 s and 80 s,
+most of it in two places. Each of the 134 chapters carries the same 86 KB
+`<style>` block (nine distinct blocks in all), and the content stage parsed
+it once per chapter to learn which classes it names: 173 s. The stylesheet
+walker then read the same block one character at a time in every mending
+pass. The selector scan and the walk are memoised on the text now, and the
+walker jumps between the characters that matter — braces, quotes, comment
+openers — instead of visiting every one. Same rules found, same spans, same
+output bytes on every book of the shelf.
+
 ### The publisher's `aria-label` on the contents survives the rebuild
 
 Found by the audit's third finding put into practice — counting semantic

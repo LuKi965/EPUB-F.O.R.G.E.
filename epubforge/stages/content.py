@@ -9,6 +9,7 @@ becomes ``background-color``. Only genuinely inert markup is dropped.
 from __future__ import annotations
 
 import posixpath
+import functools
 import re
 
 import cssutils
@@ -292,8 +293,15 @@ def _walk_style_rules(container):
             yield from _walk_style_rules(rule)
 
 
+@functools.lru_cache(maxsize=256)
 def _selector_classes(css_text: str) -> frozenset[str]:
-    """Which classes this stylesheet has any rule for."""
+    """Which classes this stylesheet has any rule for.
+
+    Memoised on the text, and the reason is a Word export: 134 documents each
+    carrying an 86 KB `<style>` block, of which only nine are distinct. Parsed
+    once per document this cost 173 s of a 248 s rebuild (record 045); parsed
+    once per distinct block it costs the nine parses.
+    """
     if not css_text or not css_text.strip():
         return frozenset()
     try:

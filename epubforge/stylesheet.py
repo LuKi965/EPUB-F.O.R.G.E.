@@ -18,6 +18,7 @@ evaluate is a reason to leave the contents alone rather than a reason to guess.
 
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 
@@ -417,23 +418,45 @@ def _at_sign(prelude: str) -> int:
     return len(prelude) - len(prelude.lstrip())
 
 
+#: What the walk has to stop at: a brace, a rule separator, the start of a
+#: string or of a comment. Everything between two of these is prelude or body
+#: and is skipped in one jump rather than one character at a time — on an
+#: 86 KB Word style block that is the difference between a scan and a stall
+#: (record 045: 367 438 brace searches in one rebuild).
+_STRUCTURE = re.compile(r"[{};\"']|/\*")
+_BRACES = re.compile(r"[{}\"']|/\*")
+
+
 def _walk(text: str):
     """Every brace-delimited block at the top level, in source order.
 
-    Yields `(at_rule_name_or_None, RuleSpan)`. One walk rather than two: the
-    rules for what counts as a prelude are subtle — Word writes `--> @page …`
-    and `/* Font Definitions */ @font-face …`, and both have already been
-    misread once (EF-070, both of its faces) — so there is one place that can
-    be got wrong and one place to fix.
+    Returns `(at_rule_name_or_None, RuleSpan)` pairs. One walk rather than
+    two: the rules for what counts as a prelude are subtle — Word writes
+    `--> @page …` and `/* Font Definitions */ @font-face …`, and both have
+    already been misread once (EF-070, both of its faces) — so there is one
+    place that can be got wrong and one place to fix.
+
+    Memoised on the text: the style stage mends a block in several passes and
+    asks for its rules after each, and a Word export repeats one block in
+    every chapter. Callers get a fresh list each time; the spans are frozen.
     """
+    return list(_walk_cached(text))
+
+
+@functools.lru_cache(maxsize=128)
+def _walk_cached(text: str) -> tuple:
     spans: list = []
     cursor = 0
     prelude_start = 0
     length = len(text)
 
     while cursor < length:
+        found = _STRUCTURE.search(text, cursor)
+        if found is None:
+            break
+        cursor = found.start()
         character = text[cursor]
-        if character in "\"'" or text.startswith("/*", cursor):
+        if character in "\"'" or character == "/":
             moved = _skip_noise(text, cursor)
             if moved != cursor:
                 cursor = moved
@@ -472,32 +495,38 @@ def _walk(text: str):
                 cursor = end
             prelude_start = cursor
             continue
-        if character == ";" and not text[prelude_start:cursor].strip().startswith("@"):
-            prelude_start = cursor + 1
-        elif character == ";":
+        if character == ";":
+            # A statement at the top level — `@import …;`, `@charset …;` or a
+            # stray declaration — ends the prelude whatever it began with.
             prelude_start = cursor + 1
         cursor += 1
-    return spans
+    return tuple(spans)
 
 
 def _matching_brace(text: str, opening: int) -> int:
     """The index just past the `}` that closes the `{` at *opening*."""
     depth = 0
     cursor = opening
-    while cursor < len(text):
-        if text[cursor] in "\"'" or text.startswith("/*", cursor):
+    length = len(text)
+    while cursor < length:
+        found = _BRACES.search(text, cursor)
+        if found is None:
+            break
+        cursor = found.start()
+        character = text[cursor]
+        if character in "\"'" or character == "/":
             moved = _skip_noise(text, cursor)
             if moved != cursor:
                 cursor = moved
                 continue
-        if text[cursor] == "{":
+        if character == "{":
             depth += 1
-        elif text[cursor] == "}":
+        elif character == "}":
             depth -= 1
             if depth == 0:
                 return cursor + 1
         cursor += 1
-    return len(text)
+    return length
 
 
 def without(text: str, spans: list[RuleSpan]) -> str:
