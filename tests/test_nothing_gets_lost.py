@@ -48,13 +48,19 @@ def source(*parts: str) -> str:
 
 class TestEveryPolicySwitchIsReachable:
     def test_no_setting_is_hidden_from_both_interfaces(self):
+        from epubforge.cli import SWITCHES
+
         gui = source("epubforge", "gui", "app.py")
         cli = source("epubforge", "cli.py")
+        # Wiersz poleceń ustawia większość pól z tabeli `cli.SWITCHES`
+        # (argument, pole, wartość), nie przez `policy.<pole> = …` w źródle.
+        switched = {field for _, field, _ in SWITCHES}
         hidden = [
             f.name for f in dataclasses.fields(Policy)
             if f.name not in NOT_FOR_PEOPLE
             and f"policy.{f.name}" not in gui
             and f"policy.{f.name}" not in cli
+            and f.name not in switched
         ]
         assert not hidden, f"ustawienia, których nie da się zmienić: {hidden}"
 

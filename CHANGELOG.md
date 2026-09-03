@@ -107,6 +107,15 @@ fingerprint for this one covers everything `read_epub` decides — reading
 order, every navigation form, every path it chose, every resource's bytes,
 every finding with its values — and it is identical on all 160 books.
 
+The command line's policy builder, at 52, was fifty-two `if`s in a row,
+one per flag. The flags that set one field to one value are a table now
+— `cli.SWITCHES`, argument, field, value — and the parity test reads that
+table instead of grepping source, which makes it a stronger test: a field
+is reachable because a row says so. The flags that carry a value keep
+their lines. Every flag on its own, every pair of flags, every mode and
+the lot at once — 460 command lines — build the same policy, field for
+field, as before.
+
 ### The validator's allowance grows with the file
 
 The largest book on the owner's shelf (28.6 MB, 9 810 documents) got no

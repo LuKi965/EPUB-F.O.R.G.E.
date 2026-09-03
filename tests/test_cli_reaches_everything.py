@@ -18,7 +18,7 @@ import re
 
 import pytest
 
-from epubforge.cli import build_parser, build_policy
+from epubforge.cli import SWITCHES, build_parser, build_policy
 from epubforge.policy import Policy
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -48,9 +48,12 @@ def policy_fields() -> list[str]:
 
 
 def build_policy_source() -> str:
+    """`build_policy` and the helper that applies the flags carrying a value
+    — the two places a field can be set from the command line by name."""
     text = (ROOT / "epubforge" / "cli.py").read_text(encoding="utf-8")
     start = text.index("def build_policy(")
-    end = text.index("\ndef ", start + 1)
+    valued = text.index("def _apply_valued_flags(", start)
+    end = text.index("\ndef ", valued + 1)
     return text[start:end]
 
 
@@ -60,10 +63,13 @@ class TestEveryChoiceIsReachable:
         if field in NOT_ON_THE_COMMAND_LINE:
             assert NOT_ON_THE_COMMAND_LINE[field].strip(), f"{field} is exempt with no reason given"
             return
-        assert f"policy.{field}" in build_policy_source(), (
+        switched = {target for _, target, _ in SWITCHES}
+        assert field in switched or f"policy.{field}" in build_policy_source(), (
             f"Policy.{field} can be set from the window and not from the command "
-            f"line. Either give it a flag or add it to NOT_ON_THE_COMMAND_LINE "
-            f"with the argument for why a flag is not how a person reaches it."
+            f"line. Either give it a flag — a row in cli.SWITCHES, or a line in "
+            f"build_policy for a flag that carries a value — or add it to "
+            f"NOT_ON_THE_COMMAND_LINE with the argument for why a flag is not how "
+            f"a person reaches it."
         )
 
     @pytest.mark.parametrize("field", sorted(NOT_ON_THE_COMMAND_LINE))

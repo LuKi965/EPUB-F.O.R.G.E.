@@ -71,77 +71,72 @@ def _bytes_from(raw: str) -> int:
     return int(float(text))
 
 
-def build_policy(args: argparse.Namespace) -> Policy:
-    preset = "strict" if args.strict else ("minimal" if args.minimal else "preserve")
-    policy = Policy.preset(preset)
-    if args.no_ncx:
-        policy.write_ncx = False
-    if args.strip_scripts:
-        policy.strip_scripts = True
-    if args.keep_dead:
-        policy.remove_dead = False
-    if args.remove_dead:
-        policy.remove_dead = True
-    if args.drop_orphans:
-        policy.drop_orphans = True
-    if args.keep_layout:
-        policy.reorganize_files = False
-    if args.keep_junk:
-        policy.remove_junk = False
-    if getattr(args, "reproducible", False):
-        policy.reproducible = True
-    if getattr(args, "render_gate", None) is not None:
-        policy.render_gate = args.render_gate
-    if getattr(args, "render_all", False):
-        policy.render_sample = 0
-    if getattr(args, "accept_unverified_render", False):
-        policy.accept_unverified_render = True
-    if getattr(args, "accept_reconstructed_metadata", False):
-        policy.accept_reconstructed_metadata = True
-    if getattr(args, "hyphen_review", None):
-        policy.hyphen_review = args.hyphen_review
-    if getattr(args, "relative_units", False):
-        policy.relative_units = True
-    if getattr(args, "remove_shop_notices", False):
-        policy.remove_shop_notices = True
-    if getattr(args, "repair_encoding", False):
-        policy.repair_encoding = True
-    if getattr(args, "subset_fonts", False):
-        policy.subset_fonts = True
-    if getattr(args, "sweep_style_blocks", False):
-        policy.sweep_style_blocks = True
-    if getattr(args, "kepub", False):
-        policy.kepub = True
-    if getattr(args, "keep_style_junk", False):
-        policy.sweep_style_blocks = False
-    if getattr(args, "translate_class_names", False):
-        policy.translate_class_names = True
-    if getattr(args, "keep_class_names", False):
-        policy.translate_class_names = False
-    if getattr(args, "no_footnote_questions", False):
-        policy.link_footnotes = False
+#: Every flag that sets one policy field to one value and does nothing else,
+#: as `(argument, field, value)`. This table *is* the list of switches the
+#: command line offers: `test_cli_reaches_everything` reads it, so a field
+#: named here is reachable by definition, and one named nowhere is the
+#: mirror's finding (audit 2026-09-03, A-09). Order matters only where two
+#: flags touch one field — `--keep-dead` and `--remove-dead`, the style-junk
+#: pair, the class-name pair — and there the later entry wins, as the later
+#: `if` did before this was a table (A-04).
+SWITCHES: tuple[tuple[str, str, object], ...] = (
+    ("no_ncx", "write_ncx", False),
+    ("strip_scripts", "strip_scripts", True),
+    ("keep_dead", "remove_dead", False),
+    ("remove_dead", "remove_dead", True),
+    ("drop_orphans", "drop_orphans", True),
+    ("keep_layout", "reorganize_files", False),
+    ("keep_junk", "remove_junk", False),
+    ("reproducible", "reproducible", True),
+    ("render_all", "render_sample", 0),
+    ("accept_unverified_render", "accept_unverified_render", True),
+    ("accept_reconstructed_metadata", "accept_reconstructed_metadata", True),
+    ("relative_units", "relative_units", True),
+    ("remove_shop_notices", "remove_shop_notices", True),
+    ("repair_encoding", "repair_encoding", True),
+    ("subset_fonts", "subset_fonts", True),
+    ("sweep_style_blocks", "sweep_style_blocks", True),
+    ("kepub", "kepub", True),
+    ("keep_style_junk", "sweep_style_blocks", False),
+    ("translate_class_names", "translate_class_names", True),
+    ("keep_class_names", "translate_class_names", False),
+    ("no_footnote_questions", "link_footnotes", False),
     # The audit of 2026-09-03 (A-09): these were reachable from the window and
     # not from here, and in a batch the image questions are most of what a
     # person is asked. Same shape as --no-footnote-questions: the detector is
     # switched off, nothing is answered on anybody's behalf.
-    if getattr(args, "no_image_questions", False):
-        policy.detect_undescribed_images = False
-    if getattr(args, "no_table_questions", False):
-        policy.detect_layout_tables = False
-    if getattr(args, "no_typography_questions", False):
-        policy.detect_typography = False
-    if getattr(args, "no_hyphen_questions", False):
-        policy.detect_hyphens = False
-    if getattr(args, "no_substitution_questions", False):
-        policy.detect_substitutions = False
-    if getattr(args, "keep_image_formats", False):
-        policy.transcode_images = False
-    if getattr(args, "keep_font_obfuscation", False):
-        policy.deobfuscate_fonts = False
-    if getattr(args, "no_remember_decisions", False):
-        policy.remember_decisions = False
-    if getattr(args, "no_memory_check", False):
-        policy.check_memory = False
+    ("no_image_questions", "detect_undescribed_images", False),
+    ("no_table_questions", "detect_layout_tables", False),
+    ("no_typography_questions", "detect_typography", False),
+    ("no_hyphen_questions", "detect_hyphens", False),
+    ("no_substitution_questions", "detect_substitutions", False),
+    ("keep_image_formats", "transcode_images", False),
+    ("keep_font_obfuscation", "deobfuscate_fonts", False),
+    ("no_remember_decisions", "remember_decisions", False),
+    ("no_memory_check", "check_memory", False),
+    ("keep_watermark_markup", "watermarks", "keep"),
+    ("typography", "typography", True),
+    ("no_a11y_metadata", "accessibility_metadata", False),
+)
+
+
+def build_policy(args: argparse.Namespace) -> Policy:
+    preset = "strict" if args.strict else ("minimal" if args.minimal else "preserve")
+    policy = Policy.preset(preset)
+    for argument, field, value in SWITCHES:
+        if getattr(args, argument, False):
+            setattr(policy, field, value)
+    _apply_valued_flags(args, policy)
+    return policy
+
+
+def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:
+    """The flags that carry a value of their own, after the switches: the
+    `--watermarks` mode overrides `--keep-watermark-markup`, as it always has."""
+    if getattr(args, "render_gate", None) is not None:
+        policy.render_gate = args.render_gate
+    if getattr(args, "hyphen_review", None):
+        policy.hyphen_review = args.hyphen_review
     if getattr(args, "memory_limit", None):
         policy.memory_limit = _bytes_from(args.memory_limit)
     # `None` means "whatever the mode says", which is not the same as "off" —
@@ -149,14 +144,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
     # disarm strict's gate for everybody who never passes the flag.
     if getattr(args, "gate", None) is not None:
         policy.validate_before_publish = args.gate
-    if args.keep_watermark_markup:
-        policy.watermarks = "keep"
     if args.watermarks:
         policy.watermarks = args.watermarks
-    if args.typography:
-        policy.typography = True
-    if args.no_a11y_metadata:
-        policy.accessibility_metadata = False
     if args.claim_conformance:
         policy.claim_conformance = args.claim_conformance
     if args.compat:
@@ -173,7 +162,6 @@ def build_policy(args: argparse.Namespace) -> Policy:
         value = getattr(args, field, None)
         if value:
             policy.metadata_overrides[field] = value
-    return policy
 
 
 def _default_language() -> str:
