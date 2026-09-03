@@ -93,12 +93,20 @@ def semantic_attributes_in(data: bytes) -> dict:
     return counts
 
 
-def _semantic_attributes_of(book) -> dict:
-    total: dict = {}
+def _semantic_attributes_by_document(book) -> dict:
+    """Per content document, keyed by its archive path."""
+    by_document: dict = {}
     for resource in book.resources.values():
         if not getattr(resource, "is_content_doc", False):
             continue
-        for name, count in semantic_attributes_in(resource.data).items():
+        by_document[resource.path] = semantic_attributes_in(resource.data)
+    return by_document
+
+
+def _summed(counts_per_document) -> dict:
+    total: dict = {}
+    for counts in counts_per_document:
+        for name, count in counts.items():
             total[name] = total.get(name, 0) + count
     return total
 
@@ -113,6 +121,11 @@ class Side:
     text_characters: int = 0
     #: Per attribute name — see `SEMANTIC_ATTRIBUTES`.
     semantic_attributes: dict = field(default_factory=dict)
+    #: The same, per content document, so that a document the ledger says was
+    #: removed can be taken out of the comparison. Not serialised: a map with
+    #: an entry for every document of a 9 809-document book is a log, and the
+    #: totals above are the balance.
+    semantic_attributes_by_document: dict = field(default_factory=dict)
 
     @classmethod
     def of(cls, book) -> "Side":
@@ -122,7 +135,8 @@ class Side:
         side.spine_items = len(book.spine)
         side.metadata_entries = _metadata_entries(book)
         side.text_characters = _characters_of(book)
-        side.semantic_attributes = _semantic_attributes_of(book)
+        side.semantic_attributes_by_document = _semantic_attributes_by_document(book)
+        side.semantic_attributes = _summed(side.semantic_attributes_by_document.values())
         return side
 
     def as_dict(self) -> dict:
@@ -377,13 +391,54 @@ def reconcile(before: Side, after: Side, changes) -> Balance:
         if covered < lost:
             unexplained.append((category, lost, covered))
 
+    fell = _attributes_that_fell(before, after, changes)
+    return Balance(before=before, after=after, unexplained=unexplained, attributes_fell=fell)
+
+
+def _attributes_that_fell(before: Side, after: Side, changes) -> list:
+    """Every semantic attribute the output carries fewer of than the source,
+    once the documents the ledger says were removed are taken out.
+
+    A document removed with an entry — an orphan swept on request, junk from
+    the archive — took its attributes with it, and the entry is the claim;
+    warning about that fall would warn about a removal the report already
+    states. A document that left *without* an entry keeps counting: that is
+    the shape of EF-071, the old navigation document replaced by a regenerated
+    one, and this count exists to see exactly that. Documents that were moved
+    rather than removed are not matched by path and keep counting too, which
+    is the same comparison as before this function knew about paths.
+    """
+    was = dict(before.semantic_attributes)
+    for path, counts in before.semantic_attributes_by_document.items():
+        if path in after.semantic_attributes_by_document:
+            continue
+        if not _ledger_says_removed(path, changes):
+            continue
+        for name, count in counts.items():
+            was[name] = was.get(name, 0) - count
     fell = []
     for name in SEMANTIC_ATTRIBUTES:
-        was = before.semantic_attributes.get(name, 0)
         now = after.semantic_attributes.get(name, 0)
-        if now < was:
-            fell.append((name, was, now))
-    return Balance(before=before, after=after, unexplained=unexplained, attributes_fell=fell)
+        if now < was.get(name, 0):
+            fell.append((name, was[name], now))
+    return fell
+
+
+def _ledger_says_removed(path: str, changes) -> bool:
+    """Whether an entry in the ledger names this archive path as removed.
+
+    The entries that remove a whole file put the path either in the subject
+    (`structure.junk-removed`) or at the head of `before`, as
+    "OEBPS/x.xhtml (1 234 B)" (`structure.orphan-removed`). A path that merely
+    appears somewhere inside another path's entry is not a match.
+    """
+    for change in changes or ():
+        if getattr(change.action, "value", change.action) != "removed":
+            continue
+        for text in (getattr(change, "subject", "") or "", getattr(change, "before", "") or ""):
+            if text == path or text.startswith(f"{path} "):
+                return True
+    return False
 
 
 def _category_for(change) -> str:

@@ -49,7 +49,10 @@ on — `alt`, `role`, `aria-*`, `epub:type`, `lang`, `title`, `dir`, `hidden`
 — on both sides, by name inside tags, and a fall is reported with the
 numbers. Reported, not refused: a count of names is a reason to look, not
 a proof of loss, and the first time it was taken on the shelf it found one
-(the navigation label above) that no gate had seen. On the shelf as it is
+(the navigation label above) that no gate had seen. A whole document the
+change ledger says was removed — an orphan swept on request, junk from the
+archive — is taken out of the comparison first, so the warning speaks only
+of attributes nothing in the report accounts for. On the shelf as it is
 now, no count falls in either mode.
 
 ### A Word export no longer takes four minutes to rebuild

@@ -112,3 +112,64 @@ class TestAFallIsSaidAndNotRefused:
         assert recorded["attributes_fell"] == [{"attribute": "alt", "before": 1, "after": 0}]
         with zipfile.ZipFile(result.output_path) as archive:
             assert any(n.endswith(".xhtml") for n in archive.namelist())
+
+
+ORPHAN = PAGE.format(body='<p lang="de" title="Waise">Sierota</p>')
+
+
+def side_with(documents: dict) -> "balance.Side":
+    side = balance.Side()
+    side.semantic_attributes_by_document = {
+        path: balance.semantic_attributes_in(markup.encode("utf-8"))
+        for path, markup in documents.items()
+    }
+    side.semantic_attributes = balance._summed(side.semantic_attributes_by_document.values())
+    return side
+
+
+class TestADocumentTheLedgerRemovedIsTakenOutOfTheComparison:
+    """The warning's own text says nothing in the rebuild claims to have
+    removed them. So a whole document removed with an entry — an orphan swept
+    on request — must not count as a fall, and one that left without an entry
+    must, because that is what EF-071 looked like."""
+
+    def test_removed_with_an_entry_naming_the_path(self):
+        from epubforge.report import Action, Change
+
+        before = side_with({"OEBPS/c0.xhtml": PAGE.format(body=BODY), "OEBPS/orphan.xhtml": ORPHAN})
+        after = side_with({"OEBPS/c0.xhtml": PAGE.format(body=BODY)})
+        swept = Change("structure", Action.REMOVED, "documents",
+                       before="OEBPS/orphan.xhtml (241 B)", rule="structure.orphan-removed")
+        assert balance.reconcile(before, after, [swept]).attributes_fell == []
+
+    def test_removed_without_an_entry_still_counts(self):
+        before = side_with({"OEBPS/c0.xhtml": PAGE.format(body=BODY), "OEBPS/orphan.xhtml": ORPHAN})
+        after = side_with({"OEBPS/c0.xhtml": PAGE.format(body=BODY)})
+        fell = balance.reconcile(before, after, []).attributes_fell
+        # `lang` twice on each page (the root and a paragraph), `title` once.
+        assert ("lang", 4, 2) in fell and ("title", 2, 1) in fell
+
+    def test_an_entry_about_another_path_is_not_a_match(self):
+        from epubforge.report import Action, Change
+
+        before = side_with({"OEBPS/c0.xhtml": PAGE.format(body=BODY), "OEBPS/orphan.xhtml": ORPHAN})
+        after = side_with({"OEBPS/c0.xhtml": PAGE.format(body=BODY)})
+        other = Change("structure", Action.REMOVED, "documents",
+                       before="OEBPS/orphan.xhtml.bak (12 B)", rule="structure.junk-removed")
+        assert balance.reconcile(before, after, [other]).attributes_fell
+
+    def test_on_the_real_orphan_path(self, tmp_path):
+        """`drop_orphans` is the one production path that removes a whole
+        document on request; its entry has to be the one this reads."""
+        source = make_book(tmp_path / "in.epub", {"c0.xhtml": PAGE.format(body=BODY)},
+                           extra_items='<item id="i" href="i.png" media-type="image/png"/>'
+                                       '<item id="o" href="orphan.xhtml" media-type="application/xhtml+xml"/>',
+                           extra_files={"OEBPS/i.png": PNG, "OEBPS/orphan.xhtml": ORPHAN.encode("utf-8")})
+        result = rebuild(source, str(tmp_path / "out.epub"),
+                         Policy.preset("preserve", render_gate="off", drop_orphans=True))
+        assert result.output_path, result.report.to_text()
+        assert any(c.rule == "structure.orphan-removed" for c in result.report.changes)
+        with zipfile.ZipFile(result.output_path) as archive:
+            assert "OEBPS/orphan.xhtml" not in archive.namelist()
+        assert "package.attributes-fell" not in rules_of(result)
+        assert result.report.balance.attributes_fell == []
