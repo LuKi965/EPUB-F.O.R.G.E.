@@ -45,23 +45,40 @@ class Plan:
         return not self.collisions and not self.self_targets
 
 
-def destination_for(source: str, output: str | None) -> str:
+#: What a Kobo export is called. The renderer is chosen by the name, so a
+#: file that carries the markers and is not called this is a plain EPUB to
+#: the device.
+KEPUB_EXTENSION = ".kepub.epub"
+
+
+def stem_of(source: str) -> str:
+    """*source* without its directory and extension — and without a
+    ``.kepub`` left over from a Kobo file, which would otherwise double up."""
+    stem = os.path.splitext(os.path.basename(source))[0]
+    if stem.lower().endswith(".kepub"):
+        stem = stem[: -len(".kepub")]
+    return stem
+
+
+def destination_for(source: str, output: str | None, *, kepub: bool = False) -> str:
     """Where one book goes, given the ``-o`` the user passed.
 
     Three shapes, and they are not interchangeable: no output at all writes
     beside the source; a directory takes the basename; a file path is used
-    verbatim, which only makes sense for a single input.
+    verbatim, which only makes sense for a single input. A Kobo export takes
+    the extension that reader chooses its renderer by, in the first two
+    shapes; a name given verbatim is the person's, and the report says so if
+    it is not one a Kobo will recognise.
     """
+    extension = KEPUB_EXTENSION if kepub else ".epub"
     if not output:
-        stem = os.path.splitext(source)[0]
-        return f"{stem}.forged.epub"
+        return os.path.join(os.path.dirname(source), f"{stem_of(source)}.forged{extension}")
     if os.path.isdir(output):
-        stem = os.path.splitext(os.path.basename(source))[0]
-        return os.path.join(output, f"{stem}.epub")
+        return os.path.join(output, f"{stem_of(source)}{extension}")
     return output
 
 
-def plan_batch(sources: list[str], output: str | None) -> Plan:
+def plan_batch(sources: list[str], output: str | None, *, kepub: bool = False) -> Plan:
     """Resolve every destination and report what is wrong with the set.
 
     Nothing here touches the filesystem beyond asking what exists. The point is
@@ -71,7 +88,7 @@ def plan_batch(sources: list[str], output: str | None) -> Plan:
     by_destination: dict[str, list[str]] = {}
 
     for source in sources:
-        destination = destination_for(source, output)
+        destination = destination_for(source, output, kepub=kepub)
         plan.jobs.append(Job(source, destination))
         by_destination.setdefault(os.path.abspath(destination), []).append(source)
 

@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import resources, version_string, watermark
+from .. import plan, resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
 from ..policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
 from ..quips import quip_for
@@ -904,6 +904,11 @@ class MainWindow(QMainWindow):
                 layout, f"compat.{profile}", checked=False
             )
 
+        # Not a concession but a different file — Kobo's own flavour, named so
+        # the device picks its own renderer. Beside the profiles because that
+        # is where a person with a Kobo looks.
+        self.kepub_check = self._checkbox(layout, "compat.kepub", checked=False)
+
         # Stated in the panel rather than only in a tooltip: it is the one
         # consequence of ticking these boxes that outlives the run.
         note = QLabel(tr("compat.note"))
@@ -1067,6 +1072,7 @@ class MainWindow(QMainWindow):
         policy.compat_profiles = tuple(
             name for name, box in self.compat_checks.items() if box.isChecked()
         )
+        policy.kepub = self.kepub_check.isChecked()
         if self.mode_combo.currentData() != "minimal":
             policy.drop_orphans = self.orphans_check.isChecked()
             policy.remove_junk = self.junk_check.isChecked()
@@ -1146,13 +1152,18 @@ class MainWindow(QMainWindow):
             return
 
         output_dir = self.output_edit.text().strip()
+        kepub = self.kepub_check.isChecked()
         jobs: list[tuple[str, str]] = []
         for source in self._sources:
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
-                destination = os.path.join(output_dir, os.path.basename(source))
+                destination = (
+                    os.path.join(output_dir, f"{plan.stem_of(source)}{plan.KEPUB_EXTENSION}")
+                    if kepub
+                    else os.path.join(output_dir, os.path.basename(source))
+                )
             else:
-                destination = f"{os.path.splitext(source)[0]}.forged.epub"
+                destination = plan.destination_for(source, None, kepub=kepub)
             if os.path.abspath(destination) == os.path.abspath(source):
                 QMessageBox.warning(
                     self,

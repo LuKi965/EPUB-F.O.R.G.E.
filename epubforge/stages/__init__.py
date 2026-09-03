@@ -40,6 +40,7 @@ from .font_subset import FontSubsetStage
 from .fonts import FontStage
 from .footnotes import FootnoteStage
 from .images import ImageStage
+from .kepub import KepubStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
 from .profile import ProfileStage
@@ -72,6 +73,11 @@ DEFAULT_STAGES = (
     # source never had, so a font cut before them would lose exactly the
     # glyphs the rebuild had just added (filar E).
     FontSubsetStage,
+    # After even that: it rewrites every text node into the shape one
+    # renderer wants, adds no glyph, and every stage before it reasons about
+    # the book as a book rather than as Kobo's rendering of one. Off unless
+    # asked for, and then the pipeline is exactly what it was.
+    KepubStage,
 )
 
 __all__ = [
@@ -92,6 +98,7 @@ __all__ = [
     "SubstitutionStage",
     "NavigationStage",
     "AccessibilityStage",
+    "KepubStage",
     "AltTextStage",
     "TableStage",
     "CompatibilityStage",

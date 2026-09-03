@@ -499,6 +499,12 @@ class Policy:
     #: profile is a concession to a device that does not follow it.
     compat_profiles: tuple[str, ...] = ()
 
+    #: Write Kobo's own flavour of the file — ``.kepub.epub``, carrying the
+    #: markers that reader's renderer looks for — see :mod:`epubforge.kepub`.
+    #: Off by default: it is a different file for one family of devices, not
+    #: a repair, and every text node in the book is rewritten to make it.
+    kepub: bool = False
+
     #: Pin ``dcterms:modified`` instead of stamping the current time. Every ZIP
     #: entry already carries a fixed timestamp, so this is the last thing that
     #: differs between two runs on the same input; setting it makes the output

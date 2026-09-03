@@ -176,6 +176,19 @@ epubforge build ksiazka.epub --compat kindle,apple
 
 `kindle` · `kobo` · `apple` · `legacy` (Adobe RMSDK: PocketBook, Nook, Sony)
 
+### KEPUB dla Kobo
+
+Osobny plik, nie profil: `--kepub` (w oknie kratka obok profili) zapisuje
+`ksiazka.kepub.epub` — ten sam pakiet z obejmami `div#book-inner`, spanem wokół
+każdego zdania i obrazu oraz blokiem stylu Kobo, czyli tym, co robi kepubify
+4.0.4. Dopiero taki plik daje Kobo statystyki czytania, zakładki w zdaniu
+i dymki przypisów. Tekst co do znaku ten sam; każdy inny czytnik widzi zwykłego
+EPUB-a.
+
+```bash
+epubforge build ksiazka.epub --kepub
+```
+
 ## Co narzędzie o sobie mówi
 
 Każdy przebieg kończy się raportem, w którym każda zmiana ma swój wiersz i swój

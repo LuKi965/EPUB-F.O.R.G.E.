@@ -921,6 +921,18 @@ PL: dict[str, str] = {
         "Te czytniki renderują nieznany element jako liniowy, przez co książka "
         "zbudowana z <section> zlewa się w jeden ciągły akapit."
     ),
+    "compat.kepub": "Zapisz jako KEPUB (Kobo)",
+    "compat.kepub.tip": (
+        "Plik .kepub.epub — własna odmiana EPUB-a czytników Kobo. Ten sam pakiet, plus "
+        "znaczniki, których szuka silnik Kobo: obejmy div#book-columns i div#book-inner "
+        "wokół treści, span wokół każdego zdania i każdego obrazu (id kobo.N.M) oraz blok "
+        "stylu jak we własnych plikach Kobo. Tekst co do znaku ten sam — dokładnie to, co "
+        "robi konwerter kepubify 4.0.4.\n\n"
+        "Bez tego Kobo czyta EPUB-a silnikiem Adobe: bez statystyk czytania, zakładek "
+        "w zdaniu i dymków przypisów. Plik z takimi znacznikami to dla każdego innego "
+        "czytnika zwykły EPUB, ale to nie jest ustępstwo z listy wyżej, tylko osobny "
+        "plik dla jednej rodziny urządzeń."
+    ),
     "compat.note": (
         "Element <guide> nie należy już do EPUB 3.3 — EPUBCheck wciąż go akceptuje, "
         "więc plik pozostaje poprawny, ale niesie coś, co standard porzucił."
@@ -1896,6 +1908,18 @@ EN: dict[str, str] = {
         "<guide>, HTML5 block declarations and the legacy page-break spelling.\n\n"
         "These renderers treat an element they do not know as inline, which collapses "
         "a book built from <section> into one running paragraph."
+    ),
+    "compat.kepub": "Write as KEPUB (Kobo)",
+    "compat.kepub.tip": (
+        "A .kepub.epub file — Kobo's own flavour of EPUB. The same package, plus the "
+        "markers Kobo's renderer looks for: div#book-columns and div#book-inner around "
+        "the content, a span round every sentence and every image (id kobo.N.M), and "
+        "the style block Kobo's own files carry. The text is unchanged to the "
+        "character — exactly what the kepubify 4.0.4 converter does.\n\n"
+        "Without it a Kobo reads the EPUB with Adobe's renderer: no reading "
+        "statistics, no bookmarks inside a sentence, no footnote pop-ups. To every "
+        "other reader a file with these markers is a plain EPUB, but this is not one "
+        "of the concessions above — it is a separate file for one family of devices."
     ),
     "compat.note": (
         "<guide> is no longer part of EPUB 3.3. EPUBCheck still accepts it, so the file "

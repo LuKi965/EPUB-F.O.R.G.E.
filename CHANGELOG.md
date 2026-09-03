@@ -40,6 +40,36 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Kobo's own flavour of the file, on request
+
+A Kobo reader opens a plain `.epub` with Adobe's renderer and a `.kepub.epub`
+with its own, and only the second gives the reader what the device was
+bought for: reading statistics, page numbers that match the book, highlights
+and annotations, footnote pop-ups. The difference is not a format — the
+package is the same EPUB — but a handful of markers the renderer looks for:
+`div#book-columns > div#book-inner` around the content, a `<span
+class="koboSpan" id="kobo.P.S">` around every sentence and every image, and
+a style block Kobo's own files carry.
+
+`--kepub`, and a tick beside the compatibility profiles in the window, now
+write that file. The markers are what kepubify 4.0.4 writes — the reference
+converter, whose three mandatory transforms this reproduces and whose
+sentence splitter is carried over rule for rule, so the ids are the ones
+that converter would give. The output is named `.kepub.epub`, because the
+device chooses its renderer by the name, and a name given verbatim that a
+Kobo will not recognise is reported rather than corrected. The text is
+unchanged to the character; the balance sheet carries the markers as one
+addition.
+
+Deliberately not a compatibility profile: a profile promises never to
+rewrite markup the book already had, and this rewrites every text node. It
+is a separate file for one family of devices, off unless asked for, and the
+pipeline with it off is exactly what it was. Not carried over from the
+reference: smartened punctuation, extra CSS, find-and-replace, and the blank
+page it inserts in front of a first chapter that is not a cover — a page the
+publisher never wrote. That condition is reported instead, so a person with
+a Kobo can judge.
+
 ### A `<link>` in the head naming a file the book does not have goes, in preserve mode too
 
 Measured on the shelf after the three repairs above: every one of the 313

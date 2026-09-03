@@ -110,6 +110,8 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.subset_fonts = True
     if getattr(args, "sweep_style_blocks", False):
         policy.sweep_style_blocks = True
+    if getattr(args, "kepub", False):
+        policy.kepub = True
     if getattr(args, "keep_style_junk", False):
         policy.sweep_style_blocks = False
     if getattr(args, "translate_class_names", False):
@@ -312,7 +314,7 @@ def command_build(args: argparse.Namespace) -> int:
     # Every destination is settled before the first book is touched. Deciding
     # them one at a time is how two books with one filename used to become one
     # book, silently, with a zero exit code.
-    batch = plan_batch(inputs, output_dir)
+    batch = plan_batch(inputs, output_dir, kepub=policy.kepub)
 
     for collision in batch.collisions:
         console.print(f"[red]Two or more books would be written to:[/] {collision.destination}")
@@ -1347,6 +1349,16 @@ def build_parser() -> argparse.ArgumentParser:
             + ", ".join(sorted(compat.PROFILES))
             + ". Repeatable, or comma-separated. Off by default, and every measure "
             "is additive — see 'epubforge compat' for what each one does"
+        ),
+    )
+    build.add_argument(
+        "--kepub",
+        action="store_true",
+        help=(
+            "write Kobo's own flavour of the file (.kepub.epub): the same book with the "
+            "markers Kobo's renderer looks for — div#book-inner, a span round every "
+            "sentence and image — which is what gives a Kobo its reading statistics, "
+            "highlights and footnote pop-ups. Named .kepub.epub unless -o names a file"
         ),
     )
     build.add_argument(
