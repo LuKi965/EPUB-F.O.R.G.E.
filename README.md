@@ -231,6 +231,14 @@ pisze to słowo bez łącznika gdzie indziej, albo słownik mówi, że pierwsza 
 nie jest słowem, więc takie złożenie nie istnieje. `savoir-vivre` i
 `czarno-czerwony` nie są o nic pytane.
 
+Każdy rodzaj pytania da się wyłączyć, w oknie kratką i w wierszu poleceń
+przełącznikiem: `--no-image-questions`, `--no-table-questions`,
+`--no-typography-questions`, `--no-hyphen-questions`,
+`--no-substitution-questions`, `--no-footnote-questions`. Wyłączony detektor
+niczego nie zakłada — po prostu nie pyta, a książka zostaje w tych miejscach
+taka, jaka przyszła. `--no-remember-decisions` nie zostawia pliku odpowiedzi
+obok źródła.
+
 ## Ograniczenia
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:

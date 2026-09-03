@@ -124,27 +124,26 @@ def _subset(data: bytes, characters: "set[str]") -> "tuple[bytes, set[str]] | No
 
 def _cut(data: bytes, characters: "set[str]", fontsubset, TTFont):
     """The cut itself, with the noise already turned down by the caller."""
-    if True:
-        font = TTFont(io.BytesIO(data), fontNumber=0, lazy=False)
-        had = set(font.keys())
-        options = fontsubset.Options()
-        # Layout features stay: a book that uses ligatures or small caps is
-        # relying on them, and dropping them changes how the page looks while
-        # the text stays identical — the exact damage the appearance gate
-        # exists to catch, done deliberately.
-        options.layout_features = ["*"]
-        options.name_IDs = ["*"]
-        options.notdef_outline = True
-        options.recalc_bounds = True
-        # `--drop-tables` defaults already shed the exotic tables the shelf
-        # measurement saw warnings about (FontForge's FFTM, Apple's feat and
-        # morx). Named here so the choice is visible rather than inherited.
-        subsetter = fontsubset.Subsetter(options=options)
-        subsetter.populate(text="".join(sorted(characters)))
-        subsetter.subset(font)
-        out = io.BytesIO()
-        font.save(out)
-        return out.getvalue(), had - set(font.keys())
+    font = TTFont(io.BytesIO(data), fontNumber=0, lazy=False)
+    had = set(font.keys())
+    options = fontsubset.Options()
+    # Layout features stay: a book that uses ligatures or small caps is
+    # relying on them, and dropping them changes how the page looks while
+    # the text stays identical — the exact damage the appearance gate
+    # exists to catch, done deliberately.
+    options.layout_features = ["*"]
+    options.name_IDs = ["*"]
+    options.notdef_outline = True
+    options.recalc_bounds = True
+    # `--drop-tables` defaults already shed the exotic tables the shelf
+    # measurement saw warnings about (FontForge's FFTM, Apple's feat and
+    # morx). Named here so the choice is visible rather than inherited.
+    subsetter = fontsubset.Subsetter(options=options)
+    subsetter.populate(text="".join(sorted(characters)))
+    subsetter.subset(font)
+    out = io.BytesIO()
+    font.save(out)
+    return out.getvalue(), had - set(font.keys())
 
 
 class FontSubsetStage(Stage):

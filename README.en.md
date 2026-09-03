@@ -235,6 +235,14 @@ itself spells the word without a hyphen elsewhere, or a dictionary says the
 first half is not a word, so no such compound exists. `savoir-vivre` and
 `czarno-czerwony` are never asked about.
 
+Every kind of question can be switched off, by a tick in the window and by a
+flag on the command line: `--no-image-questions`, `--no-table-questions`,
+`--no-typography-questions`, `--no-hyphen-questions`,
+`--no-substitution-questions`, `--no-footnote-questions`. A detector switched
+off assumes nothing — it simply does not ask, and the book is left as it came
+in those places. `--no-remember-decisions` leaves no answers file beside the
+source.
+
 ## Limits
 
 Things worth knowing before rather than after:

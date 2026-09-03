@@ -40,6 +40,23 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Every switch the window has, the command line has too
+
+The audit of 2026-09-03 mirrored the window's "every choice is reachable"
+ratchet at the command line and found nine fields that had drifted into
+window-only: the detectors for images, tables, typography, hyphens and
+letter substitutions, image transcoding, font de-obfuscation and the answers
+file beside the book. In a batch the image questions are most of what a
+person is asked, and a script could not switch them off. Eight flags now
+exist (`--no-image-questions`, `--no-table-questions`,
+`--no-typography-questions`, `--no-hyphen-questions`,
+`--no-substitution-questions`, `--keep-image-formats`,
+`--keep-font-obfuscation`, `--no-remember-decisions`), each a switch and
+never an answer given on anybody's behalf, and a test holds the line in this
+direction the way `test_gui_reaches_everything.py` holds it in the other.
+The one deliberate exemption is the text check: K1 is the gate this program
+promises never to stand down, and a flag would sit in a script for ever.
+
 ### Kobo's own flavour of the file, on request
 
 A Kobo reader opens a plain `.epub` with Adobe's renderer and a `.kepub.epub`

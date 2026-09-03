@@ -120,6 +120,26 @@ def build_policy(args: argparse.Namespace) -> Policy:
         policy.translate_class_names = False
     if getattr(args, "no_footnote_questions", False):
         policy.link_footnotes = False
+    # The audit of 2026-09-03 (A-09): these were reachable from the window and
+    # not from here, and in a batch the image questions are most of what a
+    # person is asked. Same shape as --no-footnote-questions: the detector is
+    # switched off, nothing is answered on anybody's behalf.
+    if getattr(args, "no_image_questions", False):
+        policy.detect_undescribed_images = False
+    if getattr(args, "no_table_questions", False):
+        policy.detect_layout_tables = False
+    if getattr(args, "no_typography_questions", False):
+        policy.detect_typography = False
+    if getattr(args, "no_hyphen_questions", False):
+        policy.detect_hyphens = False
+    if getattr(args, "no_substitution_questions", False):
+        policy.detect_substitutions = False
+    if getattr(args, "keep_image_formats", False):
+        policy.transcode_images = False
+    if getattr(args, "keep_font_obfuscation", False):
+        policy.deobfuscate_fonts = False
+    if getattr(args, "no_remember_decisions", False):
+        policy.remember_decisions = False
     if getattr(args, "no_memory_check", False):
         policy.check_memory = False
     if getattr(args, "memory_limit", None):
@@ -1199,6 +1219,58 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "never ask about bare [N] footnote markers; detection is skipped "
             "entirely and nothing is linked"
+        ),
+    )
+    build.add_argument(
+        "--no-image-questions",
+        action="store_true",
+        help=(
+            "never ask about images without a usable text alternative; the "
+            "detector is skipped and no alt or role is written"
+        ),
+    )
+    build.add_argument(
+        "--no-table-questions",
+        action="store_true",
+        help=(
+            "never ask about prose put in a one-cell or one-column table; nothing "
+            "is marked as layout"
+        ),
+    )
+    build.add_argument(
+        "--no-typography-questions",
+        action="store_true",
+        help="never ask about typographic defects (the --typography repair is separate)",
+    )
+    build.add_argument(
+        "--no-hyphen-questions",
+        action="store_true",
+        help="never ask about conversion hyphen artefacts; nothing is joined",
+    )
+    build.add_argument(
+        "--no-substitution-questions",
+        action="store_true",
+        help="never ask about one letter written for another; nothing is replaced",
+    )
+    build.add_argument(
+        "--keep-image-formats",
+        action="store_true",
+        help=(
+            "keep BMP and TIFF images as they are instead of transcoding them "
+            "losslessly to a core format"
+        ),
+    )
+    build.add_argument(
+        "--keep-font-obfuscation",
+        action="store_true",
+        help="leave obfuscated fonts obfuscated and declared as such",
+    )
+    build.add_argument(
+        "--no-remember-decisions",
+        action="store_true",
+        help=(
+            "do not read or write the answers file beside the book; every "
+            "question is asked afresh and nothing is left next to the source"
         ),
     )
     build.add_argument(
