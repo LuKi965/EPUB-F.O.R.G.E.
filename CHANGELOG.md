@@ -51,6 +51,13 @@ the package document it writes, and the id map beside it are byte for byte
 what they were on all 160 books, and the suite is unchanged. Nothing for a
 reader of books to notice; something for a reader of the code.
 
+The content stage's two heaviest methods followed — the reference rewrite
+and the translation of presentational attributes, at 47 each — into one
+method per kind of reference and one helper per family of attributes, in
+the same order. Held to a stronger fingerprint still: every book on the
+shelf rebuilt reproducibly before and after, whole output file hashed, no
+byte moved.
+
 ### The validator's allowance grows with the file
 
 The largest book on the owner's shelf (28.6 MB, 9 810 documents) got no

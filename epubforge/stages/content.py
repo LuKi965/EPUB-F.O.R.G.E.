@@ -443,6 +443,193 @@ def _has_flow_text(root) -> bool:
     return bool("".join(body.itertext()).strip())
 
 
+
+def _translate_alignment(element, tag: str, declarations: list[str], changed: set[str]) -> None:
+    align = (element.get("align") or "").strip().lower()
+    if align:
+        if tag == "img" and align in {"left", "right"}:
+            declarations.append(f"float: {align};")
+        elif tag == "table" and align == "center":
+            declarations.append("margin-left: auto; margin-right: auto;")
+        elif align in {"left", "right", "center", "justify"}:
+            declarations.append(f"text-align: {align};")
+        element.attrib.pop("align", None)
+        changed.add("align")
+
+    valign = (element.get("valign") or "").strip().lower()
+    if valign:
+        declarations.append(f"vertical-align: {valign};")
+        element.attrib.pop("valign", None)
+        changed.add("valign")
+
+
+def _translate_colours(element, tag: str, declarations: list[str], changed: set[str]) -> None:
+    for attribute, property_name in (("bgcolor", "background-color"), ("color", "color")):
+        value = element.get(attribute)
+        if value and tag != "font":
+            declarations.append(f"{property_name}: {value.strip()};")
+            element.attrib.pop(attribute, None)
+            changed.add(attribute)
+
+
+def _translate_body_palette(element, tag: str, declarations: list[str], changed: set[str]) -> None:
+    # The rest of the HTML 3.2 `<body>` palette. `bgcolor` was handled from
+    # the start and these four were not, which is how a Dutch and English
+    # shelf of 67 books produced forty-two EPUBCheck errors in one run —
+    # `text`, `link`, `vlink` and `bordercolor`, all of them written by
+    # Word and Sigil and all of them still meaning something on the page.
+    #
+    # `text` is the body's colour and translates exactly. The link colours
+    # do not have a plain equivalent, because CSS says them with pseudo
+    # classes and an inline style cannot hold one; they are dropped and
+    # counted rather than guessed at, since inventing `a:link { }` in a
+    # shared stylesheet would reach documents nobody looked at.
+    if tag != "body":
+        return
+    text_colour = element.get("text")
+    if text_colour:
+        declarations.append(f"color: {text_colour.strip()};")
+        element.attrib.pop("text", None)
+        changed.add("text")
+    for attribute in ("link", "vlink", "alink"):
+        if element.get(attribute) is not None:
+            element.attrib.pop(attribute, None)
+            changed.add(attribute)
+
+
+def _translate_border_colour(element, declarations: list[str], changed: set[str]) -> None:
+    # Table borders in colour, from the same era and the same generators.
+    if element.get("bordercolor") is not None:
+        colour = element.get("bordercolor").strip()
+        if colour:
+            declarations.append(f"border-color: {colour};")
+        element.attrib.pop("bordercolor", None)
+        changed.add("bordercolor")
+
+
+def _drop_windowing_attributes(element, tag: str, changed: set[str]) -> None:
+    # `target` tells a browser which window to open a link in. An EPUB has
+    # no windows, EPUB 3 does not allow the attribute, and removing it
+    # changes nothing anybody can see.
+    #
+    # Not only on `<a>`, which is where this looked for it and where it never
+    # actually was. Two books on the mixed shelf kept an `RSC-005` about
+    # `target` through `preserve` and lost it in `strict` — which is not the
+    # attribute being handled but the element carrying it being unwrapped by
+    # a strict-only cleanup, and the tell that it was sitting somewhere else
+    # entirely. A converter copies attributes wholesale; `target` on a
+    # `<span>` renders exactly as `target` on an `<a>` does, which is not at
+    # all.
+    if element.get("target") is not None:
+        element.attrib.pop("target", None)
+        changed.add("target")
+
+    # `value` numbers an item in an ordered list and means nothing anywhere
+    # else. The `<li>` case is handled on its own terms; this is the
+    # attribute turning up on elements that never had a use for it, which
+    # is what a converter does when it copies attributes wholesale.
+    if tag not in ("li", "option", "param", "input", "button", "data", "meter", "progress"):
+        if element.get("value") is not None:
+            element.attrib.pop("value", None)
+            changed.add("value")
+
+
+def _translate_table_attributes(element, tag: str, declarations: list[str], changed: set[str]) -> None:
+    if tag != "table":
+        return
+    border = element.get("border")
+    if border is not None:
+        width = _css_length(border) or "1px"
+        declarations.append(
+            "border-style: solid; border-width: %s;" % ("0" if border.strip() == "0" else width)
+        )
+        element.attrib.pop("border", None)
+        changed.add("border")
+    spacing = element.get("cellspacing")
+    if spacing is not None:
+        length = _css_length(spacing)
+        if length:
+            declarations.append(f"border-spacing: {length};")
+        element.attrib.pop("cellspacing", None)
+        changed.add("cellspacing")
+    element.attrib.pop("cellpadding", None)
+    element.attrib.pop("summary", None)
+
+
+def _translate_spacing(element, declarations: list[str], changed: set[str]) -> None:
+    for attribute, properties in (("hspace", ("margin-left", "margin-right")), ("vspace", ("margin-top", "margin-bottom"))):
+        value = element.get(attribute)
+        if value:
+            length = _css_length(value)
+            if length:
+                declarations.extend(f"{prop}: {length};" for prop in properties)
+            element.attrib.pop(attribute, None)
+            changed.add(attribute)
+
+
+def _drop_list_value_outside_ol(element, tag: str, changed: set[str]) -> None:
+    # HTML 5 allows `value` on a list item only inside an ordered list,
+    # where it sets the number. Inside `<ul>` it numbers nothing and no
+    # renderer has ever drawn it — but it makes the document invalid, and
+    # a MOBI back-conversion carries one on every bullet it ever had.
+    if tag == "li" and element.get("value") is not None:
+        parent = element.getparent()
+        if parent is None or xhtml.local_name(parent).lower() != "ol":
+            element.attrib.pop("value", None)
+            changed.add("li[value]")
+
+
+def _translate_clear(element, tag: str, declarations: list[str], changed: set[str]) -> None:
+    if tag == "br" and element.get("clear"):
+        clear = element.get("clear").strip().lower()
+        declarations.append(f"clear: {'both' if clear == 'all' else clear};")
+        element.attrib.pop("clear", None)
+        changed.add("br[clear]")
+
+
+def _translate_dimensions(element, tag: str, declarations: list[str], changed: set[str]) -> None:
+    # HTML 5 keeps width/height on replaced elements, but only as bare
+    # integers. XHTML 1.1 allowed percentages, so EPUB 2 books carry values
+    # like width="10%" that make an EPUB 3 parser reject the document.
+    replaced = tag in {"img", "canvas", "video", "iframe", "embed", "object", "svg"}
+    for attribute in ("width", "height"):
+        value = (element.get(attribute) or "").strip()
+        if not value:
+            continue
+        if replaced and re.fullmatch(r"\d+", value):
+            continue
+        length = _css_length(value)
+        if length:
+            declarations.append(f"{attribute}: {length};")
+        element.attrib.pop(attribute, None)
+        changed.add(attribute)
+
+
+def _drop_obsolete_attributes(element, changed: set[str]) -> None:
+    for obsolete in ("nowrap", "compact", "noshade", "frameborder", "scrolling", "language"):
+        if element.get(obsolete) is not None:
+            element.attrib.pop(obsolete, None)
+            changed.add(obsolete)
+
+
+class _ReferenceTally:
+    """What one document's reference rewrite found, for the report and the
+    commit gate: counts by outcome, the dead references with the attribute
+    they sit in, and up to three examples of what nobody could resolve."""
+
+    def __init__(self) -> None:
+        self.broken = 0
+        self.misdirected = 0
+        self.unresolved = 0
+        self.repointed = 0
+        self.sent_to_document = 0
+        #: `(element, attribute, dead)`. `dead` is empty for a scalar attribute,
+        #: where the whole value is the dead reference; for a list attribute it
+        #: names the candidates that are dead, since the rest of the list may be
+        #: perfectly good and must survive.
+        self.dangling: list[tuple[object, str, tuple[str, ...]]] = []
+        self.examples: list[str] = []
+
 def _append_style(element, declarations: str) -> None:
     if not declarations:
         return
@@ -1182,185 +1369,22 @@ class ContentStage(Stage):
     def _rewrite_references(
         self, ctx: Context, root, resource, global_ids: dict, present_ids: dict
     ) -> None:
-        """Repoint every href/src at the resource's new location."""
+        """Repoint every href/src at the resource's new location.
+
+        One element attribute at a time, each kind in its own method since the
+        audit of 2026-09-03 (A-04); the tally carries what the report and the
+        commit gate need to know afterwards.
+        """
         source_path = resource.original_path or resource.path
-        broken = 0
-        misdirected = 0
-        unresolved = 0
-        repointed = 0
-        sent_to_document = 0
-        #: `(element, attribute, dead)`. `dead` is empty for a scalar attribute,
-        #: where the whole value is the dead reference; for a list attribute it
-        #: names the candidates that are dead, since the rest of the list may be
-        #: perfectly good and must survive.
-        dangling: list[tuple[object, str, tuple[str, ...]]] = []
-        examples: list[str] = []
-
-        def resolves(path: str, fragment: str) -> bool:
-            """Is there anything in `path` carrying that id?
-
-            Only answerable for documents this stage parsed. A fragment into a
-            resource nobody here has read — an SVG, say — is left alone: an
-            unanswered question is not the same as a "no", and dropping the
-            fragment on a guess would break a link that works.
-            """
-            known = present_ids.get(path)
-            return known is None or fragment in known
-
-        def unresolvable(element, target_path: str, fragment: str) -> references.Decision:
-            """Record one reference nothing here can resolve, and ask about it.
-
-            The question carries what a person needs to answer it: the link's
-            own text — for a footnote that is the number the reader sees — and
-            the anchors the target document does have. Nobody to ask is the
-            normal case and answers `keep`.
-            """
-            nonlocal unresolved
-            question = references.Unresolved(
-                document=resource.path,
-                target=target_path,
-                fragment=fragment,
-                text=re.sub(r"\s+", " ", "".join(element.itertext())).strip()[:80],
-                candidates=tuple(sorted(present_ids.get(target_path) or ())),
-            )
-            answer = ctx.ask(question)
-            if answer.action == references.KEEP:
-                # Recorded only when it stays unresolved. `strict` reads this
-                # list to decide whether the book may be published at all, and
-                # a reference a person has just answered is answered.
-                ctx.unresolved.append(question)
-                unresolved += 1
-                if len(examples) < 3:
-                    examples.append(str(question))
-            return answer
+        tally = _ReferenceTally()
 
         for element in xhtml.iter_elements(root):
             for attribute in REFERENCE_ATTRS:
-                value = element.get(attribute)
-                if not value:
-                    continue
-                value = value.strip()
-                if paths.is_remote(value):
-                    continue
-                if value.startswith("#"):
-                    fragment = value[1:]
-                    local_map = global_ids.get(resource.path, {})
-                    if fragment in local_map:
-                        # REPAIRED: this rebuild renamed that id and holds the
-                        # map that says what to.
-                        element.set(attribute, f"#{local_map[fragment]}")
-                    elif fragment and not resolves(resource.path, fragment):
-                        # Nothing in this document answers to that name.
-                        #
-                        # This used to remove the attribute — the link became
-                        # inert text and the validator stopped complaining. That
-                        # is the same false repair as the cross-document case
-                        # below, one step further along: a link the publisher
-                        # wrote is *gone*, and the report called it a fix. The
-                        # reference stays now, and a person may decide otherwise.
-                        answer = unresolvable(element, resource.path, fragment)
-                        if answer.action == references.REPOINT:
-                            element.set(attribute, f"#{answer.fragment}")
-                            repointed += 1
-                        elif answer.action == references.POINT_AT_DOCUMENT:
-                            # There is no such thing as a same-document
-                            # reference to no place: `href="#"` is not one. A
-                            # person asking for this is asking for the link to
-                            # stop being a link, which is what removing the
-                            # attribute does — the text stays put.
-                            element.attrib.pop(attribute, None)
-                            sent_to_document += 1
-                    continue
-
-                target = paths.resolve(source_path, value)
-                if target is None:
-                    continue
-                new_target = ctx.path_map.get(target)
-                if new_target is None:
-                    # **A path miss is not evidence that the target is absent.**
-                    # `images/a.png` written from a document in `text/`, where
-                    # the picture sits at `images/a.png` from the *root*, is one
-                    # missing `../` and a picture the reader can see.
-                    #
-                    # Measured over twenty books of both corpora and the owner's
-                    # shelf: three dangling references in total, and **all
-                    # three** had a file of that name elsewhere in the same
-                    # book. Strict was unlinking pictures that were right there.
-                    #
-                    # Repointed only where there is exactly one candidate, which
-                    # makes it a derivation rather than a guess; two candidates
-                    # is a question this cannot answer, so it is left alone.
-                    relocated = _one_candidate_named(ctx, target)
-                    if relocated is not None:
-                        element.set(attribute, paths.relative(resource.path, relocated))
-                        misdirected += 1
-                        continue
-                    broken += 1
-                    dangling.append((element, attribute, ()))
-                    continue
-                fragment = value.partition("#")[2]
-                if fragment:
-                    remapped = global_ids.get(new_target, {}).get(fragment)
-                    fragment = remapped or fragment
-                    if not resolves(new_target, fragment):
-                        # The file is there and the anchor is not — what a PDF
-                        # conversion leaves behind when only half the pages get
-                        # an id.
-                        #
-                        # **The fragment is never dropped**, in any mode.
-                        # Measured: a `noteref` to `przypisy.xhtml#fn-17` came
-                        # out pointing at `przypisy.xhtml`, so tapping footnote
-                        # seventeen landed on footnote one — a working link to
-                        # the wrong place, which is worse than a broken one a
-                        # reader can see, and this tool called it a repair.
-                        # Strict is no licence either: it promises the output
-                        # conforms, and a fragment removed to buy a validator's
-                        # silence keeps that promise by breaking the book. What
-                        # the modes disagree about is whether the result may be
-                        # published, decided at the commit gate (F-010).
-                        answer = unresolvable(element, new_target, fragment)
-                        if answer.action == references.REPOINT:
-                            fragment = answer.fragment
-                            repointed += 1
-                        elif answer.action == references.POINT_AT_DOCUMENT:
-                            fragment = ""
-                            sent_to_document += 1
-                href = paths.relative(resource.path, new_target)
-                element.set(attribute, f"{href}#{fragment}" if fragment else href)
-
+                self._rewrite_reference_attribute(
+                    ctx, element, attribute, resource, source_path, global_ids, present_ids, tally
+                )
             for attribute in REFERENCE_LISTS:
-                value = element.get(attribute)
-                if not value or not value.strip():
-                    continue
-                rewritten: list[tuple[str, str]] = []
-                dead: list[str] = []
-                for candidate, descriptor in _split_srcset(value):
-                    if paths.is_remote(candidate) or candidate.startswith("#"):
-                        rewritten.append((candidate, descriptor))
-                        continue
-                    target = paths.resolve(source_path, candidate)
-                    if target is None:
-                        rewritten.append((candidate, descriptor))
-                        continue
-                    new_target = ctx.path_map.get(target)
-                    if new_target is None:
-                        relocated = _one_candidate_named(ctx, target)
-                        if relocated is None:
-                            # Kept in the list for now. Whether it survives is
-                            # the mode's decision, taken below with every other
-                            # dead reference, not this loop's.
-                            rewritten.append((candidate, descriptor))
-                            dead.append(candidate)
-                            continue
-                        new_target = relocated
-                        misdirected += 1
-                    rewritten.append((paths.relative(resource.path, new_target), descriptor))
-                new_value = _join_srcset(rewritten)
-                if new_value != value:
-                    element.set(attribute, new_value)
-                if dead:
-                    broken += len(dead)
-                    dangling.append((element, attribute, tuple(dead)))
+                self._rewrite_reference_list(ctx, element, attribute, resource, source_path, tally)
 
             style = element.get("style")
             if style and "url(" in style:
@@ -1376,7 +1400,217 @@ class ContentStage(Stage):
                 text = self._rewrite_css_urls(ctx, text, source_path, resource.path)
             style_element.text = text
 
-        if unresolved:
+        self._report_references(ctx, resource, tally, remote_imports)
+
+        if not tally.broken:
+            return
+        if not ctx.policy.strict:
+            dangling = self._drop_dead_links(ctx, tally.dangling, resource)
+            broken = sum(len(dead) or 1 for _, _, dead in dangling)
+            if broken:
+                self.note(
+                    ctx,
+                    Level.PRESERVED,
+                    "xhtml.dead-reference-kept",
+                    values={"count": broken},
+                    location=resource.path,
+                )
+            return
+        self._neutralise(ctx, tally.dangling, resource)
+
+    @staticmethod
+    def _resolves(present_ids: dict, path: str, fragment: str) -> bool:
+        """Is there anything in `path` carrying that id?
+
+        Only answerable for documents this stage parsed. A fragment into a
+        resource nobody here has read — an SVG, say — is left alone: an
+        unanswered question is not the same as a "no", and dropping the
+        fragment on a guess would break a link that works.
+        """
+        known = present_ids.get(path)
+        return known is None or fragment in known
+
+    def _ask_unresolvable(
+        self, ctx: Context, element, resource, target_path: str, fragment: str,
+        present_ids: dict, tally: "_ReferenceTally",
+    ) -> references.Decision:
+        """Record one reference nothing here can resolve, and ask about it.
+
+        The question carries what a person needs to answer it: the link's
+        own text — for a footnote that is the number the reader sees — and
+        the anchors the target document does have. Nobody to ask is the
+        normal case and answers `keep`.
+        """
+        question = references.Unresolved(
+            document=resource.path,
+            target=target_path,
+            fragment=fragment,
+            text=re.sub(r"\s+", " ", "".join(element.itertext())).strip()[:80],
+            candidates=tuple(sorted(present_ids.get(target_path) or ())),
+        )
+        answer = ctx.ask(question)
+        if answer.action == references.KEEP:
+            # Recorded only when it stays unresolved. `strict` reads this
+            # list to decide whether the book may be published at all, and
+            # a reference a person has just answered is answered.
+            ctx.unresolved.append(question)
+            tally.unresolved += 1
+            if len(tally.examples) < 3:
+                tally.examples.append(str(question))
+        return answer
+
+    def _rewrite_reference_attribute(
+        self, ctx: Context, element, attribute: str, resource, source_path: str,
+        global_ids: dict, present_ids: dict, tally: "_ReferenceTally",
+    ) -> None:
+        """One scalar reference — `href`, `src`, and the rest of REFERENCE_ATTRS."""
+        value = element.get(attribute)
+        if not value:
+            return
+        value = value.strip()
+        if paths.is_remote(value):
+            return
+        if value.startswith("#"):
+            self._rewrite_local_fragment(
+                ctx, element, attribute, value[1:], resource, global_ids, present_ids, tally
+            )
+            return
+
+        target = paths.resolve(source_path, value)
+        if target is None:
+            return
+        new_target = ctx.path_map.get(target)
+        if new_target is None:
+            # **A path miss is not evidence that the target is absent.**
+            # `images/a.png` written from a document in `text/`, where
+            # the picture sits at `images/a.png` from the *root*, is one
+            # missing `../` and a picture the reader can see.
+            #
+            # Measured over twenty books of both corpora and the owner's
+            # shelf: three dangling references in total, and **all
+            # three** had a file of that name elsewhere in the same
+            # book. Strict was unlinking pictures that were right there.
+            #
+            # Repointed only where there is exactly one candidate, which
+            # makes it a derivation rather than a guess; two candidates
+            # is a question this cannot answer, so it is left alone.
+            relocated = _one_candidate_named(ctx, target)
+            if relocated is not None:
+                element.set(attribute, paths.relative(resource.path, relocated))
+                tally.misdirected += 1
+                return
+            tally.broken += 1
+            tally.dangling.append((element, attribute, ()))
+            return
+        fragment = value.partition("#")[2]
+        if fragment:
+            remapped = global_ids.get(new_target, {}).get(fragment)
+            fragment = remapped or fragment
+            if not self._resolves(present_ids, new_target, fragment):
+                # The file is there and the anchor is not — what a PDF
+                # conversion leaves behind when only half the pages get
+                # an id.
+                #
+                # **The fragment is never dropped**, in any mode.
+                # Measured: a `noteref` to `przypisy.xhtml#fn-17` came
+                # out pointing at `przypisy.xhtml`, so tapping footnote
+                # seventeen landed on footnote one — a working link to
+                # the wrong place, which is worse than a broken one a
+                # reader can see, and this tool called it a repair.
+                # Strict is no licence either: it promises the output
+                # conforms, and a fragment removed to buy a validator's
+                # silence keeps that promise by breaking the book. What
+                # the modes disagree about is whether the result may be
+                # published, decided at the commit gate (F-010).
+                answer = self._ask_unresolvable(
+                    ctx, element, resource, new_target, fragment, present_ids, tally
+                )
+                if answer.action == references.REPOINT:
+                    fragment = answer.fragment
+                    tally.repointed += 1
+                elif answer.action == references.POINT_AT_DOCUMENT:
+                    fragment = ""
+                    tally.sent_to_document += 1
+        href = paths.relative(resource.path, new_target)
+        element.set(attribute, f"{href}#{fragment}" if fragment else href)
+
+    def _rewrite_local_fragment(
+        self, ctx: Context, element, attribute: str, fragment: str, resource,
+        global_ids: dict, present_ids: dict, tally: "_ReferenceTally",
+    ) -> None:
+        """A same-document reference, `#anchor`."""
+        local_map = global_ids.get(resource.path, {})
+        if fragment in local_map:
+            # REPAIRED: this rebuild renamed that id and holds the
+            # map that says what to.
+            element.set(attribute, f"#{local_map[fragment]}")
+        elif fragment and not self._resolves(present_ids, resource.path, fragment):
+            # Nothing in this document answers to that name.
+            #
+            # This used to remove the attribute — the link became
+            # inert text and the validator stopped complaining. That
+            # is the same false repair as the cross-document case,
+            # one step further along: a link the publisher
+            # wrote is *gone*, and the report called it a fix. The
+            # reference stays now, and a person may decide otherwise.
+            answer = self._ask_unresolvable(
+                ctx, element, resource, resource.path, fragment, present_ids, tally
+            )
+            if answer.action == references.REPOINT:
+                element.set(attribute, f"#{answer.fragment}")
+                tally.repointed += 1
+            elif answer.action == references.POINT_AT_DOCUMENT:
+                # There is no such thing as a same-document
+                # reference to no place: `href="#"` is not one. A
+                # person asking for this is asking for the link to
+                # stop being a link, which is what removing the
+                # attribute does — the text stays put.
+                element.attrib.pop(attribute, None)
+                tally.sent_to_document += 1
+
+    def _rewrite_reference_list(
+        self, ctx: Context, element, attribute: str, resource, source_path: str,
+        tally: "_ReferenceTally",
+    ) -> None:
+        """A list reference — `srcset` — where the dead candidates are named
+        and the live ones must survive."""
+        value = element.get(attribute)
+        if not value or not value.strip():
+            return
+        rewritten: list[tuple[str, str]] = []
+        dead: list[str] = []
+        for candidate, descriptor in _split_srcset(value):
+            if paths.is_remote(candidate) or candidate.startswith("#"):
+                rewritten.append((candidate, descriptor))
+                continue
+            target = paths.resolve(source_path, candidate)
+            if target is None:
+                rewritten.append((candidate, descriptor))
+                continue
+            new_target = ctx.path_map.get(target)
+            if new_target is None:
+                relocated = _one_candidate_named(ctx, target)
+                if relocated is None:
+                    # Kept in the list for now. Whether it survives is
+                    # the mode's decision, taken with every other
+                    # dead reference, not this loop's.
+                    rewritten.append((candidate, descriptor))
+                    dead.append(candidate)
+                    continue
+                new_target = relocated
+                tally.misdirected += 1
+            rewritten.append((paths.relative(resource.path, new_target), descriptor))
+        new_value = _join_srcset(rewritten)
+        if new_value != value:
+            element.set(attribute, new_value)
+        if dead:
+            tally.broken += len(dead)
+            tally.dangling.append((element, attribute, tuple(dead)))
+
+    def _report_references(
+        self, ctx: Context, resource, tally: "_ReferenceTally", remote_imports: int
+    ) -> None:
+        if tally.unresolved:
             # WARN, not PRESERVED, and the level is the finding. `PRESERVED`
             # means *this program decided to keep a deviation because removing
             # it would change how the book looks* — a decision with a reason
@@ -1388,23 +1622,23 @@ class ContentStage(Stage):
                 ctx,
                 Level.WARN,
                 "xhtml.fragment-unresolved",
-                values={"count": unresolved, "examples": "; ".join(examples)},
+                values={"count": tally.unresolved, "examples": "; ".join(tally.examples)},
                 location=resource.path,
             )
-        if repointed:
+        if tally.repointed:
             self.note(
                 ctx,
                 Level.FIX,
                 "xhtml.fragment-repointed",
-                values={"count": repointed},
+                values={"count": tally.repointed},
                 location=resource.path,
             )
-        if sent_to_document:
+        if tally.sent_to_document:
             self.note(
                 ctx,
                 Level.FIX,
                 "xhtml.dead-fragment-dropped",
-                values={"count": sent_to_document},
+                values={"count": tally.sent_to_document},
                 location=resource.path,
             )
         if remote_imports:
@@ -1421,40 +1655,24 @@ class ContentStage(Stage):
                 location=resource.path,
             )
 
-        if misdirected:
+        if tally.misdirected:
             self.note(
                 ctx,
                 Level.FIX,
                 "xhtml.reference-relocated",
-                values={"count": misdirected},
+                values={"count": tally.misdirected},
                 location=resource.path,
             )
             self.changed(
                 ctx,
                 Action.REPLACED,
                 resource.path,
-                before=f"{misdirected} reference(s) whose path named nothing",
+                before=f"{tally.misdirected} reference(s) whose path named nothing",
                 after="the one resource of that name the book does contain",
                 risk=Risk.NONE,
                 reversible=True,
                 rule="xhtml.reference-relocated",
             )
-
-        if not broken:
-            return
-        if not ctx.policy.strict:
-            dangling = self._drop_dead_links(ctx, dangling, resource)
-            broken = sum(len(dead) or 1 for _, _, dead in dangling)
-            if broken:
-                self.note(
-                    ctx,
-                    Level.PRESERVED,
-                    "xhtml.dead-reference-kept",
-                    values={"count": broken},
-                    location=resource.path,
-                )
-            return
-        self._neutralise(ctx, dangling, resource)
 
     def _drop_dead_links(self, ctx: Context, dangling: list, resource) -> list:
         """Preserve mode's one removal among dead references: a `<link>` in
@@ -3148,152 +3366,21 @@ class ContentStage(Stage):
         return found
 
     def _presentational_attributes(self, element, tag: str, changed: set[str]) -> None:
+        """Every HTML 3.2 attribute this element carries, translated into the
+        CSS it meant and removed — one family of attributes per helper, in
+        the order the inline style has always been assembled in."""
         declarations: list[str] = []
-
-        align = (element.get("align") or "").strip().lower()
-        if align:
-            if tag == "img" and align in {"left", "right"}:
-                declarations.append(f"float: {align};")
-            elif tag == "table" and align == "center":
-                declarations.append("margin-left: auto; margin-right: auto;")
-            elif align in {"left", "right", "center", "justify"}:
-                declarations.append(f"text-align: {align};")
-            element.attrib.pop("align", None)
-            changed.add("align")
-
-        valign = (element.get("valign") or "").strip().lower()
-        if valign:
-            declarations.append(f"vertical-align: {valign};")
-            element.attrib.pop("valign", None)
-            changed.add("valign")
-
-        for attribute, property_name in (("bgcolor", "background-color"), ("color", "color")):
-            value = element.get(attribute)
-            if value and tag != "font":
-                declarations.append(f"{property_name}: {value.strip()};")
-                element.attrib.pop(attribute, None)
-                changed.add(attribute)
-
-        # The rest of the HTML 3.2 `<body>` palette. `bgcolor` was handled from
-        # the start and these four were not, which is how a Dutch and English
-        # shelf of 67 books produced forty-two EPUBCheck errors in one run —
-        # `text`, `link`, `vlink` and `bordercolor`, all of them written by
-        # Word and Sigil and all of them still meaning something on the page.
-        #
-        # `text` is the body's colour and translates exactly. The link colours
-        # do not have a plain equivalent, because CSS says them with pseudo
-        # classes and an inline style cannot hold one; they are dropped and
-        # counted rather than guessed at, since inventing `a:link { }` in a
-        # shared stylesheet would reach documents nobody looked at.
-        if tag == "body":
-            text_colour = element.get("text")
-            if text_colour:
-                declarations.append(f"color: {text_colour.strip()};")
-                element.attrib.pop("text", None)
-                changed.add("text")
-            for attribute in ("link", "vlink", "alink"):
-                if element.get(attribute) is not None:
-                    element.attrib.pop(attribute, None)
-                    changed.add(attribute)
-
-        # Table borders in colour, from the same era and the same generators.
-        if element.get("bordercolor") is not None:
-            colour = element.get("bordercolor").strip()
-            if colour:
-                declarations.append(f"border-color: {colour};")
-            element.attrib.pop("bordercolor", None)
-            changed.add("bordercolor")
-
-        # `target` tells a browser which window to open a link in. An EPUB has
-        # no windows, EPUB 3 does not allow the attribute, and removing it
-        # changes nothing anybody can see.
-        #
-        # Not only on `<a>`, which is where this looked for it and where it never
-        # actually was. Two books on the mixed shelf kept an `RSC-005` about
-        # `target` through `preserve` and lost it in `strict` — which is not the
-        # attribute being handled but the element carrying it being unwrapped by
-        # a strict-only cleanup, and the tell that it was sitting somewhere else
-        # entirely. A converter copies attributes wholesale; `target` on a
-        # `<span>` renders exactly as `target` on an `<a>` does, which is not at
-        # all.
-        if element.get("target") is not None:
-            element.attrib.pop("target", None)
-            changed.add("target")
-
-        # `value` numbers an item in an ordered list and means nothing anywhere
-        # else. The `<li>` case is handled below, on its own terms; this is the
-        # attribute turning up on elements that never had a use for it, which
-        # is what a converter does when it copies attributes wholesale.
-        if tag not in ("li", "option", "param", "input", "button", "data", "meter", "progress"):
-            if element.get("value") is not None:
-                element.attrib.pop("value", None)
-                changed.add("value")
-
-        if tag == "table":
-            border = element.get("border")
-            if border is not None:
-                width = _css_length(border) or "1px"
-                declarations.append(
-                    "border-style: solid; border-width: %s;" % ("0" if border.strip() == "0" else width)
-                )
-                element.attrib.pop("border", None)
-                changed.add("border")
-            spacing = element.get("cellspacing")
-            if spacing is not None:
-                length = _css_length(spacing)
-                if length:
-                    declarations.append(f"border-spacing: {length};")
-                element.attrib.pop("cellspacing", None)
-                changed.add("cellspacing")
-            element.attrib.pop("cellpadding", None)
-            element.attrib.pop("summary", None)
-
-        for attribute, properties in (("hspace", ("margin-left", "margin-right")), ("vspace", ("margin-top", "margin-bottom"))):
-            value = element.get(attribute)
-            if value:
-                length = _css_length(value)
-                if length:
-                    declarations.extend(f"{prop}: {length};" for prop in properties)
-                element.attrib.pop(attribute, None)
-                changed.add(attribute)
-
-        # HTML 5 allows `value` on a list item only inside an ordered list,
-        # where it sets the number. Inside `<ul>` it numbers nothing and no
-        # renderer has ever drawn it — but it makes the document invalid, and
-        # a MOBI back-conversion carries one on every bullet it ever had.
-        if tag == "li" and element.get("value") is not None:
-            parent = element.getparent()
-            if parent is None or xhtml.local_name(parent).lower() != "ol":
-                element.attrib.pop("value", None)
-                changed.add("li[value]")
-
-        if tag == "br" and element.get("clear"):
-            clear = element.get("clear").strip().lower()
-            declarations.append(f"clear: {'both' if clear == 'all' else clear};")
-            element.attrib.pop("clear", None)
-            changed.add("br[clear]")
-
-        # HTML 5 keeps width/height on replaced elements, but only as bare
-        # integers. XHTML 1.1 allowed percentages, so EPUB 2 books carry values
-        # like width="10%" that make an EPUB 3 parser reject the document.
-        replaced = tag in {"img", "canvas", "video", "iframe", "embed", "object", "svg"}
-        for attribute in ("width", "height"):
-            value = (element.get(attribute) or "").strip()
-            if not value:
-                continue
-            if replaced and re.fullmatch(r"\d+", value):
-                continue
-            length = _css_length(value)
-            if length:
-                declarations.append(f"{attribute}: {length};")
-            element.attrib.pop(attribute, None)
-            changed.add(attribute)
-
-        for obsolete in ("nowrap", "compact", "noshade", "frameborder", "scrolling", "language"):
-            if element.get(obsolete) is not None:
-                element.attrib.pop(obsolete, None)
-                changed.add(obsolete)
-
+        _translate_alignment(element, tag, declarations, changed)
+        _translate_colours(element, tag, declarations, changed)
+        _translate_body_palette(element, tag, declarations, changed)
+        _translate_border_colour(element, declarations, changed)
+        _drop_windowing_attributes(element, tag, changed)
+        _translate_table_attributes(element, tag, declarations, changed)
+        _translate_spacing(element, declarations, changed)
+        _drop_list_value_outside_ol(element, tag, changed)
+        _translate_clear(element, tag, declarations, changed)
+        _translate_dimensions(element, tag, declarations, changed)
+        _drop_obsolete_attributes(element, changed)
         declarations.extend(self._sweep_unknown_attributes(element, tag, changed))
 
         _append_style(element, " ".join(declarations))
