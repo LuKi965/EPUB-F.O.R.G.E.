@@ -108,26 +108,37 @@ TUNING = (
     "-XX:+UseSerialGC",
 )
 
+#: The warm validator lives for a whole shelf, and there the case for the
+#: quick compiler runs the other way. Measured 2026-09-03 (record 045): cold,
+#: on the largest book of the shelf (28.6 MB), the cap alone cost 329 s
+#: against 118 s without it, with the same one core and serial collector;
+#: warm, over the first twenty books of the shelf, the process without the cap
+#: was faster on every run (11.4 s and 11.8 s against 13.6 s and 12.8 s). A
+#: process that validates one book cannot earn the optimising compiler back;
+#: one that validates a hundred and sixty earns it back on the second.
+DAEMON_TUNING = tuple(flag for flag in TUNING if flag != "-XX:TieredStopAtLevel=1")
+
 
 @functools.lru_cache(maxsize=8)
-def accepted_tuning(java: str) -> tuple[str, ...]:
-    """The options above, if this JVM takes them, or nothing at all.
+def accepted_tuning(java: str, flags: tuple[str, ...] = TUNING) -> tuple[str, ...]:
+    """*flags*, if this JVM takes them, or nothing at all.
 
     HotSpot *fails to start* on an `-XX:` option it does not recognise, so a
     flag that is wrong for somebody's Java would not make validation slower, it
     would make it impossible. Other runtimes exist — OpenJ9 is the common one —
     and a user may point `EPUBCHECK_JAR` at whatever java is on their path.
 
-    Asked once per interpreter, and answered by the only authority there is:
-    starting that java with those options and seeing whether it comes up.
+    Asked once per interpreter and per set of flags, and answered by the only
+    authority there is: starting that java with those options and seeing
+    whether it comes up.
     """
     try:
         probe = spawn.run(
-            [java, *TUNING, "-version"], capture_output=True, timeout=60
+            [java, *flags, "-version"], capture_output=True, timeout=60
         )
     except (OSError, subprocess.SubprocessError):
         return ()
-    return TUNING if probe.returncode == 0 else ()
+    return flags if probe.returncode == 0 else ()
 
 
 def _tuned(command: list[str] | None) -> list[str] | None:
@@ -287,7 +298,7 @@ class SharedValidator:
         java = command[0]
         return [
             java,
-            *accepted_tuning(java),
+            *accepted_tuning(java, DAEMON_TUNING),
             "-cp",
             f"{jar}{separator}{driver.parent}",
             "ForgeValidator",

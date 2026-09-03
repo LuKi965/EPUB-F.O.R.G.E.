@@ -20,8 +20,11 @@ import pytest
 from epubforge import validate as validate_module
 from epubforge.report import Report
 from epubforge.validate import (
+    DAEMON_TUNING,
+    TUNING,
     VALIDATION_BASE_SECONDS,
     VALIDATION_SECONDS_PER_MEGABYTE,
+    SharedValidator,
     validate,
     validation_timeout,
 )
@@ -130,3 +133,27 @@ class TestRunningOutIsNamed:
         book = a_file_of(tmp_path, 3)
         validate(book, Report(source=book))
         assert seen == [validation_timeout(book)]
+
+
+class TestTheWarmValidatorKeepsTheOptimisingCompiler:
+    """Record 045: the C1-only cap cost 329 s against 118 s on the largest
+    book and lost on every warm run over twenty small ones. A cold process
+    for one book keeps the cap; the process that lives for a shelf does not."""
+
+    def test_the_daemon_flags_are_the_cold_flags_minus_the_cap(self):
+        assert "-XX:TieredStopAtLevel=1" in TUNING
+        assert "-XX:TieredStopAtLevel=1" not in DAEMON_TUNING
+        assert set(DAEMON_TUNING) == set(TUNING) - {"-XX:TieredStopAtLevel=1"}
+
+    def test_the_daemon_command_carries_no_cap(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(validate_module, "find_epubcheck", lambda: ["java", "-jar", "x.jar"])
+        monkeypatch.setattr(validate_module, "_driver_class", lambda: tmp_path / "ForgeValidator.class")
+        monkeypatch.setattr(validate_module, "accepted_tuning", lambda java, flags=TUNING: flags)
+        command = SharedValidator()._command()
+        assert command is not None
+        assert "-XX:TieredStopAtLevel=1" not in command
+        assert "-XX:+UseSerialGC" in command and "-XX:ActiveProcessorCount=1" in command
+
+    def test_the_cold_command_keeps_it(self, monkeypatch):
+        monkeypatch.setattr(validate_module, "accepted_tuning", lambda java, flags=TUNING: flags)
+        assert "-XX:TieredStopAtLevel=1" in validate_module._tuned(["java", "-jar", "x.jar"])

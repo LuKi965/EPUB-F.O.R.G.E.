@@ -62,6 +62,15 @@ is not retried cold for the same allowance again; and the report names the
 numbers — how many seconds were waited on how many megabytes — instead of
 "could not be run at all". The same file checked directly took 1 min 49 s.
 
+Measured afterwards, one JVM flag at a time: the whole difference was the
+quick-compiler cap (`TieredStopAtLevel=1`) — 329 s with it, 118 s without,
+with the same single core and serial collector. The cap was chosen for a
+cold process validating one small book, where the optimising compiler never
+pays for itself; the warm validator that lives for a whole shelf earns it
+back on the second book, and was faster without the cap on every warm run
+over twenty small books too. The warm validator now runs without it; a
+cold, one-book run keeps the flags it had.
+
 ### Every switch the window has, the command line has too
 
 The audit of 2026-09-03 mirrored the window's "every choice is reachable"
