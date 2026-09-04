@@ -136,7 +136,17 @@ in any of them. Two more that never touch a book's bytes went the same
 way: the command line's build handler (41: the refusals before anything
 runs, one source rebuilt, the line that says what became of it, the
 report kept) and the corpus summary (31: the tally, the lines that blame
-a rule).
+a rule). Then the hyphen stage's entry point (22: collecting the
+candidates apart from asking about them), the validator (27: running
+EPUBCheck, tallying its messages, saying when it gave no answer) and the
+inventory's measurement (49: the structure, the provenance, the damage
+walk, the typography, each its own function) — the inventory held to its
+own kind of fingerprint, every field of every shelf book measured by the
+old function and the new. And three last ones: the legacy-markup
+translation (25: `<font>` to a span, `<a name>` to an id, on their own),
+the manifest parser (25: where an item's `href` leads, the fallback and
+overlay references resolved once every item is known) and the font-stack
+repair (28: the verdict on one stack, the questions, the notes).
 
 The command line's policy builder, at 52, was fifty-two `if`s in a row,
 one per flag. The flags that set one field to one value are a table now

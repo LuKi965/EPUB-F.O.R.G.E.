@@ -36,6 +36,41 @@ from ..report import Action, Level, Risk
 from .base import Context, Stage
 
 
+def _collect_candidates(documents: list, words, tongue: str) -> tuple[dict, list, list, dict]:
+    """Every hyphen worth asking about, over every text node of every
+    document: counts by confidence, the confirmed ones, the ones split
+    across two text nodes, and the weaker ones by confidence."""
+    found: dict[str, int] = {}
+    confirmed: list[tuple[object, hyphens.Candidate]] = []
+    across: list[tuple[object, hyphens.CrossCandidate]] = []
+    weaker: dict[str, list] = {}
+    for resource, root in documents:
+        nodes = list(typography.text_nodes(root))
+        for element, attribute in nodes:
+            text = getattr(element, attribute)
+            if not text or "-" not in text:
+                continue
+            for candidate in hyphens.find(
+                text, where=resource.path, words=words, language=tongue
+            ):
+                found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
+                if candidate.confidence == hyphens.CONFIRMED:
+                    confirmed.append((resource, candidate))
+                else:
+                    weaker.setdefault(candidate.confidence, []).append(
+                        (resource, candidate)
+                    )
+        # The half a word that ends one text node and continues in the next.
+        # Same walk, so it costs nothing; a separate list, because applying
+        # it writes into two elements instead of one.
+        for candidate in hyphens.find_across(
+            nodes, root=root, where=resource.path, words=words, language=tongue
+        ):
+            found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
+            across.append((resource, candidate))
+    return found, confirmed, across, weaker
+
+
 class HyphenStage(Stage):
     """Hyphens inside words: counted always, changed only when somebody says."""
 
@@ -80,34 +115,7 @@ class HyphenStage(Stage):
         # which is the same state as no dictionary at all.
         tongue = (ctx.book.metadata.language or "").strip() or "pl_PL"
 
-        found: dict[str, int] = {}
-        confirmed: list[tuple[object, hyphens.Candidate]] = []
-        across: list[tuple[object, hyphens.CrossCandidate]] = []
-        weaker: dict[str, list] = {}
-        for resource, root in documents:
-            nodes = list(typography.text_nodes(root))
-            for element, attribute in nodes:
-                text = getattr(element, attribute)
-                if not text or "-" not in text:
-                    continue
-                for candidate in hyphens.find(
-                    text, where=resource.path, words=words, language=tongue
-                ):
-                    found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
-                    if candidate.confidence == hyphens.CONFIRMED:
-                        confirmed.append((resource, candidate))
-                    else:
-                        weaker.setdefault(candidate.confidence, []).append(
-                            (resource, candidate)
-                        )
-            # The half a word that ends one text node and continues in the next.
-            # Same walk, so it costs nothing; a separate list, because applying
-            # it writes into two elements instead of one.
-            for candidate in hyphens.find_across(
-                nodes, root=root, where=resource.path, words=words, language=tongue
-            ):
-                found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
-                across.append((resource, candidate))
+        found, confirmed, across, weaker = _collect_candidates(documents, words, tongue)
 
         # Said whether or not anything was found, and before the counts: a run
         # without a dictionary saw less than a run with one, and a report that

@@ -848,6 +848,41 @@ def _without_spans(text: str, spans: list) -> str:
     return "".join(pieces)
 
 
+def _stack_verdict(families: list, embedded: dict, named: dict) -> tuple[str, "str | None"]:
+    """What a font stack without a generic family can be given, in order of
+    authority: `embedded` (the book's own font says in numbers), `symbol`
+    (nothing — no generic draws pictures), `self-named` (the embedded
+    font's own name says, for a person to confirm), `well-known` (common
+    knowledge, for a person to confirm), or `unknown`."""
+    generic = None
+    # The whole stack is searched, not only its last entry: a stack is a
+    # list of preferences and any one of them being an embedded font
+    # settles what kind of type this is meant to be.
+    for family in families:
+        generic = embedded.get(family.lower())
+        if generic:
+            break
+    if generic:
+        return "embedded", generic
+    if any(f.lower() in fonts_meta.SYMBOL_FAMILIES for f in families):
+        return "symbol", None
+    said = None
+    for family in families:
+        said = named.get(family.lower())
+        if said:
+            break
+    if said:
+        return "self-named", said
+    known = None
+    for family in families:
+        known = fonts_meta.well_known(family)
+        if known:
+            break
+    if known:
+        return "well-known", known
+    return "unknown", None
+
+
 class StyleStage(Stage):
     """Repoints stylesheet URLs and reports rules that will not survive."""
 
@@ -3432,39 +3467,31 @@ class StyleStage(Stage):
             families = [family for family in families if family]
             if not families or families[-1].lower() in GENERIC_FAMILIES:
                 continue
-            generic = None
-            # The whole stack is searched, not only its last entry: a stack is a
-            # list of preferences and any one of them being an embedded font
-            # settles what kind of type this is meant to be.
-            for family in families:
-                generic = embedded.get(family.lower())
-                if generic:
-                    break
-            if generic:
+            verdict, generic = _stack_verdict(families, embedded, named)
+            if verdict == "embedded":
                 edits.append((match.end(1), match.end(1), f", {generic}"))
                 completed.append(f"{families[-1]} → {generic}")
-                continue
-            if any(f.lower() in fonts_meta.SYMBOL_FAMILIES for f in families):
-                offenders.append(families[-1])
-                continue
-            said = None
-            for family in families:
-                said = named.get(family.lower())
-                if said:
-                    break
-            if said:
-                self_named.setdefault(said, []).append((match, families[-1]))
-                continue
-            known = None
-            for family in families:
-                known = fonts_meta.well_known(family)
-                if known:
-                    break
-            if known:
-                askable.setdefault(known, []).append((match, families[-1]))
+            elif verdict == "self-named":
+                self_named.setdefault(generic, []).append((match, families[-1]))
+            elif verdict == "well-known":
+                askable.setdefault(generic, []).append((match, families[-1]))
             else:
                 offenders.append(families[-1])
 
+        approved = self._ask_about_generics(ctx, resource, self_named, askable, edits, offenders)
+
+        for start, end, insertion in sorted(edits, reverse=True):
+            css_text = css_text[:start] + insertion + css_text[end:]
+
+        self._note_font_stacks(ctx, resource, completed, approved, offenders)
+        return css_text
+
+    def _ask_about_generics(self, ctx: Context, resource, self_named: dict, askable: dict,
+                            edits: list, offenders: list) -> dict[str, int]:
+        """One question per generic family per file, for both queues; an
+        answer of "append" adds the edits, anything else leaves the stacks
+        as they are and counts them. Returns how many were approved, by
+        generic."""
         approved: dict[str, int] = {}
         queues = (
             ("style.generic.named.summary", "style.generic.named.detail", self_named),
@@ -3499,10 +3526,9 @@ class StyleStage(Stage):
                     approved[generic] = approved.get(generic, 0) + len(entries)
                 else:
                     offenders.extend(name for _, name in entries)
+        return approved
 
-        for start, end, insertion in sorted(edits, reverse=True):
-            css_text = css_text[:start] + insertion + css_text[end:]
-
+    def _note_font_stacks(self, ctx: Context, resource, completed: list, approved: dict, offenders: list) -> None:
         if completed:
             self.note(
                 ctx,
@@ -3544,7 +3570,6 @@ class StyleStage(Stage):
                 },
                 location=resource.path,
             )
-        return css_text
 
     def _embedded_families(
         self, ctx: Context, css_text: str, resource, reader=fonts_meta.classify,

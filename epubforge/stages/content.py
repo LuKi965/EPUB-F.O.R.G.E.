@@ -705,6 +705,33 @@ def _image_paragraph_verdict(cascade, element) -> str:
     return "centre"
 
 
+def _font_to_span(element) -> None:
+    """`<font color face size>` becomes a `<span>` saying the same in CSS."""
+    declarations = []
+    if element.get("color"):
+        declarations.append(f"color: {element.get('color').strip()};")
+    if element.get("face"):
+        declarations.append(f"font-family: {element.get('face').strip()};")
+    size = (element.get("size") or "").strip()
+    if size in _FONT_SIZE_SCALE:
+        declarations.append(f"font-size: {_FONT_SIZE_SCALE[size]};")
+    elif size.startswith(("+", "-")):
+        declarations.append("font-size: larger;" if size[0] == "+" else "font-size: smaller;")
+    for attribute in ("color", "face", "size"):
+        element.attrib.pop(attribute, None)
+    element.tag = xhtml.qname("span")
+    _append_style(element, " ".join(declarations))
+
+
+def _anchor_name_to_id(element) -> None:
+    """`<a name>` becomes `<a id>` where the name is a legal id; the name
+    goes either way, because XHTML5 has no `name` on `<a>`."""
+    name = element.get("name")
+    if _NCNAME_RE.match(name):
+        element.set("id", name)
+    element.attrib.pop("name", None)
+
+
 class ContentStage(Stage):
     """Rebuilds every content document and rewrites its outgoing references."""
 
@@ -1937,20 +1964,7 @@ class ContentStage(Stage):
                 continue
 
             if tag == "font":
-                declarations = []
-                if element.get("color"):
-                    declarations.append(f"color: {element.get('color').strip()};")
-                if element.get("face"):
-                    declarations.append(f"font-family: {element.get('face').strip()};")
-                size = (element.get("size") or "").strip()
-                if size in _FONT_SIZE_SCALE:
-                    declarations.append(f"font-size: {_FONT_SIZE_SCALE[size]};")
-                elif size.startswith(("+", "-")):
-                    declarations.append("font-size: larger;" if size[0] == "+" else "font-size: smaller;")
-                for attribute in ("color", "face", "size"):
-                    element.attrib.pop(attribute, None)
-                element.tag = xhtml.qname("span")
-                _append_style(element, " ".join(declarations))
+                _font_to_span(element)
                 changed.add("font")
                 continue
 
@@ -1961,10 +1975,7 @@ class ContentStage(Stage):
                 changed.add(tag)
 
             if tag == "a" and element.get("name") and not element.get("id"):
-                name = element.get("name")
-                if _NCNAME_RE.match(name):
-                    element.set("id", name)
-                element.attrib.pop("name", None)
+                _anchor_name_to_id(element)
                 changed.add("a[name]")
 
             if tag == "col" and self._wrap_a_stray_col(element):
