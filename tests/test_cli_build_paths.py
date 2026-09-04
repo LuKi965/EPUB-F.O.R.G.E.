@@ -157,3 +157,41 @@ class TestTheReadOnlyCommands:
         cut.write_bytes(data[: len(data) // 2])
         assert run("health", str(cut)) == EXIT_NOT_WRITTEN
         assert "uszkodzone" in capsys.readouterr().out
+
+
+class TestMergeFromTheCommandLine:
+    """`repair.merge` has its own tests; this is the command around it — the
+    plan printed, the confirmation that a script skips with `--yes` and a
+    person without a terminal cannot give, and the whole book at the end."""
+
+    @pytest.fixture
+    def pair(self, book, tmp_path):
+        import zipfile
+
+        from tests.test_repair import corrupt
+
+        with zipfile.ZipFile(book) as archive:
+            documents = [name for name in archive.namelist() if name.endswith(".xhtml")]
+        return (
+            corrupt(book, str(tmp_path / "kopia-a.epub"), documents[0]),
+            corrupt(book, str(tmp_path / "kopia-b.epub"), documents[1]),
+        )
+
+    def test_with_yes_the_merged_book_is_whole(self, pair, tmp_path, capsys):
+        from epubforge import repair
+
+        out = str(tmp_path / "scalona.epub")
+        assert run("merge", *pair, "-o", out, "--yes") == EXIT_OK
+        printed = capsys.readouterr().out
+        assert "zapisano" in printed and "kopia-b.epub" in printed
+        assert repair.inspect(out).healthy
+
+    def test_without_a_terminal_nothing_is_written(self, pair, tmp_path, capsys):
+        out = str(tmp_path / "scalona.epub")
+        assert run("merge", *pair, "-o", out) == EXIT_NOT_WRITTEN
+        assert "przerwane" in capsys.readouterr().out
+        assert not os.path.exists(out)
+
+    def test_one_copy_is_refused(self, book, tmp_path, capsys):
+        assert run("merge", book, "-o", str(tmp_path / "x.epub"), "--yes") == EXIT_NOT_WRITTEN
+        assert "nie da się scalić" in capsys.readouterr().out
