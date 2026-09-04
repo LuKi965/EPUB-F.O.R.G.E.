@@ -283,7 +283,7 @@ class TestTheRulesThemselvesNameConstructsAndNotWorks:
         "MathML", "PNG", "JPEG", "GIF", "WebP", "TIFF", "ZIP", "OCF", "DRM",
         "URL", "URI", "UUID", "ISBN", "ASCII", "Unicode", "UTF", "PANOSE",
         "Calibre", "Kindle", "Kobo", "Apple", "Adobe", "Sigil", "InDesign",
-        "PDF", "JavaScript", "Java", "Python", "Windows", "Linux", "OS",
+        "PDF", "OCR", "JavaScript", "Java", "Python", "Windows", "Linux", "OS",
         "Accessibility", "WCAG", "ARIA", "PLN", "MiB", "GiB", "KiB",
         "W3C", "IDPF", "DAISY", "META", "INF", "MACOSX", "Thumbs",
         "AppleDouble", "TAK", "BRAK", "NIE",

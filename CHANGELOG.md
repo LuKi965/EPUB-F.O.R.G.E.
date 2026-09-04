@@ -40,6 +40,48 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### A PDF with a text layer is a book this program can rebuild
+
+`epubforge build book.pdf`, a folder with PDFs in it, or a PDF dropped on
+the window: the text layer is read (`pdfminer.six`, pure Python, so the
+Windows build carries it) into the same model an EPUB is read into, and
+from there the book goes through the same stages, balance, validator and
+gates as any other, and comes out an EPUB 3.3 — or a KEPUB with `--kepub`.
+What the geometry says is turned into structure by named thresholds, each
+reported: a wider gap, an indent or a short line followed by a capital
+starts a paragraph; a line set 1.6× the body size is an `h1`, 1.25× an
+`h2`; the PDF's own outline, when it has one, gives the documents and the
+table of contents word for word; JPEG and Flate images come along as
+files where they stood, with an empty `alt` for the existing image
+question. The promise is the one an EPUB gets, stated as **K1-PDF**: every
+character of the text layer is in the result, or the book is refused. A
+line-end hyphen is not joined here — the hyphen stage decides that, with
+its dictionary and its question, as it does for any book.
+
+Two things a PDF brings that a book does not are asked about rather than
+decided. A line that repeats in the page's margin on most pages, or on
+most left-hand or most right-hand pages — a running head, a page number,
+the author on the verso and the title on the recto — is marked in the
+text and put to one question with examples, recommended *remove*;
+without an answer it stays, and a batch
+can answer standing (`--pdf-running-heads ask|keep|remove`, a box in the
+window). A paragraph such a line cut in two across a page break stays in
+the page's order while the line is there and is joined back when it goes.
+The language, which a PDF rarely declares, is proposed from the text
+(Polish letters per thousand characters) and set only on a person's word;
+otherwise the settings' default stands, as for any book without one. A
+PDF with no text layer — a scan — is refused with the reason
+(`pdf.no-text-layer`); OCR is a different program. Two columns are
+reported, not re-flowed; tables come in as paragraphs; there is no cover
+page, because drawing one would need an engine the Windows build does not
+carry for that.
+
+Held to material the repository does not keep: pages written by the test
+itself, and the six Gutenberg books printed to PDF by the pinned Chromium
+(with and without its own headers and footers), where the text that comes
+back is compared with the source's, folded for case because Chromium
+writes `text-transform` into the text layer.
+
 ### What a screen reader depends on is counted before and after
 
 K1 guards every character of the prose and the balance guards every file;

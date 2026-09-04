@@ -75,8 +75,9 @@ for you at all:
 - **it does not remove DRM**, and it will not — the author does not condone
   piracy, and this tool exists solely to adapt **legally purchased** books to
   one's own devices;
-- **it does not convert from PDF, MOBI or Word** — a different job, deliberately
-  out of scope;
+- **it does not convert from MOBI or Word** — a different job, deliberately
+  out of scope; from a PDF it reads **the text layer only** — a scan without
+  one is refused, because OCR is a different program;
 - **it removes nothing without a question or a switch.** Anything this program
   ever deletes is either optional to untick or preceded by a question carrying
   the consequences and a recommendation;
@@ -197,6 +198,37 @@ unchanged to the character; every other reader sees a plain EPUB.
 
 ```bash
 epubforge build book.epub --kepub
+```
+
+### PDF as input
+
+A PDF **with a text layer** comes in the way an EPUB does: `epubforge build
+book.pdf`, a folder with PDFs, or a file dropped on the window. The text
+layer is read (`pdfminer.six`, pure Python, so the Windows build carries it)
+into the same model an EPUB is read into, and from there the book goes
+through the same stages, balance, validator and gates — and comes out an
+EPUB 3.3 (or a KEPUB with `--kepub`). The typesetter's geometry becomes
+paragraphs (a gap, an indent, a short line before a capital), headings
+(size against the body: 1.6× → `h1`, 1.25× → `h2`), documents and a table
+of contents from the PDF's outline when it has one; JPEG and Flate images
+come along as files where they stood. The promise is the one an EPUB gets
+(**K1-PDF**): every character of the text layer is in the result, or the
+program refuses. A line-end hyphen is not joined here — the hyphen stage
+decides that, with its dictionary and its question, as for any book.
+
+Two things a PDF brings that a book does not are a **question**, not the
+program's decision: running heads and page numbers (a line repeating at the
+same height on most pages — one question with examples, recommended
+*remove*; without an answer they stay; for a batch `--pdf-running-heads
+ask|keep|remove`, a box in the window) and the language, which a PDF rarely
+declares (proposed from the text, set only on a person's word). A scan with
+no text layer is refused with the reason (`pdf.no-text-layer`) — OCR is a
+different program. Two columns are reported, not re-flowed; tables come in
+as paragraphs; there is no cover.
+
+```bash
+epubforge build book.pdf
+epubforge build scans/ --pdf-running-heads remove
 ```
 
 ## What it tells you about itself

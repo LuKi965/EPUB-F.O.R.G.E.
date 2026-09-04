@@ -16,6 +16,9 @@ RENDER_GATES = ("off", "report", "stop")
 #: What `Policy.hyphen_review` may say: how far down the confidence classes
 #: the questions go. Ordered least to most asking, like the gates above.
 HYPHEN_REVIEWS = ("confirmed", "grouped", "each")
+#: What becomes of the running heads and page numbers a PDF brought along:
+#: asked once per book, kept, or removed for all of them (0.5, D-052).
+PDF_RUNNING_HEADS = ("ask", "keep", "remove")
 
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 #:
@@ -278,6 +281,12 @@ class Policy:
     #:   189 candidates are one decision instead of 189.
     #: * `each` — every candidate individually, for going through them properly.
     hyphen_review: str = "confirmed"
+
+    #: A PDF source carries running heads and page numbers in its text layer;
+    #: the reader keeps them as marked paragraphs and the PDF stage asks once
+    #: per book whether to remove them (`ask`), or does what a batch has
+    #: already decided (`keep`, `remove`). Nothing leaves without an answer.
+    pdf_running_heads: str = "ask"
 
     #: Read back and write down the answers a person gave about this book.
     #:

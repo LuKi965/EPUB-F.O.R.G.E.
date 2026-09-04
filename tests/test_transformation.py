@@ -167,7 +167,7 @@ class TestTheMigrationIsVisibleAndCannotQuietlyStop:
     #:
     #: **Opuszczenie tej liczby znaczy, że któraś wypadła** — a to jest dokładnie
     #: ten cichy krok wstecz, przed którym ten plik istnieje.
-    ON_THE_CONTRACT = 5
+    ON_THE_CONTRACT = 6
 
     #: Reguły, które przez niego idą. Wypisane, żeby błąd mówił **która**
     #: wypadła, a nie tylko że jest ich mniej.
@@ -178,6 +178,7 @@ class TestTheMigrationIsVisibleAndCannotQuietlyStop:
         "xhtml.watermark-relocated",
         "xhtml.watermark-removed",
         "substitutions.replaced",
+        "pdf.running-heads-removed",
     )
 
     def call_sites(self) -> str:

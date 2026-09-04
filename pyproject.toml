@@ -32,6 +32,11 @@ dependencies = [
     # Windows runner. Optional at runtime — `dictionaries.py` answers "nobody
     # was asked" when it is absent, and the detector works as it did before.
     "spylls>=0.1.7,<0.2",
+    # 0.5 (D-052). A PDF with a text layer, read into the same model as an
+    # EPUB: characters with their position, font and size, images and the
+    # outline. Pure Python and MIT, so it builds on the Windows runner;
+    # poppler is not on a user's machine and PyMuPDF is AGPL with binaries.
+    "pdfminer.six>=20250327,<20270000",
 ]
 
 [project.optional-dependencies]

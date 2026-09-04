@@ -71,8 +71,9 @@ Ciebie:
 - **nie zdejmuje DRM** i nie będzie — autor nie popiera piractwa, a to narzędzie
   służy wyłącznie dostosowywaniu **legalnie zakupionych** książek do własnych
   urządzeń;
-- **nie konwertuje z PDF, MOBI ani Worda** — to inne zadanie, świadomie poza
-  zakresem;
+- **nie konwertuje z MOBI ani Worda** — to inne zadanie, świadomie poza
+  zakresem; z PDF-a czyta **tylko warstwę tekstową** — skan bez niej jest
+  odmową, bo OCR to inny program;
 - **nie usuwa niczego bez pytania albo bez przełącznika.** Wszystko, co ten
   program kiedykolwiek kasuje, jest albo do odznaczenia, albo poprzedzone
   pytaniem z konsekwencjami i rekomendacją;
@@ -192,6 +193,36 @@ EPUB-a.
 
 ```bash
 epubforge build ksiazka.epub --kepub
+```
+
+### PDF na wejściu
+
+PDF **z warstwą tekstową** wchodzi tą samą drogą co EPUB: `epubforge build
+ksiazka.pdf`, katalog z PDF-ami albo plik upuszczony na okno. Warstwa tekstowa
+jest czytana (`pdfminer.six`, czysty Python, więc build Windows ją ma) w ten
+sam model co EPUB, a dalej książka idzie przez te same etapy, bilans,
+walidator i bramy — i wychodzi EPUB 3.3 (albo KEPUB z `--kepub`). Z geometrii
+składu powstają akapity (odstęp, wcięcie, krótki wiersz przed wielką literą),
+nagłówki (rozmiar względem tekstu: 1,6× → `h1`, 1,25× → `h2`), dokumenty
+i spis treści z zakładek PDF-a, gdy są; obrazy JPEG i Flate wchodzą jako pliki
+tam, gdzie stały. Obietnica jest ta sama, co dla EPUB-a (**K1-PDF**): każdy
+znak warstwy tekstowej jest w wyniku, albo program odmawia. Łączniki na końcu
+wiersza nie są tu łączone — decyduje o nich etap łączników, ze słownikiem
+i pytaniem, jak dla każdej książki.
+
+Dwie rzeczy, które PDF przynosi, a książka nie, są **pytaniem**, nie decyzją
+programu: żywa pagina i numery stron (wiersz powtarzający się na tej samej
+wysokości na większości stron — jedno pytanie z przykładami, zalecane
+*usuń*; bez odpowiedzi zostają; dla partii `--pdf-running-heads
+ask|keep|remove`, w oknie kratka) oraz język, którego PDF zwykle nie
+deklaruje (propozycja z tekstu, ustawiana tylko na słowo człowieka). Skan bez
+warstwy tekstowej jest odmową z powodem (`pdf.no-text-layer`) — OCR to inny
+program. Dwie kolumny są zgłaszane, nie przekładane; tabele wchodzą jako
+akapity; okładki nie ma.
+
+```bash
+epubforge build ksiazka.pdf
+epubforge build skany/ --pdf-running-heads remove
 ```
 
 ## Co narzędzie o sobie mówi

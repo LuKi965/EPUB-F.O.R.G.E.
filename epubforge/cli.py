@@ -14,7 +14,7 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, ledger_lines, plan_batch
-from .policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
+from .policy import GATES, HYPHEN_REVIEWS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -37,7 +37,7 @@ def collect_inputs(raw_inputs: list[str]) -> list[str]:
         if os.path.isdir(entry):
             for root, _, files in os.walk(entry):
                 found.extend(
-                    os.path.join(root, name) for name in sorted(files) if name.lower().endswith(".epub")
+                    os.path.join(root, name) for name in sorted(files) if name.lower().endswith((".epub", ".pdf"))
                 )
         elif os.path.isfile(entry):
             found.append(entry)
@@ -137,6 +137,8 @@ def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:
         policy.render_gate = args.render_gate
     if getattr(args, "hyphen_review", None):
         policy.hyphen_review = args.hyphen_review
+    if getattr(args, "pdf_running_heads", None):
+        policy.pdf_running_heads = args.pdf_running_heads
     if getattr(args, "memory_limit", None):
         policy.memory_limit = _bytes_from(args.memory_limit)
     # `None` means "whatever the mode says", which is not the same as "off" —
@@ -1126,6 +1128,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--render-all",
         action="store_true",
         help="draw every page rather than a sample of twelve",
+    )
+    build.add_argument(
+        "--pdf-running-heads",
+        choices=PDF_RUNNING_HEADS,
+        help=(
+            "what becomes of the running heads and page numbers a PDF source "
+            "brought along: 'ask' once per book (default), 'keep' them as text, "
+            "'remove' them all — the standing answer for a batch"
+        ),
     )
     build.add_argument(
         "--hyphen-review",

@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 
 from . import xhtml
 from .reader import read_epub
+from . import pdf
 from .report import Report
 
 #: Elements whose text is not the book's text — they are machinery.
@@ -476,6 +477,9 @@ def spine_text_of(book: "str | pathlib.Path") -> str:
     from .typography import canonical
     from .xmlchars import legal
 
+    if pdf.is_pdf(str(book)):
+        # K1-PDF (0.5, D-052): the text layer, line after line, is the source.
+        return canonical(legal(pdf.text_of(str(book))))
     return canonical(legal(spine_text(book)))
 
 

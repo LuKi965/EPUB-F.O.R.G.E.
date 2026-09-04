@@ -33,6 +33,11 @@ def declared() -> dict[str, list[str]]:
     return groups
 
 
+
+def _normal(name: str) -> str:
+    """PEP 503: `pdfminer.six`, `pdfminer_six` and `PDFMiner-Six` are one name."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
 def requirements() -> list[tuple[str, str]]:
     return [
         (group, entry)
@@ -122,7 +127,7 @@ class TestTheLockItself:
 
     def pinned(self, name: str = "requirements.lock") -> dict[str, str]:
         return {
-            match.group(1).lower().replace("_", "-"): match.group(2)
+            _normal(match.group(1)): match.group(2)
             for match in re.finditer(r"^([A-Za-z0-9._-]+)==([^\s\\]+)", self.lock(name), re.M)
         }
 
@@ -134,7 +139,7 @@ class TestTheLockItself:
         for line in self.lock(name).splitlines():
             pin = re.match(r"^([A-Za-z0-9._-]+)==", line)
             if pin:
-                current = pin.group(1).lower().replace("_", "-")
+                current = _normal(pin.group(1))
                 found[current] = []
             if current is not None and "--hash=sha256:" in line:
                 found[current] += re.findall(r"--hash=sha256:([a-f0-9]{64})", line)
@@ -161,7 +166,7 @@ class TestTheLockItself:
         """A lock that is missing a dependency installs it unpinned, or not at
         all — and `--require-hashes` turns the second into a failed build on the
         day somebody adds a package and forgets to regenerate."""
-        name = re.split(r"[<>=!\[; ]", entry, 1)[0].strip().lower().replace("_", "-")
+        name = _normal(re.split(r"[<>=!\[; ]", entry, 1)[0].strip())
         assert name in self.pinned(), f"{name} is declared and not in requirements.lock"
 
     @pytest.mark.parametrize(("group", "entry"), requirements())
@@ -173,7 +178,7 @@ class TestTheLockItself:
         from packaging.version import Version
 
         requirement = Requirement(entry)
-        name = requirement.name.lower().replace("_", "-")
+        name = _normal(requirement.name)
         version = self.pinned().get(name)
         if version is None:
             pytest.skip(f"{name} is not in the lock; that is the test above")
@@ -233,7 +238,7 @@ class TestTheLockItself:
                         continue
                     if requirement.extras:
                         continue
-                    needed = requirement.name.lower().replace("_", "-")
+                    needed = _normal(requirement.name)
                     assert needed in pinned, (
                         f"{name} pins {package}, which needs {needed}, and "
                         f"{needed} is pinned nowhere. --require-hashes will "

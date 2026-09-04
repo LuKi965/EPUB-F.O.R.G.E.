@@ -341,6 +341,18 @@ PL: dict[str, str] = {
     "policy.render.gate": "Gdy strona straci treść:",
     "policy.render.unverified": "Zapisuj bez sprawdzenia wyglądu",
     "policy.metadata.reconstructed": "Przyjmuj metadane z odzysku",
+    "policy.pdf.heads": "Żywa pagina i numery stron z PDF-a:",
+    "policy.pdf.heads.tip": (
+        "PDF niesie w warstwie tekstowej nagłówki stron i numery stron. Program "
+        "je rozpoznaje (wiersze powtarzające się na tej samej wysokości), "
+        "oznacza i pyta raz na książkę; bez odpowiedzi nic nie znika."
+    ),
+    "policy.pdf.heads.ask": "pytaj przy każdej książce",
+    "policy.pdf.heads.ask.tip": "jedno pytanie z przykładami; bez odpowiedzi wiersze zostają",
+    "policy.pdf.heads.keep": "zostaw w tekście",
+    "policy.pdf.heads.keep.tip": "wiersze zostają jako zwykłe akapity, bez pytania",
+    "policy.pdf.heads.remove": "usuń wszystkie",
+    "policy.pdf.heads.remove.tip": "stała odpowiedź dla partii; raport mówi ile usunięto",
     "policy.hyphen.review": "Słowa z łącznikiem bez dowodu w książce:",
     "policy.hyphen.review.tip": (
         "Program pyta o słowo z łącznikiem wtedy, gdy ta sama książka pisze je "
@@ -996,7 +1008,7 @@ PL: dict[str, str] = {
     ),
     "dialog.noreport.title": "Brak raportu",
     "dialog.noreport.body": "Najpierw przebuduj książkę, a potem zaznacz ją na liście.",
-    "dialog.filter": "Pliki EPUB (*.epub)",
+    "dialog.filter": "Książki (*.epub *.pdf);;Pliki EPUB (*.epub);;Pliki PDF (*.pdf)",
     "dialog.selectfiles": "Wybierz pliki EPUB",
     "dialog.selectfolder": "Wybierz folder wyjściowy",
     "dialog.savereport": "Zapisz raport",
@@ -1369,6 +1381,18 @@ EN: dict[str, str] = {
     "policy.render.all": "Draw every page, not a sample",
     "policy.render.unverified": "Write without the appearance check",
     "policy.metadata.reconstructed": "Accept recovered metadata",
+    "policy.pdf.heads": "Running heads and page numbers from a PDF:",
+    "policy.pdf.heads.tip": (
+        "A PDF carries page headers and page numbers in its text layer. The "
+        "program recognises them (lines repeating at the same height), marks "
+        "them and asks once per book; without an answer nothing leaves."
+    ),
+    "policy.pdf.heads.ask": "ask for every book",
+    "policy.pdf.heads.ask.tip": "one question with examples; without an answer the lines stay",
+    "policy.pdf.heads.keep": "leave in the text",
+    "policy.pdf.heads.keep.tip": "the lines stay as ordinary paragraphs, no question",
+    "policy.pdf.heads.remove": "remove them all",
+    "policy.pdf.heads.remove.tip": "the standing answer for a batch; the report says how many left",
     "policy.hyphen.review": "Hyphenated words the book does not settle:",
     "policy.hyphen.review.tip": (
         "The program asks about a hyphenated word when the same book writes it "
@@ -1970,7 +1994,7 @@ EN: dict[str, str] = {
     "dialog.overwrite.body": "Choose a different output folder — {name} would be overwritten in place.",
     "dialog.noreport.title": "No report",
     "dialog.noreport.body": "Rebuild a book first, then select it.",
-    "dialog.filter": "EPUB files (*.epub)",
+    "dialog.filter": "Books (*.epub *.pdf);;EPUB files (*.epub);;PDF files (*.pdf)",
     "dialog.selectfiles": "Select EPUB files",
     "dialog.selectfolder": "Select output folder",
     "dialog.savereport": "Save report",

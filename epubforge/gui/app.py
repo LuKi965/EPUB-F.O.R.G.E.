@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
 
 from .. import plan, resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
-from ..policy import GATES, HYPHEN_REVIEWS, RENDER_GATES, Policy
+from ..policy import GATES, HYPHEN_REVIEWS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_summary, batch_to_json
 from ..validate import find_epubcheck, validate
@@ -772,6 +772,19 @@ class MainWindow(QMainWindow):
             HYPHEN_REVIEWS.index(Policy().hyphen_review)
         )
         layout.addWidget(self.hyphen_review_combo)
+        # 0.5 (D-052): a PDF source brings running heads and page numbers in
+        # its text layer. Asked once per book by default; a batch can settle it.
+        pdf_label = QLabel(tr("policy.pdf.heads"))
+        pdf_label.setToolTip(tr("policy.pdf.heads.tip"))
+        layout.addWidget(pdf_label)
+        self.pdf_heads_combo = QComboBox()
+        self.pdf_heads_combo.setToolTip(tr("policy.pdf.heads.tip"))
+        for index, value in enumerate(PDF_RUNNING_HEADS):
+            key = f"policy.pdf.heads.{value}"
+            self.pdf_heads_combo.addItem(tr(key), value)
+            self.pdf_heads_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.pdf_heads_combo.setCurrentIndex(PDF_RUNNING_HEADS.index(Policy().pdf_running_heads))
+        layout.addWidget(self.pdf_heads_combo)
         # EF-050. Beside the hyphens because it is the other setting that
         # touches characters a reader sees — and unlike them it puts the text
         # back rather than taking it away.
@@ -1022,7 +1035,7 @@ class MainWindow(QMainWindow):
             [
                 url.toLocalFile()
                 for url in event.mimeData().urls()
-                if url.toLocalFile().lower().endswith(".epub")
+                if url.toLocalFile().lower().endswith((".epub", ".pdf"))
             ]
         )
 
@@ -1097,6 +1110,7 @@ class MainWindow(QMainWindow):
         policy.accept_unverified_render = self.unverified_check.isChecked()
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.hyphen_review = self.hyphen_review_combo.currentData()
+        policy.pdf_running_heads = self.pdf_heads_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.detect_substitutions = self.substitutions_check.isChecked()
         policy.relative_units = self.relative_units_check.isChecked()
@@ -1404,7 +1418,7 @@ def run(argv: list[str] | None = None) -> int:
     # shell verb and from dragging files onto the executable.
     queued = [
         path for path in argv[1:]
-        if path.lower().endswith(".epub") and os.path.isfile(path)
+        if path.lower().endswith((".epub", ".pdf")) and os.path.isfile(path)
     ]
 
     # Retranslating an imperatively built UI in place means tracking every

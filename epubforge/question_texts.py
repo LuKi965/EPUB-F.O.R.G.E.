@@ -331,6 +331,36 @@ TEXTS_PL: dict[str, str] = {
         "Zostaje tylko `{winner}`; każdy czytnik, stary i nowy, policzy "
         "odtąd to samo"
     ),
+    "pdf.running-heads.summary": (
+        "{count} wierszy z PDF-a wygląda na żywą paginę albo numery stron"
+    ),
+    "pdf.running-heads.detail": (
+        "W {documents} dokumentach {count} wierszy powtarza się na tej samej "
+        "wysokości strony (cyfry pominięte), na przykład: {examples}. "
+        "W książce elektronicznej nie ma stron, więc te wiersze są tekstem, "
+        "którego autor nie napisał — ale usunięcie to usunięcie tekstu, więc "
+        "decyzja należy do Ciebie."
+    ),
+    "pdf.running-heads.keep": "Zostaw w tekście",
+    "pdf.running-heads.keep.why": (
+        "Nic nie znika; wiersze zostają jako zwykłe akapity tam, gdzie były"
+    ),
+    "pdf.running-heads.remove": "Usuń wszystkie",
+    "pdf.running-heads.remove.why": (
+        "Żywa pagina i numery stron znikają z każdego dokumentu; raport "
+        "i bilans zmian mówią ile"
+    ),
+    "pdf.language.summary": "PDF nie mówi, w jakim jest języku",
+    "pdf.language.detail": (
+        "Warstwa tekstowa PDF-a nie deklaruje języka, a język to twierdzenie "
+        "o książce, którego program nie ustala sam. Z tekstu wynika propozycja "
+        "`{proposal}` ({share} polskich liter na tysiąc znaków). Bez odpowiedzi "
+        "książka dostanie domyślny język ustawień: `{default}`."
+    ),
+    "pdf.language.keep": "Zostaw domyślny ({default})",
+    "pdf.language.keep.why": "Tak jak dla każdej książki bez zadeklarowanego języka",
+    "pdf.language.set": "Ustaw `{proposal}`",
+    "pdf.language.set.why": "Propozycja z tekstu, na Twoje słowo; raport ją zapisze",
     "style.generic.summary": (
         "{count} deklaracji fontów kończy się na krojach bez rodziny "
         "zapasowej ({generic}?)"
@@ -833,6 +863,36 @@ TEXTS_EN: dict[str, str] = {
         "Only `{winner}` remains; every reader, old and new, computes the "
         "same thing from now on"
     ),
+    "pdf.running-heads.summary": (
+        "{count} line(s) from the PDF look like running heads or page numbers"
+    ),
+    "pdf.running-heads.detail": (
+        "In {documents} document(s) {count} line(s) repeat at the same height "
+        "of the page (digits aside), for example: {examples}. An electronic "
+        "book has no pages, so these lines are text the author did not write "
+        "— but removing them is removing text, so the decision is yours."
+    ),
+    "pdf.running-heads.keep": "Leave them in the text",
+    "pdf.running-heads.keep.why": (
+        "Nothing leaves; the lines stay as ordinary paragraphs where they were"
+    ),
+    "pdf.running-heads.remove": "Remove them all",
+    "pdf.running-heads.remove.why": (
+        "Running heads and page numbers leave every document; the report and "
+        "the change ledger say how many"
+    ),
+    "pdf.language.summary": "The PDF does not say what language it is in",
+    "pdf.language.detail": (
+        "The PDF's text layer declares no language, and the language is a "
+        "claim about the book this program does not make on its own. The text "
+        "suggests `{proposal}` ({share} Polish letters per thousand "
+        "characters). Without an answer the book gets the settings' default: "
+        "`{default}`."
+    ),
+    "pdf.language.keep": "Leave the default ({default})",
+    "pdf.language.keep.why": "As for every book that declares no language",
+    "pdf.language.set": "Set `{proposal}`",
+    "pdf.language.set.why": "The text's own suggestion, on your word; the report records it",
     "style.generic.summary": (
         "{count} font declaration(s) end on named faces with no generic "
         "fallback ({generic}?)"

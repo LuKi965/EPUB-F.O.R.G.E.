@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass, replace
 from enum import Enum
 
-from . import decisions
+from . import decisions, pdf
 from . import invariants
 from . import memory
 from . import balance
@@ -632,6 +632,9 @@ REMOVES_TEXT_ON_PURPOSE = frozenset({
     # sharper half reads the union of both sets and the subsequence half reads
     # only this one; one home for the fact is enough, and it has to be this one.
     "substitutions.replaced",
+    # A running head or a page number a PDF brought along, removed on a
+    # person's word (0.5, D-052): text the source had and the book should not.
+    "pdf.running-heads-removed",
 })
 
 #: **`xhtml.watermark-consolidated` is deliberately not in the set above**, and
@@ -768,6 +771,12 @@ def _text_gate(source: str, policy: Policy, report: Report):
         program fills an empty one in, saying so), and a character no
         conforming EPUB may carry is not text.
         """
+        if pdf.is_pdf(source):
+            # No source document to pair a carried one with: the whole text
+            # layer was compared by the rule above (K1-PDF), and this is said
+            # rather than left as a zip error.
+            report.add("package", Level.INFO, "package.prose-check-pdf")
+            return ""
         try:
             if _more_than_one_rendition(source):
                 return ""
@@ -1254,6 +1263,10 @@ def _refuse_when_memory_is_short(source, policy, report) -> "Result | None":
 def _read_or_refuse(source, report, budget, rendition) -> "tuple[Book | None, Result | None]":
     """The book, or the refusal that stands in for it."""
     try:
+        if pdf.is_pdf(source):
+            # 0.5 (D-052): a PDF with a text layer, read into the same model and
+            # sent through the same stages; nothing else in the run knows.
+            return pdf.read_pdf(source, report, budget), None
         return read_epub(source, report, budget, rendition=rendition), None
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose
@@ -1406,6 +1419,10 @@ def _state_the_version_change(book, report) -> None:
             "package.regenerated",
             values={"version": source_version},
         )
+    elif source_version == "pdf":
+        # `pdf.converted` is the statement, with its numbers; there was no
+        # package to have a version.
+        return
     else:
         report.add("package", Level.WARN, "package.version-unusable")
 

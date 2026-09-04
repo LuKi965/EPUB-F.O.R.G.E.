@@ -43,6 +43,7 @@ from .images import ImageStage
 from .kepub import KepubStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
+from .pdf import PdfStage
 from .profile import ProfileStage
 from .style import StyleStage
 from .structure import StructureStage
@@ -52,6 +53,9 @@ from .substitutions import SubstitutionStage
 from .typography import TypographyStage
 
 DEFAULT_STAGES = (
+    # First, because it removes text on a person's word before any stage
+    # reads the prose; on a book that was not a PDF it does nothing.
+    PdfStage,
     FontStage,
     ImageStage,
     StructureStage,
@@ -97,6 +101,7 @@ __all__ = [
     "HyphenStage",
     "SubstitutionStage",
     "NavigationStage",
+    "PdfStage",
     "AccessibilityStage",
     "KepubStage",
     "AltTextStage",
