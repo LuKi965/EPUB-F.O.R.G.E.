@@ -1175,25 +1175,6 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
         return [], [], [], [], {}
 
-    def parse_list(ol) -> list[NavPoint]:
-        result: list[NavPoint] = []
-        for li in children(ol, "li"):
-            anchors = [c for c in li if lname(c).lower() in {"a", "span"}]
-            label, target = "", None
-            if anchors:
-                label = text_of(anchors[0])
-                href = anchors[0].get("href")
-                if href:
-                    resolved = paths.resolve(nav_path, href)
-                    if resolved:
-                        fragment = href.partition("#")[2]
-                        target = f"{resolved}#{fragment}" if fragment else resolved
-            nested = children(li, "ol")
-            kids = parse_list(nested[0]) if nested else []
-            if label or target or kids:
-                result.append(NavPoint(label or "—", target, kids))
-        return result
-
     toc: list[NavPoint] = []
     landmarks: list[Landmark] = []
     page_list: list[PageTarget] = []
@@ -1211,69 +1192,26 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
         if label and nav_type in ("toc", "landmarks", "page-list") and nav_type not in labels:
             labels[nav_type] = label
         if nav_type == "landmarks":
-            # An entry with no `epub:type` is not a landmark.
-            #
-            # A landmark *is* its type — "the cover", "where the body matter
-            # starts" — and the writer keeps one of each, because two documents
-            # cannot both be where the book begins. So an entry with no type was
-            # read as `bodymatter`, and a nav full of them collapsed to a single
-            # surviving entry.
-            #
-            # Which is not a hypothetical. Project Gutenberg labels its page
-            # list `epub:type="landmarks"` with `aria-label="Page List"` and
-            # gives none of its entries a type: 291 links into the book, of
-            # which this program kept one. The fidelity harness found it on the
-            # third book it was pointed at, which is the whole argument for
-            # having written the harness.
-            #
-            # So the typed entries are landmarks and the untyped ones are a
-            # section this program has no rule for — carried whole under F-018's
-            # rule rather than deleted for want of a classification.
-            untyped: list[NavPoint] = []
-            for li in children(lists[0], "li"):
-                anchors = children(li, "a")
-                if not anchors:
-                    continue
-                href = anchors[0].get("href")
-                resolved = paths.resolve(nav_path, href) if href else None
-                if not resolved:
-                    continue
-                fragment = (href or "").partition("#")[2]
-                target = f"{resolved}#{fragment}" if fragment else resolved
-                declared = (attr(anchors[0], "type", EPUB_NS) or "").strip()
-                if declared:
-                    landmarks.append(Landmark(declared, text_of(anchors[0]), target))
-                else:
-                    untyped.append(NavPoint(text_of(anchors[0]) or "—", target))
-            if untyped:
-                extra.append(
-                    NavSection(
-                        # No `epub:type` of its own: the source's word for it was
-                        # `landmarks`, and these are not landmarks. A `nav` with
-                        # no type is legal, and claiming a type this program
-                        # inferred would be stating something nobody said.
-                        epub_type="",
-                        entries=untyped,
-                        hidden=nav.get("hidden") is not None,
-                        aria_label=(nav.get("aria-label") or "").strip(),
-                    )
-                )
+            typed, untyped = _landmarks_from_nav(nav, lists[0], nav_path)
+            landmarks.extend(typed)
+            if untyped is not None:
+                extra.append(untyped)
         elif nav_type == "page-list":
-            for node in parse_list(lists[0]):
+            for node in _nav_list(lists[0], nav_path):
                 if node.target:
                     page_list.append(PageTarget(node.label, node.target))
         elif nav_type == "toc":
-            toc = parse_list(lists[0])
+            toc = _nav_list(lists[0], nav_path)
         elif not nav_type and not toc:
             # A `nav` with no `epub:type` at all, and nothing has claimed the
             # contents yet. EPUB 2 conversions produce these.
-            toc = parse_list(lists[0])
+            toc = _nav_list(lists[0], nav_path)
         else:
             heading = next(
                 (text_of(child) for child in nav if lname(child).lower() in _HEADINGS),
                 "",
             )
-            entries = parse_list(lists[0])
+            entries = _nav_list(lists[0], nav_path)
             if entries:
                 extra.append(
                     NavSection(
@@ -1285,6 +1223,82 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
                     )
                 )
     return toc, landmarks, page_list, extra, labels
+
+
+def _nav_list(ol, nav_path: str) -> list[NavPoint]:
+    """One `<ol>` of a navigation document as a tree of entries: a label and
+    a target each, resolved against the document, nested where it nests."""
+    result: list[NavPoint] = []
+    for li in children(ol, "li"):
+        anchors = [c for c in li if lname(c).lower() in {"a", "span"}]
+        label, target = "", None
+        if anchors:
+            label = text_of(anchors[0])
+            href = anchors[0].get("href")
+            if href:
+                resolved = paths.resolve(nav_path, href)
+                if resolved:
+                    fragment = href.partition("#")[2]
+                    target = f"{resolved}#{fragment}" if fragment else resolved
+        nested = children(li, "ol")
+        kids = _nav_list(nested[0], nav_path) if nested else []
+        if label or target or kids:
+            result.append(NavPoint(label or "—", target, kids))
+    return result
+
+
+def _landmarks_from_nav(nav, ol, nav_path: str) -> "tuple[list[Landmark], NavSection | None]":
+    """The typed entries of a landmarks `nav`, and the untyped ones as a
+    section of their own — or `None` when there are none.
+
+    An entry with no `epub:type` is not a landmark.
+
+    A landmark *is* its type — "the cover", "where the body matter
+    starts" — and the writer keeps one of each, because two documents
+    cannot both be where the book begins. So an entry with no type was
+    read as `bodymatter`, and a nav full of them collapsed to a single
+    surviving entry.
+
+    Which is not a hypothetical. Project Gutenberg labels its page
+    list `epub:type="landmarks"` with `aria-label="Page List"` and
+    gives none of its entries a type: 291 links into the book, of
+    which this program kept one. The fidelity harness found it on the
+    third book it was pointed at, which is the whole argument for
+    having written the harness.
+
+    So the typed entries are landmarks and the untyped ones are a
+    section this program has no rule for — carried whole under F-018's
+    rule rather than deleted for want of a classification.
+    """
+    landmarks: list[Landmark] = []
+    untyped: list[NavPoint] = []
+    for li in children(ol, "li"):
+        anchors = children(li, "a")
+        if not anchors:
+            continue
+        href = anchors[0].get("href")
+        resolved = paths.resolve(nav_path, href) if href else None
+        if not resolved:
+            continue
+        fragment = (href or "").partition("#")[2]
+        target = f"{resolved}#{fragment}" if fragment else resolved
+        declared = (attr(anchors[0], "type", EPUB_NS) or "").strip()
+        if declared:
+            landmarks.append(Landmark(declared, text_of(anchors[0]), target))
+        else:
+            untyped.append(NavPoint(text_of(anchors[0]) or "—", target))
+    if not untyped:
+        return landmarks, None
+    return landmarks, NavSection(
+        # No `epub:type` of its own: the source's word for it was
+        # `landmarks`, and these are not landmarks. A `nav` with
+        # no type is legal, and claiming a type this program
+        # inferred would be stating something nobody said.
+        epub_type="",
+        entries=untyped,
+        hidden=nav.get("hidden") is not None,
+        aria_label=(nav.get("aria-label") or "").strip(),
+    )
 
 
 def _parse_guide(package, opf_path: str) -> list[Landmark]:

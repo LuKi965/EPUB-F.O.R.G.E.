@@ -617,25 +617,40 @@ def test_the_content_stage_writes_every_document_back(tmp_path):
 
     from epubforge.stages.content import ContentStage
 
-    source = inspect.getsource(ContentStage.run)
+    def escapes_in(body):
+        # At *any* depth, not just the block's own indentation: the audit's
+        # demonstration hid the `continue` one level deeper, inside an `if`
+        # block, and the first tightening looked straight past it. Nothing
+        # between a header and the write-back legitimately skips a document
+        # today, so a flat scan has no false positives to worry about.
+        return [
+            l for l in body
+            if l.strip() and l.strip().split()[0].rstrip(":") in ("continue", "return", "break", "raise")
+        ]
+
+    # Since the audit of 2026-09-03 (A-04) `run` hands each parsed document to
+    # `_rewrite_document`, and the write-back is that method's last line. The
+    # tripwire therefore has two halves: the loop in `run` hands *every*
+    # document over, and nothing in `_rewrite_document` leaves before the write.
+    run = inspect.getsource(ContentStage.run).splitlines()
+    loop = next(i for i, l in enumerate(run) if l.lstrip().startswith("for resource, root, _, mode in documents:"))
+    indent = len(run[loop]) - len(run[loop].lstrip())
+    handed = next(i for i in range(loop + 1, len(run)) if "self._rewrite_document(" in run[i])
+    assert not escapes_in(run[loop + 1 : handed]), run[loop + 1 : handed]
+    after_loop = next(
+        (i for i in range(loop + 1, len(run))
+         if run[i].strip() and (len(run[i]) - len(run[i].lstrip())) <= indent),
+        len(run),
+    )
+    assert handed < after_loop, "the hand-over is not inside the loop"
+
+    source = inspect.getsource(ContentStage._rewrite_document)
     write_back = "resource.data = xhtml.serialize(root)"
     assert write_back in source
     lines = source.splitlines()
     at = next(i for i, l in enumerate(lines) if write_back in l)
-    indent = len(lines[at]) - len(lines[at].lstrip())
-    header = next(
-        i for i in range(at, -1, -1)
-        if lines[i].strip() and (len(lines[i]) - len(lines[i].lstrip())) < indent
-    )
-    assert lines[header].lstrip().startswith("for "), lines[header]
-    body = lines[header + 1 : at]
-    # At *any* depth, not just the loop-body's own indentation: the audit's
-    # demonstration hid the `continue` one level deeper, inside an `if` block,
-    # and the first tightening looked straight past it. Nothing between the
-    # loop header and the write-back legitimately skips an iteration today, so
-    # a flat scan has no false positives to worry about.
-    escapes = [
-        l for l in body
-        if l.strip() and l.strip().split()[0].rstrip(":") in ("continue", "return", "break", "raise")
-    ]
-    assert not escapes, escapes
+    assert lines[0].lstrip().startswith("def _rewrite_document("), lines[0]
+    assert not escapes_in(lines[1:at]), escapes_in(lines[1:at])
+    assert at == len([l for l in lines if l.strip()]) - 1 or all(
+        not l.strip() for l in lines[at + 1:]
+    ), "the write-back is not the last thing the method does"

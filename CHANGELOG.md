@@ -107,6 +107,37 @@ fingerprint for this one covers everything `read_epub` decides — reading
 order, every navigation form, every path it chose, every resource's bytes,
 every finding with its values — and it is identical on all 160 books.
 
+The pipeline's core, at 56 — the one function that runs a rebuild from
+the first refusal to the written file — is a sequence of named steps now,
+each either refusing with a result or handing on: the memory check, the
+read, the decision queue, the reconstructed-metadata question, the
+incomplete-input refusal, the version statement, the stages, the refusals
+before the commit point, the balance and the write, and the final verdict
+on whether the file is entitled to a flat "succeeded". Same order, same
+findings, same results. The content stage's entry point (38) split the
+same way — container-only mode, the parse of every document, the repairs
+to one document — and so did the navigation writer (43): where the new
+document goes and what becomes of the old one, then one builder per
+section, then the file. Each carries the same comments it carried before,
+beside the code they explain.
+
+Six more followed in the same cycle, each into the steps its own docstring
+already named: the role stems that name chapter files (50: the landmarks
+rung, the `epub:type` rung, the contents rung, the numbering with its
+sweep), the navigation document's parser (31: one list, the landmarks
+section with its untyped entries, the dispatch), the image-paragraph
+repair (31: the candidates, the verdict on one paragraph, the counts),
+the accessibility survey (37: the manifest's media, one document, one
+image, one table, one inline SVG), the class-name translation (49: the
+census, the declarations per class, the naming loop, the verified rewrite)
+and the duplicate-declaration sweep (34: the scan, the mixed-importance
+question, the cut, the notes). Nothing above a complexity of 21 remains
+in any of them. Two more that never touch a book's bytes went the same
+way: the command line's build handler (41: the refusals before anything
+runs, one source rebuilt, the line that says what became of it, the
+report kept) and the corpus summary (31: the tally, the lines that blame
+a rule).
+
 The command line's policy builder, at 52, was fifty-two `if`s in a row,
 one per flag. The flags that set one field to one value are a table now
 — `cli.SWITCHES`, argument, field, value — and the parity test reads that

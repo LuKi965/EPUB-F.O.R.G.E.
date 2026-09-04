@@ -99,6 +99,15 @@ def heading(language: str, section: str) -> str:
     return NAV_HEADINGS.get(tag, NAV_HEADINGS["en"])[section]
 
 
+def _label_attribute(book, kind: str) -> str:
+    """The publisher's own `aria-label` on a section this program rebuilds
+    from the model, written back word for word. Before the audit of
+    2026-09-03 it left with the source document — the count of semantic
+    attributes before and after a rebuild was the first thing to notice."""
+    value = book.nav_labels.get(kind, "")
+    return f' aria-label="{_escape(value)}"' if value else ""
+
+
 class NavigationStage(Stage):
     name = "navigation"
 
@@ -700,6 +709,35 @@ class NavigationStage(Stage):
         return wanted
 
     def _write_nav(self, ctx: Context) -> None:
+        """The navigation document, regenerated from the model: the contents,
+        then the landmarks and the page list when the book has them, then
+        every section the publisher wrote that this program does not model."""
+        book = ctx.book
+        nav_path = self._settle_nav_path(ctx)
+        language = _escape(book.metadata.language or ctx.policy.default_language)
+
+        sections = self._toc_section(book, nav_path, language)
+        if book.landmarks:
+            sections.extend(self._landmarks_section(book, nav_path, language))
+        if book.page_list:
+            sections.extend(self._page_list_section(book, nav_path, language))
+        carried, extra = self._carried_sections(book, nav_path)
+        sections.extend(extra)
+
+        self._note_what_was_carried(ctx, book, nav_path, carried)
+        self._add_nav_document(ctx, nav_path, language, sections)
+
+        entries = sum(1 for root in book.toc for _ in root.walk())
+        # Two findings, not one with a conditional: replacing a navigation
+        # document is routine and generating one the source never had is a
+        # correction, and they are read differently.
+        if self._had_nav:
+            self.note(ctx, Level.INFO, "nav.regenerated", values={"count": entries})
+        else:
+            self.note(ctx, Level.FIX, "nav.generated", values={"count": entries})
+
+    def _settle_nav_path(self, ctx: Context) -> str:
+        """Where the regenerated document goes, and what becomes of the old one."""
         book = ctx.book
         nav_path = paths.content_path(ctx.policy, "nav.xhtml")
 
@@ -770,57 +808,53 @@ class NavigationStage(Stage):
                 self._redirect(ctx, book.nav_path, nav_path)
                 book.remove(book.nav_path)
         self._nav_spine_place = old_place
-        language = _escape(book.metadata.language or ctx.policy.default_language)
+        return nav_path
 
-        # The publisher's own `aria-label` on a section this program rebuilds
-        # from the model, written back word for word. Before the audit of
-        # 2026-09-03 it left with the source document — the count of semantic
-        # attributes before and after a rebuild was the first thing to notice.
-        def label_of(kind: str) -> str:
-            value = book.nav_labels.get(kind, "")
-            return f' aria-label="{_escape(value)}"' if value else ""
-
-        sections = [
-            f'    <nav epub:type="toc" id="toc" role="doc-toc"{label_of("toc")}>',
+    def _toc_section(self, book, nav_path: str, language: str) -> list[str]:
+        return [
+            f'    <nav epub:type="toc" id="toc" role="doc-toc"{_label_attribute(book, "toc")}>',
             f"      <h1>{_escape(heading(language, 'toc'))}</h1>",
             self._render_nav_list(book.toc, nav_path, "      "),
             "    </nav>",
         ]
 
-        if book.landmarks:
-            sections.append(
-                f'    <nav epub:type="landmarks" id="landmarks"{label_of("landmarks")} hidden="hidden">'
+    def _landmarks_section(self, book, nav_path: str, language: str) -> list[str]:
+        lines = [
+            f'    <nav epub:type="landmarks" id="landmarks"{_label_attribute(book, "landmarks")} hidden="hidden">',
+            f"      <h1>{_escape(heading(language, 'landmarks'))}</h1>",
+            "      <ol>",
+        ]
+        for landmark in book.landmarks:
+            target_path, _, fragment = landmark.target.partition("#")
+            href = paths.relative(nav_path, target_path)
+            if fragment:
+                href = f"{href}#{fragment}"
+            label = _escape(landmark.label or landmark.epub_type.replace("-", " ").title())
+            lines.append(
+                f'        <li><a epub:type="{_escape(landmark.epub_type)}" href="{href}">{label}</a></li>'
             )
-            sections.append(f"      <h1>{_escape(heading(language, 'landmarks'))}</h1>")
-            sections.append("      <ol>")
-            for landmark in book.landmarks:
-                target_path, _, fragment = landmark.target.partition("#")
-                href = paths.relative(nav_path, target_path)
-                if fragment:
-                    href = f"{href}#{fragment}"
-                label = _escape(landmark.label or landmark.epub_type.replace("-", " ").title())
-                sections.append(
-                    f'        <li><a epub:type="{_escape(landmark.epub_type)}" href="{href}">{label}</a></li>'
-                )
-            sections.append("      </ol>")
-            sections.append("    </nav>")
+        lines.append("      </ol>")
+        lines.append("    </nav>")
+        return lines
 
-        if book.page_list:
-            sections.append(
-                '    <nav epub:type="page-list" id="page-list" role="doc-pagelist"'
-                f'{label_of("page-list")} hidden="hidden">'
-            )
-            sections.append(f"      <h1>{_escape(heading(language, 'page-list'))}</h1>")
-            sections.append("      <ol>")
-            for page in book.page_list:
-                target_path, _, fragment = page.target.partition("#")
-                href = paths.relative(nav_path, target_path)
-                if fragment:
-                    href = f"{href}#{fragment}"
-                sections.append(f'        <li><a href="{href}">{_escape(page.label)}</a></li>')
-            sections.append("      </ol>")
-            sections.append("    </nav>")
+    def _page_list_section(self, book, nav_path: str, language: str) -> list[str]:
+        lines = [
+            '    <nav epub:type="page-list" id="page-list" role="doc-pagelist"'
+            f'{_label_attribute(book, "page-list")} hidden="hidden">',
+            f"      <h1>{_escape(heading(language, 'page-list'))}</h1>",
+            "      <ol>",
+        ]
+        for page in book.page_list:
+            target_path, _, fragment = page.target.partition("#")
+            href = paths.relative(nav_path, target_path)
+            if fragment:
+                href = f"{href}#{fragment}"
+            lines.append(f'        <li><a href="{href}">{_escape(page.label)}</a></li>')
+        lines.append("      </ol>")
+        lines.append("    </nav>")
+        return lines
 
+    def _carried_sections(self, book, nav_path: str) -> tuple[int, list[str]]:
         # Everything else the source's navigation held: a list of tables, of
         # illustrations, of anything the publisher named. F-018. This program
         # does not model them and does not need to — an entry is a label and a
@@ -829,6 +863,7 @@ class NavigationStage(Stage):
         # publisher's word for what the section is, and there is nothing to
         # translate it into.
         carried = 0
+        lines: list[str] = []
         for index, section in enumerate(book.extra_navs):
             entries = [node for node in section.entries if node.target or node.children]
             if not entries:
@@ -838,13 +873,16 @@ class NavigationStage(Stage):
             role = f' role="{_ARIA_ROLES[section.epub_type]}"' if section.epub_type in _ARIA_ROLES else ""
             hidden = ' hidden="hidden"' if section.hidden else ""
             label = f' aria-label="{_escape(section.aria_label)}"' if section.aria_label else ""
-            sections.append(
+            lines.append(
                 f'    <nav{attributes} id="nav-{index + 1}"{role}{label}{hidden}>'
             )
             if section.heading:
-                sections.append(f"      <h1>{_escape(section.heading)}</h1>")
-            sections.append(self._render_nav_list(entries, nav_path, "      "))
-            sections.append("    </nav>")
+                lines.append(f"      <h1>{_escape(section.heading)}</h1>")
+            lines.append(self._render_nav_list(entries, nav_path, "      "))
+            lines.append("    </nav>")
+        return carried, lines
+
+    def _note_what_was_carried(self, ctx: Context, book, nav_path: str, carried: int) -> None:
         written_labels = [kind for kind in ("toc", "landmarks", "page-list") if book.nav_labels.get(kind)
                           and (kind == "toc" or (kind == "landmarks" and book.landmarks)
                                or (kind == "page-list" and book.page_list))]
@@ -870,6 +908,8 @@ class NavigationStage(Stage):
                 location=nav_path,
             )
 
+    def _add_nav_document(self, ctx: Context, nav_path: str, language: str, sections: list[str]) -> None:
+        book = ctx.book
         body = "\n".join(sections)
         markup = f"""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
@@ -902,15 +942,6 @@ class NavigationStage(Stage):
                 SpineItem(path=nav_path, linear=linear, properties=set(properties)),
             )
             self.note(ctx, Level.INFO, "nav.kept-in-spine")
-
-        entries = sum(1 for root in book.toc for _ in root.walk())
-        # Two findings, not one with a conditional: replacing a navigation
-        # document is routine and generating one the source never had is a
-        # correction, and they are read differently.
-        if self._had_nav:
-            self.note(ctx, Level.INFO, "nav.regenerated", values={"count": entries})
-        else:
-            self.note(ctx, Level.FIX, "nav.generated", values={"count": entries})
 
     def _drop_ncx(self, ctx: Context) -> None:
         if ctx.book.ncx_path:

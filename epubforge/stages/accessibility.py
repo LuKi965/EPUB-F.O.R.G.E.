@@ -101,6 +101,49 @@ def is_placeholder_alt(alt: str, source: str | None) -> bool:
     return bool(re.fullmatch(r"[a-z]{1,12}[\s._-]*\d{1,3}", text, re.IGNORECASE))
 
 
+def _survey_resources(book, survey: dict) -> None:
+    """What the manifest's media types say: sound, moving pictures, and
+    anything that could move on the page."""
+    for resource in book.resources.values():
+        if resource.media_type.startswith("audio/"):
+            survey["audio"] = True
+        elif resource.media_type.startswith("video/"):
+            survey["video"] = True
+        elif resource.media_type in ("image/gif", "image/webp"):
+            if _is_animated(resource.data):
+                survey["motion_sources"].append(f"animated image: {resource.path}")
+        elif resource.media_type == "text/css":
+            if _CSS_MOTION_RE.search(resource.text()):
+                survey["motion_sources"].append(f"CSS animation: {resource.path}")
+
+
+def _survey_inline_svg(element, resource, survey: dict) -> None:
+    survey["inline_svg"] += 1
+    if not _svg_is_described(element):
+        survey["inline_svg_without_alt"] += 1
+        survey["missing_alt_locations"].append(resource.path)
+    if any(
+        xhtml.local_name(child).lower() in _SVG_ANIMATION_TAGS
+        for child in element.iter()
+    ):
+        survey["motion_sources"].append(f"SVG animation: {resource.path}")
+
+
+def _survey_table(element, survey: dict) -> None:
+    role = (element.get("role") or "").strip().lower()
+    if role in ("presentation", "none"):
+        # Declared layout: a screen reader reads the content
+        # and skips the grid, so a missing header is not a
+        # gap. The tables stage writes this on a person's word.
+        survey["layout_tables"] += 1
+    else:
+        survey["tables"] += 1
+        if not any(
+            xhtml.local_name(cell).lower() == "th" for cell in element.iter()
+        ):
+            survey["tables_without_headers"] += 1
+
+
 class AccessibilityStage(Stage):
     name = "accessibility"
 
@@ -149,105 +192,81 @@ class AccessibilityStage(Stage):
             "motion_sources": [],
         }
 
-        for resource in book.resources.values():
-            if resource.media_type.startswith("audio/"):
-                survey["audio"] = True
-            elif resource.media_type.startswith("video/"):
-                survey["video"] = True
-            elif resource.media_type in ("image/gif", "image/webp"):
-                if _is_animated(resource.data):
-                    survey["motion_sources"].append(f"animated image: {resource.path}")
-            elif resource.media_type == "text/css":
-                if _CSS_MOTION_RE.search(resource.text()):
-                    survey["motion_sources"].append(f"CSS animation: {resource.path}")
-
+        _survey_resources(book, survey)
         for resource in book.content_docs():
             survey["documents"] += 1
             try:
                 root = ctx.parsed(resource).root
             except Exception:
                 continue
-
-            if "scripted" in resource.properties:
-                survey["scripted"] = True
-            if "mathml" in resource.properties:
-                survey["mathml"] = True
-            if "svg" in resource.properties:
-                survey["svg"] = True
-
-            previous_level = 0
-            for element in xhtml.iter_elements(root):
-                tag = xhtml.local_name(element).lower()
-
-                if tag == "img":
-                    survey["images"] += 1
-                    alt = element.get("alt")
-                    # An empty alt is a claim — "this image carries no
-                    # information" — and nothing here can check it. It used to
-                    # count as decorative unless the content stage remembered
-                    # supplying it, but that memory lived in the run and not in
-                    # the file: send the output back through and the same empty
-                    # alt was read as a description, so a book with no alt text
-                    # at all came out asserting alternativeText. State that has
-                    # to survive the write cannot live in the context.
-                    #
-                    # Only an explicit, checkable assertion counts as
-                    # decorative now. A bare empty alt counts as undescribed,
-                    # which over-reports on books that use it correctly — that
-                    # is the safe direction, and the report says so.
-                    if alt is None or not alt.strip():
-                        if self._declared_decorative(element):
-                            survey["decorative"] += 1
-                        else:
-                            survey["images_without_alt"] += 1
-                            survey["missing_alt_locations"].append(resource.path)
-                    elif is_placeholder_alt(alt, element.get("src")):
-                        survey["placeholder_alt"] += 1
-                        if len(survey["placeholder_examples"]) < 4:
-                            survey["placeholder_examples"].append(f'{resource.path}: alt="{alt}"')
-
-                elif _HEADING_RE.match(tag):
-                    level = int(tag[1])
-                    survey["headings"] += 1
-                    if previous_level and level > previous_level + 1:
-                        survey["heading_jumps"].append(
-                            f"{resource.path}: h{previous_level} → h{level}"
-                        )
-                    previous_level = level
-
-                inline_style = element.get("style")
-                if inline_style and _CSS_MOTION_RE.search(inline_style):
-                    survey["motion_sources"].append(f"inline animation: {resource.path}")
-
-                elif tag == "svg":
-                    survey["inline_svg"] += 1
-                    if not _svg_is_described(element):
-                        survey["inline_svg_without_alt"] += 1
-                        survey["missing_alt_locations"].append(resource.path)
-                    if any(
-                        xhtml.local_name(child).lower() in _SVG_ANIMATION_TAGS
-                        for child in element.iter()
-                    ):
-                        survey["motion_sources"].append(f"SVG animation: {resource.path}")
-
-                elif tag == "style" and element.text and _CSS_MOTION_RE.search(element.text):
-                    survey["motion_sources"].append(f"CSS animation: {resource.path}")
-
-                elif tag == "table":
-                    role = (element.get("role") or "").strip().lower()
-                    if role in ("presentation", "none"):
-                        # Declared layout: a screen reader reads the content
-                        # and skips the grid, so a missing header is not a
-                        # gap. The tables stage writes this on a person's word.
-                        survey["layout_tables"] += 1
-                    else:
-                        survey["tables"] += 1
-                        if not any(
-                            xhtml.local_name(cell).lower() == "th" for cell in element.iter()
-                        ):
-                            survey["tables_without_headers"] += 1
-
+            self._survey_document(resource, root, survey)
         return survey
+
+    def _survey_document(self, resource, root, survey: dict) -> None:
+        """One content document: what the manifest says of it, then every
+        element in order, with the heading level carried between them."""
+        if "scripted" in resource.properties:
+            survey["scripted"] = True
+        if "mathml" in resource.properties:
+            survey["mathml"] = True
+        if "svg" in resource.properties:
+            survey["svg"] = True
+
+        previous_level = 0
+        for element in xhtml.iter_elements(root):
+            tag = xhtml.local_name(element).lower()
+
+            if tag == "img":
+                self._survey_image(element, resource, survey)
+
+            elif _HEADING_RE.match(tag):
+                level = int(tag[1])
+                survey["headings"] += 1
+                if previous_level and level > previous_level + 1:
+                    survey["heading_jumps"].append(
+                        f"{resource.path}: h{previous_level} → h{level}"
+                    )
+                previous_level = level
+
+            inline_style = element.get("style")
+            if inline_style and _CSS_MOTION_RE.search(inline_style):
+                survey["motion_sources"].append(f"inline animation: {resource.path}")
+
+            elif tag == "svg":
+                _survey_inline_svg(element, resource, survey)
+
+            elif tag == "style" and element.text and _CSS_MOTION_RE.search(element.text):
+                survey["motion_sources"].append(f"CSS animation: {resource.path}")
+
+            elif tag == "table":
+                _survey_table(element, survey)
+
+    def _survey_image(self, element, resource, survey: dict) -> None:
+        survey["images"] += 1
+        alt = element.get("alt")
+        # An empty alt is a claim — "this image carries no
+        # information" — and nothing here can check it. It used to
+        # count as decorative unless the content stage remembered
+        # supplying it, but that memory lived in the run and not in
+        # the file: send the output back through and the same empty
+        # alt was read as a description, so a book with no alt text
+        # at all came out asserting alternativeText. State that has
+        # to survive the write cannot live in the context.
+        #
+        # Only an explicit, checkable assertion counts as
+        # decorative now. A bare empty alt counts as undescribed,
+        # which over-reports on books that use it correctly — that
+        # is the safe direction, and the report says so.
+        if alt is None or not alt.strip():
+            if self._declared_decorative(element):
+                survey["decorative"] += 1
+            else:
+                survey["images_without_alt"] += 1
+                survey["missing_alt_locations"].append(resource.path)
+        elif is_placeholder_alt(alt, element.get("src")):
+            survey["placeholder_alt"] += 1
+            if len(survey["placeholder_examples"]) < 4:
+                survey["placeholder_examples"].append(f'{resource.path}: alt="{alt}"')
 
     @staticmethod
     def _declared_decorative(element) -> bool:

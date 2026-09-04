@@ -557,6 +557,27 @@ def _role_stems(book) -> dict[str, str]:
         item.path for item in book.spine
         if item.path in book.resources and book.resources[item.path].is_content_doc
     ]
+    roles, body_start = _roles_from_landmarks(book, spine_order)
+    _roles_from_epub_type(book, documents, roles)
+    entry_paths = _contents_entry_paths(book, spine_order)
+    seen = set(entry_paths)
+    if body_start is None:
+        body_start = _body_start_from_evidence(documents, roles, entry_paths, spine_order)
+    starts = sorted(
+        {
+            path for path in documents
+            if roles.get(path) == "chapter"
+            or (path in seen and body_start is not None
+                and spine_order[path] >= body_start and path not in roles)
+        },
+        key=lambda path: spine_order[path],
+    )
+    return _chapter_names(book, documents, roles, seen, starts, spine_order)
+
+
+def _roles_from_landmarks(book, spine_order: dict) -> tuple[dict[str, str], int | None]:
+    """Rung 1: what the landmarks and the guide name, and where the body
+    starts if they say."""
     roles: dict[str, str] = {}
     body_start = None
     for landmark in book.landmarks:
@@ -570,6 +591,11 @@ def _role_stems(book) -> dict[str, str]:
         stem = _ROLE_STEMS.get(landmark.epub_type)
         if stem and stem not in ("chapter", "part"):
             roles.setdefault(target, stem)
+    return roles, body_start
+
+
+def _roles_from_epub_type(book, documents: list, roles: dict) -> None:
+    """Rung 2: a document's own `epub:type`, for those rung 1 left unnamed."""
     for path in documents:
         if path in roles:
             continue
@@ -582,6 +608,11 @@ def _role_stems(book) -> dict[str, str]:
             if stem:
                 roles[path] = stem
                 break
+
+
+def _contents_entry_paths(book, spine_order: dict) -> list[str]:
+    """Rung 3's evidence: the spine documents the contents point at, in
+    contents order, once each — or nothing when there are fewer than two."""
     entry_paths: list[str] = []
     seen: set[str] = set()
     for root in book.toc:
@@ -595,25 +626,25 @@ def _role_stems(book) -> dict[str, str]:
         # least two points to mean anything, and a lone entry could name the
         # cover as easily as a chapter. Rung 3 stands down; rungs 1 and 2
         # (landmarks and epub:type) are unaffected.
-        seen = set()
-        entry_paths = []
-    if body_start is None:
-        typed = [p for p in documents if roles.get(p) == "chapter"]
-        if typed:
-            body_start = spine_order[typed[0]]
-    if body_start is None:
-        unroled = [t for t in entry_paths if t not in roles]
-        if unroled:
-            body_start = spine_order[unroled[0]]
-    starts = sorted(
-        {
-            path for path in documents
-            if roles.get(path) == "chapter"
-            or (path in seen and body_start is not None
-                and spine_order[path] >= body_start and path not in roles)
-        },
-        key=lambda path: spine_order[path],
-    )
+        return []
+    return entry_paths
+
+
+def _body_start_from_evidence(documents: list, roles: dict, entry_paths: list, spine_order: dict) -> int | None:
+    """Where the body starts when no landmark said: the first document typed
+    as a chapter, else the first contents entry nothing has named."""
+    typed = [p for p in documents if roles.get(p) == "chapter"]
+    if typed:
+        return spine_order[typed[0]]
+    unroled = [t for t in entry_paths if t not in roles]
+    if unroled:
+        return spine_order[unroled[0]]
+    return None
+
+
+def _chapter_names(book, documents: list, roles: dict, seen: set, starts: list, spine_order: dict) -> dict[str, str]:
+    """The numbered chapters and their continuations, beside every stem the
+    evidence named outright."""
     named: dict[str, str] = {
         path: stem for path, stem in roles.items() if stem not in ("chapter", "part")
     }

@@ -679,6 +679,175 @@ def _rule_model(css_text: str) -> "Counter":
         ] += 1
     return model
 
+def _css_texts(sheets, documents) -> list[str]:
+    """Every stylesheet's text, then every `<style>` block of every document."""
+    texts: list[str] = [sheet.text() for sheet in sheets]
+    for document in documents:
+        texts += [
+            found.group(1).decode("utf-8", "replace")
+            for found in _STYLE_TEXT.finditer(document.data)
+        ]
+    return texts
+
+
+def _declarations_by_class(css_texts, first_use) -> tuple[dict[str, list], dict[str, int]]:
+    """Each class's declarations, read off every rule that names it, and how
+    many rules name it."""
+    declarations_of: dict[str, list] = {name: [] for name in first_use}
+    rules_of: dict[str, int] = {name: 0 for name in first_use}
+    for text in css_texts:
+        for span in stylesheet.top_level_rules(text):
+            named = set(_SEL_NAME.findall(span.selector)) & set(first_use)
+            if not named:
+                continue
+            body = text[span.start:span.end]
+            inner = body[body.find("{") + 1:body.rfind("}")]
+            declarations = [
+                (part.partition(":")[0].strip().lower(),
+                 " ".join(part.partition(":")[2].split()).lower())
+                for part in inner.split(";") if ":" in part
+            ]
+            for name in named:
+                declarations_of[name] += declarations
+                rules_of[name] += 1
+    return declarations_of, rules_of
+
+
+def _new_class_names(naming, first_use, tags_of, declarations_of, rules_of, *, used) -> dict[str, str]:
+    """Old name → new name, in order of first use: a role name where the
+    generator's own name carries one (D-033), a merge where two single-rule
+    classes have identical bodies (D-031), a speaking name where one can
+    carry the whole truth, a numbered one otherwise."""
+    # Always English (D-034), whatever the window speaks: identifiers in
+    # source code are international, and one spelling per book forever is
+    # also one less thing a reproducible build has to pin.
+    language = "en"
+    taken: set = set()
+    counters: dict[str, int] = {}
+    identical: dict[tuple, str] = {}
+    renames: dict[str, str] = {}
+    for old in first_use:
+        declarations = declarations_of[old]
+        category = naming.categorize(
+            tags_of.get(old, set()),
+            {prop for prop, _ in declarations},
+            declarations,
+        )
+        # D-033: a role word in the generator's own name — its record of
+        # what it generated — outranks everything below, and stays out of
+        # the identical-bodies merge in both directions: a role name must
+        # never be handed to a class that merely shares a rule body, and
+        # a role-carrying class must never dissolve into a numbered one.
+        role = naming.role_name(old, tags_of.get(old, set()), language)
+        if role is not None:
+            new = role
+            suffix = 2
+            while new in taken or new in used:
+                new = f"{role}-{suffix}"
+                suffix += 1
+            taken.add(new)
+            renames[old] = new
+            continue
+        body_key = (category, tuple(sorted(declarations)))
+        if rules_of[old] == 1 and declarations and body_key in identical:
+            renames[old] = identical[body_key]  # D-031: identical bodies merge
+            continue
+        new = None
+        if rules_of[old] == 1:
+            new = naming.speaking_name(declarations, language)
+        if new is None or new in taken or new in used:
+            stem = f"ef-{naming.word(category, language)}"
+            counters[category] = counters.get(category, 0) + 1
+            new = f"{stem}-{counters[category]}"
+            while new in taken or new in used:
+                counters[category] += 1
+                new = f"{stem}-{counters[category]}"
+        taken.add(new)
+        renames[old] = new
+        if rules_of[old] == 1 and declarations:
+            identical[body_key] = new
+    return renames
+
+
+def _rename_css(text: str, renames: dict[str, str]) -> str:
+    for old, new in renames.items():
+        text = re.sub(r"\." + re.escape(old) + r"(?![\w-])", "." + new, text)
+    return text
+
+
+def _renamed_sheets(sheets, renames) -> "list[str] | None":
+    """Every stylesheet rewritten, or `None` when one of them would not come
+    back with the same number of rules or would not parse as CSS."""
+    before_texts = [sheet.text() for sheet in sheets]
+    new_sheets = [_rename_css(text, renames) for text in before_texts]
+    for before, after in zip(before_texts, new_sheets):
+        if len(stylesheet.top_level_rules(before)) != len(
+            stylesheet.top_level_rules(after)
+        ) or not _parses_as_css(after):
+            return None
+    return new_sheets
+
+
+def _duplicate_declarations(css_text: str) -> tuple[list, int, int, list]:
+    """Every declaration block scanned for a property declared twice:
+    `(cuts, kept, total, askable)` — the spans that provably never win, how
+    many duplicates are somebody's fallback and stay, how many duplicates
+    there are in all, and the mixed-importance groups that are a question."""
+    cuts: list = []
+    kept = 0
+    total = 0
+    askable: list = []
+    for body_start, body_end in stylesheet.declaration_blocks(css_text):
+        wrapped = "{" + css_text[body_start:body_end] + "}"
+        groups: dict = {}
+        for match in _DECLARATION_RE.finditer(wrapped):
+            groups.setdefault(match.group("prop").lower(), []).append(match)
+        for prop, occurrences in groups.items():
+            if len(occurrences) < 2:
+                continue
+            total += len(occurrences) - 1
+            parsed = []
+            for match in occurrences:
+                value = match.group("value").strip()
+                important = bool(_IMPORTANT_RE.search(value))
+                bare = _IMPORTANT_RE.sub("", value).strip()
+                parsed.append((match, " ".join(bare.split()), important))
+            values = {value for _, value, _ in parsed}
+            important_ones = [entry for entry in parsed if entry[2]]
+            if len(values) == 1:
+                winner = (important_ones or parsed)[-1]
+                losers = [entry for entry in parsed if entry is not winner]
+            elif important_ones:
+                # D-037: mixed importance over different values is a real
+                # divergence — modern readers compute the last important
+                # value, importance-blind ones the last plain — and which
+                # of the two the book *means* is a person's call, not a
+                # proof's. Collected here, asked past the opt-out gate.
+                askable.append((prop, parsed, body_start))
+                continue
+            elif _css1_safe(prop, parsed[-1][1]):
+                losers = parsed[:-1]
+            else:
+                kept += len(occurrences) - 1
+                continue
+            cuts.extend(
+                (body_start - 1 + match.start(), body_start - 1 + match.end())
+                for match, _, _ in losers
+            )
+    return cuts, kept, total, askable
+
+
+def _without_spans(text: str, spans: list) -> str:
+    """The text with every `(start, end)` span cut out."""
+    pieces: list = []
+    cursor = 0
+    for start, end in sorted(spans):
+        pieces.append(text[cursor:start])
+        cursor = end
+    pieces.append(text[cursor:])
+    return "".join(pieces)
+
+
 class StyleStage(Stage):
     """Repoints stylesheet URLs and reports rules that will not survive."""
 
@@ -1052,154 +1221,37 @@ class StyleStage(Stage):
 
         documents = ctx.book.content_docs()
         sheets = list(ctx.book.by_type("style"))
-        css_texts: list[str] = [sheet.text() for sheet in sheets]
-        for document in documents:
-            css_texts += [
-                found.group(1).decode("utf-8", "replace")
-                for found in _STYLE_TEXT.finditer(document.data)
-            ]
+        css_texts = _css_texts(sheets, documents)
         if any("[class" in text for text in css_texts):
             self.note(ctx, Level.INFO, "css.class-translation-attr-selector", values={})
             return
 
-        # The census: which tags carry each class, and the order classes first
-        # appear in reading order. Serialized bytes, double-quoted attributes —
-        # which is what this program's own writer produces by this point.
-        tags_of: dict[str, set] = {}
-        first_use: list[str] = []
-        for document in documents:
-            for found in self._TAG_CLASS_RE.finditer(document.data):
-                tag = found.group(1).decode("ascii", "replace").lower()
-                for name in found.group(2).decode("utf-8", "replace").split():
-                    tags_of.setdefault(name, set()).add(tag)
-                    if name not in first_use and _GENERATOR_NAME.match(name):
-                        first_use.append(name)
+        tags_of, first_use = self._class_census(documents)
         if not first_use:
             return
-
-        # Each class's declarations, read off every rule that names it.
-        declarations_of: dict[str, list] = {name: [] for name in first_use}
-        rules_of: dict[str, int] = {name: 0 for name in first_use}
-        for text in css_texts:
-            for span in stylesheet.top_level_rules(text):
-                named = set(_SEL_NAME.findall(span.selector)) & set(first_use)
-                if not named:
-                    continue
-                body = text[span.start:span.end]
-                inner = body[body.find("{") + 1:body.rfind("}")]
-                declarations = [
-                    (part.partition(":")[0].strip().lower(),
-                     " ".join(part.partition(":")[2].split()).lower())
-                    for part in inner.split(";") if ":" in part
-                ]
-                for name in named:
-                    declarations_of[name] += declarations
-                    rules_of[name] += 1
-
-        # Always English (D-034), whatever the window speaks: identifiers in
-        # source code are international, and one spelling per book forever is
-        # also one less thing a reproducible build has to pin.
-        language = "en"
-        used = set(tags_of) | set(ctx.used_classes)
-        taken: set = set()
-        counters: dict[str, int] = {}
-        identical: dict[tuple, str] = {}
-        renames: dict[str, str] = {}
-        for old in first_use:
-            declarations = declarations_of[old]
-            category = naming.categorize(
-                tags_of.get(old, set()),
-                {prop for prop, _ in declarations},
-                declarations,
-            )
-            # D-033: a role word in the generator's own name — its record of
-            # what it generated — outranks everything below, and stays out of
-            # the identical-bodies merge in both directions: a role name must
-            # never be handed to a class that merely shares a rule body, and
-            # a role-carrying class must never dissolve into a numbered one.
-            role = naming.role_name(old, tags_of.get(old, set()), language)
-            if role is not None:
-                new = role
-                suffix = 2
-                while new in taken or new in used:
-                    new = f"{role}-{suffix}"
-                    suffix += 1
-                taken.add(new)
-                renames[old] = new
-                continue
-            body_key = (category, tuple(sorted(declarations)))
-            if rules_of[old] == 1 and declarations and body_key in identical:
-                renames[old] = identical[body_key]  # D-031: identical bodies merge
-                continue
-            new = None
-            if rules_of[old] == 1:
-                new = naming.speaking_name(declarations, language)
-            if new is None or new in taken or new in used:
-                stem = f"ef-{naming.word(category, language)}"
-                counters[category] = counters.get(category, 0) + 1
-                new = f"{stem}-{counters[category]}"
-                while new in taken or new in used:
-                    counters[category] += 1
-                    new = f"{stem}-{counters[category]}"
-            taken.add(new)
-            renames[old] = new
-            if rules_of[old] == 1 and declarations:
-                identical[body_key] = new
+        declarations_of, rules_of = _declarations_by_class(css_texts, first_use)
+        renames = _new_class_names(
+            naming, first_use, tags_of, declarations_of, rules_of,
+            used=set(tags_of) | set(ctx.used_classes),
+        )
         if not renames:
             return
 
         # Build every rewritten text first, verify, and only then commit —
         # a half-renamed book is worse than an untouched one.
-        def rename_css(text: str) -> str:
-            for old, new in renames.items():
-                text = re.sub(r"\." + re.escape(old) + r"(?![\w-])", "." + new, text)
-            return text
-
-        new_sheets = [rename_css(text) for text in [sheet.text() for sheet in sheets]]
-        for before, after in zip([sheet.text() for sheet in sheets], new_sheets):
-            if len(stylesheet.top_level_rules(before)) != len(
-                stylesheet.top_level_rules(after)
-            ) or not _parses_as_css(after):
-                self.note(ctx, Level.WARN, "css.class-translation-unverified", values={})
-                return
-
-        def rename_document(data: bytes) -> bytes:
-            def attribute(match: "re.Match") -> bytes:
-                tokens = match.group(1).decode("utf-8", "replace").split()
-                return (
-                    'class="' + " ".join(renames.get(t, t) for t in tokens) + '"'
-                ).encode("utf-8")
-
-            def tag(match: "re.Match") -> bytes:
-                return self._CLASS_ATTR_RE.sub(attribute, match.group(0))
-
-            data = self._TAG_RE.sub(tag, data)
-
-            def block(match: "re.Match") -> bytes:
-                renamed = rename_css(
-                    match.group(1).decode("utf-8", "replace")
-                ).encode("utf-8")
-                # Spliced by position, not by `str.replace` — the block's text
-                # could coincide with a fragment of the element's own tag.
-                start, end = match.span(1)
-                offset = match.start(0)
-                return (
-                    match.group(0)[: start - offset]
-                    + renamed
-                    + match.group(0)[end - offset:]
-                )
-
-            return _STYLE_TEXT.sub(block, data)
-
+        new_sheets = _renamed_sheets(sheets, renames)
+        if new_sheets is None:
+            self.note(ctx, Level.WARN, "css.class-translation-unverified", values={})
+            return
         for sheet, text in zip(sheets, new_sheets):
             sheet.data = text.encode("utf-8")
         for document in documents:
-            document.data = rename_document(document.data)
+            document.data = self._rename_classes_in_document(document.data, renames)
 
         listed = "\n".join(f"{old} → {new}" for old, new in renames.items())
         self.note(
             ctx, Level.FIX, "css.classes-renamed",
-            values={"count": len(renames), "language": language},
+            values={"count": len(renames), "language": "en"},
             detail=listed,
         )
         self.changed(
@@ -1210,6 +1262,50 @@ class StyleStage(Stage):
             risk=Risk.NONE, reversible=False,
             rule="css.classes-renamed",
         )
+
+    def _class_census(self, documents) -> tuple[dict[str, set], list[str]]:
+        """Which tags carry each class, and the order classes first appear in
+        reading order. Serialized bytes, double-quoted attributes — which is
+        what this program's own writer produces by this point."""
+        tags_of: dict[str, set] = {}
+        first_use: list[str] = []
+        for document in documents:
+            for found in self._TAG_CLASS_RE.finditer(document.data):
+                tag = found.group(1).decode("ascii", "replace").lower()
+                for name in found.group(2).decode("utf-8", "replace").split():
+                    tags_of.setdefault(name, set()).add(tag)
+                    if name not in first_use and _GENERATOR_NAME.match(name):
+                        first_use.append(name)
+        return tags_of, first_use
+
+    def _rename_classes_in_document(self, data: bytes, renames: dict[str, str]) -> bytes:
+        """Every `class` attribute and every `<style>` block of one document."""
+        def attribute(match: "re.Match") -> bytes:
+            tokens = match.group(1).decode("utf-8", "replace").split()
+            return (
+                'class="' + " ".join(renames.get(t, t) for t in tokens) + '"'
+            ).encode("utf-8")
+
+        def tag(match: "re.Match") -> bytes:
+            return self._CLASS_ATTR_RE.sub(attribute, match.group(0))
+
+        data = self._TAG_RE.sub(tag, data)
+
+        def block(match: "re.Match") -> bytes:
+            renamed = _rename_css(
+                match.group(1).decode("utf-8", "replace"), renames
+            ).encode("utf-8")
+            # Spliced by position, not by `str.replace` — the block's text
+            # could coincide with a fragment of the element's own tag.
+            start, end = match.span(1)
+            offset = match.start(0)
+            return (
+                match.group(0)[: start - offset]
+                + renamed
+                + match.group(0)[end - offset:]
+            )
+
+        return _STYLE_TEXT.sub(block, data)
 
     def _comment_shield(self, ctx: Context, css_text: str, resource) -> str:
         """Strip the `<!-- … -->` shield an HTML-era converter left in the CSS.
@@ -1873,54 +1969,37 @@ class StyleStage(Stage):
         on, so the in-block winner is the same under any condition.
         Behind the sweep's opt-out, like the rest of the family.
         """
-        cuts: list = []
-        kept = 0
-        total = 0
-        askable: list = []
-        for body_start, body_end in stylesheet.declaration_blocks(css_text):
-            wrapped = "{" + css_text[body_start:body_end] + "}"
-            groups: dict = {}
-            for match in _DECLARATION_RE.finditer(wrapped):
-                groups.setdefault(match.group("prop").lower(), []).append(match)
-            for prop, occurrences in groups.items():
-                if len(occurrences) < 2:
-                    continue
-                total += len(occurrences) - 1
-                parsed = []
-                for match in occurrences:
-                    value = match.group("value").strip()
-                    important = bool(_IMPORTANT_RE.search(value))
-                    bare = _IMPORTANT_RE.sub("", value).strip()
-                    parsed.append((match, " ".join(bare.split()), important))
-                values = {value for _, value, _ in parsed}
-                important_ones = [entry for entry in parsed if entry[2]]
-                if len(values) == 1:
-                    winner = (important_ones or parsed)[-1]
-                    losers = [entry for entry in parsed if entry is not winner]
-                elif important_ones:
-                    # D-037: mixed importance over different values is a real
-                    # divergence — modern readers compute the last important
-                    # value, importance-blind ones the last plain — and which
-                    # of the two the book *means* is a person's call, not a
-                    # proof's. Collected here, asked past the opt-out gate.
-                    askable.append((prop, parsed, body_start))
-                    continue
-                elif _css1_safe(prop, parsed[-1][1]):
-                    losers = parsed[:-1]
-                else:
-                    kept += len(occurrences) - 1
-                    continue
-                cuts.extend(
-                    (body_start - 1 + match.start(), body_start - 1 + match.end())
-                    for match, _, _ in losers
-                )
+        cuts, kept, total, askable = _duplicate_declarations(css_text)
         if not total:
             return css_text
         if not ctx.policy.sweep_style_blocks:
             self.note(ctx, Level.INFO, "css.duplicate-properties-found",
                       values={"count": total}, location=resource.path)
             return css_text
+        resolved, kept_on_request = self._ask_about_mixed_importance(ctx, resource, askable, cuts)
+        kept += kept_on_request
+        if not cuts:
+            self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
+                      values={"count": kept}, location=resource.path)
+            return css_text
+        cleaned = _without_spans(css_text, cuts)
+        if not _structurally_sound(cleaned) or (
+            len(stylesheet.top_level_rules(cleaned))
+            != len(stylesheet.top_level_rules(css_text))
+        ):
+            self.note(ctx, Level.WARN, "css.duplicate-properties-unverified",
+                      values={"count": len(cuts)}, location=resource.path)
+            return css_text
+        self._note_duplicates_cut(ctx, resource, provable=len(cuts) - resolved,
+                                  resolved=resolved, kept=kept)
+        return cleaned
+
+    def _ask_about_mixed_importance(self, ctx: Context, resource, askable: list, cuts: list) -> tuple[int, int]:
+        """D-037: each group of different values with mixed `!important` is a
+        question; "resolve" adds the losers to `cuts`. Returns how many
+        declarations were resolved and how many kept on a person's word."""
         resolved = 0
+        kept = 0
         for prop, parsed, body_start in askable:
             winner = [entry for entry in parsed if entry[2]][-1]
             shown = " | ".join(
@@ -1952,25 +2031,9 @@ class StyleStage(Stage):
                 resolved += len(parsed) - 1
             else:
                 kept += len(parsed) - 1
-        if not cuts:
-            self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
-                      values={"count": kept}, location=resource.path)
-            return css_text
-        pieces: list = []
-        cursor = 0
-        for start, end in sorted(cuts):
-            pieces.append(css_text[cursor:start])
-            cursor = end
-        pieces.append(css_text[cursor:])
-        cleaned = "".join(pieces)
-        if not _structurally_sound(cleaned) or (
-            len(stylesheet.top_level_rules(cleaned))
-            != len(stylesheet.top_level_rules(css_text))
-        ):
-            self.note(ctx, Level.WARN, "css.duplicate-properties-unverified",
-                      values={"count": len(cuts)}, location=resource.path)
-            return css_text
-        provable = len(cuts) - resolved
+        return resolved, kept
+
+    def _note_duplicates_cut(self, ctx: Context, resource, *, provable: int, resolved: int, kept: int) -> None:
         if provable:
             self.note(ctx, Level.FIX, "css.duplicate-properties-removed",
                       values={"count": provable}, location=resource.path)
@@ -1995,7 +2058,6 @@ class StyleStage(Stage):
         if kept:
             self.note(ctx, Level.PRESERVED, "css.duplicate-properties-kept",
                       values={"count": kept}, location=resource.path)
-        return cleaned
 
     def _ascending_specificity(self, ctx: Context, css_text: str, resource) -> str:
         """Move a rule above the more specific selectors it shares a key with.

@@ -647,6 +647,64 @@ def _append_style(element, declarations: str) -> None:
     element.set("style", f"{existing} {declarations}".strip())
 
 
+def _image_only_paragraphs(root) -> list:
+    """Every `<p>` or `<div>` whose only content is one image."""
+    candidates = []
+    for element in xhtml.iter_elements(root):
+        if xhtml.local_name(element).lower() not in {"p", "div"}:
+            continue
+        children = [child for child in element if isinstance(child.tag, str)]
+        if len(children) != 1:
+            continue
+        if xhtml.local_name(children[0]).lower() not in {"img", "svg", "image"}:
+            continue
+        if (element.text or "").strip() or (children[0].tail or "").strip():
+            continue
+        candidates.append(element)
+    return candidates
+
+
+def _image_paragraph_verdict(cascade, element) -> str:
+    """What the cascade says about one image paragraph: `respected` when a
+    publisher's decision reaches it, `already` when it is centred without an
+    indent, `unindent` when only the indent leaks in, `centre` when nothing
+    decided its alignment at all."""
+    tag = xhtml.local_name(element).lower()
+    classes = frozenset((element.get("class") or "").split())
+    element_id = element.get("id")
+    inline = (element.get("style") or "").lower()
+
+    if "text-align" in inline or "text-indent" in inline:
+        return "respected"
+    # A rule naming this paragraph's class or id is about this image.
+    if cascade.declares_targeted("text-align", tag, classes, element_id) or (
+        cascade.declares_targeted("text-indent", tag, classes, element_id)
+    ):
+        return "respected"
+
+    # Both properties are inherited, so the answer may be several
+    # elements up. `body.cover { text-align: center }` around a bare
+    # <div><img/></div> is a centred cover page; reading the <div>
+    # alone sees nothing and "fixes" what was never broken.
+    chain = _ancestry(element)
+    align, align_targeted, _ = cascade.resolve("text-align", chain)
+    indent, indent_targeted, indent_distance = cascade.resolve("text-indent", chain)
+    centred = (align or "").strip().lower() in {"center", "-webkit-center"}
+    if centred and css_cascade.is_zero_length(indent):
+        # Already centred, wherever that was decided. Restating it would
+        # add noise to the markup and claim a fix that changed nothing.
+        return "already"
+
+    # An ancestor the publisher aimed at — `div.right`, `body.cover` —
+    # is still a statement about where this image sits, and moving it
+    # to the middle would overrule a decision.
+    if align_targeted and not centred:
+        if indent_targeted or css_cascade.is_zero_length(indent):
+            return "respected"
+        return "unindent"
+    return "centre"
+
+
 class ContentStage(Stage):
     """Rebuilds every content document and rewrites its outgoing references."""
 
@@ -680,118 +738,154 @@ class ContentStage(Stage):
 
     def run(self, ctx: Context) -> None:
         if not ctx.policy.rewrite_content:
-            # Container-only rebuild. Parsing and reserialising a document
-            # changes its bytes even when nothing about it is wrong, so the way
-            # to keep that promise is not to open them at all.
-            # Two exceptions, and they are the same exception twice: a legacy
-            # DOCTYPE and an empty <title> each make the output an invalid
-            # EPUB 3 — "Irregular DOCTYPE", "Element title must not be empty" —
-            # and neither says anything about how a page looks, so neither edit
-            # can change what the reader sees. Half the older books in a real
-            # library carry the XHTML 1.1 DOCTYPE, and thirteen books in the
-            # private corpus were failing on nothing but the title.
-            #
-            # Both were legal in EPUB 2. This mode does not touch content, but
-            # it does rebuild the package as EPUB 3, so markup that was only
-            # ever legal under the old rules stops being legal around it —
-            # which makes those errors ours, not the source's.
-            modernised = 0
-            titled = 0
-            stranded: set[str] = set()
-            refused: dict[str, set[str]] = {}
-            for resource in ctx.book.content_docs():
-                data, changed = xhtml.modernise_doctype(resource.data)
-                if changed:
-                    resource.data = data
-                    modernised += 1
-                else:
-                    unresolvable = xhtml.unresolvable_entities(resource.data)
-                    if unresolvable and b"<!DOCTYPE html>" not in resource.data[:400]:
-                        refused[resource.path] = unresolvable
-
-                # Reading the ids costs a parse and changes nothing, and
-                # without them the navigation stage cannot tell a live anchor
-                # from a dead one — so in this mode it assumed every anchor was
-                # live and left `nav.xhtml` pointing at fragments that do not
-                # exist. EPUBCheck: "Fragment identifier is not defined".
-                try:
-                    root, _ = xhtml.parse(resource.data)
-                except Exception:  # noqa: BLE001 — a document we cannot read has no ids
-                    continue
-                ctx.document_ids[resource.path] = {
-                    element.get("id")
-                    for element in xhtml.iter_elements(root)
-                    if element.get("id")
-                }
-                # The same parse also decides the manifest properties, and this
-                # mode needs them as much as any other: the package is rebuilt
-                # as EPUB 3 whatever happens to the content, and EPUB 3 requires
-                # a document containing SVG to say so. Calibre wraps its cover
-                # in `<svg>` and writes an EPUB 2 package, where no such
-                # declaration exists — so nineteen books came out of this mode
-                # with "The property svg should be declared in the OPF file",
-                # having gone in valid. The one mode that promises to break
-                # nothing was breaking something.
-                #
-                # It costs nothing here: reading properties writes no bytes, and
-                # the document has already been parsed a line above.
-                self._properties(ctx, root, resource)
-
-                # And the second edit this mode is allowed, for the same reason
-                # as the DOCTYPE: `<title>` is not rendered in the body, so
-                # filling it cannot change what the reader sees. EPUB 2 let it
-                # be empty and EPUB 3 does not — so the mode was not carrying a
-                # defect the book had, it was making one by rebuilding the
-                # package as EPUB 3 around markup that was legal only under the
-                # old rules. Decided by the parse, applied to the bytes.
-                data, filled = xhtml.fill_empty_title(
-                    resource.data, self._derive_title(root, resource)
-                )
-                if filled:
-                    resource.data = data
-                    titled += 1
-
-                stranded.update(self._only_legal_in_epub2(root))
-            if modernised:
-                self.note(
-                    ctx,
-                    Level.FIX,
-                    "xhtml.doctype-modernised",
-                    values={"count": modernised},
-                )
-            if refused:
-                names = sorted({name for names in refused.values() for name in names})
-                self.note(
-                    ctx,
-                    Level.WARN,
-                    "xhtml.doctype-kept",
-                    values={"count": len(refused), "documents": ", ".join(names[:5])},
-                    location=sorted(refused)[0],
-                )
-            if titled:
-                self.note(
-                    ctx,
-                    Level.FIX,
-                    "xhtml.title-filled",
-                    values={"count": titled},
-                )
-            if stranded:
-                # Not an apology and not a defect to chase: a statement of what
-                # this mode cannot reach. The alternative is a reader running
-                # EPUBCheck, getting `RSC-005`, and having no way to learn that
-                # the answer is "use another mode".
-                self.note(
-                    ctx,
-                    Level.WARN,
-                    "xhtml.epub2-only-markup",
-                    values={"what": ", ".join(sorted(stranded)[:4])},
-                )
-            if modernised or titled:
-                self.note(ctx, Level.INFO, "xhtml.untouched-except-doctype")
-            else:
-                self.note(ctx, Level.INFO, "xhtml.untouched")
+            self._container_only(ctx)
             return
 
+        documents, expanded_entities, refused_entities = self._parse_documents(ctx)
+
+        # Fragment targets can point across documents, so every id rename must be
+        # known before any href is rewritten.
+        global_ids = {
+            resource.path: id_map for resource, _, id_map, _ in documents if id_map
+        }
+        ctx.id_map = global_ids
+        # And which ids each document actually *has*, for the same reason: a
+        # link to `chapter.xhtml#238` where nothing is called `238` is an error
+        # EPUBCheck reports, and the only way to know is to have read every
+        # document first. `global_ids` cannot answer it — it holds renames.
+        present_ids = {
+            resource.path: self._anchors_of(root) for resource, root, _, _ in documents
+        }
+
+        for resource, root, _, mode in documents:
+            self._rewrite_document(ctx, resource, root, mode, global_ids, present_ids)
+
+        self._report_entities(ctx, expanded_entities, refused_entities)
+        if self._titles_filled:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.title-filled",
+                values={"count": self._titles_filled},
+            )
+        self._report_watermarks(ctx)
+
+    def _container_only(self, ctx: Context) -> None:
+        # Container-only rebuild. Parsing and reserialising a document
+        # changes its bytes even when nothing about it is wrong, so the way
+        # to keep that promise is not to open them at all.
+        # Two exceptions, and they are the same exception twice: a legacy
+        # DOCTYPE and an empty <title> each make the output an invalid
+        # EPUB 3 — "Irregular DOCTYPE", "Element title must not be empty" —
+        # and neither says anything about how a page looks, so neither edit
+        # can change what the reader sees. Half the older books in a real
+        # library carry the XHTML 1.1 DOCTYPE, and thirteen books in the
+        # private corpus were failing on nothing but the title.
+        #
+        # Both were legal in EPUB 2. This mode does not touch content, but
+        # it does rebuild the package as EPUB 3, so markup that was only
+        # ever legal under the old rules stops being legal around it —
+        # which makes those errors ours, not the source's.
+        modernised = 0
+        titled = 0
+        stranded: set[str] = set()
+        refused: dict[str, set[str]] = {}
+        for resource in ctx.book.content_docs():
+            data, changed = xhtml.modernise_doctype(resource.data)
+            if changed:
+                resource.data = data
+                modernised += 1
+            else:
+                unresolvable = xhtml.unresolvable_entities(resource.data)
+                if unresolvable and b"<!DOCTYPE html>" not in resource.data[:400]:
+                    refused[resource.path] = unresolvable
+
+            # Reading the ids costs a parse and changes nothing, and
+            # without them the navigation stage cannot tell a live anchor
+            # from a dead one — so in this mode it assumed every anchor was
+            # live and left `nav.xhtml` pointing at fragments that do not
+            # exist. EPUBCheck: "Fragment identifier is not defined".
+            try:
+                root, _ = xhtml.parse(resource.data)
+            except Exception:  # noqa: BLE001 — a document we cannot read has no ids
+                continue
+            ctx.document_ids[resource.path] = {
+                element.get("id")
+                for element in xhtml.iter_elements(root)
+                if element.get("id")
+            }
+            # The same parse also decides the manifest properties, and this
+            # mode needs them as much as any other: the package is rebuilt
+            # as EPUB 3 whatever happens to the content, and EPUB 3 requires
+            # a document containing SVG to say so. Calibre wraps its cover
+            # in `<svg>` and writes an EPUB 2 package, where no such
+            # declaration exists — so nineteen books came out of this mode
+            # with "The property svg should be declared in the OPF file",
+            # having gone in valid. The one mode that promises to break
+            # nothing was breaking something.
+            #
+            # It costs nothing here: reading properties writes no bytes, and
+            # the document has already been parsed a line above.
+            self._properties(ctx, root, resource)
+
+            # And the second edit this mode is allowed, for the same reason
+            # as the DOCTYPE: `<title>` is not rendered in the body, so
+            # filling it cannot change what the reader sees. EPUB 2 let it
+            # be empty and EPUB 3 does not — so the mode was not carrying a
+            # defect the book had, it was making one by rebuilding the
+            # package as EPUB 3 around markup that was legal only under the
+            # old rules. Decided by the parse, applied to the bytes.
+            data, filled = xhtml.fill_empty_title(
+                resource.data, self._derive_title(root, resource)
+            )
+            if filled:
+                resource.data = data
+                titled += 1
+
+            stranded.update(self._only_legal_in_epub2(root))
+        if modernised:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.doctype-modernised",
+                values={"count": modernised},
+            )
+        if refused:
+            names = sorted({name for names in refused.values() for name in names})
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.doctype-kept",
+                values={"count": len(refused), "documents": ", ".join(names[:5])},
+                location=sorted(refused)[0],
+            )
+        if titled:
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.title-filled",
+                values={"count": titled},
+            )
+        if stranded:
+            # Not an apology and not a defect to chase: a statement of what
+            # this mode cannot reach. The alternative is a reader running
+            # EPUBCheck, getting `RSC-005`, and having no way to learn that
+            # the answer is "use another mode".
+            self.note(
+                ctx,
+                Level.WARN,
+                "xhtml.epub2-only-markup",
+                values={"what": ", ".join(sorted(stranded)[:4])},
+            )
+        if modernised or titled:
+            self.note(ctx, Level.INFO, "xhtml.untouched-except-doctype")
+        else:
+            self.note(ctx, Level.INFO, "xhtml.untouched")
+
+    def _parse_documents(self, ctx: Context) -> tuple[list, dict[str, list[str]], dict[str, list[str]]]:
+        """Every content document parsed and its identifiers settled, before
+        any reference is rewritten: `(resource, root, id_map, mode)` per
+        document, then the custom entities expanded and refused, by path."""
         documents: list[tuple[object, object, dict[str, str], str]] = []
 
         expanded_entities: dict[str, list[str]] = {}
@@ -882,82 +976,61 @@ class ContentStage(Stage):
 
             id_map = self._fix_identifiers(ctx, root, resource.path)
             documents.append((resource, root, id_map, mode))
+        return documents, expanded_entities, refused_entities
 
-        # Fragment targets can point across documents, so every id rename must be
-        # known before any href is rewritten.
-        global_ids = {
-            resource.path: id_map for resource, _, id_map, _ in documents if id_map
+    def _rewrite_document(self, ctx: Context, resource, root, mode: str, global_ids, present_ids) -> None:
+        """Every repair this stage makes to one document, in the order the
+        later ones depend on the earlier, then the bytes written back."""
+        self._skeleton(ctx, root, resource)
+        self._rewrite_references(ctx, root, resource, global_ids, present_ids)
+        # Not `mode == "html"` alone. `mode` says which parser *this*
+        # program used, and a `.html` document can be well-formed XML and
+        # come back through the XML path — while the reading system, going
+        # by the media type the book declares, drew it as HTML. What decides
+        # whether content in `<head>` was ever on the page is how the
+        # **source** was read, and `_declared_html` is that question.
+        drawn_as_html = mode == "html" or self._declared_html(resource)
+        self._modernise(ctx, root, resource, drawn_as_html=drawn_as_html)
+        # Before anything that reads the cascade: a rule restored here
+        # is a rule those must see. The cover repair below is the one
+        # that matters — four of the seven books this found are covers,
+        # and adding page-fitting limits on top of the publisher's own
+        # restored sizing would be a second opinion nobody asked for.
+        self._orphaned_styling(ctx, root, resource)
+        self._image_paragraphs(ctx, root, resource)
+        self._cover_fits_the_page(ctx, root, resource)
+        self._page_bottom_kept(ctx, root, resource)
+        self._positioning_contained(ctx, root, resource)
+        self._block_in_inline(ctx, root, resource)
+        self._empty_spans(ctx, root, resource)
+        self._watermarks(ctx, root, resource)
+        self._accessibility(ctx, root, resource)
+        self._scripting(ctx, root, resource)
+        self._properties(ctx, root, resource)
+        self._census(ctx, root)
+        ctx.document_ids[resource.path] = {
+            element.get("id")
+            for element in xhtml.iter_elements(root)
+            if element.get("id")
         }
-        ctx.id_map = global_ids
-        # And which ids each document actually *has*, for the same reason: a
-        # link to `chapter.xhtml#238` where nothing is called `238` is an error
-        # EPUBCheck reports, and the only way to know is to have read every
-        # document first. `global_ids` cannot answer it — it holds renames.
-        present_ids = {
-            resource.path: self._anchors_of(root) for resource, root, _, _ in documents
-        }
+        # Before the count, because most of what that count would find is
+        # not a control character at all — it is punctuation a conversion
+        # mislaid, and deleting it is the wrong answer to it (EF-050).
+        self._mojibake(ctx, root, resource)
 
-        for resource, root, _, mode in documents:
-            self._skeleton(ctx, root, resource)
-            self._rewrite_references(ctx, root, resource, global_ids, present_ids)
-            # Not `mode == "html"` alone. `mode` says which parser *this*
-            # program used, and a `.html` document can be well-formed XML and
-            # come back through the XML path — while the reading system, going
-            # by the media type the book declares, drew it as HTML. What decides
-            # whether content in `<head>` was ever on the page is how the
-            # **source** was read, and `_declared_html` is that question.
-            drawn_as_html = mode == "html" or self._declared_html(resource)
-            self._modernise(ctx, root, resource, drawn_as_html=drawn_as_html)
-            # Before anything that reads the cascade: a rule restored here
-            # is a rule those must see. The cover repair below is the one
-            # that matters — four of the seven books this found are covers,
-            # and adding page-fitting limits on top of the publisher's own
-            # restored sizing would be a second opinion nobody asked for.
-            self._orphaned_styling(ctx, root, resource)
-            self._image_paragraphs(ctx, root, resource)
-            self._cover_fits_the_page(ctx, root, resource)
-            self._page_bottom_kept(ctx, root, resource)
-            self._positioning_contained(ctx, root, resource)
-            self._block_in_inline(ctx, root, resource)
-            self._empty_spans(ctx, root, resource)
-            self._watermarks(ctx, root, resource)
-            self._accessibility(ctx, root, resource)
-            self._scripting(ctx, root, resource)
-            self._properties(ctx, root, resource)
-            self._census(ctx, root)
-            ctx.document_ids[resource.path] = {
-                element.get("id")
-                for element in xhtml.iter_elements(root)
-                if element.get("id")
-            }
-            # Before the count, because most of what that count would find is
-            # not a control character at all — it is punctuation a conversion
-            # mislaid, and deleting it is the wrong answer to it (EF-050).
-            self._mojibake(ctx, root, resource)
-
-            # Counted before serialising, because serialising is what removes
-            # them. Never silent: this is the book's own text, and a character
-            # leaving it is the reader's information rather than their surprise.
-            impossible = xhtml.forbidden_characters(root)
-            if impossible:
-                self.note(
-                    ctx,
-                    Level.FIX,
-                    "xhtml.forbidden-characters-removed",
-                    values={"count": impossible},
-                    location=resource.path,
-                )
-            resource.data = xhtml.serialize(root)
-
-        self._report_entities(ctx, expanded_entities, refused_entities)
-        if self._titles_filled:
+        # Counted before serialising, because serialising is what removes
+        # them. Never silent: this is the book's own text, and a character
+        # leaving it is the reader's information rather than their surprise.
+        impossible = xhtml.forbidden_characters(root)
+        if impossible:
             self.note(
                 ctx,
                 Level.FIX,
-                "xhtml.title-filled",
-                values={"count": self._titles_filled},
+                "xhtml.forbidden-characters-removed",
+                values={"count": impossible},
+                location=resource.path,
             )
-        self._report_watermarks(ctx)
+        resource.data = xhtml.serialize(root)
 
     def _report_entities(
         self,
@@ -2518,19 +2591,7 @@ class ContentStage(Stage):
         by id, or inline — that is a decision about the image, and it is left
         exactly as written even when it is not centred.
         """
-        candidates = []
-        for element in xhtml.iter_elements(root):
-            if xhtml.local_name(element).lower() not in {"p", "div"}:
-                continue
-            children = [child for child in element if isinstance(child.tag, str)]
-            if len(children) != 1:
-                continue
-            if xhtml.local_name(children[0]).lower() not in {"img", "svg", "image"}:
-                continue
-            if (element.text or "").strip() or (children[0].tail or "").strip():
-                continue
-            candidates.append(element)
-
+        candidates = _image_only_paragraphs(root)
         if not candidates:
             return
 
@@ -2541,64 +2602,32 @@ class ContentStage(Stage):
         unstyled = 0
 
         for element in candidates:
-            tag = xhtml.local_name(element).lower()
-            classes = frozenset((element.get("class") or "").split())
-            element_id = element.get("id")
-            inline = (element.get("style") or "").lower()
-
-            if "text-align" in inline or "text-indent" in inline:
+            verdict = _image_paragraph_verdict(cascade, element)
+            if verdict == "respected":
                 respected += 1
-                continue
-            # A rule naming this paragraph's class or id is about this image.
-            if cascade.declares_targeted("text-align", tag, classes, element_id) or (
-                cascade.declares_targeted("text-indent", tag, classes, element_id)
-            ):
-                respected += 1
-                continue
-
-            # Both properties are inherited, so the answer may be several
-            # elements up. `body.cover { text-align: center }` around a bare
-            # <div><img/></div> is a centred cover page; reading the <div>
-            # alone sees nothing and "fixes" what was never broken.
-            chain = _ancestry(element)
-            align, align_targeted, _ = cascade.resolve("text-align", chain)
-            indent, indent_targeted, indent_distance = cascade.resolve("text-indent", chain)
-            centred = (align or "").strip().lower() in {"center", "-webkit-center"}
-            if centred and css_cascade.is_zero_length(indent):
-                # Already centred, wherever that was decided. Restating it would
-                # add noise to the markup and claim a fix that changed nothing.
-                continue
-
-            # An ancestor the publisher aimed at — `div.right`, `body.cover` —
-            # is still a statement about where this image sits, and moving it
-            # to the middle would overrule a decision.
-            if align_targeted and not centred:
-                if indent_targeted or css_cascade.is_zero_length(indent):
-                    respected += 1
-                    continue
+            elif verdict == "unindent":
                 # The alignment was chosen, but a running-text indent still
                 # leaks in from a generic rule. Take the indent, leave the
                 # alignment: only one of the two was decided.
                 _append_style(element, "text-indent: 0;")
                 unindented += 1
-                continue
-
-            # Nothing decided this paragraph's alignment. Either running-text
-            # rules leak onto it, or — as on title pages that link no stylesheet
-            # at all — the reader's default left-aligns the artwork. Both leave
-            # the image off-centre for want of an instruction, not by choice.
-            #
-            # The two are counted apart, because the sentence that describes
-            # them is not the same sentence. EF-034: one message said "their
-            # text indent was removed" for pages that had no indent to remove
-            # — nothing false about the *change*, and untrue about the *book*,
-            # which is the kind of report line that teaches somebody to stop
-            # reading them. The code knew the difference all along; the
-            # catalogue had one entry for both.
-            _append_style(element, "text-indent: 0; text-align: center;")
-            adjusted += 1
-            if not self._linked_stylesheets(ctx, root, resource):
-                unstyled += 1
+            elif verdict == "centre":
+                # Nothing decided this paragraph's alignment. Either running-text
+                # rules leak onto it, or — as on title pages that link no stylesheet
+                # at all — the reader's default left-aligns the artwork. Both leave
+                # the image off-centre for want of an instruction, not by choice.
+                #
+                # The two are counted apart, because the sentence that describes
+                # them is not the same sentence. EF-034: one message said "their
+                # text indent was removed" for pages that had no indent to remove
+                # — nothing false about the *change*, and untrue about the *book*,
+                # which is the kind of report line that teaches somebody to stop
+                # reading them. The code knew the difference all along; the
+                # catalogue had one entry for both.
+                _append_style(element, "text-indent: 0; text-align: center;")
+                adjusted += 1
+                if not self._linked_stylesheets(ctx, root, resource):
+                    unstyled += 1
 
         if unstyled:
             self.note(
