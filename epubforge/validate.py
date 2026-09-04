@@ -548,45 +548,12 @@ def validate(
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
         json_path = handle.name
     try:
-        # The warm JVM first; `None` from it means "this one goes the old way",
-        # and the old way is the line below, unchanged.
-        timeout = validation_timeout(epub_path)
-        if SHARED.check(epub_path, json_path, timeout=timeout) is None:
-            # A warm JVM that fell silent for the whole allowance is telling
-            # us about the book, not about itself; running the cold path for
-            # the same allowance again would only double the wait. Every
-            # other reason for `None` — no driver, a crash, a switched-off
-            # daemon — still goes the old way.
-            if SHARED.timed_out:
-                raise subprocess.TimeoutExpired(command, timeout)
-            spawn.run(
-                command + [epub_path, "--json", json_path, "--quiet"],
-                capture_output=True,
-                timeout=timeout,
-                check=False,
-            )
+        _run_epubcheck(command, epub_path, json_path)
         with open(json_path, encoding="utf-8") as handle:
             payload = json.load(handle)
     except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
-        if report and isinstance(exc, subprocess.TimeoutExpired):
-            try:
-                size = os.path.getsize(epub_path) / 1_000_000
-            except OSError:
-                size = 0.0
-            report.add(
-                "epubcheck",
-                Level.WARN,
-                "epubcheck.no-answer",
-                values={"seconds": int(validation_timeout(epub_path)), "size": f"{size:.1f}"},
-                location=epub_path,
-            )
-        elif report:
-            report.add(
-                "epubcheck",
-                Level.WARN,
-                "epubcheck.failed",
-                values={"error": type(exc).__name__},
-            )
+        if report:
+            _note_no_verdict(report, epub_path, exc)
         return ValidationResult(available=False)
     finally:
         try:
@@ -594,6 +561,75 @@ def validate(
         except OSError:
             pass
 
+    result = _tally_messages(payload)
+    if report:
+        if result.clean:
+            report.add(
+                "epubcheck",
+                Level.INFO,
+                "epubcheck.clean",
+                values={"warnings": result.warnings},
+            )
+        else:
+            report.add(
+                "epubcheck",
+                Level.ERROR,
+                "epubcheck.reported",
+                values={"fatal": result.fatal, "errors": result.errors},
+                detail=_detail(result, content_untouched),
+            )
+    return result
+
+
+def _run_epubcheck(command: list, epub_path: str, json_path: str) -> None:
+    """EPUBCheck over one file, into *json_path*: the warm JVM first, the
+    cold process only when the warm one had nothing to say."""
+    # The warm JVM first; `None` from it means "this one goes the old way",
+    # and the old way is the line below, unchanged.
+    timeout = validation_timeout(epub_path)
+    if SHARED.check(epub_path, json_path, timeout=timeout) is None:
+        # A warm JVM that fell silent for the whole allowance is telling
+        # us about the book, not about itself; running the cold path for
+        # the same allowance again would only double the wait. Every
+        # other reason for `None` — no driver, a crash, a switched-off
+        # daemon — still goes the old way.
+        if SHARED.timed_out:
+            raise subprocess.TimeoutExpired(command, timeout)
+        spawn.run(
+            command + [epub_path, "--json", json_path, "--quiet"],
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+
+
+def _note_no_verdict(report: Report, epub_path: str, exc: Exception) -> None:
+    """What the report says when EPUBCheck gave no answer: the allowance it
+    exhausted, with the size that set it, or the failure's name."""
+    if isinstance(exc, subprocess.TimeoutExpired):
+        try:
+            size = os.path.getsize(epub_path) / 1_000_000
+        except OSError:
+            size = 0.0
+        report.add(
+            "epubcheck",
+            Level.WARN,
+            "epubcheck.no-answer",
+            values={"seconds": int(validation_timeout(epub_path)), "size": f"{size:.1f}"},
+            location=epub_path,
+        )
+    else:
+        report.add(
+            "epubcheck",
+            Level.WARN,
+            "epubcheck.failed",
+            values={"error": type(exc).__name__},
+        )
+
+
+def _tally_messages(payload: dict) -> ValidationResult:
+    """EPUBCheck's JSON as a result: counts by severity, the lines, and the
+    codes and shapes of what failed."""
     result = ValidationResult(available=True)
     codes: Counter = Counter()
     shapes: Counter = Counter()
@@ -626,21 +662,4 @@ def validate(
     # Capped: a book with two hundred distinct complaints has one problem, and
     # a signature is not the place to enumerate it.
     result.shapes = dict(sorted(shapes.items())[:MAX_SHAPES])
-
-    if report:
-        if result.clean:
-            report.add(
-                "epubcheck",
-                Level.INFO,
-                "epubcheck.clean",
-                values={"warnings": result.warnings},
-            )
-        else:
-            report.add(
-                "epubcheck",
-                Level.ERROR,
-                "epubcheck.reported",
-                values={"fatal": result.fatal, "errors": result.errors},
-                detail=_detail(result, content_untouched),
-            )
     return result
