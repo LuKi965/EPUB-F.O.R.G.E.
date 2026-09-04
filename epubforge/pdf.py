@@ -505,8 +505,11 @@ def _heading_level(line: Line, body_size: float) -> str | None:
     return None
 
 
-def _blocks(pages: list[Page], body_size: float) -> list[Block]:
-    """Lines joined into paragraphs and headings, pictures in the flow."""
+def _blocks(pages: list[Page], body_size: float, breaks: set[int] = frozenset()) -> list[Block]:
+    """Lines joined into paragraphs and headings, pictures in the flow. A
+    page in *breaks* is one the outline names as a chapter's first, and a
+    paragraph does not run into a new chapter: the first line there starts
+    a block whatever the geometry says."""
     blocks: list[Block] = []
     previous: Line | None = None
     current: Block | None = None
@@ -537,6 +540,7 @@ def _blocks(pages: list[Page], body_size: float) -> list[Block]:
             starts_new = (
                 current is None
                 or current.kind != kind
+                or (previous is not None and line.page != previous.page and line.page in breaks)
                 or (previous is not None and previous.page == line.page
                     and previous.y0 - line.y1 > PARAGRAPH_GAP_RATIO * pitch)
                 or (kind == "p" and line.x0 - block_left > INDENT_POINTS and previous is not None)
@@ -585,8 +589,8 @@ def _starts_a_sentence(text: str) -> bool:
 def _sections(pages: list[Page], outline: list[Outline], body_size: float) -> list[tuple[str, list[Block]]]:
     """Documents: one per top-level outline entry when there is an outline,
     else one per `h1`, else one for the whole book."""
-    blocks = _blocks(pages, body_size)
     top = [entry for entry in outline if entry.level == 1] or outline
+    blocks = _blocks(pages, body_size, breaks={entry.page for entry in top})
     if top:
         starts = sorted({entry.page for entry in top})
         titles = {entry.page: entry.title for entry in top}

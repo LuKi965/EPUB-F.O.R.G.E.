@@ -44,11 +44,12 @@ def _escape(text: str) -> str:
 
 def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str]]],
              *, title: str = "", author: str = "", language: str = "",
-             images: dict[int, list[tuple]] | None = None) -> pathlib.Path:
+             images: dict[int, list[tuple]] | None = None,
+             outline: list[tuple[str, int]] | None = None) -> pathlib.Path:
     """Write *pages*, each a list of ``(x, y, size, text)`` lines, y from the
     page bottom as PDF counts it. *images* puts Flate-compressed RGB pictures
     on a page (by index): ``(x, y, width, height, pixel_width, pixel_height,
-    rgb_bytes)``."""
+    rgb_bytes)``. *outline* is the PDF's bookmarks: ``(title, page_index)``."""
     objects: list[bytes] = []
 
     def add(body: bytes) -> int:
@@ -85,7 +86,18 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
     for number in page_ids:
         objects[number - 1] = objects[number - 1].replace(b"PAGES 0 R", f"{pages_id} 0 R".encode())
     lang = f" /Lang ({language})" if language else ""
-    catalog = add(f"<< /Type /Catalog /Pages {pages_id} 0 R{lang} >>".encode())
+    outlines = ""
+    if outline:
+        root_id = len(objects) + 1
+        item_ids = [root_id + 1 + i for i in range(len(outline))]
+        add(f"<< /Type /Outlines /First {item_ids[0]} 0 R /Last {item_ids[-1]} 0 R /Count {len(outline)} >>".encode())
+        for i, (label, page_index) in enumerate(outline):
+            links = f" /Prev {item_ids[i - 1]} 0 R" if i else ""
+            links += f" /Next {item_ids[i + 1]} 0 R" if i + 1 < len(outline) else ""
+            add((f"<< /Title ({_escape(label)}) /Parent {root_id} 0 R{links} "
+                 f"/Dest [{page_ids[page_index]} 0 R /XYZ 0 {PAGE[1]} 0] >>").encode("cp1252"))
+        outlines = f" /Outlines {root_id} 0 R"
+    catalog = add(f"<< /Type /Catalog /Pages {pages_id} 0 R{lang}{outlines} >>".encode())
     info = add((
         "<< " + (f"/Title ({_escape(title)}) " if title else "")
         + (f"/Author ({_escape(author)}) " if author else "") + ">>"
@@ -236,6 +248,21 @@ class TestTheReader:
         book = pdf.read_pdf(str(make_pdf(tmp_path / "two.pdf", pages)), Report())
         assert [item.path for item in book.spine] == ["text/section-0001.xhtml", "text/section-0002.xhtml"]
         assert [point.label for point in book.toc] == ["Chapter 1", "Chapter 2"]
+
+    def test_the_outline_gives_the_documents_and_the_toc_word_for_word(self, tmp_path):
+        pages = [column([f"Page {n} of prose, at the body size only,", "so no heading opens anything."], top=600)
+                 for n in range(1, 5)]
+        source = make_pdf(tmp_path / "outline.pdf", pages, title="Outlined",
+                          outline=[("Part One: The Beginning", 0), ("Part Two", 2)])
+        report = Report()
+        book = pdf.read_pdf(str(source), report)
+        assert [point.label for point in book.toc] == ["Part One: The Beginning", "Part Two"]
+        assert len(book.spine) == 2
+        second = book.resources[book.spine[1].path].data.decode()
+        assert "Page 3 of prose" in second and "Page 2 of prose" not in second
+        used = next(f for f in report.findings if f.rule == "pdf.outline-used")
+        assert used.values == {"count": 2, "unresolved": 0}
+        assert report.stats["pdf_layout"]["headings"] == 0
 
     def test_running_heads_are_marked_and_kept_not_removed(self, tmp_path):
         pages = []
