@@ -55,6 +55,20 @@ archive — is taken out of the comparison first, so the warning speaks only
 of attributes nothing in the report accounts for. On the shelf as it is
 now, no count falls in either mode.
 
+### A catalogue entry for something the program never did
+
+`nav.kept-in-spine` described a navigation document put back into the
+reading order where the source had it. The code for that had been dead
+since the first commit of this repository: the place was never recorded,
+so the branch never ran and the finding never appeared. What the program
+actually does when the source's navigation is a page in the spine is
+keep that page as the publisher wrote it (`nav.contents-page-kept`) and
+add the regenerated document beside it, outside the reading order. The
+dead branch and the entry are gone; a catalogue that describes behaviour
+the program does not have is a report that could mislead. Nothing in any
+output changes — held to the whole-shelf fingerprint like every other
+change to a stage.
+
 ### A Word export no longer takes four minutes to rebuild
 
 Profiled stage by stage on the slowest books of the shelf: the largest

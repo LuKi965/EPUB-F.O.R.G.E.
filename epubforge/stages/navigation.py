@@ -748,10 +748,12 @@ class NavigationStage(Stage):
         # page from the book. No error, no warning: the source had two spine
         # items and the output had one.
         #
-        # What is carried over is the fact of being in the spine, its position
-        # and its `linear` flag. Everything else about the document is
-        # regenerated, which is the point of the stage.
-        old_place = None
+        # The answer is below: a nav that is a page stays a page, as the
+        # publisher wrote it, and the regenerated document goes in beside it,
+        # outside the reading order. (An earlier design carried the old
+        # document's spine place over to the new one; it never ran — the
+        # place was never recorded — and was removed on 2026-09-04 together
+        # with the catalogue entry that described it.)
 
         # The guard below used to read `book.nav_path != nav_path`, and that
         # comparison is where a real book lost text. In container-only mode
@@ -807,7 +809,6 @@ class NavigationStage(Stage):
                 # found" against the regenerated nav.
                 self._redirect(ctx, book.nav_path, nav_path)
                 book.remove(book.nav_path)
-        self._nav_spine_place = old_place
         return nav_path
 
     def _toc_section(self, book, nav_path: str, language: str) -> list[str]:
@@ -932,16 +933,6 @@ class NavigationStage(Stage):
             )
         )
         book.nav_path = nav_path
-
-        # Put it back where it was in the reading order, if it was there at all.
-        place = getattr(self, "_nav_spine_place", None)
-        if place is not None:
-            index, linear, properties = place
-            book.spine.insert(
-                min(index, len(book.spine)),
-                SpineItem(path=nav_path, linear=linear, properties=set(properties)),
-            )
-            self.note(ctx, Level.INFO, "nav.kept-in-spine")
 
     def _drop_ncx(self, ctx: Context) -> None:
         if ctx.book.ncx_path:

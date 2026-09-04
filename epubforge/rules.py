@@ -92,7 +92,6 @@ CATALOGUE: dict[str, str] = {
     "nav.labels-carried": "the publisher's own aria-label on {count} regenerated navigation section(s) ({names}) was written back word for word",
     "reader.nav-sections-found": "the navigation document holds {count} section(s) beyond the contents, the landmarks and the page list ({names})",
     "nav.fragment-carried": "{count} reference(s) into the replaced navigation document kept their anchor, because the section it named has a counterpart in the regenerated one",
-    "nav.kept-in-spine": "the navigation document stayed in the reading order, where the source had it",
     "nav.entries-repointed": "{count} contents entries all led to one untangled id and were repointed in document order, at a person's word",
     "nav.duplicate-target-found": "{count} contents entries lead to the same place; they were left as they were",
     "nav.entry-dropped": "{count} table-of-contents entry/entries pointed at something that is not there",
@@ -472,7 +471,6 @@ CATALOGUE_PL: dict[str, str] = {
     'nav.labels-carried': 'własna etykieta aria-label wydawcy na {count} {count:odtworzonej sekcji nawigacji|odtworzonych sekcjach nawigacji|odtworzonych sekcjach nawigacji} ({names}) zapisana z powrotem słowo w słowo',
     'reader.nav-sections-found': 'dokument nawigacyjny zawiera {count} {count:sekcję|sekcje|sekcji} poza spisem treści, punktami orientacyjnymi i listą stron ({names})',
     'nav.fragment-carried': '{count} {count:odwołanie do zastąpionego dokumentu nawigacyjnego zachowało|odwołania do zastąpionego dokumentu nawigacyjnego zachowały|odwołań do zastąpionego dokumentu nawigacyjnego zachowało} swoją kotwicę, bo sekcja, którą wskazywała, ma odpowiednik w dokumencie wygenerowanym',
-    'nav.kept-in-spine': 'dokument nawigacyjny został w kolejności czytania, tam gdzie miało go źródło',
     'nav.entry-dropped': '{count} {count:pozycja spisu treści wskazywała|pozycje spisu treści wskazywały|pozycji spisu treści wskazywało} na coś, czego nie ma',
     'nav.fragment-cleared': '{count} {count:kotwica nawigacyjna nie istnieje|kotwice nawigacyjne nie istnieją|kotwic nawigacyjnych nie istnieje}, więc pozycje wskazują teraz na sam dokument',
     'nav.toc-synthesised': 'książka nie miała używalnego spisu treści; zbudowano go z {count} {count:dokumentu|dokumentów|dokumentów} kolejności czytania',
@@ -870,8 +868,6 @@ DETAILS: dict[str, str] = {
         "The entry now points at the document, which is where the reader would land anyway.",
     "nav.generated":
         "The source had none; its table of contents came from the NCX.",
-    "nav.kept-in-spine":
-        "A nav document in the spine is a page the reader can turn to. Regenerating it used to remove that page.",
     "nav.repointed":
         "{in_tables} in the navigation tables, {in_documents} inside content documents. The source's own contents page is replaced, and a reference left pointing at it makes the book invalid, not merely inconsistent.",
     "package.layout-kept":
@@ -1197,8 +1193,6 @@ DETAILS_PL: dict[str, str] = {
         "Podaj --title, żeby ustawić prawdziwy.",
     "nav.fragment-cleared":
         "Pozycja wskazuje teraz na sam dokument, czyli tam, gdzie czytelnik i tak by trafił.",
-    "nav.kept-in-spine":
-        "Dokument nawigacyjny w kolejności czytania to strona, na którą czytelnik może przejść. Generowanie go od nowa usuwało tę stronę — czyli usuwało z książki coś, co czytelnik widział.",
     "nav.generated":
         "Źródło nie miało żadnego; jego spis treści pochodził z NCX.",
     "nav.contents-page-kept":
