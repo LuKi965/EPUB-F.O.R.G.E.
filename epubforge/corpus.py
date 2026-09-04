@@ -1111,14 +1111,40 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     if signatures is None:
         return line
 
-    errors = introduced = carried = inherent = 0
-    blamed: Counter = Counter()
-    said: Counter = Counter()
-    #: EF-048. `blamed` is fed by **both** branches — the container-only one
-    #: whose additions count as `introduced`, and the document-opening one whose
-    #: errors count as `errors`. Printing it beside `introduced` therefore read
-    #: as "these are the three", and on the mixed shelf it read as eight.
-    ours: Counter = Counter()
+    tally = _tally_epubcheck(results, signatures)
+    if not (tally.errors or tally.introduced or tally.carried or tally.inherent):
+        return line
+    parts = [f"{tally.errors} EPUBCheck error(s) in modes that rewrite content"]
+    if tally.carried:
+        parts.append(f"{tally.carried} source error(s) carried through by container-only mode")
+    if tally.inherent:
+        parts.append(
+            f"{tally.inherent} it cannot reach without opening a document, and says so"
+        )
+    if tally.introduced:
+        parts.append(f"{tally.introduced} introduced by it")
+    line += "\n" + "; ".join(parts) + "."
+    return line + _blame_lines(tally)
+
+
+class _EpubcheckTally:
+    """What the signatures say about EPUBCheck errors across a run, apart:
+    the document-opening modes' errors, and the container-only mode's
+    introduced, carried and inherent ones, with the rules behind each."""
+
+    def __init__(self) -> None:
+        self.errors = self.introduced = self.carried = self.inherent = 0
+        self.blamed: Counter = Counter()
+        self.said: Counter = Counter()
+        #: EF-048. `blamed` is fed by **both** branches — the container-only one
+        #: whose additions count as `introduced`, and the document-opening one whose
+        #: errors count as `errors`. Printing it beside `introduced` therefore read
+        #: as "these are the three", and on the mixed shelf it read as eight.
+        self.ours: Counter = Counter()
+
+
+def _tally_epubcheck(results: list, signatures: "pathlib.Path") -> _EpubcheckTally:
+    tally = _EpubcheckTally()
     for result in _once_each(results):
         measured = result.measured
         if measured is None:
@@ -1133,19 +1159,19 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
             count = check.get("errors", 0)
             if mode in CARRIES_SOURCE_DEFECTS:
                 added = max(0, count - source)
-                carried += min(count, source)
+                tally.carried += min(count, source)
                 unreachable, mine, shapes = _split_by_reach(
                     origin, check, (measured.get(mode) or {}).get("rules") or {}, added
                 )
-                inherent += unreachable
+                tally.inherent += unreachable
                 if mine:
-                    introduced += mine
-                    blamed.update(_new_codes(origin, check))
+                    tally.introduced += mine
+                    tally.blamed.update(_new_codes(origin, check))
                     for shape, number in shapes.items():
-                        said[shape] += number
-                        ours[shape.split(":")[0]] += number
+                        tally.said[shape] += number
+                        tally.ours[shape.split(":")[0]] += number
             else:
-                errors += count
+                tally.errors += count
                 # Only what the source did **not** already have. This branch
                 # used to blame every code it saw, and the line beneath was
                 # headed "Ours" — so a shelf of 67 books whose ledger said
@@ -1153,26 +1179,20 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
                 # claiming all of them. It sent me looking for defects in this
                 # tool that belonged to the books, and a report that misstates
                 # whose fault something is, is worse than one that stays quiet.
-                blamed.update(_new_codes(origin, check))
-                said.update(_new_shapes(origin, check))
-    if not (errors or introduced or carried or inherent):
-        return line
-    parts = [f"{errors} EPUBCheck error(s) in modes that rewrite content"]
-    if carried:
-        parts.append(f"{carried} source error(s) carried through by container-only mode")
-    if inherent:
-        parts.append(
-            f"{inherent} it cannot reach without opening a document, and says so"
-        )
-    if introduced:
-        parts.append(f"{introduced} introduced by it")
-    line += "\n" + "; ".join(parts) + "."
+                tally.blamed.update(_new_codes(origin, check))
+                tally.said.update(_new_shapes(origin, check))
+    return tally
+
+
+def _blame_lines(tally: _EpubcheckTally) -> str:
+    """The rule names behind the figures, under two headings (EF-048)."""
     def named(counter: "Counter") -> str:
         return ", ".join(
             f"{code} ×{count}" if count > 1 else code
             for code, count in sorted(counter.items())
         )
 
+    text = ""
     # EF-048. Two headings rather than one, because the counters answer two
     # questions and one of them was standing under the other's title. `ours`
     # holds only what the container-only mode added — the same figure as
@@ -1180,23 +1200,23 @@ def summarise(results: list[Comparison], signatures: "pathlib.Path | None" = Non
     # including the ones the document-opening modes count under `errors`. On
     # the mixed shelf that read as `introduced: 3` beside eight rule names, and
     # a reader had every right to take the eight for the three.
-    if ours:
+    if tally.ours:
         # Named by rule rather than counted, and printed even when the total
         # did not move: `introduced` is a difference of two numbers, and a book
         # that loses one error and gains another leaves it at zero.
-        line += f"\nRules the container-only mode added: {named(ours)}."
-    if blamed:
-        rest = Counter(blamed)
-        rest.subtract(ours)
+        text += f"\nRules the container-only mode added: {named(tally.ours)}."
+    if tally.blamed:
+        rest = Counter(tally.blamed)
+        rest.subtract(tally.ours)
         rest = Counter({code: count for code, count in rest.items() if count > 0})
         if rest:
-            line += f"\nNot in the source, seen in any mode: {named(rest)}."
-    if said:
-        line += "\n" + "\n".join(
+            text += f"\nNot in the source, seen in any mode: {named(rest)}."
+    if tally.said:
+        text += "\n" + "\n".join(
             f"  {shape}" + (f" ×{count}" if count > 1 else "")
-            for shape, count in sorted(said.items())[:6]
+            for shape, count in sorted(tally.said.items())[:6]
         )
-    return line
+    return text
 
 
 __all__ = [

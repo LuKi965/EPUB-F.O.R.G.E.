@@ -323,7 +323,66 @@ def command_build(args: argparse.Namespace) -> int:
     # them one at a time is how two books with one filename used to become one
     # book, silently, with a zero exit code.
     batch = plan_batch(inputs, output_dir, kepub=policy.kepub)
+    refused = _refuse_a_plan_that_cannot_work(console, batch, args)
+    if refused is not None:
+        return refused
 
+    # BA-2026-003. The audit asked for a plan printed *before* anything is
+    # written, and this is that, built on the shape the pipeline already has:
+    # every rebuild goes into a staging file and reaches its own name only after
+    # the gates pass. A plan run does all of it and stops one step short — the
+    # book is rebuilt, K1, the balance, the validator and the appearance check
+    # all run, and the destination is not touched.
+    #
+    # Deliberately not merged into `--dry-run`. That one answers "where would
+    # these go", reads no book and costs nothing; this one rebuilds every book
+    # and costs a full run. Two questions, two flags, and the help for each says
+    # which is which.
+    planning = getattr(args, "plan", False)
+    if planning:
+        console.print(
+            "[cyan]plan[/] — every book is rebuilt and checked, nothing is written"
+        )
+    plan_room = tempfile.TemporaryDirectory(prefix="epubforge-plan-") if planning else None
+
+    exit_code = 0
+    collected: list = []
+    # One dict for the whole run: an answer given as "do this to all of them"
+    # is an answer about a class, and asking it again for the next book is how
+    # a shelf of 160 books turns into 8 979 questions nobody can finish.
+    standing: dict = {}
+    for job in batch.jobs:
+        destination = job.destination
+        if plan_room is not None:
+            destination = os.path.join(plan_room.name, os.path.basename(destination))
+        result, outcome = _build_one(console, args, policy, job.source, destination, standing)
+        exit_code = _worse(exit_code, outcome)
+        exit_code = _worse(exit_code, _say_what_became_of_it(console, args, result, job, destination, planning))
+        _keep_the_report(args, result, destination, collected)
+        if result.status is Status.SUCCEEDED_WITH_PROBLEMS:
+            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
+        elif args.strict_exit and result.report.count(Level.WARN):
+            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
+
+    if collected:
+        # One book keeps the shape a single report has always had; several get
+        # the batch document, whose whole point is answering "which of these
+        # needs me" without opening them one at a time.
+        payload = (
+            collected[0].to_json(args.report_language)
+            if len(collected) == 1
+            else batch_to_json(collected, args.report_language)
+        )
+        with open(args.report, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+
+    return exit_code
+
+
+def _refuse_a_plan_that_cannot_work(console: Console, batch, args: argparse.Namespace) -> "int | None":
+    """The exit code when the batch must not run — a collision, a book that
+    would overwrite its own source, a destination already taken — or the
+    dry run's answer; `None` when the books may be rebuilt."""
     for collision in batch.collisions:
         console.print(f"[red]Two or more books would be written to:[/] {collision.destination}")
         for claimant in collision.sources:
@@ -351,130 +410,101 @@ def command_build(args: argparse.Namespace) -> int:
             "or -o to write elsewhere.[/]"
         )
         return EXIT_NOT_WRITTEN
+    return None
 
-    exit_code = 0
-    collected: list = []
-    # BA-2026-003. The audit asked for a plan printed *before* anything is
-    # written, and this is that, built on the shape the pipeline already has:
-    # every rebuild goes into a staging file and reaches its own name only after
-    # the gates pass. A plan run does all of it and stops one step short — the
-    # book is rebuilt, K1, the balance, the validator and the appearance check
-    # all run, and the destination is not touched.
-    #
-    # Deliberately not merged into `--dry-run`. That one answers "where would
-    # these go", reads no book and costs nothing; this one rebuilds every book
-    # and costs a full run. Two questions, two flags, and the help for each says
-    # which is which.
-    planning = getattr(args, "plan", False)
-    if planning:
+
+def _build_one(console: Console, args: argparse.Namespace, policy: Policy, source: str,
+               destination: str, standing: dict):
+    """One source rebuilt — every rendition of it — with the report printed.
+    Returns the first rendition's result and the exit code the others earned."""
+    exit_code = EXIT_OK
+    console.rule(f"[bold]{os.path.basename(source)}")
+    resolver = TerminalAsk(console) if args.ask else None
+    # `rebuild_all` is `rebuild` for a book with one rendition, which is
+    # every book but a handful; where a container offers several it writes
+    # each into its own file, which is the owner's decision on F-025.
+    produced = (
+        [rebuild(source, destination, policy, resolver=resolver,
+                 standing=standing)]
+        if args.first_rendition_only
+        else rebuild_all(source, destination, policy, resolver=resolver,
+                         standing=standing)
+    )
+    if len(produced) > 1:
         console.print(
-            "[cyan]plan[/] — every book is rebuilt and checked, nothing is written"
+            f"  [cyan]{len(produced)} renditions[/] — each rebuilt into its own file"
         )
-    plan_room = tempfile.TemporaryDirectory(prefix="epubforge-plan-") if planning else None
-
-    # One dict for the whole run: an answer given as "do this to all of them"
-    # is an answer about a class, and asking it again for the next book is how
-    # a shelf of 160 books turns into 8 979 questions nobody can finish.
-    standing: dict = {}
-    for job in batch.jobs:
-        source, destination = job.source, job.destination
-        if plan_room is not None:
-            destination = os.path.join(plan_room.name, os.path.basename(destination))
-
-        console.rule(f"[bold]{os.path.basename(source)}")
-        resolver = TerminalAsk(console) if args.ask else None
-        # `rebuild_all` is `rebuild` for a book with one rendition, which is
-        # every book but a handful; where a container offers several it writes
-        # each into its own file, which is the owner's decision on F-025.
-        produced = (
-            [rebuild(source, destination, policy, resolver=resolver,
-                     standing=standing)]
-            if args.first_rendition_only
-            else rebuild_all(source, destination, policy, resolver=resolver,
-                             standing=standing)
-        )
-        if len(produced) > 1:
-            console.print(
-                f"  [cyan]{len(produced)} renditions[/] — each rebuilt into its own file"
-            )
-        result = produced[0]
-        for extra in produced[1:]:
-            if extra.status.wrote_a_file:
-                console.print(f"  [bold green]written[/] {extra.output_path}")
-            else:
-                console.print(f"  [bold red]not written[/] {extra.output_path}")
-                exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
-
-        # Not when the publication gate has already validated these bytes: same
-        # file, one name earlier. Twice is four and a half seconds a book and
-        # the verdict printed twice.
-        if args.check and result.output_path and result.report.validated is None:
-            validate(
-                result.output_path,
-                result.report,
-                content_untouched=not policy.rewrite_content,
-            )
-
-        print_report(console, result.report, args.verbose, args.report_language)
-        summarize(console, result.report)
-
-        if planning:
-            # The ledger in full, and the sentence that keeps a plan from
-            # reading like a result: nothing moved.
-            for line in ledger_lines(result.report, args.report_language):
-                console.print(line, highlight=False)
-            if result.status.wrote_a_file:
-                console.print(f"  [bold cyan]plan[/] — would write {job.destination}")
-            else:
-                reason = "refused" if result.status is Status.BLOCKED else "not written"
-                console.print(f"  [bold red]{reason}[/] — see the report above")
-                exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
-        elif result.status.wrote_a_file:
-            size = os.path.getsize(result.output_path)
-            if result.status is Status.SUCCEEDED:
-                console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
-            else:
-                # Written, but carrying errors. Saying only "written" here is how
-                # a book with an unreadable image got reported as a success.
-                console.print(
-                    f"  [bold yellow]written with errors[/] {destination} ({size / 1024:.0f} KiB)"
-                )
-        elif not planning:
-            reason = "refused" if result.status is Status.BLOCKED else "not written"
-            console.print(f"  [bold red]{reason}[/] — see the report above")
+    result = produced[0]
+    for extra in produced[1:]:
+        if extra.status.wrote_a_file:
+            console.print(f"  [bold green]written[/] {extra.output_path}")
+        else:
+            console.print(f"  [bold red]not written[/] {extra.output_path}")
             exit_code = _worse(exit_code, EXIT_NOT_WRITTEN)
 
-        if args.report:
-            if os.path.isdir(args.report):
-                report_path = os.path.join(
-                    args.report, f"{os.path.basename(destination)}.json"
-                )
-                with open(report_path, "w", encoding="utf-8") as handle:
-                    handle.write(result.report.to_json(args.report_language))
-            else:
-                # Collected and written once at the end. Writing each book to
-                # the same path in turn left only the last one, which looked
-                # like a report and was a report about a different book.
-                collected.append(result.report)
-
-        if result.status is Status.SUCCEEDED_WITH_PROBLEMS:
-            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
-        elif args.strict_exit and result.report.count(Level.WARN):
-            exit_code = _worse(exit_code, EXIT_WRITTEN_WITH_PROBLEMS)
-
-    if collected:
-        # One book keeps the shape a single report has always had; several get
-        # the batch document, whose whole point is answering "which of these
-        # needs me" without opening them one at a time.
-        payload = (
-            collected[0].to_json(args.report_language)
-            if len(collected) == 1
-            else batch_to_json(collected, args.report_language)
+    # Not when the publication gate has already validated these bytes: same
+    # file, one name earlier. Twice is four and a half seconds a book and
+    # the verdict printed twice.
+    if args.check and result.output_path and result.report.validated is None:
+        validate(
+            result.output_path,
+            result.report,
+            content_untouched=not policy.rewrite_content,
         )
-        with open(args.report, "w", encoding="utf-8") as handle:
-            handle.write(payload)
 
-    return exit_code
+    print_report(console, result.report, args.verbose, args.report_language)
+    summarize(console, result.report)
+    return result, exit_code
+
+
+def _say_what_became_of_it(console: Console, args: argparse.Namespace, result, job,
+                           destination: str, planning: bool) -> int:
+    """The one line after the report: written, written with errors, refused,
+    or — on a plan run — what would have happened. Returns the exit code it
+    earns."""
+    if planning:
+        # The ledger in full, and the sentence that keeps a plan from
+        # reading like a result: nothing moved.
+        for line in ledger_lines(result.report, args.report_language):
+            console.print(line, highlight=False)
+        if result.status.wrote_a_file:
+            console.print(f"  [bold cyan]plan[/] — would write {job.destination}")
+            return EXIT_OK
+        reason = "refused" if result.status is Status.BLOCKED else "not written"
+        console.print(f"  [bold red]{reason}[/] — see the report above")
+        return EXIT_NOT_WRITTEN
+    if result.status.wrote_a_file:
+        size = os.path.getsize(result.output_path)
+        if result.status is Status.SUCCEEDED:
+            console.print(f"  [bold green]written[/] {destination} ({size / 1024:.0f} KiB)")
+        else:
+            # Written, but carrying errors. Saying only "written" here is how
+            # a book with an unreadable image got reported as a success.
+            console.print(
+                f"  [bold yellow]written with errors[/] {destination} ({size / 1024:.0f} KiB)"
+            )
+        return EXIT_OK
+    reason = "refused" if result.status is Status.BLOCKED else "not written"
+    console.print(f"  [bold red]{reason}[/] — see the report above")
+    return EXIT_NOT_WRITTEN
+
+
+def _keep_the_report(args: argparse.Namespace, result, destination: str, collected: list) -> None:
+    """`--report DIR` writes one file per book now; `--report FILE` collects
+    them for one document at the end."""
+    if not args.report:
+        return
+    if os.path.isdir(args.report):
+        report_path = os.path.join(
+            args.report, f"{os.path.basename(destination)}.json"
+        )
+        with open(report_path, "w", encoding="utf-8") as handle:
+            handle.write(result.report.to_json(args.report_language))
+    else:
+        # Collected and written once at the end. Writing each book to
+        # the same path in turn left only the last one, which looked
+        # like a report and was a report about a different book.
+        collected.append(result.report)
 
 
 def command_inspect(args: argparse.Namespace) -> int:
