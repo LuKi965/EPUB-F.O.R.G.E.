@@ -42,3 +42,6 @@ tests/corpus_gutenberg/runs.json
 # Wróciły tu raz przez `git add -A` po przepisaniu historii; to je zatrzymuje.
 audit_consolidation/
 dictionaries/
+
+# coverage.py data from a local measurement
+.coverage
