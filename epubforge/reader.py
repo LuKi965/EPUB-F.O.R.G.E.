@@ -909,26 +909,9 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
             )
             report.add("reader", Level.INFO, "reader.remote-resource", location=href)
             continue
-        path = paths.resolve(posixpath.join(opf_dir, "_"), href) if opf_dir else paths.resolve("_", href)
+        path = _manifest_item_path(href, opf_dir, entries, report)
         if path is None:
             continue
-        if path not in entries:
-            found = _find_by_spelling(path, entries)
-            if found is None:
-                report.add("reader", Level.WARN, "reader.manifest-file-missing", location=path)
-                continue
-            resolved, how = found
-            if how == "letter case":
-                report.add("reader", Level.FIX, "reader.manifest-case-matched", location=path)
-            else:
-                report.add(
-                    "reader",
-                    Level.FIX,
-                    "reader.manifest-spelling-matched",
-                    values={"how": how, "found": resolved},
-                    location=path,
-                )
-            path = resolved
         declared = (item.get("media-type") or "").strip()
         media_type = guess_media_type(path, declared)
         if declared and declared != media_type:
@@ -966,6 +949,37 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
         else:
             resources[f"__anon_{len(resources)}"] = resource
 
+    _resolve_manifest_references(resources, remote, report)
+    return resources, id_by_path, remote
+
+
+def _manifest_item_path(href: str, opf_dir: str, entries: dict[str, bytes], report: Report) -> str | None:
+    """The archive path an `href` names, matched by spelling or letter case
+    when the exact name is not in the archive; `None` when nothing is."""
+    path = paths.resolve(posixpath.join(opf_dir, "_"), href) if opf_dir else paths.resolve("_", href)
+    if path is None:
+        return None
+    if path in entries:
+        return path
+    found = _find_by_spelling(path, entries)
+    if found is None:
+        report.add("reader", Level.WARN, "reader.manifest-file-missing", location=path)
+        return None
+    resolved, how = found
+    if how == "letter case":
+        report.add("reader", Level.FIX, "reader.manifest-case-matched", location=path)
+    else:
+        report.add(
+            "reader",
+            Level.FIX,
+            "reader.manifest-spelling-matched",
+            values={"how": how, "found": resolved},
+            location=path,
+        )
+    return resolved
+
+
+def _resolve_manifest_references(resources: dict, remote: dict, report: Report) -> None:
     # Ids are the source's, and the rebuild regenerates them. Both of these are
     # therefore stored as paths, which survive renaming — `Book.rename` keeps
     # them pointing at the file rather than at a name that no longer exists.
@@ -993,7 +1007,6 @@ def _parse_manifest(package, opf_dir: str, entries: dict[str, bytes], report: Re
                 setattr(resource, attribute, None)
             else:
                 setattr(resource, attribute, target.path)
-    return resources, id_by_path, remote
 
 
 def _parse_collections(package, opf_dir: str, by_id: dict[str, Resource]) -> list[Collection]:
