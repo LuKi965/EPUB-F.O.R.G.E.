@@ -182,18 +182,21 @@ def measure(path: pathlib.Path) -> Book:
         return book
 
     documents = [r for r in parsed.content_docs()]
-    spine_paths = {item.path for item in parsed.spine}
-    # The reading order proper. `spine_documents` counts the spine, which is a
-    # structural fact and includes what the spine holds out of the flow; the
-    # text figure below is about what a person reads and must not — see
-    # `spine_text`, which this has to agree with character for character.
-    reading_paths = {item.path for item in parsed.spine if item.linear}
     styles = parsed.by_type("style")
     css = "\n".join(sheet.text() for sheet in styles)
     markup = "\n".join(document.text() for document in documents)
 
-    # --- structure ---------------------------------------------------------
-    book.fields.update(
+    book.fields.update(_structure_fields(parsed, documents, styles))
+    book.fields.update(_provenance_fields(parsed, markup, css))
+    damage = _DamageCount(parsed, documents, markup, css)
+    book.fields["profile"] = damage.profile
+    book.fields.update(damage.fields())
+    book.fields.update(_typography_fields(damage.text_parts, damage.spine_text_parts))
+    return book
+
+
+def _structure_fields(parsed, documents: list, styles: list) -> dict:
+    return dict(
         version=parsed.source_version,
         language=parsed.metadata.language or "?",
         documents=len(documents),
@@ -215,22 +218,24 @@ def measure(path: pathlib.Path) -> Book:
         ),
     )
 
-    # --- provenance --------------------------------------------------------
+
+def _provenance_fields(parsed, markup: str, css: str) -> dict:
     # The package document matters as much as the markup: `calibre:series` and
     # InDesign's identifiers live there, and the model has normalised them away
     # by the time anything else could look.
     package = (parsed.source_package or b"").decode("utf-8", "replace")
     material = f"{package}\n{markup}\n{css}"
+    fields: dict = {}
     # One detector, in `fingerprint.py`, for the same reason the watermark has
     # one: this file used to carry a second implementation of the same idea, and
     # when two implementations of one idea disagree it is never the longer one
     # that is wrong quietly.
     traces = fingerprint.identify(package=package, markup=markup, css=css)
-    book.fields["generators"] = fingerprint.names(traces)
+    fields["generators"] = fingerprint.names(traces)
     # The confidences too, because "calibre" and "probably calibre" are
     # different facts about a shelf and the flat list could not tell them apart.
     # Counts and names of tools — nothing from inside anybody's book.
-    book.fields["generator_confidence"] = {
+    fields["generator_confidence"] = {
         trace.name: trace.confidence for trace in traces
     }
     # A shop EPUB carries no generator trace of its own, so the family has to be
@@ -238,113 +243,137 @@ def measure(path: pathlib.Path) -> Book:
     # roadmap names two things and both are measured: a visible watermark, and
     # the legal page — ISBN, imprint, "wszelkie prawa zastrzeżone".
     notices, markers = watermark.marks(markup)
-    book.fields["watermark_notices"] = notices
-    book.fields["watermark_markers"] = markers
+    fields["watermark_notices"] = notices
+    fields["watermark_markers"] = markers
     # Kept as a field because a family predicate reads it, but it now means what
     # its name says: the book carries a watermark of either kind.
-    book.fields["watermarked"] = bool(notices or markers)
-    book.fields["legal_page"] = bool(_ISBN.search(material)) or bool(
+    fields["watermarked"] = bool(notices or markers)
+    fields["legal_page"] = bool(_ISBN.search(material)) or bool(
         _RIGHTS.search(markup)
     )
+    return fields
 
-    # --- damage ------------------------------------------------------------
-    classes = collections.Counter(
-        name
-        for attribute in re.findall(r'class="([^"]*)"', markup)
-        for name in attribute.split()
-    )
-    declared = set(_CSS_CLASS.findall(css))
-    blocks = 0
-    spans = 0
-    bare_spans = 0
-    nested_spans = 0
-    empty_paragraphs = 0
-    images_without_alt = 0
-    images_empty_alt = 0
-    image_pages = 0
-    spine_documents = 0
-    text_parts: list[str] = []
-    spine_text_parts: list[str] = []
-    # Kept so the profile can be measured from the same parse. It is the only
-    # place the shelf's own numbers can be seen — a survey says "twelve books
-    # are MIXED", and a threshold needs the distribution behind that, not the
-    # count. The inventory is counts-only and safe to send, which is what makes
-    # it the right place for a number somebody else has to calibrate.
-    parsed_roots: list = []
 
-    for document in documents:
-        try:
-            root, _ = xhtml.parse(document.data)
-        except Exception:  # noqa: BLE001 — one bad document must not stop the count
-            continue
-        parsed_roots.append(root)
-        rendered = _rendered_text(root)
-        text_parts.append(rendered)
-        in_spine = document.path in spine_paths
-        if document.path in reading_paths:
-            spine_text_parts.append(rendered)
-        if in_spine:
-            spine_documents += 1
+class _DamageCount:
+    """The damage section: one walk over every document's parsed tree, the
+    counts it yields, and the texts the typography section reads next."""
+
+    def __init__(self, parsed, documents: list, markup: str, css: str) -> None:
+        self.markup = markup
+        self.material = f"{(parsed.source_package or b'').decode('utf-8', 'replace')}\n{markup}\n{css}"
+        self.classes = collections.Counter(
+            name
+            for attribute in re.findall(r'class="([^"]*)"', markup)
+            for name in attribute.split()
+        )
+        self.declared = set(_CSS_CLASS.findall(css))
+        self.blocks = 0
+        self.spans = 0
+        self.bare_spans = 0
+        self.nested_spans = 0
+        self.empty_paragraphs = 0
+        self.images_without_alt = 0
+        self.images_empty_alt = 0
+        self.image_pages = 0
+        self.spine_documents = 0
+        self.text_parts: list[str] = []
+        self.spine_text_parts: list[str] = []
+        # Kept so the profile can be measured from the same parse. It is the only
+        # place the shelf's own numbers can be seen — a survey says "twelve books
+        # are MIXED", and a threshold needs the distribution behind that, not the
+        # count. The inventory is counts-only and safe to send, which is what makes
+        # it the right place for a number somebody else has to calibrate.
+        parsed_roots: list = []
+
+        spine_paths = {item.path for item in parsed.spine}
+        # The reading order proper. `spine_documents` counts the spine, which is a
+        # structural fact and includes what the spine holds out of the flow; the
+        # text figure below is about what a person reads and must not — see
+        # `spine_text`, which this has to agree with character for character.
+        reading_paths = {item.path for item in parsed.spine if item.linear}
+        for document in documents:
+            try:
+                root, _ = xhtml.parse(document.data)
+            except Exception:  # noqa: BLE001 — one bad document must not stop the count
+                continue
+            parsed_roots.append(root)
+            rendered = _rendered_text(root)
+            self.text_parts.append(rendered)
+            in_spine = document.path in spine_paths
+            if document.path in reading_paths:
+                self.spine_text_parts.append(rendered)
+            if in_spine:
+                self.spine_documents += 1
+            pictures = self._count_elements(root)
+            if in_spine and pictures and len(rendered.strip()) < IMAGE_PAGE_TEXT:
+                self.image_pages += 1
+
+        from . import profile as book_profile
+
+        self.profile = book_profile.measure(parsed_roots, css).to_dict()
+
+    def _count_elements(self, root) -> int:
+        """Blocks, spans and images of one document; returns how many
+        pictures it carries."""
         pictures = 0
         for element in xhtml.iter_elements(root):
             tag = xhtml.local_name(element).lower()
             if tag in ("img", "image"):
                 pictures += 1
             if tag in _BLOCK_TAGS:
-                blocks += 1
+                self.blocks += 1
                 if tag == "p" and not (element.text or "").strip() and not len(element):
-                    empty_paragraphs += 1
+                    self.empty_paragraphs += 1
             elif tag == "span":
-                spans += 1
+                self.spans += 1
                 if not any(
                     element.get(a) or element.get(f"{{{xhtml.EPUB_NS}}}type")
                     for a in ("id", "lang", "role", "aria-hidden")
                 ):
-                    bare_spans += 1
+                    self.bare_spans += 1
                 if any(xhtml.local_name(c).lower() == "span" for c in element):
-                    nested_spans += 1
+                    self.nested_spans += 1
             elif tag == "img":
                 alt = element.get("alt")
                 if alt is None:
-                    images_without_alt += 1
+                    self.images_without_alt += 1
                 elif not alt.strip():
-                    images_empty_alt += 1
-        if in_spine and pictures and len(rendered.strip()) < IMAGE_PAGE_TEXT:
-            image_pages += 1
+                    self.images_empty_alt += 1
+        return pictures
 
-    from . import profile as book_profile
+    def fields(self) -> dict:
+        blocks, classes, declared = self.blocks, self.classes, self.declared
+        return dict(
+            blocks=blocks,
+            image_pages=self.image_pages,
+            spine_documents=self.spine_documents,
+            distinct_classes=len(classes),
+            meaningless_classes=sum(1 for name in classes if _MEANINGLESS_CLASS.match(name)),
+            classes_per_100_blocks=round(100 * len(classes) / blocks, 1) if blocks else 0.0,
+            dead_classes=len(declared - set(classes)),
+            classes_without_rules=len(set(classes) - declared),
+            spans=self.spans,
+            bare_spans=self.bare_spans,
+            nested_spans=self.nested_spans,
+            spans_per_block=round(self.spans / blocks, 2) if blocks else 0.0,
+            empty_paragraphs=self.empty_paragraphs,
+            images_without_alt=self.images_without_alt,
+            images_empty_alt=self.images_empty_alt,
+            inline_styles=len(re.findall(r'\bstyle="', self.markup)),
+            presentational_attributes=len(
+                re.findall(r'\b(?:align|bgcolor|face|valign|border)="', self.markup)
+            ),
+            absolute_font_sizes=len(re.findall(r"font-size\s*:\s*[\d.]+(?:px|pt)", self.material)),
+            forced_page_breaks=len(
+                re.findall(r"page-break-(?:before|after)\s*:\s*always", self.material)
+            ),
+        )
 
-    book.fields["profile"] = book_profile.measure(parsed_roots, css).to_dict()
-    book.fields.update(
-        blocks=blocks,
-        image_pages=image_pages,
-        spine_documents=spine_documents,
-        distinct_classes=len(classes),
-        meaningless_classes=sum(1 for name in classes if _MEANINGLESS_CLASS.match(name)),
-        classes_per_100_blocks=round(100 * len(classes) / blocks, 1) if blocks else 0.0,
-        dead_classes=len(declared - set(classes)),
-        classes_without_rules=len(set(classes) - declared),
-        spans=spans,
-        bare_spans=bare_spans,
-        nested_spans=nested_spans,
-        spans_per_block=round(spans / blocks, 2) if blocks else 0.0,
-        empty_paragraphs=empty_paragraphs,
-        images_without_alt=images_without_alt,
-        images_empty_alt=images_empty_alt,
-        inline_styles=len(re.findall(r'\bstyle="', markup)),
-        presentational_attributes=len(
-            re.findall(r'\b(?:align|bgcolor|face|valign|border)="', markup)
-        ),
-        absolute_font_sizes=len(re.findall(r"font-size\s*:\s*[\d.]+(?:px|pt)", material)),
-        forced_page_breaks=len(
-            re.findall(r"page-break-(?:before|after)\s*:\s*always", material)
-        ),
-    )
 
-    # --- typography --------------------------------------------------------
+def _typography_fields(text_parts: list, spine_text_parts: list) -> dict:
     text = " ".join(text_parts)
     characters = len(text)
-    book.fields.update(
+    return dict(
         text_characters=characters,
         # The reader's text, excluding anything not in the spine. A rebuild
         # legitimately adds a navigation document, and that document is full of
@@ -362,9 +391,9 @@ def measure(path: pathlib.Path) -> Book:
         dashes={label: text.count(mark) for mark, label in DASH_FORMS.items()},
         ellipsis_character=text.count("…"),
         ellipsis_dots=len(re.findall(r"(?<!\.)\.\.\.(?!\.)", text)),
-        non_breaking_spaces=text.count(" "),
-        soft_hyphens=text.count("­"),
-        zero_width=text.count("​"),
+        non_breaking_spaces=text.count("\u00a0"),
+        soft_hyphens=text.count("\u00ad"),
+        zero_width=text.count("\u200b"),
         # Deliberately not measured: runs of ordinary spaces. HTML collapses
         # whitespace, so a double space is invisible to a reader and cannot be
         # damage; counting it on markup measures how the file was indented.
@@ -373,7 +402,6 @@ def measure(path: pathlib.Path) -> Book:
         conjunctions_loose=len(_CONJUNCTION_LOOSE.findall(text)),
         conjunctions_bound=len(_CONJUNCTION_BOUND.findall(text)),
     )
-    return book
 
 
 # ----------------------------------------------------------------- coverage
