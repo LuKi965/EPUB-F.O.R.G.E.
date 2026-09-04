@@ -1164,6 +1164,62 @@ def _rebuild_inside_budget(
     source, destination, policy, report, budget, stages, resolver, rendition, asker=None,
     standing=None,
 ) -> "Result":
+    """One rebuild, from the first refusal to the written file, in the order
+    the refusals were added: each step either says no with a `Result` or
+    hands on. The steps are functions of their own so that each can be read
+    against the finding that put it here (audit 2026-09-03, A-04)."""
+    refused = _refuse_when_memory_is_short(source, policy, report)
+    if refused:
+        return refused
+
+    book, refused = _read_or_refuse(source, report, budget, rendition)
+    if refused:
+        return refused
+
+    # Counted here, before a single stage has touched the book: the balance is
+    # between what the *source* had and what is about to be written, and taking
+    # it any later would be counting the rebuild against itself.
+    before_side = balance.Side.of(book)
+
+    queue = _open_queue(source, policy, report, resolver, asker, standing)
+
+    refused = _settle_reconstructed_metadata(book, policy, queue, report)
+    if refused:
+        return refused
+
+    refused = _refuse_when_input_is_incomplete(book, report)
+    if refused:
+        return refused
+
+    _state_the_version_change(book, report)
+
+    policy = _settle_layout(book, policy, report)
+    # BA-2026-002. Answers given about this book on a previous run are read back
+    # first, so a rebuild run twice asks only what it has not been told. The
+    # store is refused outright if the book has changed since — replaying
+    # somebody's judgement onto a page they have not seen is worse than asking
+    # again.
+    ctx = Context(
+        book=book, policy=policy, report=report, budget=budget,
+        resolver=resolver, decisions=queue,
+    )
+
+    refused = _run_stages(ctx, stages, budget, report)
+    if refused:
+        return refused
+
+    refused = _refuse_before_publication(source, destination, ctx, budget, report)
+    if refused:
+        return refused
+
+    refused = _publish(source, destination, ctx, before_side, queue, report)
+    if refused:
+        return refused
+
+    return _final_result(destination, ctx, queue, report)
+
+
+def _refuse_when_memory_is_short(source, policy, report) -> "Result | None":
     # EF-020, and the benchmark it asked for came first. `reader.py` has held a
     # ceiling of 2 GiB of content since early on, and the measurement turned it
     # into a different fact than anybody had read into it: text costs twelve
@@ -1177,23 +1233,28 @@ def _rebuild_inside_budget(
     # refuses *before* the memory is asked for rather than during. Off by a
     # switch, because the estimate is a model and the person in front of the
     # machine knows things the model does not.
-    if policy.check_memory:
-        verdict = memory.check(source, limit=policy.memory_limit)
-        if not verdict.fits:
-            report.add(
-                "reader",
-                Level.ERROR,
-                "package.memory-refused",
-                values={
-                    "needed": memory.human(verdict.estimate.peak_bytes),
-                    "budget": memory.human(verdict.limit),
-                    "text": memory.human(verdict.estimate.text_bytes),
-                },
-            )
-            return Result(report, None, None, Status.BLOCKED)
+    if not policy.check_memory:
+        return None
+    verdict = memory.check(source, limit=policy.memory_limit)
+    if verdict.fits:
+        return None
+    report.add(
+        "reader",
+        Level.ERROR,
+        "package.memory-refused",
+        values={
+            "needed": memory.human(verdict.estimate.peak_bytes),
+            "budget": memory.human(verdict.limit),
+            "text": memory.human(verdict.estimate.text_bytes),
+        },
+    )
+    return Result(report, None, None, Status.BLOCKED)
 
+
+def _read_or_refuse(source, report, budget, rendition) -> "tuple[Book | None, Result | None]":
+    """The book, or the refusal that stands in for it."""
     try:
-        book = read_epub(source, report, budget, rendition=rendition)
+        return read_epub(source, report, budget, rendition=rendition), None
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose
         # message does not say what it was is a limit nobody can act on.
@@ -1204,7 +1265,7 @@ def _rebuild_inside_budget(
             values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
             location=exc.where,
         )
-        return Result(report, None, None, Status.BLOCKED)
+        return None, Result(report, None, None, Status.BLOCKED)
     except EpubReadError as exc:
         report.add(
             "reader",
@@ -1212,13 +1273,10 @@ def _rebuild_inside_budget(
             "package.unreadable-source",
             values={"error": str(exc)},
         )
-        return Result(report, None, None, Status.FAILED)
+        return None, Result(report, None, None, Status.FAILED)
 
-    # Counted here, before a single stage has touched the book: the balance is
-    # between what the *source* had and what is about to be written, and taking
-    # it any later would be counting the rebuild against itself.
-    before_side = balance.Side.of(book)
 
+def _open_queue(source, policy, report, resolver, asker, standing) -> decisions.Queue:
     # A standing answer — "do this to all of them" — used to live and die
     # inside one rebuild, because the queue was born here. Measured on the
     # owner's shelf: 8 979 questions across 160 books, 8 737 of them one
@@ -1245,7 +1303,10 @@ def _rebuild_inside_budget(
         for failure in stored.failures:
             report.add("decisions", Level.WARN, "decisions.store-unusable",
                        values={"reason": failure})
+    return queue
 
+
+def _settle_reconstructed_metadata(book, policy, queue, report) -> "Result | None":
     # **F-004.** A package document that only parsed after recovery is a parser's
     # reading of somebody's book, and the fields taken from it are that reading
     # rather than the book's own words. Reproduced: crossed tags turned the title
@@ -1257,75 +1318,82 @@ def _rebuild_inside_budget(
     # came out of the guess — they are the ones the window and the command line
     # already let anybody override by hand — and the status stops being a clean
     # success. What it deliberately does not do is invent the right answer.
-    if any(
+    if not any(
         finding.rule == "reader.xml-recovered" and (finding.location or "").endswith(".opf")
         for finding in report.findings
     ):
-        # A field the person has already written by hand is not a guess and
-        # must not be asked about or counted as unconfirmed: they are holding
-        # the book and they have told this program what the title is. Both
-        # front ends fill `metadata_overrides` from the same boxes, so this is
-        # the one place that has to know.
-        overridden = set(policy.metadata_overrides)
-        reconstructed = [
-            label
-            for label, value in (
-                ("title", book.metadata.title),
-                ("language", book.metadata.language),
-                ("identifier", book.metadata.primary_identifier),
-                ("author", ", ".join(c.name for c in book.metadata.creators)),
-            )
-            if value and label not in overridden
-        ]
+        return None
+    # A field the person has already written by hand is not a guess and
+    # must not be asked about or counted as unconfirmed: they are holding
+    # the book and they have told this program what the title is. Both
+    # front ends fill `metadata_overrides` from the same boxes, so this is
+    # the one place that has to know.
+    overridden = set(policy.metadata_overrides)
+    reconstructed = [
+        label
+        for label, value in (
+            ("title", book.metadata.title),
+            ("language", book.metadata.language),
+            ("identifier", book.metadata.primary_identifier),
+            ("author", ", ".join(c.name for c in book.metadata.creators)),
+        )
+        if value and label not in overridden
+    ]
+    report.add(
+        "package",
+        Level.WARN,
+        "package.metadata-from-a-guess",
+        values={"fields": ", ".join(reconstructed) or "nothing this model reads"},
+        location=book.source_opf_path or "",
+    )
+    # BA-2026-002's third class of question, and the one the API was built
+    # to carry: a metadata conflict. F-004 established that a field read out
+    # of a recovered package document is a parser's reading of somebody's
+    # book rather than the book's own word, and it has been *reported* since
+    # — which leaves the person holding a warning and no way to act on it in
+    # the same breath. Now it is a question, in the same shape as a broken
+    # link and a hard hyphen, with the same rule: unanswered changes nothing.
+    settled = _ask_about_reconstructed(book, reconstructed, queue, report)
+    # DELTA-2026-08-15-001, and it is the same finding as the render gate's
+    # wearing different clothes: *not answering is not consenting.* Leaving
+    # the guess in place is a change to somebody's library — the title in
+    # their reader becomes `ORIGINALpl`, a string no publisher wrote and
+    # this program's own parser invented — and "unanswered changes nothing"
+    # was true of the *book* and false of the *outcome*, because the outcome
+    # was publishing the invention.
+    #
+    # So the fields still are not guessed at. What changed is what happens
+    # when nobody settles them: the same three ways through as the render
+    # gate, because one program should have one rule about consent. Answer
+    # the question, consent in advance with a switch, or get no file and a
+    # report naming every field that came out of the parser.
+    if reconstructed and not settled and not policy.accept_reconstructed_metadata:
         report.add(
             "package",
-            Level.WARN,
-            "package.metadata-from-a-guess",
-            values={"fields": ", ".join(reconstructed) or "nothing this model reads"},
+            Level.ERROR,
+            "package.metadata-unconfirmed",
+            values={"fields": ", ".join(reconstructed)},
             location=book.source_opf_path or "",
         )
-        # BA-2026-002's third class of question, and the one the API was built
-        # to carry: a metadata conflict. F-004 established that a field read out
-        # of a recovered package document is a parser's reading of somebody's
-        # book rather than the book's own word, and it has been *reported* since
-        # — which leaves the person holding a warning and no way to act on it in
-        # the same breath. Now it is a question, in the same shape as a broken
-        # link and a hard hyphen, with the same rule: unanswered changes nothing.
-        settled = _ask_about_reconstructed(book, reconstructed, queue, report)
-        # DELTA-2026-08-15-001, and it is the same finding as the render gate's
-        # wearing different clothes: *not answering is not consenting.* Leaving
-        # the guess in place is a change to somebody's library — the title in
-        # their reader becomes `ORIGINALpl`, a string no publisher wrote and
-        # this program's own parser invented — and "unanswered changes nothing"
-        # was true of the *book* and false of the *outcome*, because the outcome
-        # was publishing the invention.
-        #
-        # So the fields still are not guessed at. What changed is what happens
-        # when nobody settles them: the same three ways through as the render
-        # gate, because one program should have one rule about consent. Answer
-        # the question, consent in advance with a switch, or get no file and a
-        # report naming every field that came out of the parser.
-        if reconstructed and not settled and not policy.accept_reconstructed_metadata:
-            report.add(
-                "package",
-                Level.ERROR,
-                "package.metadata-unconfirmed",
-                values={"fields": ", ".join(reconstructed)},
-                location=book.source_opf_path or "",
-            )
-            return Result(report, book, None, Status.BLOCKED)
-
-    lost = _input_lost(report)
-    if lost:
-        _diagnose_losses(book, report, lost)
-        report.add(
-            "reader",
-            Level.ERROR,
-            "package.input-incomplete",
-            values={"count": len(lost), "names": ", ".join(sorted(lost)[:3])},
-        )
         return Result(report, book, None, Status.BLOCKED)
+    return None
 
+
+def _refuse_when_input_is_incomplete(book, report) -> "Result | None":
+    lost = _input_lost(report)
+    if not lost:
+        return None
+    _diagnose_losses(book, report, lost)
+    report.add(
+        "reader",
+        Level.ERROR,
+        "package.input-incomplete",
+        values={"count": len(lost), "names": ", ".join(sorted(lost)[:3])},
+    )
+    return Result(report, book, None, Status.BLOCKED)
+
+
+def _state_the_version_change(book, report) -> None:
     # The version change is the single largest thing the rebuild does, so it is
     # stated outright rather than left for the reader to infer from the output.
     source_version = book.source_version
@@ -1341,17 +1409,10 @@ def _rebuild_inside_budget(
     else:
         report.add("package", Level.WARN, "package.version-unusable")
 
-    policy = _settle_layout(book, policy, report)
-    # BA-2026-002. Answers given about this book on a previous run are read back
-    # first, so a rebuild run twice asks only what it has not been told. The
-    # store is refused outright if the book has changed since — replaying
-    # somebody's judgement onto a page they have not seen is worse than asking
-    # again.
-    ctx = Context(
-        book=book, policy=policy, report=report, budget=budget,
-        resolver=resolver, decisions=queue,
-    )
 
+def _run_stages(ctx, stages, budget, report) -> "Result | None":
+    """Every stage in order, each held to the budget and to its own word."""
+    book = ctx.book
     for stage_class in (DEFAULT_STAGES if stages is None else stages):
         stage = stage_class()
         # F-029, the checkable part. Making the model immutable is a refactor of
@@ -1410,7 +1471,12 @@ def _rebuild_inside_budget(
                 values={"stage": stage.name},
             )
             return Result(report, book, None, Status.BLOCKED)
+    return None
 
+
+def _refuse_before_publication(source, destination, ctx, budget, report) -> "Result | None":
+    """The refusals that come after the stages and before the commit point."""
+    book = ctx.book
     if book.has_drm:
         return Result(report, book, None, Status.BLOCKED)
 
@@ -1436,7 +1502,7 @@ def _rebuild_inside_budget(
     #
     # BLOCKED rather than FAILED: nothing went wrong, the book was refused on
     # purpose by a rule the person chose with the mode.
-    if policy.strict and ctx.unresolved:
+    if ctx.policy.strict and ctx.unresolved:
         report.add(
             "writer",
             Level.ERROR,
@@ -1489,7 +1555,13 @@ def _rebuild_inside_budget(
             },
         )
         return Result(report, book, None, Status.BLOCKED)
+    return None
 
+
+def _publish(source, destination, ctx, before_side, queue, report) -> "Result | None":
+    """The balance, then the write behind both gates; `None` when the file
+    is at the destination."""
+    book, policy = ctx.book, ctx.policy
     # Writing is where the outside world gets a vote: a full disk, a read-only
     # folder, a name the filesystem will not take. Until 0.2.22 those left this
     # function as an exception — reproduced with a destination whose parent is
@@ -1563,7 +1635,12 @@ def _rebuild_inside_budget(
             location=destination,
         )
         return Result(report, book, None, Status.FAILED)
+    return None
 
+
+def _final_result(destination, ctx, queue, report) -> "Result":
+    """Whether the written file is entitled to a flat "succeeded"."""
+    book = ctx.book
     # `SUCCEEDED` is a claim, and a book that still carries references this
     # program could not resolve is not entitled to it. They are not errors —
     # they are defects the source arrived with, and refusing the book over them
