@@ -10,7 +10,8 @@ book looking the way it looked.**
 `0.3.1` · alpha · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
-[Limits](#limits) · [Changes](CHANGELOG.md)
+[Limits](#limits) · [Changes](CHANGELOG.md) ·
+[Purpose and intent — the description for an auditor (Polish)](OPIS.md)
 
 [![Polski](https://img.shields.io/badge/Polski-informational?style=for-the-badge&logo=googletranslate&logoColor=white)](README.md)
 

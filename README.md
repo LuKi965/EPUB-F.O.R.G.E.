@@ -10,7 +10,8 @@ jak książka wygląda.**
 `0.3.1` · alpha · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
-[Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md)
+[Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md) ·
+[Cel i zamysł — opis dla audytora](OPIS.md)
 
 [![English](https://img.shields.io/badge/English-informational?style=for-the-badge&logo=googletranslate&logoColor=white)](README.en.md)
 
