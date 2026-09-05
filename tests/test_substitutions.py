@@ -278,7 +278,16 @@ class TestTheStageAsksOnceAndActsOnTheAnswer:
     def test_the_pattern_is_reported_whether_or_not_it_is_repaired(self, tmp_path):
         result = rebuild_with(tmp_path, Answering("keep"))
         assert "substitutions.pattern-found" in rules_of(result)
+        assert "substitutions.kept" in rules_of(result)
+        assert "substitutions.left-alone" not in rules_of(result)
+
+    @has_polish
+    def test_no_answer_is_said_as_no_answer(self, tmp_path):
+        """EF-074: "somebody said keep" and "nobody answered" are two entries."""
+        result = rebuild_with(tmp_path, None)
+        assert "substitutions.pattern-found" in rules_of(result)
         assert "substitutions.left-alone" in rules_of(result)
+        assert "substitutions.kept" not in rules_of(result)
 
     @has_polish
     def test_keeping_it_changes_not_one_letter(self, tmp_path):

@@ -103,7 +103,15 @@ class TestTheOtherBuildSwitches:
 
 
 class TestTheFlagsThatCarryAValue:
+    @pytest.mark.validates
     def test_the_gates(self):
+        """`validates`, although nothing here runs EPUBCheck: the assertion
+        below asks what the preset says, and on a machine without a validator
+        the session fixture stands the preset's gate down for every test that
+        does not carry this marker. Without it the test failed exactly there
+        (EF-072, independent audit 2026-09-04) — the third instance of the
+        class BA-2026-004 names, and the CI job without a validator is the
+        gate that keeps a fourth from arriving unnoticed."""
         assert parsed("--render-gate", "off").render_gate == "off"
         assert parsed("--gate", "off").validate_before_publish == "off"
         # `--gate` unset means what the preset says — never silently "off".

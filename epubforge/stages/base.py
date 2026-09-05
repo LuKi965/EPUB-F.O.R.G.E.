@@ -13,6 +13,24 @@ from ..references import Answers, Decision, Resolver, Unresolved
 from ..report import Action, Automation, Level, Report, Risk
 
 
+def machinery_nav(book: Book, resource) -> bool:
+    """Whether *resource* is the navigation document and nothing more.
+
+    A nav document **in the reading order** is two things: the machine-readable
+    navigation, and a contents page the reader turns to — which is why the
+    navigation stage keeps it as an ordinary page (`nav.contents-page-kept`).
+    The text stages used to skip it by path in the first pass and, the page
+    having become ordinary, repair it in the second: twenty of sixty shelf
+    books changed their contents page on a second rebuild (independent audit
+    2026-09-04, EF-078, K3). A page a reader turns to gets the same repairs as
+    every other page; only a nav outside the reading order is machinery.
+    """
+    return (
+        resource.path == book.nav_path
+        and not any(item.path == resource.path for item in book.spine)
+    )
+
+
 @dataclass
 class Context:
     book: Book

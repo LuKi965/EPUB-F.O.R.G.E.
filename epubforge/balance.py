@@ -72,14 +72,19 @@ def kind_of(path: str, media_type: str = "") -> str:
 #: inside tags, over the bytes, because a full parse of every document twice
 #: more is a cost the largest book on the shelf would feel and a count is
 #: not a parse: a decrease here is a reason to look, never a verdict.
-SEMANTIC_ATTRIBUTES = ("alt", "role", "aria-label", "aria-hidden", "aria-describedby",
-                       "epub:type", "lang", "xml:lang", "title", "dir", "hidden")
+SEMANTIC_ATTRIBUTES = ("alt", "role", "aria-*", "epub:type", "lang", "xml:lang", "title", "dir", "hidden")
 #: A start tag, then the attribute names inside it: two passes, because one
 #: expression over the whole document stops at the first name it finds in a
 #: tag and never sees the second (`<p lang="en" dir="ltr">` counted one).
-_START_TAG_RE = re.compile(rb"<[A-Za-z][^>]*>")
+#: The tag expression steps over quoted values, so a raw `>` inside one does
+#: not end the tag early and hide the attributes after it (EF-075).
+#: `aria-*` is every ARIA attribute by name, not three picked by hand: the
+#: independent audit of 2026-09-04 found `aria-labelledby` on the shelf that
+#: the hand-picked list did not see — a ratchet narrower than the measurement
+#: that found the fall it was built for.
+_START_TAG_RE = re.compile(rb"<[A-Za-z](?:[^>\"']|\"[^\"]*\"|'[^']*')*>")
 _ATTRIBUTE_RE = re.compile(
-    rb"\s(alt|role|aria-label|aria-hidden|aria-describedby|epub:type|lang|xml:lang|title|dir|hidden)\s*=",
+    rb"\s(alt|role|aria-[a-z]+|epub:type|lang|xml:lang|title|dir|hidden)\s*=",
 )
 
 
@@ -417,7 +422,9 @@ def _attributes_that_fell(before: Side, after: Side, changes) -> list:
         for name, count in counts.items():
             was[name] = was.get(name, 0) - count
     fell = []
-    for name in SEMANTIC_ATTRIBUTES:
+    # Every name either side counted — a name only the source carries is
+    # exactly the one that fell to zero.
+    for name in sorted(set(was) | set(after.semantic_attributes)):
         now = after.semantic_attributes.get(name, 0)
         if now < was.get(name, 0):
             fell.append((name, was[name], now))

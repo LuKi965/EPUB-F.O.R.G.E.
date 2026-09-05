@@ -26,10 +26,12 @@ from epubforge.policy import Policy
 from tests.test_class_translation import PAGE
 from tests.test_shelf_refusals import make_book, rules_of
 
-fontTools = pytest.importorskip("fontTools")
-
-from fontTools.fontBuilder import FontBuilder  # noqa: E402
-from fontTools.pens.ttGlyphPen import TTGlyphPen  # noqa: E402
+# Not `importorskip`: `fontTools` is a declared dependency since EF-073
+# (independent audit 2026-09-04), and a skip here is how the whole pillar
+# went unguarded in CI — the file skipped itself on an installation from the
+# lock, silently, and coverage of the stage fell from 85 % to 14 %.
+from fontTools.fontBuilder import FontBuilder
+from fontTools.pens.ttGlyphPen import TTGlyphPen
 
 
 def a_font(characters: str = "abcdefghijklmnopqrstuvwxyząćęłńóśżź", fs_type: int = 0) -> bytes:
@@ -238,3 +240,23 @@ class TestWhatItGivesUpIsSaidOutLoud:
         assert dropped == set()
         result = build(tmp_path)
         assert "font.subset-tables-dropped" not in rules_of(result)
+
+
+class TestABuildWithoutTheLibrary:
+    def test_the_report_names_the_build_and_not_the_fonts(self, tmp_path, monkeypatch):
+        """EF-073: with the library hidden, the stage used to count the font
+        as one that "could not be cut down safely" — a sentence about the
+        book that was true only of the build."""
+        import sys
+
+        font = a_font()  # made while the library is still there
+        monkeypatch.setitem(sys.modules, "fontTools", None)
+        monkeypatch.setitem(sys.modules, "fontTools.subset", None)
+        monkeypatch.setitem(sys.modules, "fontTools.ttLib", None)
+        result = build(tmp_path, font=font, body="Ala ma kota.")
+        assert result.output_path
+        assert "font.subset-unavailable" in rules_of(result)
+        assert "font.subset-refused-failed" not in rules_of(result)
+        assert "font.subset" not in rules_of(result)
+        assert len(font_bytes(result)) == len(font)
+

@@ -322,10 +322,23 @@ class TestItAsksInsteadOfBeingSwitchedOn:
         )
         found = [
             f for f in result.report.findings
-            if f.rule == "typography.ellipsis-left-alone"
+            if f.rule == "typography.ellipsis-kept"
         ]
         assert found and found[0].values["count"] == 3
         assert found[0].level is Level.PRESERVED
+        assert "typography.ellipsis-left-alone" not in {f.rule for f in result.report.findings}
+
+    def test_no_answer_is_reported_as_no_answer(self, tmp_path):
+        """EF-074: the entry for "nobody answered" is not the entry for
+        "somebody said keep" — the report is where a person reads back what
+        they decided."""
+        source = book(tmp_path, "pl", "<p>A... b... c...</p>", name="r4-in.epub")
+        result = rebuild(
+            source, str(tmp_path / "r4.epub"), Policy.preset("preserve", typography=False)
+        )
+        rules = {f.rule for f in result.report.findings}
+        assert "typography.ellipsis-left-alone" in rules
+        assert "typography.ellipsis-kept" not in rules
 
     def test_nobody_answering_changes_nothing(self, tmp_path):
         source = book(tmp_path, "pl", "<p>Czekaj... juz ide.</p>", name="r4-in.epub")
@@ -660,7 +673,7 @@ class TestRangesAreAskedPlaceByPlace:
     def test_a_no_leaves_the_hyphen(self, tmp_path):
         result, html, _ = ask_about(tmp_path, self.BOOK, option="keep", name="w3")
         assert "1996-2001" in html
-        assert "typography.ranges-left-alone" in {f.rule for f in result.report.findings}
+        assert "typography.ranges-kept" in {f.rule for f in result.report.findings}
 
     def test_every_place_is_shown_not_a_sample(self, tmp_path):
         """Three examples would be asking somebody to vouch for a list after

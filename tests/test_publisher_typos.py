@@ -84,12 +84,18 @@ class TestWithoutAnAnswerNothingChanges:
         result, _ = build(tmp_path, sheet)
         assert "2$" in sheet_of(result)
         assert "css.publisher-typo-left" in rules_of(result)
+        assert "css.publisher-typo-kept" not in rules_of(result)
         assert "css.publisher-typo-fixed" not in rules_of(result)
 
-    def test_keeping_it_keeps_it(self, tmp_path):
+    def test_keeping_it_keeps_it_and_says_it_was_an_answer(self, tmp_path):
+        """EF-074 (independent audit 2026-09-04): a person who read the
+        question and chose the recommended "keep" was told in the report
+        that nobody answered. Two facts, two entries."""
         sheet = "hr.blue { border: 1px solid #0061a0; margin-right: 2$; }"
         result, _ = build(tmp_path, sheet, option="keep")
         assert "2$" in sheet_of(result)
+        assert "css.publisher-typo-kept" in rules_of(result)
+        assert "css.publisher-typo-left" not in rules_of(result)
         assert "css.publisher-typo-fixed" not in rules_of(result)
 
 

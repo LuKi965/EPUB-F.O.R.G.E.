@@ -71,3 +71,50 @@ jobs:
         env:
           PYTHONHASHSEED: "12345"
         run: pytest -q
+
+  # The same suite on a machine with no Java and no EPUBCheck. Three times a
+  # test has failed only there (EF-030, EF-068, EF-072), and every time the
+  # person who found it was somebody with a different machine than the
+  # author's. A class of defect that returns is closed by a gate, not by
+  # fixing its instances: this job is the gate.
+  tests-without-validator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the desktop libraries the window needs offscreen
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libdbus-1-3 \
+            libfontconfig1 libglib2.0-0 libxcb-cursor0
+
+      - name: Install the locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+          pip install -e . --no-deps
+
+      # The runner image ships a Java; this job is about the machine that has
+      # none, so the validator has to be provably absent before the suite runs,
+      # or a green result here says nothing.
+      - name: Make sure no validator can be found
+        env:
+          EPUBCHECK_JAR: /nonexistent/epubcheck.jar
+        run: |
+          sudo rm -f /usr/bin/java /usr/local/bin/java || true
+          sudo apt-get remove -y -q --purge 'openjdk-*' 'temurin-*' 'java-common' > /dev/null 2>&1 || true
+          hash -r
+          if command -v java > /dev/null; then echo "java is still on PATH: $(command -v java)"; exit 1; fi
+          python -c "from epubforge.validate import find_epubcheck; import sys; sys.exit(0 if find_epubcheck() is None else 1)"
+
+      - name: Run tests with no validator on the machine
+        env:
+          EPUBCHECK_JAR: /nonexistent/epubcheck.jar
+        run: pytest -q -rs

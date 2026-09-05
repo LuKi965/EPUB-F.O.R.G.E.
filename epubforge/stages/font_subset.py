@@ -85,6 +85,12 @@ def _characters(ctx: Context) -> "set[str]":
     return seen
 
 
+#: What `_subset` answers when there is no library to answer with — a fact
+#: about this build, reported as such (`font.subset-unavailable`), never as a
+#: refusal of the book's font.
+UNAVAILABLE = object()
+
+
 def _subset(data: bytes, characters: "set[str]") -> "tuple[bytes, set[str]] | None":
     """The font cut to *characters*, and the tables that did not survive.
 
@@ -100,7 +106,11 @@ def _subset(data: bytes, characters: "set[str]") -> "tuple[bytes, set[str]] | No
         from fontTools import subset as fontsubset
         from fontTools.ttLib import TTFont
     except ImportError:
-        return None
+        # Not a font that refused: a build without the library. The two
+        # used to come back as the same `None`, and the report told the
+        # owner his fonts "could not be cut down safely" on a machine where
+        # nothing had been tried (EF-073, independent audit 2026-09-04).
+        return UNAVAILABLE
     # `fontTools` talks on several loggers at once and one of them fires per
     # coverage table: on the shelf's heaviest books that is eighty lines of
     # "Coverage is not sorted by glyph ids" for two books. Quieted across the
@@ -175,6 +185,9 @@ class FontSubsetStage(Stage):
                 refused[reason] = refused.get(reason, 0) + 1
                 continue
             outcome = _subset(resource.data, characters)
+            if outcome is UNAVAILABLE:
+                refused["unavailable"] = refused.get("unavailable", 0) + 1
+                continue
             if outcome is None:
                 refused["failed"] = refused.get("failed", 0) + 1
                 continue
@@ -229,6 +242,12 @@ class FontSubsetStage(Stage):
         # attempts is right both times: neither an f-string nor a lookup is a
         # literal, and an identifier no search of this codebase can find is
         # one that can quietly leave the catalogue (`test_rules.py`).
+        if refused.get("unavailable"):
+            # A warning, not a "preserved": nothing about the book was
+            # decided here, and the person reading the report should know
+            # the stage they switched on did not run.
+            self.note(ctx, Level.WARN, "font.subset-unavailable",
+                      values={"count": refused["unavailable"]})
         if refused.get("restricted"):
             self.note(ctx, Level.PRESERVED, "font.subset-refused-restricted",
                       values={"count": refused["restricted"]})

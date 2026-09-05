@@ -37,6 +37,25 @@ BODY = (
 
 
 class TestCountingByName:
+    def test_every_aria_attribute_is_counted_not_three_picked_by_hand(self):
+        """EF-075 (independent audit 2026-09-04): `aria-labelledby` stood on
+        two shelf books and the hand-picked list did not see it."""
+        page = PAGE.format(body=(
+            '<p aria-labelledby="h1" aria-describedby="n1" aria-hidden="true" aria-live="polite">x</p>'
+        )).encode("utf-8")
+        counts = balance.semantic_attributes_in(page)
+        assert counts["aria-labelledby"] == 1
+        assert counts["aria-live"] == 1
+        assert counts["aria-describedby"] == 1 and counts["aria-hidden"] == 1
+
+    def test_a_raw_greater_than_inside_a_value_does_not_end_the_tag(self):
+        """The byte-level counter read tags with `<[^>]*>`, so a `>` in an
+        attribute value cut the tag short and hid every attribute after it.
+        The program exists for books with markup like that."""
+        page = PAGE.format(body='<p title="a > b" lang="en" role="note">x</p>').encode("utf-8")
+        counts = balance.semantic_attributes_in(page)
+        assert counts == {"title": 1, "lang": 2, "role": 1}
+
     def test_names_inside_tags_are_counted_and_prose_is_not(self):
         counts = balance.semantic_attributes_in(PAGE.format(body=BODY).encode("utf-8"))
         assert counts == {
@@ -62,6 +81,21 @@ PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478"
     "9c6360f8cfc000000301010018dd8db00000000049454e44ae426082"
 )
+
+
+class LabelledByStripper(Stage):
+    """The EF-075 shape: an attribute the old hand-picked list did not know."""
+
+    name = "xhtml"
+
+    def run(self, ctx):
+        for resource in ctx.book.content_docs():
+            root = ctx.take(resource).root
+            for element in root.iter():
+                if isinstance(element.tag, str):
+                    element.attrib.pop("aria-labelledby", None)
+            from epubforge import xhtml
+            resource.data = xhtml.serialize(root)
 
 
 class AltStripper(Stage):
@@ -96,6 +130,18 @@ class TestAFallIsSaidAndNotRefused:
         assert result.output_path
         assert "package.attributes-fell" not in rules_of(result)
         assert result.report.balance.attributes_fell == []
+
+    def test_a_stage_that_strips_aria_labelledby_is_seen(self, tmp_path):
+        body = BODY + '<p id="n1">n</p><p aria-labelledby="n1">z</p>'
+        source = make_book(tmp_path / "in.epub", {"c0.xhtml": PAGE.format(body=body)},
+                           extra_items='<item id="i" href="i.png" media-type="image/png"/>',
+                           extra_files={"OEBPS/i.png": PNG})
+        result = rebuild(source, str(tmp_path / "out.epub"),
+                         Policy.preset("preserve", render_gate="off"),
+                         stages=(*DEFAULT_STAGES, LabelledByStripper))
+        assert result.output_path
+        assert "package.attributes-fell" in rules_of(result)
+        assert ("aria-labelledby", 1, 0) in result.report.balance.attributes_fell
 
     def test_a_stage_that_strips_alt_is_named_with_the_numbers(self, tmp_path):
         result = build(tmp_path, stages=(*DEFAULT_STAGES, AltStripper))

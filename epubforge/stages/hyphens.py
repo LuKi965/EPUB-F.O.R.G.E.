@@ -33,7 +33,7 @@ from .. import decisions
 from ..transformation import PostconditionFailed, Transformation, carry_out
 from ..decisions import KEEP
 from ..report import Action, Level, Risk
-from .base import Context, Stage
+from .base import Context, Stage, machinery_nav
 
 
 def _collect_candidates(documents: list, words, tongue: str) -> tuple[dict, list, list, dict]:
@@ -87,7 +87,7 @@ class HyphenStage(Stage):
 
         documents = []
         for resource in ctx.book.content_docs():
-            if resource.path == ctx.book.nav_path:
+            if machinery_nav(ctx.book, resource):
                 continue
             try:
                 documents.append((resource, ctx.parsed(resource).root))
@@ -181,10 +181,11 @@ class HyphenStage(Stage):
             words = sorted({candidate.word for _, candidate in entries})
             answer = ctx.decide(hyphens.review_question(confidence, words))
             if answer.option != "join":
-                self.note(
-                    ctx, Level.PRESERVED, "hyphens.class-left-alone",
-                    values={"confidence": confidence, "count": len(words)},
-                )
+                values = {"confidence": confidence, "count": len(words)}
+                if answer.source == "unanswered":
+                    self.note(ctx, Level.PRESERVED, "hyphens.class-left-alone", values=values)
+                else:
+                    self.note(ctx, Level.PRESERVED, "hyphens.class-kept", values=values)
                 continue
             self._ask_and_apply(
                 ctx, entries, standing=decisions.Answer(option="join")
@@ -200,13 +201,16 @@ class HyphenStage(Stage):
         this rule edits *words*, which is further than any other rule here goes.
         """
         replacements: dict[str, list] = {}
-        asked = 0
+        unanswered = kept = 0
         for resource, candidate in confirmed:
             # A class answered as a group is not asked again word by word: the
             # person has already looked at the list and said what to do with it.
             answer = standing or ctx.decide(hyphens.question_for(candidate))
-            asked += 1
             if answer.option == KEEP:
+                if answer.source == "unanswered":
+                    unanswered += 1
+                else:
+                    kept += 1
                 continue
             replacement = (
                 candidate.joined if answer.option == "join" else answer.value
@@ -215,8 +219,8 @@ class HyphenStage(Stage):
                 continue
             replacements.setdefault(resource.path, []).append((candidate, replacement))
 
+        self._report_left(ctx, unanswered, kept)
         if not replacements:
-            self._report_unanswered(ctx, asked)
             return
 
         joined = reverted = 0
@@ -299,13 +303,14 @@ class HyphenStage(Stage):
             expected = expected.replace(candidate.word, replacement)
         return typography.unchanged(expected, after)
 
-    def _report_unanswered(self, ctx: Context, asked: int) -> None:
-        self.note(
-            ctx,
-            Level.PRESERVED,
-            "hyphens.left-alone",
-            values={"count": asked},
-        )
+    def _report_left(self, ctx: Context, unanswered: int, kept: int) -> None:
+        """What stayed as it was, and why: because nobody answered, or because
+        somebody did and said keep. Two entries, because the report is where a
+        person reads back what they decided (EF-074)."""
+        if unanswered:
+            self.note(ctx, Level.PRESERVED, "hyphens.left-alone", values={"count": unanswered})
+        if kept:
+            self.note(ctx, Level.PRESERVED, "hyphens.kept", values={"count": kept})
 
     def _ask_and_apply_across(self, ctx: Context, across: list) -> None:
         """The same rule for a word markup cut in two, and one extra caution.
@@ -328,11 +333,14 @@ class HyphenStage(Stage):
         anything crossed a node.
         """
         planned: dict[str, list] = {}
-        asked = 0
+        unanswered = kept = 0
         for resource, candidate in across:
             answer = ctx.decide(hyphens.question_for(candidate))
-            asked += 1
             if answer.option == KEEP:
+                if answer.source == "unanswered":
+                    unanswered += 1
+                else:
+                    kept += 1
                 continue
             if not candidate.joinable:
                 # The question does not offer `join` in this case, so an answer
@@ -345,8 +353,8 @@ class HyphenStage(Stage):
                 continue
             planned.setdefault(resource.path, []).append((candidate, replacement))
 
+        self._report_left(ctx, unanswered, kept)
         if not planned:
-            self._report_unanswered(ctx, asked)
             return
 
         joined = reverted = 0

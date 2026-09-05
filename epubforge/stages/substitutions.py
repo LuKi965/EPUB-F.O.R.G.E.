@@ -28,7 +28,7 @@ from ..decisions import ENCODING, KEEP, Option, Question
 from ..question_texts import say
 from ..report import Action, Level, Risk
 from ..transformation import PostconditionFailed, Transformation, carry_out
-from .base import Context, Stage
+from .base import Context, Stage, machinery_nav
 
 #: How many of the words the question spells out before it starts counting.
 #: The same number the hyphen review uses: enough to judge the pattern by,
@@ -52,7 +52,7 @@ class SubstitutionStage(Stage):
 
         documents = []
         for resource in ctx.book.content_docs():
-            if resource.path == ctx.book.nav_path:
+            if machinery_nav(ctx.book, resource):
                 continue
             try:
                 documents.append((resource, ctx.parsed(resource).root))
@@ -85,16 +85,15 @@ class SubstitutionStage(Stage):
         )
         answer = ctx.decide(self._question(pattern))
         if answer.option != "repair":
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                "substitutions.left-alone",
-                values={
-                    "wrong": pattern.wrong,
-                    "right": pattern.right,
-                    "count": len(pattern.repairs),
-                },
-            )
+            values = {
+                "wrong": pattern.wrong,
+                "right": pattern.right,
+                "count": len(pattern.repairs),
+            }
+            if answer.source == "unanswered":
+                self.note(ctx, Level.PRESERVED, "substitutions.left-alone", values=values)
+            else:
+                self.note(ctx, Level.PRESERVED, "substitutions.kept", values=values)
             return
         self._apply(ctx, pattern, documents)
 

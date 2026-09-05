@@ -1443,9 +1443,17 @@ class StyleStage(Stage):
             group="style:typo",
             subject=f"{len(proposals)} declarations",
         )
-        if ctx.decide(question).option != "fix":
-            self.note(ctx, Level.PRESERVED, "css.publisher-typo-left",
-                      values={"count": len(proposals)}, location=resource.path)
+        answer = ctx.decide(question)
+        if answer.option != "fix":
+            # "Nobody answered" and "somebody said keep" are two different
+            # facts, and the report is where a person reads back which one
+            # it was (independent audit 2026-09-04, EF-074).
+            if answer.source == "unanswered":
+                self.note(ctx, Level.PRESERVED, "css.publisher-typo-left",
+                          values={"count": len(proposals)}, location=resource.path)
+            else:
+                self.note(ctx, Level.PRESERVED, "css.publisher-typo-kept",
+                          values={"count": len(proposals)}, location=resource.path)
             return css_text
         mended = css_text
         for start, end, fixed, _, _ in sorted(proposals, reverse=True):

@@ -39,7 +39,7 @@ from .. import typography, xhtml
 from ..decisions import KEEP, Option, Question, TEXT
 from ..question_texts import say
 from ..report import Level, Risk
-from .base import Context, Stage
+from .base import Context, Stage, machinery_nav
 
 #: The three rules, named once so the question, the answer, the repair and the
 #: report cannot drift apart into four spellings of the same thing.
@@ -217,7 +217,7 @@ class TypographyStage(Stage):
         # twice to do that would double the cost of the pass.
         documents = []
         for resource in ctx.book.content_docs():
-            if resource.path == ctx.book.nav_path:
+            if machinery_nav(ctx.book, resource):
                 continue
             try:
                 documents.append((resource, xhtml.parse_document(resource.data, resource.path).root))
@@ -230,9 +230,9 @@ class TypographyStage(Stage):
         # how much of the book it is about — "1 174 places" is something a
         # person can answer and "some typography" is not.
         found = self._survey(documents, language, marks)
-        agreed = self._agree(ctx, found, convention)
+        agreed, declined = self._agree(ctx, found, convention)
         if not agreed:
-            self._report(ctx, 0, 0, 0, 0, convention, [], found, agreed, straight)
+            self._report(ctx, 0, 0, 0, 0, convention, [], found, agreed, declined, straight)
             return
 
         ellipses = conjunctions = quotes = dashes = 0
@@ -259,7 +259,7 @@ class TypographyStage(Stage):
 
         self._report(
             ctx, ellipses, conjunctions, quotes, dashes, convention, reverted,
-            found, agreed, straight,
+            found, agreed, declined, straight,
         )
 
     def _survey(self, documents, language: str, marks) -> "dict[str, dict]":
@@ -344,6 +344,9 @@ class TypographyStage(Stage):
         mojibake repair uses — and not a fourth way of changing text unasked.
         """
         agreed = set()
+        # A rule somebody looked at and said no to, as distinct from one
+        # nobody answered: the report has to tell the two apart (EF-074).
+        declined = set()
         for rule in (ELLIPSIS, CONJUNCTIONS, QUOTES, RANGES):
             entry = found.get(rule)
             if not entry:
@@ -354,7 +357,9 @@ class TypographyStage(Stage):
             answer = ctx.decide(self._question(ctx, rule, entry, convention))
             if answer.option == "repair":
                 agreed.add(rule)
-        return agreed
+            elif answer.source != "unanswered":
+                declined.add(rule)
+        return agreed, declined
 
     def _question(self, ctx: Context, rule: str, entry: dict, convention) -> Question:
         shown = "\n".join(f"…{sample}…" for sample in entry["samples"])
@@ -502,6 +507,7 @@ class TypographyStage(Stage):
         reverted: list[str],
         found: dict,
         agreed: set,
+        declined: set,
         straight: int,
     ) -> None:
         # What was found and not agreed to. Said first, because a rule that
@@ -519,7 +525,19 @@ class TypographyStage(Stage):
             # which stage reports what — and the project keeps that invariant
             # as a test. Three literals is the price and it is worth paying.
             count = {"count": entry["count"]}
-            if rule == ELLIPSIS:
+            if rule in declined:
+                # Somebody answered, and the answer was no. Said with a
+                # different entry than "nobody answered", because the report
+                # is where a person reads back what they decided (EF-074).
+                if rule == ELLIPSIS:
+                    self.note(ctx, Level.PRESERVED, "typography.ellipsis-kept", values=count)
+                elif rule == CONJUNCTIONS:
+                    self.note(ctx, Level.PRESERVED, "typography.conjunctions-kept", values=count)
+                elif rule == RANGES:
+                    self.note(ctx, Level.PRESERVED, "typography.ranges-kept", values=count)
+                else:
+                    self.note(ctx, Level.PRESERVED, "typography.quotes-kept", values=count)
+            elif rule == ELLIPSIS:
                 self.note(ctx, Level.PRESERVED, "typography.ellipsis-left-alone", values=count)
             elif rule == CONJUNCTIONS:
                 self.note(ctx, Level.PRESERVED, "typography.conjunctions-left-alone", values=count)

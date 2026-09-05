@@ -37,6 +37,11 @@ dependencies = [
     # outline. Pure Python and MIT, so it builds on the Windows runner;
     # poppler is not on a user's machine and PyMuPDF is AGPL with binaries.
     "pdfminer.six>=20250327,<20270000",
+    # Pillar E: the font subset stage imports it at run time. Declared here
+    # since the independent audit of 2026-09-04 (EF-073) found it missing —
+    # on an installation made from the lock the stage did nothing and the
+    # report blamed the book's fonts for the absence of a library.
+    "fonttools>=4.50,<5",
 ]
 
 [project.optional-dependencies]

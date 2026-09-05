@@ -40,6 +40,58 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### What the independent audit of 2026-09-04 found, and what changed
+
+An auditor who had not written a line of this program repeated the
+author's measurements with their own tools and found eight things the
+self-assessment could not see. Each is closed here by a change with a
+test that fails on the old behaviour, not by a note.
+
+- **The font subset stage was dead on every installation but the
+  author's.** `fontTools` was imported at run time and declared nowhere;
+  an installation from the lock had no library, the stage did nothing,
+  and the report said the book's fonts "could not be cut down safely"
+  — a sentence about the book that was true only of the build. The
+  library is declared and locked, the test file no longer skips itself
+  without it, and a build that lacks it says so with its own entry
+  (`font.subset-unavailable`) rather than blaming the fonts.
+- **A second rebuild changed the contents page of twenty books in sixty.**
+  The text stages skipped the navigation document by path; in the first
+  pass that path was the publisher's contents page in the reading order,
+  which the navigation stage keeps as an ordinary page, so the second pass
+  repaired what the first had skipped (K3). A page the reader turns to now
+  gets the same repairs as every other page in the first pass; only a
+  navigation document outside the reading order is machinery. Held to a
+  test with such a page and to the shelf.
+- **"Nobody answered" when somebody had.** A person who read the question
+  about a publisher's typo in a stylesheet and chose the recommended
+  "keep" was told in the report that nobody answered. The same shape stood
+  in the typography, hyphen and substitution stages. Every one of them now
+  tells the two apart: `…-kept` when somebody said keep, `…-left-alone`
+  when nobody answered — because the report is where a person reads back
+  what they decided.
+- **The attribute count in the balance knew three ARIA names by hand.**
+  Two shelf books carry `aria-labelledby`, which the count did not see —
+  a ratchet narrower than the measurement that found the fall it was built
+  for. Every `aria-*` attribute is counted now, and a raw `>` inside an
+  attribute value no longer ends the tag early and hides what follows it.
+- **A test failed on a machine with no Java, for the third time in the
+  project's life.** The test about the command line's gates asked what the
+  strict preset says, and the fixture that spares machines without a
+  validator changes exactly that value. It carries the `validates` marker
+  now, and CI runs the whole suite a second time on a runner with the
+  validator provably absent, so the fourth instance is caught by a
+  machine rather than by the next auditor.
+- **The strict refusal said "an anchor no document has".** For one of the
+  three refused books the anchor is in the book, in the document the link
+  leaves from; the target document is what lacks it, as a footnote export
+  often leaves things. The message now says what was measured.
+- Two render tests with identical bodies guarded the same tooth; one is
+  gone. The whole-shelf fingerprint tool writes where a snapshot came from
+  (tree, commit, dictionaries, preset) into the snapshot, refuses to
+  compare two taken with different dictionaries, and carries a digest of
+  the whole report rather than the set of rule names.
+
 ### A PDF with a text layer is a book this program can rebuild
 
 `epubforge build book.pdf`, a folder with PDFs in it, or a PDF dropped on

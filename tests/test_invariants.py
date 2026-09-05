@@ -368,3 +368,52 @@ class TestTheSourceIsNeverDestroyed:
         before = pathlib.Path(legacy_epub).read_bytes()
         rebuild(legacy_epub, str(tmp_path / "out.epub"), Policy.preset("preserve"))
         assert pathlib.Path(legacy_epub).read_bytes() == before
+
+
+def test_second_pass_leaves_a_contents_page_in_the_reading_order_alone(tmp_path):
+    """K3 on the shape the independent audit of 2026-09-04 found it broken on
+    (EF-078): a nav document that is also a page in the reading order. Twenty
+    of sixty shelf books changed exactly one file on a second rebuild — the
+    contents page — because the text stages skipped the nav by path in the
+    first pass and, the page having become ordinary, repaired it in the
+    second. A page the reader turns to gets the repairs in the first pass."""
+    import zipfile
+
+    from tests.factory import CONTAINER, MODERN_CHAPTER, MODERN_OPF, png_bytes, write_zip
+
+    opf = MODERN_OPF.format(title="Ksi&#x105;&#x17c;ka", extra_metadata="").replace(
+        '<spine><itemref idref="ch1"/></spine>',
+        '<spine><itemref idref="nav"/><itemref idref="ch1"/></spine>',
+    )
+    contents = (
+        '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="pl">\n'
+        "  <head><meta charset=\"utf-8\"/><title>Spis treści</title></head>\n"
+        '  <body><h1>Spis treści</h1><nav epub:type="toc"><ol>'
+        '<li><a href="chapter.xhtml">Rozdział I. O tym, co w lesie</a></li>'
+        "</ol></nav></body>\n</html>\n"
+    )
+    source = write_zip(
+        str(tmp_path / "in.epub"),
+        {
+            "META-INF/container.xml": CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf").encode(),
+            "OEBPS/package.opf": opf.encode(),
+            "OEBPS/nav.xhtml": contents.encode("utf-8"),
+            "OEBPS/chapter.xhtml": MODERN_CHAPTER.format(image='<img src="picture.png" alt=""/>').encode(),
+            "OEBPS/picture.png": png_bytes(),
+        },
+    )
+    policy = Policy.preset("preserve", typography=True, validate_before_publish="off", render_gate="off")
+    first = rebuild(source, str(tmp_path / "first.epub"), policy)
+    assert first.output_path, first.report.to_text()
+    assert "nav.contents-page-kept" in {f.rule for f in first.report.findings}
+    with zipfile.ZipFile(first.output_path) as archive:
+        page = next(archive.read(n).decode("utf-8") for n in archive.namelist() if "toc" in n and n.endswith(".xhtml") and "nav" not in n.rsplit("/", 1)[-1])
+    assert "O tym, co w lesie" in page, page
+
+    second = rebuild(first.output_path, str(tmp_path / "second.epub"), policy)
+    assert second.output_path, second.report.to_text()
+    one, two = entries(first.output_path), entries(second.output_path)
+    assert set(one) == set(two)
+    differing = {name for name in one if one[name] != two[name]}
+    assert differing <= {"EPUB/package.opf"}, differing

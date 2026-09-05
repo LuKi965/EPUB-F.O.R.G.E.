@@ -527,7 +527,20 @@ class TestTheClassesWithoutEvidence:
             asker=Keeps(),
         )
         assert "ping-pong" in text_of(result)
+        assert "hyphens.class-kept" in rules_of(result)
+        assert "hyphens.class-left-alone" not in rules_of(result)
+
+    def test_no_answer_for_the_class_is_said_as_no_answer(self, tmp_path):
+        """EF-074: a person's "keep" and nobody's answer are two different
+        facts, and the report is where a person reads back which it was."""
+        result = rebuild(
+            book(tmp_path / "in.epub", self.BOOK),
+            str(tmp_path / "out.epub"),
+            Policy.preset("preserve", hyphen_review="grouped"),
+        )
+        assert "ping-pong" in text_of(result)
         assert "hyphens.class-left-alone" in rules_of(result)
+        assert "hyphens.class-kept" not in rules_of(result)
 
     def test_each_goes_back_to_one_question_per_word(self, tmp_path):
         asker = Joins()
