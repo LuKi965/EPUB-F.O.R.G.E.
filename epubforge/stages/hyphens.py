@@ -36,7 +36,7 @@ from ..report import Action, Level, Risk
 from .base import Context, Stage, machinery_nav
 
 
-def _collect_candidates(documents: list, words, tongue: str) -> tuple[dict, list, list, dict]:
+def _collect_candidates(documents: list, words, tongue: str, line_end: "set[str]" = frozenset()) -> tuple[dict, list, list, dict]:
     """Every hyphen worth asking about, over every text node of every
     document: counts by confidence, the confirmed ones, the ones split
     across two text nodes, and the weaker ones by confidence."""
@@ -51,7 +51,7 @@ def _collect_candidates(documents: list, words, tongue: str) -> tuple[dict, list
             if not text or "-" not in text:
                 continue
             for candidate in hyphens.find(
-                text, where=resource.path, words=words, language=tongue
+                text, where=resource.path, words=words, language=tongue, line_end=line_end
             ):
                 found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
                 if candidate.confidence == hyphens.CONFIRMED:
@@ -115,7 +115,12 @@ class HyphenStage(Stage):
         # which is the same state as no dictionary at all.
         tongue = (ctx.book.metadata.language or "").strip() or "pl_PL"
 
-        found, confirmed, across, weaker = _collect_candidates(documents, words, tongue)
+        found, confirmed, across, weaker = _collect_candidates(
+            documents, words, tongue,
+            # What the PDF reader knows and an EPUB never says: which hyphens
+            # stood at a line end of the typeset page. Empty for any other source.
+            {hyphens._fold(w) for w in ctx.report.stats.get("pdf_line_end_words", [])},
+        )
 
         # Said whether or not anything was found, and before the counts: a run
         # without a dictionary saw less than a run with one, and a report that

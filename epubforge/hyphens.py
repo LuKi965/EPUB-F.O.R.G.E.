@@ -264,7 +264,8 @@ BLOCKS = frozenset({
 
 
 def find(
-    text: str, *, where: str, words: Counter, language: str = "pl_PL"
+    text: str, *, where: str, words: Counter, language: str = "pl_PL",
+    line_end: "set[str] | None" = None,
 ) -> "list[Candidate]":
     """Candidates in one text node's worth of text.
 
@@ -302,6 +303,23 @@ def find(
             reason = (
                 f"ta książka pisze „{left}{right}” bez łącznika "
                 f"{elsewhere}× — więc to jest to słowo"
+            )
+        elif (
+            line_end
+            and _fold(match.group(0)) in line_end
+            and dictionaries.is_a_word(left + right, language) is True
+        ):
+            # The PDF reader put this hyphen at a line end: the typesetter
+            # broke the word there, and the joined form is in the dictionary.
+            # Without this the first half being a word (`nie-`, `po-`,
+            # `przy-`) kept the candidate out of `CONFIRMED`; measured on
+            # the corpus typeset with pyphen: 22–30 % of the breaks in the
+            # Polish books were left that way. A compound broken at its own
+            # hyphen has no joined form in the dictionary and is not here.
+            confidence = CONFIRMED
+            reason = (
+                f"skład PDF-a przełamał „{left}{right}” na końcu wiersza, "
+                f"a „{left}{right}” jest w słowniku — łącznik jest z łamania, nie od autora"
             )
         elif dictionaries.half_is_not_a_word(left, left + right, language):
             # The dictionary settles it without anybody being asked. A compound

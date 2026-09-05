@@ -223,8 +223,8 @@ same height on most pages — one question with examples, recommended
 ask|keep|remove`, a box in the window) and the language, which a PDF rarely
 declares (proposed from the text, set only on a person's word). A scan with
 no text layer is refused with the reason (`pdf.no-text-layer`) — OCR is a
-different program. Two columns are reported, not re-flowed; tables come in
-as paragraphs; there is no cover.
+different program. Two columns are read column by column and reported, not
+re-flowed; tables come in as paragraphs; there is no cover.
 
 ```bash
 epubforge build book.pdf

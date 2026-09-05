@@ -217,8 +217,8 @@ wysokości na większości stron — jedno pytanie z przykładami, zalecane
 ask|keep|remove`, w oknie kratka) oraz język, którego PDF zwykle nie
 deklaruje (propozycja z tekstu, ustawiana tylko na słowo człowieka). Skan bez
 warstwy tekstowej jest odmową z powodem (`pdf.no-text-layer`) — OCR to inny
-program. Dwie kolumny są zgłaszane, nie przekładane; tabele wchodzą jako
-akapity; okładki nie ma.
+program. Dwie kolumny są czytane kolumna po kolumnie i zgłaszane, nie
+przekładane; tabele wchodzą jako akapity; okładki nie ma.
 
 ```bash
 epubforge build ksiazka.pdf

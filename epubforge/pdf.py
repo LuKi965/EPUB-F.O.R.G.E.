@@ -97,6 +97,8 @@ class Page:
     lines: list[Line] = field(default_factory=list)
     pictures: list[Picture] = field(default_factory=list)
     columns: bool = False
+    #: The x that divides two columns, when there are two.
+    split: "float | None" = None
 
 
 @dataclass
@@ -226,14 +228,62 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
             location=source,
         )
     report.stats["pdf_layout"] = layout.__dict__.copy()
+    # The words the typesetter broke at a line end, joined as the hyphen
+    # stage will meet them (`prze-konaniem`): evidence that stage can use —
+    # a hyphen the reader put at a line end is a converter's, not a
+    # writer's, and on typeset material a third of them were otherwise
+    # left because their first half happened to be a word (`nie-`, `po-`).
+    report.stats["pdf_line_end_words"] = sorted(_line_end_words(pages))
     return book
+
+
+def _line_end_words(pages: list[Page]) -> set[str]:
+    words: set[str] = set()
+    lines = [line.text.strip() for page in pages for line in page.lines if not line.running_head]
+    for a, b in zip(lines, lines[1:]):
+        if a.endswith("-") and len(a) > 1 and a[-2].isalnum() and b[:1].isalpha():
+            left = re.split(r"[^\w-]", a)[-1] if re.split(r"[^\w-]", a) else ""
+            right = re.match(r"\w+", b)
+            if left and right and left != "-":
+                words.add(f"{left}{right.group(0)}".casefold())
+    return words
 
 
 def text_of(source: str) -> str:
     """Every character of the text layer, whitespace collapsed — the left side
-    of K1 for a PDF source, in the order the reader joins the lines."""
+    of K1 for a PDF source, joined line to line by the same rule the reader
+    uses, so that the two sides agree about where a line break was a space
+    and where it was not."""
     pages, _, _, _ = _read(source)
-    return re.sub(r"\s+", " ", " ".join(line.text for page in pages for line in page.lines)).strip()
+    return re.sub(r"\s+", " ", join_lines(line.text for page in pages for line in page.lines)).strip()
+
+
+def join_lines(lines) -> str:
+    """Lines of a paragraph made one string.
+
+    A line break is a space — except after a hyphen-minus, where the
+    typesetter broke a word and the break is not a space: `prze-` + `konaniem`
+    is `prze-konaniem`, the shape a converter leaves in an EPUB and the one
+    the hyphen stage knows how to ask about (a hyphen followed by a space is
+    not a candidate there, so joined with a space the word would never have
+    been put to anybody). Nothing is joined *into* a word here — the hyphen
+    stays, and whether it goes is the hyphen stage's question, with its
+    dictionary (D-052). A compound broken at its own hyphen comes back as
+    the compound. An en dash or a minus at a line end is not a hyphen and
+    gets its space.
+    """
+    out = ""
+    for line in lines:
+        text = line.strip()
+        if not text:
+            continue
+        if not out:
+            out = text
+        elif out.endswith("-") and len(out) > 1 and (out[-2].isalnum()) and text[:1].isalpha():
+            out += text
+        else:
+            out += " " + text
+    return out
 
 
 def _read(source: str):
@@ -276,7 +326,10 @@ def _read(source: str):
                 else:
                     page.pictures.append(picture)
         page.lines.sort(key=lambda line: (-round(line.y1), line.x0))
-        page.columns = _two_columns(page)
+        split = _two_columns(page)
+        page.columns = split is not None
+        page.split = split
+        _reading_order(page, split)
         pages.append(page)
 
     info: dict = {}
@@ -415,18 +468,40 @@ def _png_via_pillow(handle) -> bytes | None:
         return None
 
 
-def _two_columns(page: Page) -> bool:
-    """Two clusters of left edges, each narrower than half the page: columns."""
+def _two_columns(page: Page) -> "float | None":
+    """Two clusters of left edges, each narrower than half the page: columns.
+    Returns the x that divides them, or None for a single column."""
     if len(page.lines) < 8:
-        return False
+        return None
     starts = Counter(round(line.x0 / 10) * 10 for line in page.lines)
     common = [x for x, count in starts.most_common(2) if count >= 3]
     if len(common) < 2:
-        return False
+        return None
     left, right = sorted(common)
-    return right - left > page.width * 0.35 and all(
+    if right - left > page.width * 0.35 and all(
         (line.x1 - line.x0) < page.width * 0.55 for line in page.lines
-    )
+    ):
+        return (left + right) / 2
+    return None
+
+
+def _reading_order(page: Page, split: "float | None") -> None:
+    """Sort the page's lines the way a reader takes them: top to bottom, and
+    on a two-column page the left column whole before the right one.
+
+    Measured before this existed, on the corpus typeset in two columns by
+    reportlab: lines taken in page order interleaved the columns, so a word
+    broken at the end of a left-hand line was joined to the first word of
+    the right-hand line beside it — 1 123 hyphenated words the source never
+    had, 2 715 words missing, on one book. Two columns are still not
+    re-flowed and still reported (`pdf.columns`); they are only read in
+    order. A line that straddles the divide (a centred running head, a
+    heading across both columns) goes with the column its left edge is in.
+    """
+    if split is None:
+        page.lines.sort(key=lambda line: (-round(line.y1), line.x0))
+        return
+    page.lines.sort(key=lambda line: (0 if line.x0 < split else 1, -round(line.y1), line.x0))
 
 
 # ------------------------------------------------------------ structure
@@ -492,7 +567,7 @@ class Block:
 
     @property
     def text(self) -> str:
-        return " ".join(line.text.strip() for line in self.lines)
+        return join_lines(line.text for line in self.lines)
 
 
 def _heading_level(line: Line, body_size: float) -> str | None:
@@ -514,20 +589,28 @@ def _blocks(pages: list[Page], body_size: float, breaks: set[int] = frozenset())
     previous: Line | None = None
     current: Block | None = None
     interrupted = False
+    previous_left = previous_width = 0.0
     for page in pages:
         pitch = _pitch(page)
-        block_left = _block_left(page)
-        width = _block_width(page, block_left)
-        items: list[tuple[float, object]] = [(line.y1, line) for line in page.lines]
-        items += [(picture.y1, picture) for picture in page.pictures]
-        items.sort(key=lambda item: -item[0])
-        for _, item in items:
+        # Measured per column on a two-column page: against the page's own
+        # left edge every right-hand line looked indented and began a
+        # paragraph — 5 552 paragraphs where the source had 2 036.
+        geometry = _column_geometry(page)
+        # The lines in their reading order (column by column on a two-column
+        # page); a picture goes in before the first line that stands below
+        # it, which on a one-column page is its place in the flow.
+        items: list[object] = list(page.lines)
+        for picture in sorted(page.pictures, key=lambda p: -p.y1):
+            place = next((i for i, line in enumerate(items) if isinstance(line, Line) and line.y1 < picture.y1), len(items))
+            items.insert(place, picture)
+        for item in items:
             if isinstance(item, Picture):
                 blocks.append(Block(kind="image", picture=item))
                 current = None
                 previous = None
                 continue
             line = item
+            block_left, width = geometry[0 if page.split is None or line.x0 < page.split else 1]
             if line.running_head:
                 blocks.append(Block(kind="head", lines=[line]))
                 # A running head does not end the paragraph it interrupts,
@@ -544,8 +627,11 @@ def _blocks(pages: list[Page], body_size: float, breaks: set[int] = frozenset())
                 or (previous is not None and previous.page == line.page
                     and previous.y0 - line.y1 > PARAGRAPH_GAP_RATIO * pitch)
                 or (kind == "p" and line.x0 - block_left > INDENT_POINTS and previous is not None)
+                # The short line is the *previous* line, measured in its own
+                # column: the last line of a left-hand column is not short
+                # against the right-hand column's edge.
                 or (kind == "p" and previous is not None
-                    and (previous.x1 - block_left) < SHORT_LINE_RATIO * width
+                    and (previous.x1 - previous_left) < SHORT_LINE_RATIO * previous_width
                     and _starts_a_sentence(line.text))
             )
             if starts_new:
@@ -557,6 +643,7 @@ def _blocks(pages: list[Page], body_size: float, breaks: set[int] = frozenset())
             interrupted = False
             current.lines.append(line)
             previous = line
+            previous_left, previous_width = block_left, width
     return blocks
 
 
@@ -569,16 +656,30 @@ def _pitch(page: Page) -> float:
     return float(gaps[len(gaps) // 2])
 
 
-def _block_left(page: Page) -> float:
-    starts = Counter(round(line.x0) for line in page.lines if not line.running_head)
-    return float(starts.most_common(1)[0][0]) if starts else 0.0
+def _block_left(lines: list, fallback: float = 0.0) -> float:
+    starts = Counter(round(line.x0) for line in lines if not line.running_head)
+    return float(starts.most_common(1)[0][0]) if starts else fallback
 
 
-def _block_width(page: Page, left: float) -> float:
-    rights = sorted(line.x1 for line in page.lines if not line.running_head)
+def _block_width(lines: list, left: float, fallback: float) -> float:
+    rights = sorted(line.x1 for line in lines if not line.running_head)
     if not rights:
-        return page.width
+        return fallback
     return max(1.0, rights[int(0.9 * (len(rights) - 1))] - left)
+
+
+def _column_geometry(page: Page) -> dict:
+    """{column: (left edge, width)} — one entry for a single column, two for
+    a page set in two, each measured on its own lines."""
+    if page.split is None:
+        left = _block_left(page.lines)
+        return {0: (left, _block_width(page.lines, left, page.width))}
+    out = {}
+    for column, lines in ((0, [l for l in page.lines if l.x0 < page.split]),
+                          (1, [l for l in page.lines if l.x0 >= page.split])):
+        left = _block_left(lines)
+        out[column] = (left, _block_width(lines, left, page.width / 2))
+    return out
 
 
 def _starts_a_sentence(text: str) -> bool:

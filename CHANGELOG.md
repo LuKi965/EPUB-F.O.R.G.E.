@@ -141,6 +141,31 @@ reported, not re-flowed; tables come in as paragraphs; there is no cover
 page, because drawing one would need an engine the Windows build does not
 carry for that.
 
+Two things the first measurement on typeset material taught the reader.
+A word the typesetter broke at a line end — `prze-` and, on the next
+line, `konaniem` — is joined without a space, as `prze-konaniem`: the
+shape a converter leaves in an EPUB and the one the hyphen stage knows
+how to ask about, with its dictionary; joined with a space it would never
+have been put to anybody, and the six-book measurement had 700 such words
+a book. The hyphen itself stays until that stage decides. And a
+two-column page is read column by column rather than line by line across
+the page: taken across, the columns interleaved and every line-end hyphen
+joined the wrong word — 1 123 hyphenated words the source never had on
+one book. Two columns are still not re-flowed and still reported; the
+paragraph rules measure each column against its own edge, so a right-hand
+column no longer reads as one indented paragraph per line.
+
+And the reader tells the hyphen stage which hyphens it put at a line end.
+That stage has always refused to call a hyphen a converter's when the
+first half is a word — `nie-`, `po-`, `przy-` — because inside an EPUB
+that shape may be a compound; measured on the corpus typeset with
+pyphen, that caution left 22–30 % of the Polish line breaks in the text.
+A hyphen the PDF reader itself joined across a line end is the
+typesetter's, and where the joined form is in the dictionary the
+candidate is confirmed and recommended to join. It is still a question,
+with the evidence stated (S-05); a compound broken at its own hyphen has
+no joined form in the dictionary and is not touched.
+
 Held to material the repository does not keep: pages written by the test
 itself, and the six Gutenberg books printed to PDF by the pinned Chromium
 (with and without its own headers and footers), where the text that comes

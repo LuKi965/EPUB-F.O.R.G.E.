@@ -152,6 +152,13 @@ THREE_PARAGRAPHS = [
 ]
 
 
+class Recommending:
+    """An asker that takes the recommended option every time."""
+
+    def ask(self, question):
+        return Answer(option=question.recommended)
+
+
 class Recorder:
     """An asker that writes down what it was asked and answers nothing."""
 
@@ -223,6 +230,46 @@ class TestTheReader:
         for line in THREE_PARAGRAPHS:
             assert line.lstrip(">") in prose
         assert fidelity.first_character_lost(canonical(pdf.text_of(str(source))), canonical(prose)) == -1
+
+    def test_a_word_broken_at_a_line_end_comes_back_with_its_hyphen_and_no_space(self, tmp_path):
+        """The typesetter's line-end hyphen: `prze-` at the end of a line and
+        `konaniem` at the start of the next is one word broken, not two
+        words. Joined with a space it would never reach the hyphen stage,
+        whose candidates are hyphens *inside* a word; joined without one it
+        is exactly the shape a converter leaves in an EPUB, and the stage
+        asks about it with its dictionary. The hyphen itself stays here —
+        removing it is that stage's question (D-052). An en dash at a line
+        end is dialogue, not a broken word, and keeps its space."""
+        lines = column(["Nieprawdopodobne prze-", "konaniem doborowym wspominal —",
+                        "powiedzial. Czarno-", "czerwone flagi."])
+        source = make_pdf(tmp_path / "hyphen.pdf", [lines])
+        book = pdf.read_pdf(str(source), Report())
+        prose = fidelity.document_text(next(r.data for r in book.resources.values() if r.path.endswith(".xhtml")))
+        assert "prze-konaniem" in prose
+        assert "wspominal — powiedzial" in prose
+        assert "Czarno-czerwone" in prose
+        assert "prze-konaniem" in pdf.text_of(str(source))
+        assert fidelity.first_character_lost(canonical(pdf.text_of(str(source))), canonical(prose)) == -1
+
+    @pytest.mark.skipif(not __import__("epubforge.dictionaries", fromlist=["available"]).available("pl_PL"),
+                        reason="needs the pl_PL dictionary (dictionaries/ is not in git)")
+    def test_a_line_end_break_is_evidence_the_hyphen_stage_uses(self, tmp_path):
+        """`nie-` is a word, so `nie-prawdopodobne` inside an EPUB could be a
+        compound and stays a question nobody recommends joining. At a PDF
+        line end the reader knows the typesetter broke it, and the joined
+        form is in the dictionary: confirmed, recommended to join. Measured
+        on the corpus typeset with pyphen: without this, 22–30 % of the
+        breaks in the Polish books stayed in the text."""
+        lines = column(["Zdarzenie zupelnie nie-", "prawdopodobne i ciekawe.", "Drugie zdanie o czyms innym."])
+        source = make_pdf(tmp_path / "break.pdf", [lines], language="pl")
+        report = Report()
+        pdf.read_pdf(str(source), report)
+        assert "nie-prawdopodobne" in report.stats["pdf_line_end_words"]
+        result = rebuilt(source, tmp_path, asker=Recommending())
+        assert result.output_path
+        prose = prose_of(result.output_path)
+        assert "nieprawdopodobne" in prose and "nie-prawdopodobne" not in prose
+        assert "hyphens.joined" in rules_of(result)
 
     def test_a_line_set_larger_than_the_body_is_a_heading(self, tmp_path):
         lines = [(72, 720, 12 * pdf.BODY_RATIO_H1 + 1, "Chapter One")]
@@ -303,6 +350,22 @@ class TestTheReader:
         report = Report()
         pdf.read_pdf(str(make_pdf(tmp_path / "twice.pdf", pages)), report)
         assert report.stats["pdf_layout"]["running_heads"] == 0
+
+    def test_two_columns_are_read_column_by_column_and_reported(self, tmp_path):
+        """Not re-flowed — read in order. Taken in page order, the columns
+        interleaved and every line-end hyphen joined the wrong word."""
+        left = column([f"Left {n} ends the line here" for n in range(1, 6)], top=700, left=72)
+        right = column([f"Right {n} ends the line here" for n in range(1, 6)], top=700, left=330)
+        source = make_pdf(tmp_path / "columns.pdf", [left + right])
+        report = Report()
+        book = pdf.read_pdf(str(source), report)
+        text = fidelity.document_text(next(r.data for r in book.resources.values() if r.path.endswith(".xhtml")))
+        assert text.index("Left 5") < text.index("Right 1"), text
+        assert "pdf.columns" in {f.rule for f in report.findings}
+        # Flush lines in both columns: one paragraph, not one per right-hand
+        # line — the indent is measured against the column's edge, not the page's.
+        assert report.stats["pdf_layout"]["paragraphs"] == 1
+        assert pdf.text_of(str(source)).index("Left 5") < pdf.text_of(str(source)).index("Right 1")
 
     def test_metadata_comes_from_the_info_dictionary(self, tmp_path):
         source = make_pdf(tmp_path / "meta.pdf", [column(THREE_PARAGRAPHS)],
