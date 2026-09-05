@@ -68,11 +68,13 @@ test that fails on the old behaviour, not by a note.
   audit: the structure stage numbers the reading-order files by spine
   position, and the navigation stage later puts a synthesised cover page
   at position 0 — so the second pass, the cover now a real page, moved
-  every name up by one. The structure stage now leaves position 0 for the
-  page it knows is coming, by asking the same question the navigation
-  stage asks; and the synthesised page is written in the form the content
-  stage would write it, so it comes back byte for byte. Books that get a
-  cover page are named differently once (`0001-chapter-01` where it was
+  every name up by one; and three of those books changed the cover page's
+  own title on the second pass, because a page put in after the typography
+  stage had missed the repair every other page got. The cover page is now
+  synthesised by the structure stage, before the files are numbered and
+  before any text stage runs — named like every other page, repaired like
+  every other page, in the same pass. Books that get a cover page are
+  named differently once (`0001-chapter-01` where it was
   `0000-chapter-01`), and then never again.
 - **"Nobody answered" when somebody had.** A person who read the question
   about a publisher's typo in a stylesheet and chose the recommended

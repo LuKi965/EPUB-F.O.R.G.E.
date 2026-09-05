@@ -13,27 +13,15 @@ from ..report import Action, Automation, Level, Risk
 from ..xhtml import EPUB_NS, XHTML_NS
 from .base import Context, Stage
 
+#: The template lives in `covers` now (EF-080); re-exported for the tests and
+#: any reader that knew it here.
+COVER_PAGE_TEMPLATE = covers.COVER_PAGE_TEMPLATE
+
 #: `href="…"` and `src="…"` as they appear in a content document. Narrow on
 #: purpose: this rewrites bytes rather than a parse tree, so it touches the
 #: attributes it can name and nothing else.
 _HREF_ATTRIBUTE = re.compile(r"""\b(href|src)=(["'])([^"']*)\2""")
 
-COVER_PAGE_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE html>
-<html xmlns="{xhtml}" xmlns:epub="{epub}" lang="{lang}" xml:lang="{lang}">
-  <head>
-    <meta charset="utf-8"/><title>{title}</title>
-    <style>
-      {cover_style}
-    </style>
-  </head>
-  <body epub:type="cover">
-    <section epub:type="cover">
-      <img src="{href}" alt="{alt}"/>
-    </section>
-  </body>
-</html>
-"""
 
 
 def _escape(value: str) -> str:
@@ -128,55 +116,23 @@ class NavigationStage(Stage):
             self._drop_ncx(ctx)
 
     def _ensure_cover_page(self, ctx: Context) -> None:
-        book = ctx.book
-        if not book.cover_path or book.cover_path not in book.resources:
-            if book.cover_path:
-                self.note(ctx, Level.WARN, "nav.cover-image-missing")
-                book.cover_path = None
-            return
+        """The cover page, if the structure stage did not already put it in.
 
-        book.resources[book.cover_path].properties.add("cover-image")
-
-        # The same question the structure stage asked when it numbered the
-        # files (`covers.cover_page_missing`): if the answer differed here,
-        # the names would be off by one on the next rebuild.
-        if not covers.cover_page_missing(book):
-            return
-
-        # Some books reference the image directly from the spine; others have no
-        # cover page at all. Either way, synthesise one so readers show it.
-        page_path = paths.content_path(ctx.policy, "text/0000-cover.xhtml")
-        page_path = paths.unique(page_path, set(book.resources))
-        markup = COVER_PAGE_TEMPLATE.format(
-            xhtml=XHTML_NS,
-            epub=EPUB_NS,
-            lang=_escape(book.metadata.language or ctx.policy.default_language),
-            title=_escape(book.metadata.title),
-            href=paths.relative(page_path, book.cover_path),
-            alt=_escape(book.metadata.title),
-            # From `covers`, so that the page this program writes and the page
-            # it repairs are fitted by the same three rules. They were two
-            # copies and they disagreed: this one had a height to resolve
-            # `max-height` against and the other did not.
-            cover_style=covers.COVER_STYLE,
-        )
-        # Through the same parser and serializer every other document goes
-        # through, so that the page this pass writes is the page the next
-        # pass reads back unchanged (K3): written from the template as is,
-        # the second rebuild reserialised it and the file differed by a
-        # newline between `<meta>` and `<title>`.
-        data = xhtml.serialize(xhtml.parse_document(markup.encode("utf-8"), page_path).root)
-        book.add(
-            Resource(
-                path=page_path,
-                media_type="application/xhtml+xml",
-                data=data,
-            )
-        )
-        book.spine.insert(0, SpineItem(page_path, linear=True))
-        book.landmarks = [l for l in book.landmarks if l.epub_type != "cover"]
-        book.landmarks.insert(0, Landmark("cover", "Cover", page_path))
-        self.note(ctx, Level.FIX, "nav.cover-page-generated", location=page_path)
+        Synthesised by the structure stage since EF-080, **before** the
+        files are numbered and before the text stages run — so that the page
+        is named like every other page and repaired like every other page in
+        the same pass. Kept here for a pipeline that runs this stage without
+        that one; `covers.synthesise_cover_page` does nothing the second time.
+        """
+        page_path, warning = covers.synthesise_cover_page(ctx.book, ctx.policy)
+        if warning or ctx.cover_image_missing:
+            self.note(ctx, Level.WARN, "nav.cover-image-missing")
+        page_path = page_path or ctx.synthesised_cover_page
+        if page_path:
+            # The structure stage renamed it with everything else; say where
+            # it is now, not where it was born.
+            location = ctx.path_map.get(page_path, page_path)
+            self.note(ctx, Level.FIX, "nav.cover-page-generated", location=location)
 
     def _prune_toc(self, ctx: Context) -> None:
         book = ctx.book

@@ -40,6 +40,13 @@ class Context:
     #: path-mutating stages have finished, so href rewriting has a single source
     #: of truth even after several renames.
     path_map: dict[str, str] = field(default_factory=dict)
+    #: Set by the structure stage when it synthesised a cover page this run
+    #: (EF-080: the page is put in before numbering and before the text
+    #: stages), so that the navigation stage — whose rule it is — can say so.
+    synthesised_cover_page: "str | None" = None
+    #: Set when the book named a cover image it does not carry; said by the
+    #: navigation stage under its own rule.
+    cover_image_missing: bool = False
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None

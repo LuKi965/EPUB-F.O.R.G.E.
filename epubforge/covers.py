@@ -143,3 +143,77 @@ def cover_page_missing(book) -> bool:
         return False
     return True
 
+
+#: The page this program writes for a book that names a cover image and has
+#: no page showing it. `<meta>` and `<title>` on one line, because that is the
+#: form the content stage serialises a head into: a page written in any other
+#: shape came back different from the next rebuild (K3, EF-080).
+COVER_PAGE_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="{xhtml}" xmlns:epub="{epub}" lang="{lang}" xml:lang="{lang}">
+  <head>
+    <meta charset="utf-8"/><title>{title}</title>
+    <style>
+      {cover_style}
+    </style>
+  </head>
+  <body epub:type="cover">
+    <section epub:type="cover">
+      <img src="{href}" alt="{alt}"/>
+    </section>
+  </body>
+</html>
+"""
+
+
+def synthesise_cover_page(book, policy) -> "tuple[str | None, str | None]":
+    """Put a cover page into the book when `cover_page_missing` says one is
+    due. Returns ``(page_path, warning)``: the path of the page written, or
+    None; and ``"nav.cover-image-missing"`` when the book names a cover
+    image it does not carry (the claim is dropped, so nothing points at a
+    file that is not there).
+
+    Called by the structure stage before the files are numbered and before
+    any text stage runs — the page then gets a name like every other page
+    and the same repairs in the same pass, which is what a second rebuild
+    has to find unchanged (K3; 14 of 60 shelf books renamed every chapter,
+    3 of 60 changed the cover's title, before this moved). The navigation
+    stage calls it too, for a pipeline without the structure stage; the
+    second call finds the page and does nothing.
+    """
+    from . import paths, xhtml
+    from .model import Landmark, Resource, SpineItem
+
+    if book.cover_path and book.cover_path not in book.resources:
+        book.cover_path = None
+        return None, "nav.cover-image-missing"
+    if book.cover_path:
+        # The manifest property, whether or not a page is written: a
+        # reading system finds the cover by it.
+        book.resources[book.cover_path].properties.add("cover-image")
+    if not cover_page_missing(book):
+        return None, None
+    page_path = paths.content_path(policy, "text/0000-cover.xhtml")
+    page_path = paths.unique(page_path, set(book.resources))
+    markup = COVER_PAGE_TEMPLATE.format(
+        xhtml=xhtml.XHTML_NS,
+        epub=xhtml.EPUB_NS,
+        lang=_escape(book.metadata.language or policy.default_language),
+        title=_escape(book.metadata.title),
+        href=paths.relative(page_path, book.cover_path),
+        alt=_escape(book.metadata.title),
+        cover_style=COVER_STYLE,
+    )
+    data = xhtml.serialize(xhtml.parse_document(markup.encode("utf-8"), page_path).root)
+    book.add(Resource(path=page_path, media_type="application/xhtml+xml", data=data))
+    book.spine.insert(0, SpineItem(page_path, linear=True))
+    book.landmarks = [l for l in book.landmarks if l.epub_type != "cover"]
+    book.landmarks.insert(0, Landmark("cover", "Cover", page_path))
+    return page_path, None
+
+
+def _escape(text: str) -> str:
+    import html
+
+    return html.escape(text or "", quote=True)
+

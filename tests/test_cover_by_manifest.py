@@ -160,10 +160,14 @@ class TestOneTemplateForBothCoverPages:
     def test_the_generated_page_and_the_repair_share_their_rules(self):
         import inspect
 
+        from epubforge import covers
         from epubforge.stages import navigation
 
-        assert "cover_style" in navigation.COVER_PAGE_TEMPLATE
-        assert "covers.COVER_STYLE" in inspect.getsource(navigation)
+        # The template moved into `covers` with EF-080 (synthesised by the
+        # structure stage, before numbering); the tripwire moved with it.
+        assert navigation.COVER_PAGE_TEMPLATE is covers.COVER_PAGE_TEMPLATE
+        assert "cover_style" in covers.COVER_PAGE_TEMPLATE
+        assert "cover_style=COVER_STYLE" in inspect.getsource(covers.synthesise_cover_page)
 
     def test_the_repair_gives_the_percentage_something_to_resolve_against(self):
         """The load-bearing line. `max-height: 100%` without a height on `html`

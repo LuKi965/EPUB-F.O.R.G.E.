@@ -36,7 +36,7 @@
     "written": true,
     "report": {
       "info": 15,
-      "fix": 5,
+      "fix": 6,
       "preserved": 3
     },
     "rules": {
@@ -58,7 +58,7 @@
       "structure.relaid-out": 1,
       "structure.role-named": 1,
       "typography.quotes-left-alone": 1,
-      "xhtml.entities-rewritten": 1,
+      "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
@@ -72,7 +72,7 @@
     "written": true,
     "report": {
       "info": 12,
-      "fix": 8,
+      "fix": 9,
       "preserved": 3
     },
     "rules": {
@@ -94,7 +94,7 @@
       "structure.relaid-out": 1,
       "structure.role-named": 1,
       "typography.quotes-left-alone": 1,
-      "xhtml.entities-rewritten": 1,
+      "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },

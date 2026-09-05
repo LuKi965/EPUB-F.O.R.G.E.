@@ -131,6 +131,16 @@ class StructureStage(Stage):
         self._drop_junk(ctx)
         if ctx.policy.drop_orphans:
             self._drop_orphans(ctx)
+        # Before the files are numbered and before any text stage runs: a
+        # cover page put in later took position 0 after the chapters had
+        # been numbered from 0, and missed the typography every other page
+        # got — so the second rebuild renamed every chapter of 14 shelf
+        # books in 60 and changed the cover of 3 (K3, EF-080).
+        # Said by the navigation stage, whose rules these are; the fact is
+        # left on the context for it to find.
+        page_path, warning = covers.synthesise_cover_page(ctx.book, ctx.policy)
+        ctx.synthesised_cover_page = page_path
+        ctx.cover_image_missing = bool(warning)
         if ctx.policy.reorganize_files:
             self._relayout(ctx)
         ctx.build_path_map()
@@ -438,14 +448,7 @@ class StructureStage(Stage):
         ordered = [item.path for item in book.spine if item.path in book.resources]
         ordered += [path for path in book.resources if path not in set(ordered)]
 
-        # Position 0 is left for the cover page the navigation stage is going
-        # to synthesise, when it is (`covers.cover_page_missing`): numbered
-        # without it, the first rebuild wrote `0000-chapter-01` and the
-        # second, with the cover now a real page in the spine, wrote
-        # `0001-chapter-01` — every reading-order file renamed on a second
-        # pass, on 14 of 60 shelf books (K3, EF-080).
-        offset = 1 if covers.cover_page_missing(book) else 0
-        spine_positions = {item.path: index + offset for index, item in enumerate(book.spine)}
+        spine_positions = {item.path: index for index, item in enumerate(book.spine)}
         role_stems = _role_stems(book)
 
         for path in ordered:

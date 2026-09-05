@@ -38,7 +38,7 @@
     "written": true,
     "report": {
       "info": 16,
-      "fix": 5,
+      "fix": 6,
       "preserved": 4,
       "warn": 1
     },
@@ -63,7 +63,7 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "structure.role-named": 1,
-      "xhtml.entities-rewritten": 1,
+      "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 2,
       "xhtml.presentational-markup-converted": 1
     },
@@ -77,7 +77,7 @@
     "written": true,
     "report": {
       "info": 13,
-      "fix": 8,
+      "fix": 9,
       "preserved": 4,
       "warn": 1
     },
@@ -102,7 +102,7 @@
       "profile.paragraphs-consistent": 1,
       "structure.relaid-out": 1,
       "structure.role-named": 1,
-      "xhtml.entities-rewritten": 1,
+      "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 2,
       "xhtml.presentational-markup-converted": 1
     },

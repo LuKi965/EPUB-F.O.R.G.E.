@@ -40,7 +40,7 @@
     "written": true,
     "report": {
       "info": 17,
-      "fix": 8,
+      "fix": 9,
       "preserved": 6,
       "warn": 2
     },
@@ -72,7 +72,7 @@
       "typography.ellipsis-left-alone": 1,
       "typography.quotes-unsettled": 1,
       "xhtml.document-language-kept": 1,
-      "xhtml.entities-rewritten": 1,
+      "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.inline-promoted": 1,
       "xhtml.presentational-markup-converted": 1
@@ -87,7 +87,7 @@
     "written": true,
     "report": {
       "info": 14,
-      "fix": 11,
+      "fix": 12,
       "preserved": 6,
       "warn": 2
     },
@@ -119,7 +119,7 @@
       "typography.ellipsis-left-alone": 1,
       "typography.quotes-unsettled": 1,
       "xhtml.document-language-kept": 1,
-      "xhtml.entities-rewritten": 1,
+      "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.inline-promoted": 1,
       "xhtml.presentational-markup-converted": 1

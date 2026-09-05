@@ -31,8 +31,8 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 6,
-      "fix": 6,
+      "info": 7,
+      "fix": 7,
       "preserved": 3,
       "warn": 3
     },
@@ -49,9 +49,11 @@
       "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
+      "structure.role-named": 1,
       "tables.layout-found": 1,
       "tables.layout-left-alone": 1,
       "xhtml.cover-fitted": 1,
+      "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-centred": 1,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
@@ -65,8 +67,8 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 6,
-      "fix": 6,
+      "info": 7,
+      "fix": 7,
       "preserved": 3,
       "warn": 3
     },
@@ -83,9 +85,11 @@
       "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
       "structure.relaid-out": 1,
+      "structure.role-named": 1,
       "tables.layout-found": 1,
       "tables.layout-left-alone": 1,
       "xhtml.cover-fitted": 1,
+      "xhtml.entities-rewritten": 1,
       "xhtml.image-paragraph-centred": 1,
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
