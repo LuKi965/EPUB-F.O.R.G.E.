@@ -18,6 +18,7 @@ from epubforge import render_fidelity as _render_fidelity
 
 _REAL_FIND_RENDERER = _render.find_renderer
 _REAL_COMPARE = _render_fidelity.compare
+_REAL_DRAWN = _render_fidelity.drawn
 #: `Policy.preset` before WP-12 wraps it. A classmethod, so the underlying
 #: function is what gets stored and re-bound.
 _REAL_PRESET = Policy.preset.__func__
@@ -83,17 +84,51 @@ def no_browser_anywhere():
     # patched: it is what `test_headless_invocation.py` is about, and a stub
     # over the thing under test is how the last two of these went unnoticed.
     patch.setattr(render, "describe", lambda: "silnik rysujący: podstawiony")
-    patch.setattr(
-        render_fidelity,
-        "compare",
-        lambda source, candidate, sample=0, browser=None, renames=None: (
-            render_fidelity.RenderFidelity(
-                available=True, engine="podstawiona przeglądarka", pages=[]
-            )
-        ),
-    )
+    patch.setattr(render_fidelity, "compare", _stand_in)
+    patch.setattr(render_fidelity, "drawn", _stand_in_drawn)
     yield
     patch.undo()
+
+
+def _one_clean_page():
+    """What the stand-in says it did: one comparison, and it was fine.
+
+    It used to say `pages=[]` — no comparisons at all — and that was true of
+    the stand-in and a lie about what it stood for. It did not matter while
+    `RenderFidelity.ok` was `all([])`, which is `True`; it started mattering
+    the day that stopped being the answer, because EF-082 was exactly this
+    shape reaching a real book: a check that examined nothing, reported as a
+    check that passed. The suite's own double had the defect it was hiding.
+    """
+    from epubforge import render_fidelity
+
+    page = render_fidelity.PageCheck(
+        document="podstawiona.xhtml", viewport=render_fidelity.VIEWPORTS[0]
+    )
+    page.difference = 0.0
+    return page
+
+
+def _stand_in(source, candidate, sample=0, browser=None, renames=None, **rest):
+    from epubforge import render_fidelity
+
+    return render_fidelity.RenderFidelity(
+        available=True,
+        engine="podstawiona przeglądarka",
+        pages=[_one_clean_page()],
+        completed=True,
+    )
+
+
+def _stand_in_drawn(output, sample=0, browser=None, **rest):
+    from epubforge import render_fidelity
+
+    return render_fidelity.RenderFidelity(
+        available=True,
+        engine="podstawiona przeglądarka",
+        pages=[_one_clean_page()],
+        completed=True,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -142,6 +177,7 @@ def without_the_renderer(request, monkeypatch):
         # does not.
         monkeypatch.setattr(render, "find_renderer", _REAL_FIND_RENDERER)
         monkeypatch.setattr(render_fidelity, "compare", _REAL_COMPARE)
+        monkeypatch.setattr(render_fidelity, "drawn", _REAL_DRAWN)
 
 #: Files whose subject *is* validation. They get the real lookup back, and skip
 #: on their own when there is no validator — the same arrangement the render

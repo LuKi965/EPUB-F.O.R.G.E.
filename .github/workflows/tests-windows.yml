@@ -1,0 +1,64 @@
+# The suite on the system this program is *shipped* for.
+#
+# A separate file rather than a job in `tests.yml`, because the tripwire in
+# `tests/test_workflows.py` reads a whole workflow at a time: a file with any
+# Windows job in it may not mention actions/checkout anywhere, and the Ubuntu
+# jobs next door legitimately use it. One file, one platform, and the gate
+# means what it says.
+#
+# The repository is named "EPUB-F.O.R.G.E." — with a trailing dot — and Windows
+# cannot hold a directory whose name ends in one, so the runner's own workspace
+# D:\a\<repo>\<repo> is a path that cannot exist. actions/checkout fails while
+# validating it, before it reads its own inputs, so its `path:` option cannot
+# rescue it; every `run:` step defaults to that same directory and fails the
+# same way. Hence the clone into D:\forge, exactly as build-windows.yml does
+# it. Renaming the repository is the real fix and would let all of this
+# collapse back to a plain actions/checkout@v4.
+name: Tests (Windows)
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests-on-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        # Literal, not an expression: the `env` context is not available here.
+        working-directory: D:\forge
+    env:
+      QT_QPA_PLATFORM: offscreen
+      # Deliberately absent: this job is about the platform, not the tools.
+      EPUBCHECK_JAR: C:\nonexistent\epubcheck.jar
+    steps:
+      - name: Check out into a path Windows can represent
+        working-directory: D:\
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $ref = "${{ github.ref_name }}"
+          if (Test-Path D:\forge) { Remove-Item D:\forge -Recurse -Force }
+          git clone --depth 1 --branch $ref `
+            "https://x-access-token:$env:GH_TOKEN@github.com/$repo.git" D:\forge
+          git -C D:\forge remote set-url origin "https://github.com/$repo.git"
+          git -C D:\forge log --oneline -1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+          pip install -e . --no-deps
+
+      - name: Run tests
+        run: pytest -q -rs

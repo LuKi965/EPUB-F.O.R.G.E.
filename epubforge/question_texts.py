@@ -111,6 +111,18 @@ TEXTS_PL: dict[str, str] = {
         "zrezygnować — teraz, tą odpowiedzią, albo z góry dla całej partii "
         "ustawieniem „przyjmij niesprawdzone”."
     ),
+    # --- the appearance check started and did not finish --------------------
+    "render.incomplete.summary": (
+        "Sprawdzenie wyglądu jest obowiązkowe i nie doszło do końca"
+    ),
+    "render.incomplete.detail": (
+        "Program rysuje strony przed i po przebudowie i porównuje je, żeby wykryć "
+        "stronę, która straciła treść. Przeglądarka jest na miejscu, ale samo "
+        "porównanie się nie odbyło: {detail}.\n\n"
+        "Nie jest to brak narzędzia — nikt po prostu nie obejrzał tej książki. "
+        "Możesz świadomie zrezygnować z tej weryfikacji, teraz albo z góry dla "
+        "całej partii ustawieniem „przyjmij niesprawdzone”."
+    ),
     "render.unverified.keep": "Nie zapisuj",
     "render.unverified.keep.why": (
         "Plik nie powstanie, a ten, który leży pod tą nazwą, zostanie nietknięty. "
@@ -641,6 +653,17 @@ TEXTS_EN: dict[str, str] = {
         "{variable}, and the check runs by itself. You may also decline it "
         "knowingly — now, with this answer, or in advance for a whole batch with "
         "the “accept unverified” setting."
+    ),
+    "render.incomplete.summary": (
+        "The appearance check is mandatory and did not finish"
+    ),
+    "render.incomplete.detail": (
+        "The program draws the pages before and after the rebuild and compares "
+        "them, to catch a page that has lost content. A browser is here, but the "
+        "comparison itself did not happen: {detail}.\n\n"
+        "This is not a missing tool — nobody has looked at this book. You may "
+        "decline the verification knowingly, now or in advance for a whole batch "
+        "with the “accept unverified” setting."
     ),
     "render.unverified.keep": "Do not write it",
     "render.unverified.keep.why": (

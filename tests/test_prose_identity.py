@@ -260,9 +260,9 @@ class TestAtTheGate:
 
         original = pipeline._text_gate
 
-        def gate_with_a_consent(src, pol, report):
+        def gate_with_a_consent(src, pol, report, book=None):
             report.add("xhtml", Level.FIX, "xhtml.watermark-removed")
-            return original(src, pol, report)
+            return original(src, pol, report, book)
 
         monkeypatch.setattr(pipeline, "_text_gate", gate_with_a_consent)
         result = with_consent(source, str(tmp_path / "out.epub"), policy)

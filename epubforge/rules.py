@@ -214,6 +214,10 @@ CATALOGUE: dict[str, str] = {
     "pdf.running-heads-removed": "{count} running head(s) or page number(s) from the PDF removed from {documents} document(s), on a person's word or a batch's standing answer, and {rejoined} paragraph(s) they had cut in two joined back; the change ledger carries the entry",
     "render.unverified-accepted": "the appearance check did not run — no Chromium-based browser was found — and the book was written anyway, because that was chosen rather than assumed. Nothing here has compared the rebuilt pages against the source: install a browser or point {variable} at one, and run it again to have that comparison",
     "render.evidence-unwritten": "the before/after pictures could not be saved beside the book: {error}",
+    "render.not-completed": "the appearance check did not finish, so nothing was compared: {detail}. A browser is here and this is not a missing tool — the rebuilt book simply has not been looked at, and this verification is required before it can be called unchanged. You may decline it knowingly",
+    "render.incomplete-accepted": "the appearance check did not finish — {detail} — and the book was written anyway, because that was chosen rather than assumed. Nothing here compared the rebuilt pages against the source",
+    "render.pdf-drawn": "{count} page(s) of the rebuilt book were drawn in {engine} and none of them came out blank. Nothing was compared against the PDF: a PDF is not a set of documents this can render and pair, so what is verified here is that every page this rebuild produced actually draws",
+    "render.page-blank": "this page carries text and draws nothing at all — {detail}",
     "hyphens.detected": "{confirmed} word(s) carry a hyphen this book itself spells without one, and a further {likely}+{uncertain} carry one that might be the author's; nothing was joined without being asked",
     "hyphens.joined": "{count} word(s) were joined, each one answered for individually",
     "hyphens.left-alone": "{count} word(s) with a hyphen inside them were left exactly as the file has them, because nobody was asked or nobody answered",
@@ -315,14 +319,14 @@ CATALOGUE: dict[str, str] = {
     "xhtml.cover-sized-in-pixels": "the cover image is sized in pixels by an attribute, and was left that way",
     "package.prose-changed": "the text of {count} document(s) came out different from the source and nobody asked for it — {detail}",
     "package.prose-changed-on-request": "the text of a document differs from the source because you asked for it ({rules}); the invariant no longer holds character for character and this is the line saying so — {detail}",
-    "package.prose-check-failed": "the text-identity check could not run, so it did not refuse anything: {detail}",
+    "package.prose-check-failed": "the text-identity check could not run, so nothing was written: {detail}",
     "package.prose-check-unpaired": "the documents were published in the source's own layout, so there is no rename ledger to pair them by and the text-identity check stood down",
     "package.prose-check-pdf": "the source is a PDF, so there is no document to hold the rebuilt one identical to; the whole text layer was compared instead (K1-PDF)",
     "package.text-lost": "text from the source is missing from the rebuild, so nothing was written",
     "package.text-check-per-rendition": "the container holds more than one publication, so the text invariant was not checked across the whole of it",
     "hyphens.no-dictionary": "no {language} dictionary was available, so hyphens were judged on this book's own vocabulary alone",
     "package.text-changed-on-request": "text left the book because you asked for it ({rules}), so the character-for-character invariant no longer holds",
-    "package.text-check-failed": "the text invariant could not be measured on this book",
+    "package.text-check-failed": "the text invariant could not be measured on this book, so nothing was written: {detail}",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
     "xhtml.image-paragraph-kept": "{count} image paragraph(s) were left as the publisher styled them",
     "xhtml.cover-fitted": "the cover image was given page-fitting limits, because nothing in the book set any",
@@ -611,6 +615,10 @@ CATALOGUE_PL: dict[str, str] = {
     'pdf.running-heads-removed': '{count} wierszy żywej paginy albo numerów stron z PDF-a usuniętych z {documents} dokumentów, na słowo człowieka albo stałą odpowiedź partii, a {rejoined} akapitów przez nie przeciętych złączonych z powrotem; wpis jest w bilansie zmian',
     'render.unverified-accepted': 'kontrola wyglądu nie została wykonana — nie znalazłem przeglądarki opartej na Chromium — a książka i tak została zapisana, bo tak zostało wybrane, a nie założone. Nic tutaj nie porównało przebudowanych stron ze źródłem: zainstaluj przeglądarkę albo wskaż ją zmienną {variable} i uruchom jeszcze raz, żeby to porównanie mieć',
     'render.evidence-unwritten': 'nie udało się zapisać obrazów przed/po obok książki: {error}',
+    'render.not-completed': 'kontrola wyglądu nie doszła do końca, więc nic nie zostało porównane: {detail}. Przeglądarka jest — to nie jest brak narzędzia; po prostu nikt nie obejrzał przebudowanej książki, a ta weryfikacja jest obowiązkowa, zanim można ją nazwać nieuszkodzoną. Możesz z niej świadomie zrezygnować',
+    'render.incomplete-accepted': 'kontrola wyglądu nie doszła do końca — {detail} — a książka i tak została zapisana, bo tak zostało wybrane, a nie założone. Nic tutaj nie porównało przebudowanych stron ze źródłem',
+    'render.pdf-drawn': '{count} {count:strona przebudowanej książki została narysowana|strony przebudowanej książki zostały narysowane|stron przebudowanej książki zostało narysowanych} w {engine} i żadna nie wyszła pusta. Nic nie zostało porównane z PDF-em: PDF nie jest zbiorem dokumentów, które da się narysować i sparować, więc sprawdzone jest to, że każda strona tej przebudowy w ogóle się rysuje',
+    'render.page-blank': 'ta strona niesie tekst, a nie rysuje się na niej nic — {detail}',
     'hyphens.detected': '{confirmed} {confirmed:słowo ma|słowa mają|słów ma} łącznik w środku, choć ta sama książka pisze je bez łącznika; kolejne {likely}+{uncertain} mogą być złożeniami autora — nic nie zostało złączone bez pytania',
     'hyphens.joined': '{count} {count:słowo złączono|słowa złączono|słów złączono}, każde z osobna potwierdzone',
     'hyphens.left-alone': '{count} {count:słowo z łącznikiem zostało|słowa z łącznikiem zostały|słów z łącznikiem zostało} dokładnie tak, jak w pliku — nie było kogo zapytać albo nikt nie odpowiedział',
@@ -712,14 +720,14 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.cover-sized-in-pixels': 'obraz okładki ma rozmiar podany w pikselach atrybutem i został tak zostawiony',
     'package.prose-changed': 'tekst {count} {count:dokumentu wyszedł|dokumentów wyszedł|dokumentów wyszedł} inny niż w źródle, a nikt o to nie prosił — {detail}',
     'package.prose-changed-on-request': 'tekst dokumentu różni się od źródła, bo o to poprosiłeś ({rules}); niezmiennik nie trzyma się już znak w znak i to jest zdanie, które o tym mówi — {detail}',
-    'package.prose-check-failed': 'sprawdzenie identyczności tekstu nie mogło się wykonać, więc niczego nie odmówiło: {detail}',
+    'package.prose-check-failed': 'sprawdzenie identyczności tekstu nie mogło się wykonać, więc nic nie zostało zapisane: {detail}',
     'package.prose-check-unpaired': 'dokumenty opublikowano w układzie źródła, więc nie ma bilansu przenosin, po którym dałoby się je sparować — sprawdzenie identyczności tekstu wycofało się',
     'package.prose-check-pdf': 'źródłem jest PDF, więc nie ma dokumentu, z którym przebudowany miałby być identyczny; zamiast tego porównano całą warstwę tekstową (K1-PDF)',
     'package.text-lost': 'w wyniku brakuje tekstu ze źródła, więc nic nie zostało zapisane',
     'package.text-check-per-rendition': 'kontener zawiera więcej niż jedną publikację, więc niezmiennik tekstu nie był sprawdzany na całości',
     'hyphens.no-dictionary': 'nie było słownika {language}, więc łączniki oceniono wyłącznie na podstawie słownictwa tej książki',
     'package.text-changed-on-request': 'tekst ubył z książki, bo o to poprosiłeś ({rules}), więc niezmiennik znak w znak już nie obowiązuje',
-    'package.text-check-failed': 'nie udało się zmierzyć niezmiennika tekstu na tej książce',
+    'package.text-check-failed': 'nie udało się zmierzyć niezmiennika tekstu na tej książce, więc nic nie zostało zapisane: {detail}',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
     'xhtml.image-paragraph-kept': '{count} {count:akapit z obrazem zostawiono|akapity z obrazem zostawiono|akapitów z obrazem zostawiono} tak, jak {count:ostylował go|ostylował je|ostylował je} wydawca',
     'xhtml.cover-fitted': 'obrazowi okładki nadano ograniczenia dopasowujące go do strony, bo nic w książce ich nie ustawiało',
@@ -915,7 +923,7 @@ DETAILS: dict[str, str] = {
     "package.layout-kept":
         "This rebuild does not move content files, so moving the package document away from them would leave every manifest href pointing back out of its own directory with `../`.",
     "package.source-protected":
-        "Nothing was written. Choose a different destination.",
+        "Nothing was written. Choose a different destination. Compared by file identity rather than by the text of the path, so a different spelling of the same file — CASE-SOURCE.EPUB for case-source.epub on Windows, a symbolic link, a hard link — is the source too.",
     "package.stage-failed":
         "Nothing was written. The model was left half-modified by the failure, so anything built from it would be a book only in shape.",
     "package.upgraded":
@@ -995,7 +1003,7 @@ DETAILS: dict[str, str] = {
     "package.text-changed-on-request":
         "K1 is a statement about losses nobody asked for. Removing a watermark and joining a word a conversion cut in half both take characters out, both happen only after you say so, and both are in the change ledger — so they are named here rather than refused. What the gate still refuses is text going missing with nothing accounting for it.",
     "package.text-check-failed":
-        "The comparison itself raised. A check that cannot run is not a book that failed, so the rebuild continued — but nothing verified the text, and that is worth knowing before trusting the result.",
+        "The comparison itself raised. Nothing was written: this check is mandatory, and a file produced while nobody knows whether the book is whole would carry the same word — succeeded — as one that was actually measured. The two cases where there is legitimately nothing to compare (several renditions, a PDF source) are recognised by name and are not this.",
     "xhtml.cover-sized-in-pixels":
         "A width or height attribute in pixels fixes the cover at one size whatever the screen is. It is the publisher's instruction, so it is reported and not overwritten: changing it is a decision about how the book looks, and this program does not make those on its own.",
     "xhtml.image-paragraph-kept":
@@ -1088,7 +1096,7 @@ DETAILS_PL: dict[str, str] = {
     "package.upgraded":
         "Dokument pakietu, nawigacja i struktura kontenera zostały wygenerowane od nowa.",
     "package.source-protected":
-        "Nic nie zostało zapisane. Wybierz inne miejsce docelowe.",
+        "Nic nie zostało zapisane. Wybierz inne miejsce docelowe. Porównanie idzie po tożsamości pliku, a nie po zapisie ścieżki, więc inny zapis tego samego pliku — CASE-SOURCE.EPUB wobec case-source.epub na Windows, dowiązanie symboliczne, dowiązanie twarde — też jest źródłem.",
     "package.stage-failed":
         "Nic nie zostało zapisane. Awaria zostawiła model w połowie zmieniony, więc cokolwiek by z niego zbudowano, byłoby książką tylko z kształtu.",
     "reader.entry-too-large":
@@ -1154,7 +1162,7 @@ DETAILS_PL: dict[str, str] = {
     "package.text-changed-on-request":
         "K1 mówi o stratach, o które nikt nie prosił. Usunięcie znaku wodnego i złączenie słowa przeciętego przez konwersję zabierają znaki, oba dzieją się dopiero za zgodą czytelnika i oba są w rejestrze zmian — więc są tutaj nazwane, a nie odrzucone. Brama nadal odmawia, gdy tekst znika i nic tego nie tłumaczy.",
     "package.text-check-failed":
-        "Samo porównanie rzuciło wyjątkiem. Kontrola, która nie umiała się wykonać, to nie jest książka, która padła, więc przebudowa poszła dalej — ale nikt nie sprawdził tekstu i warto o tym wiedzieć, zanim się temu wynikowi zaufa.",
+        "Samo porównanie rzuciło wyjątkiem. Nic nie zostało zapisane: ta kontrola jest obowiązkowa, a plik zrobiony wtedy, gdy nikt nie wie, czy książka jest cała, nosiłby to samo słowo — „udało się” — co plik faktycznie zmierzony. Dwa przypadki, w których naprawdę nie ma czego porównywać (wiele renditions, źródło PDF), są rozpoznawane po nazwie i to nie jest ten przypadek.",
     "xhtml.cover-sized-in-pixels":
         "Atrybut width albo height w pikselach ustala okładkę na jednym rozmiarze niezależnie od ekranu. To instrukcja wydawcy, więc jest raportowana, a nie nadpisywana: zmiana jest decyzją o wyglądzie książki, a takich program nie podejmuje sam.",
     "xhtml.image-paragraph-unindented":

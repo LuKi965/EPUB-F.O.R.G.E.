@@ -12,6 +12,7 @@ from . import decisions, pdf
 from . import invariants
 from . import memory
 from . import balance
+from . import plan
 from . import budget as budget_module
 from .budget import Budget, BudgetExceeded, Cancelled
 from .model import Book
@@ -230,8 +231,15 @@ def _fingerprint(book: Book) -> tuple:
     )
 
 
-def _cannot_verify(policy: Policy, report: Report, queue) -> str:
+def _cannot_verify(policy: Policy, report: Report, queue, why: str = "") -> str:
     """The check is required and could not run. Now what?
+
+    *why* is empty when the reason is the one this was written for — no
+    browser on the machine — and otherwise says what stopped a browser that
+    *is* here from finishing: an unreadable reading order, zero pages paired,
+    an engine that fell over. EF-082 is why the second case exists at all. The
+    two share every word of the decision and none of the wording, because
+    "install Chromium" is not advice to somebody who has it.
 
     DELTA-2026-08-15-001, and it is the sharpest finding of that audit because
     the defect was *this program answering a question on somebody's behalf and
@@ -258,17 +266,29 @@ def _cannot_verify(policy: Policy, report: Report, queue) -> str:
     not write the file", and that is `stop` meaning stop. The report says what
     was looked for, and the two ways forward.
     """
+    # Each branch names its own identifier as a literal. Passing the id in a
+    # variable reads as tidier and takes the catalogue out of the reach of the
+    # test that keeps it honest — `test_rules` parses these call sites rather
+    # than running them, and an id it cannot see is an id nothing checks.
+    values = {"detail": why} if why else {"variable": render_module().ENV_BROWSER}
+
+    def accepted() -> None:
+        if why:
+            report.add("render", Level.WARN, "render.incomplete-accepted", values=values)
+        else:
+            report.add("render", Level.WARN, "render.unverified-accepted", values=values)
+
+    def unrun(level: Level) -> None:
+        if why:
+            report.add("render", level, "render.not-completed", values=values)
+        else:
+            report.add("render", level, "render.cannot-run", values=values)
+
     if policy.accept_unverified_render:
-        report.add(
-            "render", Level.WARN, "render.unverified-accepted",
-            values={"variable": render_module().ENV_BROWSER},
-        )
+        accepted()
         return ""
     if policy.render_gate == "report":
-        report.add(
-            "render", Level.WARN, "render.cannot-run",
-            values={"variable": render_module().ENV_BROWSER},
-        )
+        unrun(Level.WARN)
         return ""
 
     answer = queue.ask(
@@ -276,10 +296,14 @@ def _cannot_verify(policy: Policy, report: Report, queue) -> str:
             kind=decisions.VERIFICATION,
             where="",
             subject="render",
-            summary=say("render.unverified.summary"),
-            detail=say(
-                "render.unverified.detail",
-                variable=render_module().ENV_BROWSER,
+            summary=say("render.incomplete.summary") if why else say("render.unverified.summary"),
+            detail=(
+                say("render.incomplete.detail", detail=why)
+                if why
+                else say(
+                    "render.unverified.detail",
+                    variable=render_module().ENV_BROWSER,
+                )
             ),
             options=(
                 decisions.Option(
@@ -300,15 +324,9 @@ def _cannot_verify(policy: Policy, report: Report, queue) -> str:
         )
     )
     if answer.option == "publish":
-        report.add(
-            "render", Level.WARN, "render.unverified-accepted",
-            values={"variable": render_module().ENV_BROWSER},
-        )
+        accepted()
         return ""
-    report.add(
-        "render", Level.ERROR, "render.cannot-run",
-        values={"variable": render_module().ENV_BROWSER},
-    )
+    unrun(Level.ERROR)
     return "the appearance check could not run and nobody waived it"
 
 
@@ -338,6 +356,9 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         if render.find_renderer() is None:
             return _cannot_verify(policy, report, queue)
 
+        if pdf.is_pdf(source):
+            return _pdf_render_gate(candidate, policy, report, queue)
+
         # The rebuild's own ledger of moved files, so the pairing knows which
         # output page is which source page — names alone stopped being enough
         # when D-035 began naming documents by their role.
@@ -351,6 +372,12 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         )
         if not measured.available:
             return _cannot_verify(policy, report, queue)
+        if not measured.completed:
+            # The engine is here and the comparison did not happen. Never
+            # `render.checked`: a check that looked at no pages is not a
+            # check, and the word for it is the same one used when there is
+            # no browser at all (EF-082).
+            return _cannot_verify(policy, report, queue, why=measured.reason)
 
         for page in measured.pages:
             if page.problems:
@@ -379,6 +406,46 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         )
 
     return gate
+
+
+def _pdf_render_gate(candidate: str, policy: Policy, report: Report, queue) -> str:
+    """The appearance check for a book that came out of a PDF.
+
+    There is no *before* to compare against: the source is a PDF, and until
+    EF-086 this gate handed it to `zipfile` and the whole rebuild ended on
+    `BadZipFile` — in `preserve`, the preset the window uses, on every PDF the
+    owner would ever drop on it. Both PDF acceptance runs missed it because
+    both turned the render gate off; a gate nobody runs is a gate nobody
+    tests.
+
+    Turning it off for PDFs by default would have been the smaller change and
+    the wrong one. What can honestly be measured is measured — a document that
+    carries text and draws blank is the damage this gate exists for, and it
+    does not need a source page to be a defect — and the report says that is
+    what was done, rather than borrowing "checked" from a comparison that did
+    not happen.
+    """
+    from . import render_fidelity
+
+    measured = render_fidelity.drawn(candidate, sample=policy.render_sample)
+    if not measured.available:
+        return _cannot_verify(policy, report, queue)
+    if not measured.completed:
+        return _cannot_verify(policy, report, queue, why=measured.reason)
+    for page in measured.problems:
+        report.add(
+            "render", Level.ERROR, "render.page-blank",
+            values={"detail": str(page)}, location=page.document,
+        )
+    if measured.ok:
+        report.add(
+            "render", Level.INFO, "render.pdf-drawn",
+            values={"count": len(measured.pages), "engine": measured.engine},
+        )
+        return ""
+    if policy.render_gate == "report":
+        return ""
+    return f"{len(measured.problems)} page(s) came out blank"
 
 
 def _keep_evidence(source, candidate, destination, measured, report) -> str:
@@ -538,7 +605,27 @@ def _ask_about_reconstructed(book, reconstructed, queue, report) -> bool:
     return not unanswered
 
 
-def _both_gates(source: str, policy: Policy, report: Report, destination: str, queue):
+def _source_gate(source: str, destination: str, report: Report):
+    """The source is still not the destination, checked at the commit point.
+
+    The same question `_refusals` asks before the stages run, asked again in
+    the last moment at which nothing has been published. Between the two there
+    is a whole rebuild, and the world is free to move underneath it: a link
+    created, a directory renamed, a batch that resolved its destinations
+    minutes ago. EF-081 was a hole in *how* the question was asked; asking it
+    once, early, is a second hole in the same wall.
+    """
+
+    def gate(candidate: str) -> str:
+        if not plan.same_file(destination, source):
+            return ""
+        report.add("writer", Level.ERROR, "package.source-protected", location=source)
+        return "the destination is the source file"
+
+    return gate
+
+
+def _both_gates(source: str, policy: Policy, report: Report, destination: str, queue, book=None):
     """The validator gate and the render gate, in that order, as one hook.
 
     Order matters and is not arbitrary: EPUBCheck costs seconds and rendering
@@ -546,11 +633,14 @@ def _both_gates(source: str, policy: Policy, report: Report, destination: str, q
     turns away is never drawn.
     """
     checks = [
+        # Cheapest of all and the one whose failure is worst: two `stat` calls
+        # against destroying the one file that cannot be produced again.
+        _source_gate(source, destination, report),
         # K1 first, and cheapest of the three: it reads two archives and
         # compares words, where the validator starts a JVM and the renderer
         # draws pages. It is also the one whose refusal matters most — a book
         # that lost a paragraph is damaged whatever the other two say.
-        _text_gate(source, policy, report),
+        _text_gate(source, policy, report, book),
         _publication_gate(source, policy, report),
         _render_gate(source, policy, report, destination, queue),
     ]
@@ -675,7 +765,38 @@ def _more_than_one_rendition(source: str) -> bool:
         return False
 
 
-def _text_gate(source: str, policy: Policy, report: Report):
+def _paired_by_name(source: str, candidate: str, book=None) -> "dict[str, str]":
+    """Documents that are in both archives under the same name, paired with
+    themselves — the ledger a rebuild that renamed nothing would have written.
+
+    The navigation document is left out when it is *machinery* — the same
+    distinction `stages.base.machinery_nav` draws, and for the same reason. A
+    nav outside the reading order is this program's own regenerated table of
+    contents, not a page of the book: comparing it against the publisher's
+    would refuse every rebuild in `minimal` for doing its job. A nav a reader
+    can turn to is in the spine, is an ordinary page, and stays here.
+    """
+    import zipfile
+
+    machinery = ""
+    if book is not None and book.nav_path:
+        if not any(item.path == book.nav_path for item in book.spine):
+            machinery = book.nav_path
+    try:
+        with zipfile.ZipFile(source) as before, zipfile.ZipFile(candidate) as after:
+            present = set(after.namelist())
+            return {
+                name: name
+                for name in before.namelist()
+                if name.lower().endswith((".xhtml", ".html", ".htm"))
+                and name in present
+                and name != machinery
+            }
+    except (OSError, zipfile.BadZipFile):
+        return {}
+
+
+def _text_gate(source: str, policy: Policy, report: Report, book=None):
     """K1 at the gate: every word of the source is in the file about to be named.
 
     WP-11 / EF-027. The measurement existed — `fidelity.text_survives` — and was
@@ -715,16 +836,22 @@ def _text_gate(source: str, policy: Policy, report: Report):
                 return ""
             check = fidelity.text_is_preserved(source, candidate)
         except Exception as exc:
-            # A check that cannot run is not a book that failed. Said out loud
-            # rather than passed over, because a silent skip is how a gate stops
-            # being a gate without anybody noticing.
+            # EF-083. This used to warn and publish, on the reasoning that a
+            # check which cannot run is not a book that failed. The reasoning
+            # is wrong for a *mandatory* check: nothing here knows whether the
+            # book is whole, and a file written under that ignorance carries
+            # the same word — succeeded — as one that was actually measured.
+            # The two cases this could legitimately hit are handled above by
+            # name (many renditions, a PDF source); what is left is a defect,
+            # in the book or in this program, and either way the answer is not
+            # to publish.
             report.add(
                 "package",
-                Level.WARN,
+                Level.ERROR,
                 "package.text-check-failed",
                 values={"detail": f"{type(exc).__name__}: {exc}"},
             )
-            return ""
+            return f"K1 could not be measured: {type(exc).__name__}: {exc}"
         if check.ok:
             return ""
         consented = sorted(
@@ -788,21 +915,27 @@ def _text_gate(source: str, policy: Policy, report: Report):
                 and change.after
             }
             if not moved:
-                # Nothing was relaid out, so nothing can be paired by name —
-                # `minimal` publishes the source's own layout. Said rather
-                # than silently passed, for the reason the clause above it
-                # gives.
+                # EF-083. Nothing was relaid out — `minimal` publishes the
+                # source's own layout — and this used to mean the check was
+                # skipped entirely, so a word invented inside an existing
+                # paragraph passed `minimal` without a sound. A document that
+                # was not moved pairs with *itself*: that is the identity the
+                # ledger would have carried if there had been anything to say.
+                moved = _paired_by_name(source, candidate, book)
+            if not moved:
                 report.add("package", Level.INFO, "package.prose-check-unpaired")
                 return ""
             divergences = fidelity.prose_is_identical(source, candidate, moved)
-        except Exception as exc:  # noqa: BLE001 — a check that cannot run is not a failure
+        except Exception as exc:
+            # Mandatory, so the same answer as the rule above it: a check that
+            # could not run does not get to be silence with a file attached.
             report.add(
                 "package",
-                Level.WARN,
+                Level.ERROR,
                 "package.prose-check-failed",
                 values={"detail": f"{type(exc).__name__}: {exc}"},
             )
-            return ""
+            return f"K1 (prose) could not be measured: {type(exc).__name__}: {exc}"
         if not divergences:
             return ""
         accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
@@ -1501,7 +1634,13 @@ def _refuse_before_publication(source, destination, ctx, budget, report) -> "Res
     # for a library caller too. The source is the one file this tool must never
     # be able to destroy: everything else it writes can be produced again from
     # it, and it cannot.
-    if os.path.abspath(destination) == os.path.abspath(source):
+    #
+    # By file identity rather than by string since EF-081: comparing
+    # `abspath` strings let `CASE-SOURCE.EPUB` overwrite `case-source.epub` on
+    # Windows, and a symbolic link do the same anywhere. Checked again in
+    # `_source_gate` immediately before the replace, because this is early and
+    # a lot happens in between.
+    if plan.same_file(destination, source):
         report.add("writer", Level.ERROR, "package.source-protected", location=source)
         return Result(report, book, None, Status.BLOCKED)
 
@@ -1609,6 +1748,15 @@ def _publish(source, destination, ctx, before_side, queue, report) -> "Result | 
                 "package.balance-unexplained",
                 values={"detail": str(reconciled)},
             )
+            # EF-084. It said this and wrote the file anyway — an ERROR in the
+            # report and a book on disk, which is the shape this program was
+            # built to make impossible. "Something the source had is not in
+            # the output and nothing accounts for it" is the same sentence K1
+            # refuses on; the only difference is that K1 counts characters and
+            # this counts resources. Measured before it was turned into a
+            # refusal: zero unexplained balances across the owner's 160 books,
+            # so nothing that rebuilds today stops rebuilding.
+            return Result(report, book, None, Status.BLOCKED)
         # The audit's A-03: what a screen reader depends on and nothing else
         # here counts. A fall is said, with the numbers, and the book is
         # still published — a count of names inside tags is a reason to
@@ -1631,7 +1779,7 @@ def _publish(source, destination, ctx, before_side, queue, report) -> "Result | 
             report,
             content_dir=policy.content_dir,
             package_name=policy.package_name,
-            before_publish=_both_gates(source, policy, report, destination, queue),
+            before_publish=_both_gates(source, policy, report, destination, queue, book),
         )
     except PublicationRefused:
         # Already reported by the gate itself, in more detail than an exception

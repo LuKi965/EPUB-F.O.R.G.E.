@@ -4,7 +4,7 @@
   "minimal": {
     "written": true,
     "report": {
-      "info": 6,
+      "info": 5,
       "fix": 4,
       "warn": 2
     },
@@ -16,7 +16,6 @@
       "nav.ncx-written": 1,
       "nav.unspined-target-added": 1,
       "package.layout-kept": 1,
-      "package.prose-check-unpaired": 1,
       "package.upgraded": 1,
       "profile.body-text-found": 1,
       "reader.toc-from-ncx": 1,

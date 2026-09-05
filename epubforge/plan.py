@@ -51,6 +51,42 @@ class Plan:
 KEPUB_EXTENSION = ".kepub.epub"
 
 
+def identity_of(path: str) -> str:
+    """A path in the form two names for one file share.
+
+    `abspath` alone is a *string*, and a filesystem is not a string. The
+    independent audit of 2026-09-05 wrote `CASE-SOURCE.EPUB` over
+    `case-source.epub` on Windows and the run said `succeeded`: two different
+    strings, one file, and the one file this program must never be able to
+    destroy. The same hole is reachable on Linux through a symbolic link.
+
+    `realpath` resolves links and `..`; `normcase` folds the case on the
+    platforms where the filesystem folds it and changes nothing where it does
+    not. Neither of them touches the disk, so this is also the answer for a
+    destination that does not exist yet.
+    """
+    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+
+
+def same_file(one: str, other: str) -> bool:
+    """Whether two paths name the same file rather than the same text.
+
+    `os.path.samefile` is the authority when both exist — it compares the
+    device and inode, which is what "the same file" means, and catches hard
+    links that no amount of name arithmetic can see. When one of them does not
+    exist yet, which is the ordinary case for a destination, the names are
+    compared in the shape above.
+    """
+    try:
+        if os.path.exists(one) and os.path.exists(other):
+            return os.path.samefile(one, other)
+    except OSError:
+        # A path the filesystem will not stat — a broken link, a permission
+        # wall — is not a reason to answer "different" without looking.
+        pass
+    return identity_of(one) == identity_of(other)
+
+
 def stem_of(source: str) -> str:
     """*source* without its directory and extension — and without a
     ``.kepub`` left over from a Kobo file, which would otherwise double up."""
@@ -85,21 +121,27 @@ def plan_batch(sources: list[str], output: str | None, *, kepub: bool = False) -
     to be able to answer "what would this run do" without doing it.
     """
     plan = Plan()
-    by_destination: dict[str, list[str]] = {}
+    # Grouped by what the filesystem would call one file, not by what the
+    # string says: on Windows `Ksiazka.epub` and `ksiazka.epub` are one
+    # destination and two sources landing there is the collision this whole
+    # module exists to make visible (EF-081).
+    by_destination: dict[str, tuple[str, list[str]]] = {}
 
     for source in sources:
         destination = destination_for(source, output, kepub=kepub)
         plan.jobs.append(Job(source, destination))
-        by_destination.setdefault(os.path.abspath(destination), []).append(source)
+        by_destination.setdefault(identity_of(destination), (destination, []))[1].append(
+            source
+        )
 
-    for destination, claimants in by_destination.items():
+    for destination, claimants in by_destination.values():
         if len(claimants) > 1:
             plan.collisions.append(Collision(destination, claimants))
         elif os.path.exists(destination):
             plan.occupied.append(destination)
 
     for job in plan.jobs:
-        if os.path.abspath(job.destination) == os.path.abspath(job.source):
+        if same_file(job.destination, job.source):
             plan.self_targets.append(job.source)
 
     return plan

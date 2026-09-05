@@ -119,10 +119,19 @@ class RenderFidelity:
     engine: str = ""
     reason: str = ""
     pages: list = field(default_factory=list)
+    #: Whether the comparison actually ran to the end. `available` says the
+    #: engine was there; this says the work got done. EF-081's neighbour
+    #: (EF-082): an OPF written with apostrophes — perfectly legal XML, zero
+    #: EPUBCheck complaints — made `_spine_of` return nothing, `pages` stayed
+    #: empty, and `all([])` is `True`, so a book nothing had looked at was
+    #: reported as *checked*. A check that examined no pages is not a check,
+    #: and the only honest word for it is the one used when there is no
+    #: browser at all: not run.
+    completed: bool = False
 
     @property
     def ok(self) -> bool:
-        return self.available and all(page.ok for page in self.pages)
+        return self.available and self.completed and all(page.ok for page in self.pages)
 
     @property
     def problems(self) -> list:
@@ -140,32 +149,77 @@ class RenderFidelity:
         )
 
 
+def _elements(node, name: str):
+    """Every descendant whose local name is *name*, whatever its namespace.
+
+    Namespace-blind on purpose: this reads other people's books, and the
+    prefixes and default namespaces in the wild are not worth an argument. The
+    element names in a container document and a package document are unique
+    enough that the local name identifies them.
+    """
+    from lxml import etree
+
+    for element in node.iter():
+        if isinstance(element.tag, str) and etree.QName(element).localname == name:
+            yield element
+
+
+def _parse(path: pathlib.Path):
+    """The file as a tree, or `None` if it is not XML this can read."""
+    from lxml import etree
+
+    try:
+        parser = etree.XMLParser(recover=True, resolve_entities=False, no_network=True)
+        return etree.fromstring(path.read_bytes(), parser)
+    except (etree.XMLSyntaxError, OSError, ValueError):
+        return None
+
+
 def _spine_of(root: pathlib.Path) -> "list[pathlib.Path]":
-    """The reading order, as paths on disk, read out of the package document."""
+    """The reading order, as paths on disk, read out of the package document.
+
+    Parsed as XML since EF-082. It used to be read with regular expressions
+    demanding double-quoted attribute values, which is true of every package
+    this program writes and not of the format: `full-path='EPUB/package.opf'`
+    is the same document to any conforming reader, and XML 1.0 says so in as
+    many words. A publisher who quotes with apostrophes got an empty reading
+    order, no comparisons at all, and a report saying the appearance had been
+    checked.
+    """
     container = root / "META-INF" / "container.xml"
     if not container.is_file():
         return []
-    found = re.search(r'full-path="([^"]+)"', container.read_text("utf-8", "replace"))
-    if not found:
+    tree = _parse(container)
+    if tree is None:
         return []
-    package = root / found.group(1)
+    full_path = next(
+        (
+            value
+            for element in _elements(tree, "rootfile")
+            for value in (element.get("full-path"),)
+            if value
+        ),
+        "",
+    )
+    if not full_path:
+        return []
+    package = root / full_path
     if not package.is_file():
         return []
-    text = package.read_text("utf-8", "replace")
-    manifest = dict(
-        re.findall(r'<item\b[^>]*\bid="([^"]+)"[^>]*\bhref="([^"]+)"', text)
-    ) | dict(
-        (identifier, href)
-        for href, identifier in re.findall(
-            r'<item\b[^>]*\bhref="([^"]+)"[^>]*\bid="([^"]+)"', text
-        )
-    )
+    tree = _parse(package)
+    if tree is None:
+        return []
+    manifest = {
+        element.get("id"): element.get("href")
+        for element in _elements(tree, "item")
+        if element.get("id") and element.get("href")
+    }
     base = package.parent
     import urllib.parse
 
     order = []
-    for idref in re.findall(r"<itemref\b[^>]*\bidref=\"([^\"]+)\"", text):
-        href = manifest.get(idref)
+    for element in _elements(tree, "itemref"):
+        href = manifest.get(element.get("idref") or "")
         if not href:
             continue
         page = (base / urllib.parse.unquote(href)).resolve()
@@ -256,14 +310,31 @@ def _sample(count: int, wanted: int) -> "list[int]":
     return sorted(set(chosen))
 
 
+def _inside(target: pathlib.Path, root: pathlib.Path) -> bool:
+    """Whether *target* is under *root* — as paths, not as text.
+
+    EF-082's twin, EF-085: this used to ask whether the resolved name *starts
+    with* the root as a string, and `…/extract-sibling/probe.txt` starts with
+    `…/extract`. A prefix of the text is not a prefix of the path, an archive
+    can name `../anything`, and the only member of this pair that a person
+    would notice is the one that writes outside the directory it was given.
+    """
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
 def _extract(book: "str | pathlib.Path", into: pathlib.Path) -> pathlib.Path:
     into.mkdir(parents=True, exist_ok=True)
+    root = into.resolve()
     with zipfile.ZipFile(book) as archive:
         for entry in archive.infolist():
-            # The same refusal as the EPUBCheck staging: a member name that
-            # climbs out of the directory is not extracted, whatever it is for.
+            # A member name that climbs out of the directory is not extracted,
+            # whatever it is for: `..`, an absolute path, a Windows drive.
             target = (into / entry.filename).resolve()
-            if not str(target).startswith(str(into.resolve())):
+            if not _inside(target, root):
                 continue
             if entry.is_dir():
                 continue
@@ -543,7 +614,86 @@ def compare(
                 check.refit_marked = _refit_marked(output_page)
                 _judge(check)
                 result.pages.append(check)
+        # Said here, at the end, and only if there was something to look at:
+        # every early return above leaves `completed` False on purpose.
+        result.completed = bool(result.pages)
+        if not result.completed:
+            result.reason = "nie było czego porównać"
     return result
+
+
+def drawn(
+    output: "str | pathlib.Path",
+    *,
+    viewports=VIEWPORTS,
+    sample: int = SAMPLE,
+    browser=None,
+    on_page=None,
+) -> RenderFidelity:
+    """Draw one book with nothing to compare it against, and look for blank pages.
+
+    For a conversion out of PDF there is no *before* in this sense: the source
+    is not a set of documents that could be rendered and paired, and treating
+    it as one is what EF-086 was — `compare` opened the PDF with `zipfile` and
+    the whole rebuild came apart on `BadZipFile`, in the default preset, which
+    is the one the window uses.
+
+    What is left when the comparison is impossible is still worth doing, and
+    it is the shape of damage this gate was built for in the first place: a
+    document that carries text and draws *nothing*. That is a real defect and
+    it is caught here. What this cannot say is whether the page looks like the
+    PDF page it came from — so it does not say it, and the report names what
+    was done rather than borrowing the word "checked" from the comparison.
+    """
+    browser = browser or render.find_renderer()
+    if browser is None:
+        return RenderFidelity(available=False, reason=render.why_not())
+    result = RenderFidelity(available=True, engine=render.version(browser))
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as room:
+        room_path = pathlib.Path(room)
+        root = _extract(output, room_path / "po")
+        spine = _spine_of(root)
+        if not spine:
+            result.reason = "nie udało się odczytać kolejności czytania"
+            return result
+        indices = _sample(len(spine), sample) if sample else list(range(len(spine)))
+        shots = room_path / "obrazy"
+        shots.mkdir()
+        for number, index in enumerate(indices):
+            page = spine[index]
+            if on_page is not None:
+                on_page(number, len(indices), page.name)
+            viewport = viewports[0]
+            check = PageCheck(document=page.name, viewport=viewport)
+            try:
+                shot = render.shoot(
+                    page, shots / f"{index}.png", viewport=viewport, browser=browser
+                )
+            except render.RenderError as exc:
+                check.problems.append(f"nie udało się narysować: {exc}")
+                result.pages.append(check)
+                continue
+            check.output_ink = render.ink_of(shot)
+            if check.output_ink.blank and _has_text(page):
+                check.problems.append(
+                    "dokument niesie tekst, a strona wyszła pusta"
+                )
+            result.pages.append(check)
+        result.completed = bool(result.pages)
+        if not result.completed:
+            result.reason = "nie było czego narysować"
+    return result
+
+
+def _has_text(page: pathlib.Path) -> bool:
+    """Whether the document carries anything a reader would see as words."""
+    from . import fidelity
+
+    try:
+        text = fidelity.document_text(page.read_bytes())
+    except OSError:
+        return False
+    return bool(text and text.strip())
 
 
 __all__ = [
@@ -554,4 +704,5 @@ __all__ = [
     "SAMPLE",
     "VIEWPORTS",
     "compare",
+    "drawn",
 ]

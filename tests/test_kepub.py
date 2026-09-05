@@ -373,11 +373,15 @@ class TestTheFileIsNamedForTheDevice:
         assert plan.destination_for("/a/ksiazka.epub", str(out)) == str(out / "ksiazka.epub")
 
     def test_a_kobo_source_does_not_double_up(self, tmp_path):
-        assert plan.stem_of("/a/ksiazka.kepub.epub") == "ksiazka"
-        assert plan.destination_for("/a/ksiazka.kepub.epub", None, kepub=True) == "/a/ksiazka.forged.kepub.epub"
+        source = str(tmp_path / "ksiazka.kepub.epub")
+        assert plan.stem_of(source) == "ksiazka"
+        assert plan.destination_for(source, None, kepub=True) == str(
+            tmp_path / "ksiazka.forged.kepub.epub"
+        )
 
     def test_a_name_given_verbatim_is_the_persons(self, tmp_path):
-        assert plan.destination_for("/a/b.epub", "/x/mine.epub", kepub=True) == "/x/mine.epub"
+        mine = str(tmp_path / "mine.epub")
+        assert plan.destination_for(str(tmp_path / "b.epub"), mine, kepub=True) == mine
 
     def test_the_command_line_offers_it_and_it_reaches_the_policy(self):
         from epubforge.cli import build_parser, build_policy
