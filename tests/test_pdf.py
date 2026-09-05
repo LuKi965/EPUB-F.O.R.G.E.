@@ -355,7 +355,10 @@ class TestTheReader:
         """Not re-flowed — read in order. Taken in page order, the columns
         interleaved and every line-end hyphen joined the wrong word."""
         left = column([f"Left {n} ends the line here" for n in range(1, 6)], top=700, left=72)
-        right = column([f"Right {n} ends the line here" for n in range(1, 6)], top=700, left=330)
+        # The right-hand column starts past the middle of the page, as a
+        # real one does; a column whose lines reach across the gutter's
+        # midpoint is not one (the title-page test below).
+        right = column([f"Right {n} ends the line here" for n in range(1, 6)], top=700, left=380)
         source = make_pdf(tmp_path / "columns.pdf", [left + right])
         report = Report()
         book = pdf.read_pdf(str(source), report)
@@ -366,6 +369,18 @@ class TestTheReader:
         # line — the indent is measured against the column's edge, not the page's.
         assert report.stats["pdf_layout"]["paragraphs"] == 1
         assert pdf.text_of(str(source)).index("Left 5") < pdf.text_of(str(source)).index("Right 1")
+
+    def test_a_centred_title_page_is_not_two_columns(self, tmp_path):
+        """Many short lines at many left edges — a title page — passed the
+        first column test and came back in the wrong order once columns
+        were read column by column (Chromium print of one corpus book)."""
+        texts = ["A Title", "by", "Somebody Or Other", "with pictures", "printed", "in the year", "of our lord", "for the publisher", "and sold", "everywhere"]
+        lines = [(306 - 3 * len(t), 700 - 16 * i, 12.0, t) for i, t in enumerate(texts)]
+        report = Report()
+        book = pdf.read_pdf(str(make_pdf(tmp_path / "title.pdf", [lines])), report)
+        assert "pdf.columns" not in {f.rule for f in report.findings}
+        text = fidelity.document_text(next(r.data for r in book.resources.values() if r.path.endswith(".xhtml")))
+        assert text.index("A Title") < text.index("Somebody") < text.index("everywhere")
 
     def test_metadata_comes_from_the_info_dictionary(self, tmp_path):
         source = make_pdf(tmp_path / "meta.pdf", [column(THREE_PARAGRAPHS)],
@@ -462,6 +477,28 @@ class TestThePipeline:
         assert pdf.CONTINUED_CLASS not in section
         removed = [c for c in result.report.changes if c.rule == "pdf.running-heads-removed"]
         assert len(removed) == 1 and not removed[0].reversible
+
+    def test_a_word_broken_across_a_running_head_is_whole_again_when_the_head_goes(self, tmp_path):
+        """The foot of one page ends `prze-`, the next page opens with its
+        running head and then `konaniem`. With the head removed the halves
+        are joined the way the reader joins any line end — no space — so the
+        hyphen stage meets `prze-konaniem`, not `prze- konaniem`."""
+        pages = []
+        for number in range(1, 7):
+            lines = [(72, 760, 10.0, "THE BOOK OF PAGES")]
+            if number == 3:
+                lines += column(["A sentence that runs to the foot of the page with prze-"], top=600)
+            elif number == 4:
+                lines += column(["konaniem and goes on from there.", "And a second line."], top=600)
+            else:
+                lines += column([f"Page {number} carries ordinary prose in its body,",
+                                 "two lines of it, set at the body size."], top=600)
+            lines += [(300, 30, 10.0, str(number))]
+            pages.append(lines)
+        source = make_pdf(tmp_path / "split.pdf", pages, title="The Book of Pages")
+        result = rebuilt(source, tmp_path, standing={"pdf:running-heads": Answer(option="remove")})
+        assert result.output_path
+        assert "prze-konaniem" in prose_of(result.output_path)
 
     def test_the_policy_answers_for_a_batch(self, tmp_path):
         assert PDF_RUNNING_HEADS == ("ask", "keep", "remove")

@@ -471,18 +471,39 @@ def _png_via_pillow(handle) -> bytes | None:
 def _two_columns(page: Page) -> "float | None":
     """Two clusters of left edges, each narrower than half the page: columns.
     Returns the x that divides them, or None for a single column."""
-    if len(page.lines) < 8:
+    body = [line for line in page.lines if not line.running_head]
+    if len(body) < 8:
         return None
-    starts = Counter(round(line.x0 / 10) * 10 for line in page.lines)
+    starts = Counter(round(line.x0 / 10) * 10 for line in body)
     common = [x for x, count in starts.most_common(2) if count >= 3]
     if len(common) < 2:
         return None
     left, right = sorted(common)
-    if right - left > page.width * 0.35 and all(
-        (line.x1 - line.x0) < page.width * 0.55 for line in page.lines
-    ):
-        return (left + right) / 2
-    return None
+    if right - left <= page.width * 0.35:
+        return None
+    if any((line.x1 - line.x0) >= page.width * 0.55 for line in body):
+        return None
+    # Two columns are two *stacks*: most lines start at one edge or the
+    # other, and none straddles the divide. A centred title page has many
+    # short lines at many left edges and passed the two tests above — and
+    # read column by column it came back in the wrong order (the Gutenberg
+    # corpus printed by Chromium, one book, its title page).
+    left_stack = [line for line in body if abs(line.x0 - left) <= 20]
+    right_stack = [line for line in body if abs(line.x0 - right) <= 20]
+    if len(left_stack) + len(right_stack) < 0.7 * len(body):
+        return None
+    # The divide is the gutter — between where the left stack ends and the
+    # right one begins — not the midpoint of the two left edges: a left
+    # column's lines reach well past that midpoint.
+    rights = sorted(line.x1 for line in left_stack)
+    left_edge_end = rights[int(0.9 * (len(rights) - 1))]
+    if left_edge_end >= right:
+        return None
+    split = (left_edge_end + right) / 2
+    straddling = sum(1 for line in body if line.x0 < split < line.x1)
+    if straddling > 0.1 * len(body):
+        return None
+    return split
 
 
 def _reading_order(page: Page, split: "float | None") -> None:

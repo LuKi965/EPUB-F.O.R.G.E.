@@ -248,11 +248,17 @@ def _rejoin(element) -> int:
         return 0
     text = element.text or ""
     children = list(element)
+    # A word the typesetter broke at the foot of the page, with the running
+    # head standing between its halves: joined the way the reader joins a
+    # line end — no space after a hyphen — so it reaches the hyphen stage
+    # in the same shape as every other break (`prze-konaniem`).
+    before = (previous[-1].tail if len(previous) else previous.text) or ""
+    glue = "" if (before.endswith("-") and len(before) > 1 and before[-2].isalnum() and text[:1].isalpha()) else " "
     if len(previous):
         last = previous[-1]
-        last.tail = (last.tail or "") + " " + text
+        last.tail = (last.tail or "") + glue + text
     else:
-        previous.text = (previous.text or "") + " " + text
+        previous.text = (previous.text or "") + glue + text
     for child in children:
         previous.append(child)
     parent = element.getparent()
