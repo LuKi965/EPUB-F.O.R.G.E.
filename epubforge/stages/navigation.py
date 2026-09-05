@@ -22,8 +22,7 @@ COVER_PAGE_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="{xhtml}" xmlns:epub="{epub}" lang="{lang}" xml:lang="{lang}">
   <head>
-    <meta charset="utf-8"/>
-    <title>{title}</title>
+    <meta charset="utf-8"/><title>{title}</title>
     <style>
       {cover_style}
     </style>
@@ -138,11 +137,10 @@ class NavigationStage(Stage):
 
         book.resources[book.cover_path].properties.add("cover-image")
 
-        existing = next(
-            (landmark for landmark in book.landmarks if landmark.epub_type == "cover"), None
-        )
-        cover_page = existing.target.split("#")[0] if existing else None
-        if cover_page and cover_page in book.resources and book.resources[cover_page].is_content_doc:
+        # The same question the structure stage asked when it numbered the
+        # files (`covers.cover_page_missing`): if the answer differed here,
+        # the names would be off by one on the next rebuild.
+        if not covers.cover_page_missing(book):
             return
 
         # Some books reference the image directly from the spine; others have no
@@ -162,11 +160,17 @@ class NavigationStage(Stage):
             # `max-height` against and the other did not.
             cover_style=covers.COVER_STYLE,
         )
+        # Through the same parser and serializer every other document goes
+        # through, so that the page this pass writes is the page the next
+        # pass reads back unchanged (K3): written from the template as is,
+        # the second rebuild reserialised it and the file differed by a
+        # newline between `<meta>` and `<title>`.
+        data = xhtml.serialize(xhtml.parse_document(markup.encode("utf-8"), page_path).root)
         book.add(
             Resource(
                 path=page_path,
                 media_type="application/xhtml+xml",
-                data=markup.encode("utf-8"),
+                data=data,
             )
         )
         book.spine.insert(0, SpineItem(page_path, linear=True))

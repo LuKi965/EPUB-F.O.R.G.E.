@@ -22,7 +22,7 @@
       "profile.body-text-found": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:ae50e857e09e8615ddf20590c413824b938c8005e61cc2ada815b74ecc96fd2c",
+    "output": "sha256:be1b6ac2500cbf1bbe395b1dcbbae703427d61de26231cbd98406fe8873c12a9",
     "text_characters": 57,
     "text_added": 2,
     "text_invariant": true,
@@ -56,7 +56,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:d5c2beb34d6a574d9b68fba7ade2a664decdccaa1e2e0679cc87ca4cb17ab120",
+    "output": "sha256:1d585fd4492bb49abcd1b4eacf40713044a37d9d15ccb87678f63a932e153892",
     "text_characters": 57,
     "text_added": 2,
     "text_invariant": true,
@@ -90,7 +90,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:d5c2beb34d6a574d9b68fba7ade2a664decdccaa1e2e0679cc87ca4cb17ab120",
+    "output": "sha256:1d585fd4492bb49abcd1b4eacf40713044a37d9d15ccb87678f63a932e153892",
     "text_characters": 57,
     "text_added": 2,
     "text_invariant": true,

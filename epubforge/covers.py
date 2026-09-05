@@ -117,3 +117,29 @@ __all__ = [
     "cover_identities",
     "is_the_cover",
 ]
+
+
+def cover_page_missing(book) -> bool:
+    """Whether the navigation stage is going to synthesise a cover page: the
+    book names a cover image that exists, and no landmark points at a content
+    document as the cover.
+
+    One predicate for two stages, on purpose. The structure stage numbers the
+    reading-order files by spine position, and the navigation stage later
+    puts a synthesised cover page at position 0 — so on a second rebuild
+    every chapter's name moved up by one (K3, found on 14 of 60 shelf books
+    by `tools/idempotencja.py` after the independent audit of 2026-09-04,
+    EF-080). The structure stage now leaves position 0 for the page it
+    knows is coming, and it knows by asking the same question this function
+    answers for the navigation stage.
+    """
+    if not book.cover_path or book.cover_path not in book.resources:
+        return False
+    existing = next(
+        (landmark for landmark in book.landmarks if landmark.epub_type == "cover"), None
+    )
+    cover_page = existing.target.split("#")[0] if existing else None
+    if cover_page and cover_page in book.resources and book.resources[cover_page].is_content_doc:
+        return False
+    return True
+

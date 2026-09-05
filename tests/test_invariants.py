@@ -417,3 +417,46 @@ def test_second_pass_leaves_a_contents_page_in_the_reading_order_alone(tmp_path)
     assert set(one) == set(two)
     differing = {name for name in one if one[name] != two[name]}
     assert differing <= {"EPUB/package.opf"}, differing
+
+
+def test_second_pass_keeps_the_names_when_a_cover_page_was_synthesised(tmp_path):
+    """K3 on the shape `tools/idempotencja.py` found on 14 of 60 shelf books
+    after the independent audit of 2026-09-04 (EF-080): a book with a cover
+    image and no cover page. The navigation stage synthesises the page at
+    spine position 0 after the structure stage has numbered the chapters
+    from 0, so the second rebuild — the cover now a real page — renamed
+    every reading-order file by one. The structure stage now leaves
+    position 0 for the page it knows is coming."""
+    import zipfile
+
+    from tests.factory import CONTAINER, MODERN_CHAPTER, MODERN_NAV, MODERN_OPF, png_bytes, write_zip
+
+    opf = MODERN_OPF.format(title="Ksi&#x105;&#x17c;ka", extra_metadata="").replace(
+        '<item id="img" href="picture.png" media-type="image/png"/>',
+        '<item id="img" href="picture.png" media-type="image/png" properties="cover-image"/>',
+    )
+    source = write_zip(
+        str(tmp_path / "in.epub"),
+        {
+            "META-INF/container.xml": CONTAINER.replace("OEBPS/content.opf", "OEBPS/package.opf").encode(),
+            "OEBPS/package.opf": opf.encode(),
+            "OEBPS/nav.xhtml": MODERN_NAV.encode(),
+            "OEBPS/chapter.xhtml": MODERN_CHAPTER.format(image='<img src="picture.png" alt=""/>').encode(),
+            "OEBPS/picture.png": png_bytes(),
+        },
+    )
+    policy = Policy.preset("preserve", validate_before_publish="off", render_gate="off")
+    first = rebuild(source, str(tmp_path / "first.epub"), policy)
+    assert first.output_path, first.report.to_text()
+    assert "nav.cover-page-generated" in {f.rule for f in first.report.findings}
+    with zipfile.ZipFile(first.output_path) as archive:
+        names = sorted(n for n in archive.namelist() if n.endswith(".xhtml") and "/text/" in n)
+    assert names[0].endswith("0000-cover.xhtml"), names
+    assert not any(n.endswith("0000-chapter.xhtml") for n in names), names
+
+    second = rebuild(first.output_path, str(tmp_path / "second.epub"), policy)
+    assert second.output_path, second.report.to_text()
+    one, two = entries(first.output_path), entries(second.output_path)
+    assert set(one) == set(two), (sorted(set(one) ^ set(two)))
+    differing = {name for name in one if one[name] != two[name]}
+    assert differing <= {"EPUB/package.opf"}, differing

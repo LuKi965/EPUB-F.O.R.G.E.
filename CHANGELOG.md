@@ -63,6 +63,17 @@ test that fails on the old behaviour, not by a note.
   gets the same repairs as every other page in the first pass; only a
   navigation document outside the reading order is machinery. Held to a
   test with such a page and to the shelf.
+- **A second rebuild renamed every chapter of fourteen books in sixty.**
+  Found by the tool written to prove the fix above, and older than the
+  audit: the structure stage numbers the reading-order files by spine
+  position, and the navigation stage later puts a synthesised cover page
+  at position 0 — so the second pass, the cover now a real page, moved
+  every name up by one. The structure stage now leaves position 0 for the
+  page it knows is coming, by asking the same question the navigation
+  stage asks; and the synthesised page is written in the form the content
+  stage would write it, so it comes back byte for byte. Books that get a
+  cover page are named differently once (`0001-chapter-01` where it was
+  `0000-chapter-01`), and then never again.
 - **"Nobody answered" when somebody had.** A person who read the question
   about a publisher's typo in a stylesheet and chose the recommended
   "keep" was told in the report that nobody answered. The same shape stood

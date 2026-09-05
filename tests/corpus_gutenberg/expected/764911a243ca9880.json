@@ -31,7 +31,7 @@
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:aeea671f8b58335207443947f267a6ddd805a2e1780e392338271c13b3380b94",
+    "output": "sha256:89c967682c5d64cf913cb60aa8e269ef1eb071f93a07495e03a79c37f9e012e3",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -77,7 +77,7 @@
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:c3244705be459606902c48bc6338f39ce69de624e1f1e6c4ac31534dc5e34f53",
+    "output": "sha256:3bc5ea912ff5a92cea6fbbe99ae6b5cb63487b544c0059cc10d724469bdf8fda",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -123,7 +123,7 @@
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:4f00355fa06dbd3c9bb5ba66436a94f5fa4af69f3292f17814c05fc3f69b93f4",
+    "output": "sha256:dc3ba0116d88ed6e966a6456496156493c6c8af808955725f499306d4319d9d2",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,

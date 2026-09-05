@@ -11,7 +11,7 @@ from __future__ import annotations
 import posixpath
 import re
 
-from .. import paths
+from .. import covers, paths
 from ..model import folder_for
 from ..report import Action, Level, Risk
 from .base import Context, Stage
@@ -438,7 +438,14 @@ class StructureStage(Stage):
         ordered = [item.path for item in book.spine if item.path in book.resources]
         ordered += [path for path in book.resources if path not in set(ordered)]
 
-        spine_positions = {item.path: index for index, item in enumerate(book.spine)}
+        # Position 0 is left for the cover page the navigation stage is going
+        # to synthesise, when it is (`covers.cover_page_missing`): numbered
+        # without it, the first rebuild wrote `0000-chapter-01` and the
+        # second, with the cover now a real page in the spine, wrote
+        # `0001-chapter-01` — every reading-order file renamed on a second
+        # pass, on 14 of 60 shelf books (K3, EF-080).
+        offset = 1 if covers.cover_page_missing(book) else 0
+        spine_positions = {item.path: index + offset for index, item in enumerate(book.spine)}
         role_stems = _role_stems(book)
 
         for path in ordered:
