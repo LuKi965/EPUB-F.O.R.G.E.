@@ -569,3 +569,58 @@ class TestEF084TheBalanceHoldsResourcesByIdentity:
         )
         assert result.report.balance.unexplained_paths == []
         assert result.output_path, result.report.to_text()
+
+
+class TestEF091ADocumentThatKeptItsNameIsStillPaired(TestEF083ConsentIsPerDocument):
+    """The relaid-out ledger names only what moved, and a book this program
+    has already rebuilt keeps its chapter names. On a second rebuild the
+    ledger held the navigation document alone, every chapter went unpaired,
+    and the gate had no divergence to consult a consent for: a hyphen joined
+    on the owner's answer was refused as text lost, and a sentence added to
+    a chapter would have passed unseen. Found on 2026-09-06 by a two-hyphen
+    run whose second hyphen is met on the next rebuild by design."""
+
+    class AddASentenceUnrecorded(Stage):
+        name = "probe"
+        mutates = True
+
+        def run(self, ctx):
+            b = next(r for r in ctx.book.content_docs() if b"EPSILON" in r.data)
+            b.data = b.data.replace(b"ZETA", b"ZETA ETA THETA")
+
+    def _rebuilt_once(self, tmp_path) -> str:
+        first = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "once.epub"), measuring(),
+        )
+        assert first.output_path, first.report.to_text()
+        with zipfile.ZipFile(first.output_path) as archive:
+            chapters = [n for n in archive.namelist() if n.endswith(".xhtml") and "nav" not in n]
+        # The precondition: a rebuilt book's chapters already carry the
+        # names the next rebuild will give them, so nothing moves.
+        assert all(n.startswith("EPUB/text/") for n in chapters), chapters
+        return first.output_path
+
+    def test_a_consented_change_on_a_rebuilt_book_is_honoured(self, tmp_path):
+        result = pipeline.rebuild(
+            self._rebuilt_once(tmp_path), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.LoseAWordInBBoundToB],
+        )
+        assert result.output_path, result.report.to_text()
+        assert "package.text-changed-on-request" in {f.rule for f in result.report.findings}
+
+    def test_an_unrecorded_addition_on_a_rebuilt_book_is_seen(self, tmp_path):
+        result = pipeline.rebuild(
+            self._rebuilt_once(tmp_path), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.AddASentenceUnrecorded],
+        )
+        assert not result.output_path, result.report.to_text()
+        assert "package.prose-changed" in {f.rule for f in result.report.findings}
+
+    def test_the_ledger_still_wins_where_a_document_did_move(self, tmp_path):
+        """A first rebuild moves everything; pairing by name adds nothing to
+        it and takes nothing away — the two EF-083 answers stand."""
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.LoseAWordInB],
+        )
+        assert not result.output_path, result.report.to_text()

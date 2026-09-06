@@ -885,14 +885,26 @@ def _consented_rules(divergences, report: Report) -> "list[str]":
 
 def _paired_divergences(source: str, candidate: str, report: Report, book=None) -> "list | None":
     """Every carried document whose prose came out different, or `None` when
-    the two archives cannot be paired at all."""
+    the two archives cannot be paired at all.
+
+    Paired by name first and by the relaid-out ledger over it, not one or
+    the other. EF-091: the ledger names only what moved, and a book this
+    program has already rebuilt keeps its chapter names — so on a second
+    rebuild the ledger held the navigation document alone, every chapter
+    went unpaired, and the gate had no divergence to consult a consent
+    for: a hyphen joined on the owner's answer was refused as text lost,
+    and a sentence added to a chapter would have passed unseen. Measured
+    on 2026-09-06 with a two-hyphen run (`to-mor-row`), whose second
+    hyphen is met on the next rebuild by design.
+    """
     from . import fidelity
 
-    moved = {
+    moved = _paired_by_name(source, candidate, book)
+    moved.update({
         change.before: change.after
         for change in report.changes
         if change.rule == "structure.relaid-out" and change.before and change.after
-    } or _paired_by_name(source, candidate, book)
+    })
     if not moved:
         return None
     return fidelity.prose_is_identical(source, candidate, moved)
@@ -1062,25 +1074,18 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
         try:
             if _more_than_one_rendition(source):
                 return ""
-            moved = {
-                change.before: change.after
-                for change in report.changes
-                if change.rule == "structure.relaid-out"
-                and change.before
-                and change.after
-            }
-            if not moved:
-                # EF-083. Nothing was relaid out — `minimal` publishes the
-                # source's own layout — and this used to mean the check was
-                # skipped entirely, so a word invented inside an existing
-                # paragraph passed `minimal` without a sound. A document that
-                # was not moved pairs with *itself*: that is the identity the
-                # ledger would have carried if there had been anything to say.
-                moved = _paired_by_name(source, candidate, book)
-            if not moved:
+            # EF-083: nothing relaid out — `minimal` publishes the source's
+            # own layout — used to mean the check was skipped entirely, so
+            # a word invented inside an existing paragraph passed `minimal`
+            # without a sound. EF-091: the ledger naming only the navigation
+            # document, as it does on a book this program has already
+            # rebuilt, left every chapter unpaired the same way. A document
+            # that was not moved pairs with *itself*, and `_paired_divergences`
+            # is the one place both gates get that pairing from.
+            divergences = _paired_divergences(source, candidate, report, book)
+            if divergences is None:
                 report.add("package", Level.INFO, "package.prose-check-unpaired")
                 return ""
-            divergences = fidelity.prose_is_identical(source, candidate, moved)
         except Exception as exc:
             # Mandatory, so the same answer as the rule above it: a check that
             # could not run does not get to be silence with a file attached.
