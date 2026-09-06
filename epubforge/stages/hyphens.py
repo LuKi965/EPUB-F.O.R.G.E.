@@ -28,6 +28,9 @@ library caller change nothing at all.
 
 from __future__ import annotations
 
+import functools
+import re
+
 from .. import dictionaries, hyphens, typography, xhtml
 from .. import decisions
 from ..transformation import PostconditionFailed, Transformation, carry_out
@@ -36,17 +39,68 @@ from ..report import Action, Level, Risk
 from .base import Context, Stage, machinery_nav
 
 
+@functools.lru_cache(maxsize=512)
+def _WHOLE_WORD(word: str) -> "re.Pattern":
+    """*word* where it stands alone, not where it starts a longer one.
+
+    A plain `str.replace` joined `pick-up` inside `pick-uptruck` and produced
+    `pickuptruck` in four places of one shelf book — a word nobody had been
+    asked about, changed on the strength of an answer about a different word.
+    The invariant check that guards this pass compares which characters left
+    and only hyphens had, so it saw nothing wrong (EF-088; the K3 difference
+    was the second rebuild joining the two copies the first had left, now that
+    the book "wrote them joined elsewhere" — its own damage as evidence).
+
+    A hyphen counts as a word character on both sides here: `pick-up` inside
+    `super-pick-up` is part of a longer hyphenated word, and that word is its
+    own candidate or nothing.
+    """
+    return re.compile(rf"(?<![\w-]){re.escape(word)}(?![\w-])")
+
+
+def _across_candidates(documents: list, words, tongue: str) -> list:
+    """The halves that end one text node and continue in the next.
+
+    Gathered before the in-node pass since EF-088, because what they prove is
+    evidence for it: `<span>pick-</span>uptruck` is a converter's line wrap
+    with the markup to prove it, so the book demonstrably means one word — and
+    two paragraphs later the same word sits hyphenated inside a single node,
+    where the only evidence is the book's own vocabulary.
+
+    Left as it was, the first rebuild joined the four split copies and the
+    second, reading a book that now contained `pickuptruck`, confirmed and
+    joined the two whole ones (K3, one shelf book). The repair was right both
+    times; the timing made the program's own output its next input's evidence,
+    which is the shape K3 exists to forbid.
+    """
+    return [
+        (resource, candidate)
+        for resource, root in documents
+        for candidate in hyphens.find_across(
+            list(typography.text_nodes(root)),
+            root=root,
+            where=resource.path,
+            words=words,
+            language=tongue,
+        )
+    ]
+
+
 def _collect_candidates(documents: list, words, tongue: str, line_end: "set[str]" = frozenset()) -> tuple[dict, list, list, dict]:
     """Every hyphen worth asking about, over every text node of every
     document: counts by confidence, the confirmed ones, the ones split
     across two text nodes, and the weaker ones by confidence."""
     found: dict[str, int] = {}
     confirmed: list[tuple[object, hyphens.Candidate]] = []
-    across: list[tuple[object, hyphens.CrossCandidate]] = []
+    across = _across_candidates(documents, words, tongue)
     weaker: dict[str, list] = {}
+    for _, candidate in across:
+        found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
+        # The joined form this rebuild is about to write, counted as the
+        # evidence it is. One occurrence is enough: the markup proved it.
+        words[hyphens._fold(candidate.joined)] += 1
     for resource, root in documents:
-        nodes = list(typography.text_nodes(root))
-        for element, attribute in nodes:
+        for element, attribute in typography.text_nodes(root):
             text = getattr(element, attribute)
             if not text or "-" not in text:
                 continue
@@ -60,14 +114,6 @@ def _collect_candidates(documents: list, words, tongue: str, line_end: "set[str]
                     weaker.setdefault(candidate.confidence, []).append(
                         (resource, candidate)
                     )
-        # The half a word that ends one text node and continues in the next.
-        # Same walk, so it costs nothing; a separate list, because applying
-        # it writes into two elements instead of one.
-        for candidate in hyphens.find_across(
-            nodes, root=root, where=resource.path, words=words, language=tongue
-        ):
-            found[candidate.confidence] = found.get(candidate.confidence, 0) + 1
-            across.append((resource, candidate))
     return found, confirmed, across, weaker
 
 
@@ -244,9 +290,8 @@ class HyphenStage(Stage):
                     if not text:
                         continue
                     for candidate, replacement in planned:
-                        if candidate.word in text:
-                            text = text.replace(candidate.word, replacement)
-                            changed += 1
+                        text, hits = _WHOLE_WORD(candidate.word).subn(replacement, text)
+                        changed += bool(hits)
                     setattr(element, attribute, text)
                 if changed:
                     resource.data = xhtml.serialize(root)

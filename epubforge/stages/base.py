@@ -47,6 +47,18 @@ class Context:
     #: Set when the book named a cover image it does not carry; said by the
     #: navigation stage under its own rule.
     cover_image_missing: bool = False
+    #: Documents the structure stage put into the spine because the navigation
+    #: points at them (EF-088). Same arrangement as the cover page above and
+    #: for the same reason: the work has to happen before the numbering, the
+    #: sentence belongs to the navigation stage.
+    spined_by_navigation: list = field(default_factory=list)
+    #: How many contents entries the structure stage synthesised for a book
+    #: that had none (EF-088), for the navigation stage to report.
+    synthesised_toc: int = 0
+    #: Contents entries the structure stage dropped because the document they
+    #: point at is not in the book (EF-088), for the navigation stage to add
+    #: to its own count.
+    dropped_nav_entries: int = 0
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None

@@ -1395,6 +1395,15 @@ class ContentStage(Stage):
             body = etree.SubElement(root, xhtml.qname("body"))
             self.note(ctx, Level.FIX, "xhtml.body-added", location=resource.path)
 
+        # What the head's first element carried after it, so the replacement
+        # below can carry the same. Whitespace in a head means nothing to a
+        # reader and everything to K3: the old charset declaration went out
+        # with its tail, the new one arrived without one, and a rebuild of a
+        # rebuild therefore changed twenty-four documents of two shelf books
+        # by exactly the newlines between `<meta>` and `<link>` (EF-088). A
+        # rebuild that reformats its own output is not idempotent, however
+        # invisible the difference is on a page.
+        first_tail = head[0].tail if len(head) else None
         for meta in head.findall(xhtml.qname("meta")):
             if meta.get("http-equiv") or meta.get("charset"):
                 head.remove(meta)
@@ -1411,6 +1420,7 @@ class ContentStage(Stage):
                 meta.set("content", "")
         charset = etree.Element(xhtml.qname("meta"))
         charset.set("charset", "utf-8")
+        charset.tail = first_tail
         head.insert(0, charset)
 
         title = head.find(xhtml.qname("title"))
@@ -2856,6 +2866,17 @@ class ContentStage(Stage):
 
         position, _ = cascade.lookup("position", tag, classes, identifier)
         if (position or "").strip().lower() not in ("absolute", "fixed"):
+            return
+        # The element's own style attribute beats every sheet, so an element
+        # already declaring `position: static` is not out of flow whatever the
+        # publisher's class rule says — and this repair, which writes exactly
+        # that declaration, was reading past its own work. On a second rebuild
+        # it appended the same pair again and added a second copy of the style
+        # block above (EF-088, K3); on a book where the publisher had written
+        # `style="position: static"` by hand it would have done it once, which
+        # is the same defect without a second pass to reveal it.
+        inline = self._INLINE_POSITION_RE.search(element.get("style") or "")
+        if inline and inline.group(1).strip().lower() not in ("absolute", "fixed"):
             return
         bottom, _ = cascade.lookup("bottom", tag, classes, identifier)
         top, _ = cascade.lookup("top", tag, classes, identifier)

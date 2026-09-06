@@ -279,3 +279,59 @@ class TestEF090ThePathContractHoldsOnBothPlatforms:
         assert plan.destination_for(source, None, kepub=True) == os.path.join(
             str(tmp_path), "ksiazka.forged.kepub.epub"
         )
+
+
+class TestEF087TextInAFormXObjectIsReadAndCounted:
+    """A page whose one visible sentence sits in a Form XObject converted to
+    nothing, and K1 — reading through the same reader — passed it."""
+
+    LONG = "This is a sufficiently long synthetic paragraph for the PDF conversion test to read."
+
+    def _pdf(self, tmp_path):
+        from tests.test_pdf import make_pdf
+
+        return make_pdf(
+            tmp_path / "form.pdf",
+            [[(50, 700, 12, self.LONG), (50, 680, 12, self.LONG)]],
+            title="Form fixture",
+            language="en",
+            forms={0: [[(50, 600, 12, "UNIQUE FORM TEXT MUST SURVIVE")]]},
+        )
+
+    def test_the_reader_sees_the_form_text(self, tmp_path):
+        from epubforge import pdf
+
+        assert "UNIQUE FORM TEXT MUST SURVIVE" in pdf.text_of(str(self._pdf(tmp_path)))
+
+    def test_the_inventory_counts_it_whether_or_not_the_reader_does(self, tmp_path):
+        from epubforge import pdf
+
+        drawn = pdf.character_inventory(str(self._pdf(tmp_path)))
+        assert drawn["U"] >= 2 and drawn["Q"] == 1, drawn
+
+    def test_a_rebuild_carries_it(self, tmp_path):
+        from epubforge import fidelity
+
+        result = pipeline.rebuild(
+            str(self._pdf(tmp_path)), str(tmp_path / "out.epub"), measuring()
+        )
+        assert result.output_path, result.report.to_text()
+        assert "UNIQUE FORM TEXT MUST SURVIVE" in fidelity.spine_text_of(result.output_path)
+
+    def test_the_second_reader_refuses_what_the_first_would_have_passed(self, tmp_path, monkeypatch):
+        """Blind the line reader to the form again and the subsequence check
+        holds vacuously — the character count does not."""
+        from epubforge import fidelity, pdf
+
+        source = self._pdf(tmp_path)
+        real = pdf.text_of
+        monkeypatch.setattr(
+            pdf, "text_of", lambda path: real(path).replace("UNIQUE FORM TEXT MUST SURVIVE", "")
+        )
+        candidate = book(tmp_path / "candidate.epub", text=self.LONG + " " + self.LONG)
+        assert fidelity.text_is_preserved(source, candidate).ok, "the blinded reader passes"
+        assert not fidelity.pdf_characters_survive(source, candidate).ok
+        report = Report(source=str(source))
+        refusal = pipeline._text_gate(str(source), Policy(), report)(candidate)
+        assert refusal.startswith("K1-PDF")
+        assert "package.pdf-characters-lost" in {f.rule for f in report.findings}

@@ -25,6 +25,8 @@ the book. It reports what changed; the caller decides what that means.
 
 from __future__ import annotations
 
+from collections import Counter
+
 import hashlib
 import pathlib
 import re
@@ -510,6 +512,46 @@ def first_character_lost(source_text: str, output_text: str) -> int:
             return index
         position += 1
     return -1
+
+
+def pdf_characters_survive(source: "str | pathlib.Path", candidate: "str | pathlib.Path") -> Check:
+    """K1 for a PDF source, counted by a second reader.
+
+    `text_is_preserved` reads the PDF through the same reader the conversion
+    uses, so a construct that reader does not handle is missing from *both*
+    sides and the subsequence holds vacuously (EF-087: a page's one visible
+    sentence, drawn inside a Form XObject, converted to nothing and passed).
+    This is the other side of the ledger: every character the page draws,
+    counted without any notion of lines or order, has to be in the output at
+    least as many times. Order is the subsequence check's business; existence
+    is this one's, and it does not depend on the reader being right.
+    """
+    from . import pdf
+    from .typography import canonical
+    from .xmlchars import legal
+
+    # Both sides through the fold `spine_text_of` applies — the same one, for
+    # the same reason it gives: after it there is no quote style or dash
+    # length left to be wrong about, only characters that exist or do not.
+    wanted: Counter = Counter(
+        character
+        for character in canonical(legal(pdf.drawn_text(str(source))))
+        if not character.isspace()
+    )
+    present: Counter = Counter(
+        character for character in spine_text_of(candidate) if not character.isspace()
+    )
+    missing = wanted - present
+    if not missing:
+        return Check("K1-PDF", True, "", {"source_characters": sum(wanted.values())})
+    lost = sum(missing.values())
+    sample = "".join(sorted(missing)[:12])
+    return Check(
+        "K1-PDF",
+        False,
+        f"{lost} znak(ów) narysowanych w PDF-ie nie ma w wyniku (np. {sample!r})",
+        {"source_characters": sum(wanted.values()), "lost": lost},
+    )
 
 
 def text_is_preserved(source: "str | pathlib.Path", candidate: "str | pathlib.Path") -> Check:

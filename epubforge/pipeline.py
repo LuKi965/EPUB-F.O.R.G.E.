@@ -852,6 +852,37 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
                 values={"detail": f"{type(exc).__name__}: {exc}"},
             )
             return f"K1 could not be measured: {type(exc).__name__}: {exc}"
+        if check.ok and pdf.is_pdf(source):
+            # The subsequence held, read through the conversion's own reader.
+            # The second reader counts what the page draws (EF-087): a
+            # character it saw and the output lacks is a loss, and it is
+            # excused on the same terms as the rule below excuses the
+            # subsequence — a named pass that removes or reshapes text, in
+            # the report, with somebody's answer behind it. Quotes turned to
+            # the book's convention and three dots made an ellipsis are that;
+            # a sentence in a Form XObject that nobody converted is not, and
+            # nothing in the report will say otherwise.
+            second = fidelity.pdf_characters_survive(source, candidate)
+            if not second.ok:
+                accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+                consented = sorted(
+                    {finding.rule for finding in report.findings if finding.rule in accounted}
+                )
+                if consented:
+                    report.add(
+                        "package",
+                        Level.WARN,
+                        "package.pdf-characters-changed-on-request",
+                        values={"rules": ", ".join(consented), "detail": second.detail},
+                    )
+                else:
+                    report.add(
+                        "package",
+                        Level.ERROR,
+                        "package.pdf-characters-lost",
+                        values={"detail": second.detail},
+                    )
+                    return f"K1-PDF: {second.detail}"
         if check.ok:
             return ""
         consented = sorted(

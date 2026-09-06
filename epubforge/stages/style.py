@@ -2406,6 +2406,34 @@ class StyleStage(Stage):
         cache[branch] = hits
         return hits
 
+    #: Class names inside a selector, for the guard below. Deliberately crude:
+    #: it needs to answer "does this rule name a class the book uses", and a
+    #: false positive keeps twelve inert bytes.
+    _SELECTOR_CLASS_RE = re.compile(r"\.(-?[_a-zA-Z][_a-zA-Z0-9-]*)")
+
+    def _names_a_used_class(self, ctx: Context, text: str, span) -> bool:
+        """Does this empty rule define a class the book actually uses?
+
+        An empty rule declares nothing, so sweeping it changes no pixel — true
+        of the page and false of the *book*. `.sans { }` in the sheet a
+        document links is the publisher saying "this class exists and adds
+        nothing here". With it gone the class is defined nowhere the document
+        can reach, and the content stage's orphaned-styling repair goes looking
+        for a definition elsewhere, finds a real one in another rendition's
+        sheet, and styles a page the publisher deliberately left plain.
+
+        Found as a K3 failure (EF-088): the first rebuild swept the empty rule
+        and the second, reading its own output, restored `.sans { font-size:
+        0.8em }` from the other sheet. The K3 difference is the symptom; the
+        defect is that sweeping something inert changed what a class means.
+        Worth twelve bytes of empty rule.
+        """
+        selector = text[span.start:text.index("{", span.start)]
+        return any(
+            name in ctx.used_classes
+            for name in self._SELECTOR_CLASS_RE.findall(selector)
+        )
+
     def _empty_noise(self, ctx: Context, css_text: str, resource) -> str:
         """Remove what says nothing: empty comments, empty rules, empty at-rules.
 
@@ -2423,6 +2451,7 @@ class StyleStage(Stage):
         empty_spans = [
             span for span in spans
             if not stripped[stripped.index("{", span.start) + 1:span.end].strip("} \t\r\n")
+            and not self._names_a_used_class(ctx, stripped, span)
         ]
         total = comments + at_rules + len(empty_spans)
         if not total:

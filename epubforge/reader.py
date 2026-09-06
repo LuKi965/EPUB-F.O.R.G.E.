@@ -1173,6 +1173,11 @@ def _parse_ncx(data: bytes, ncx_path: str, report: Report) -> tuple[list[NavPoin
     return toc, page_list
 
 
+#: The comment this program writes into a contents section it synthesised
+#: (EF-088); the navigation stage imports it from here so the two agree.
+SYNTHESISED_TOC_MARK = "EPUB-Forge: contents synthesised from the reading order, not the publisher's"
+
+
 def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     """Extract every navigation list an EPUB 3 navigation document holds.
 
@@ -1186,12 +1191,14 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
     root = parse_xml(data, nav_path, report)
     if root is None:
         report.add("reader", Level.WARN, "reader.nav-unparseable", location=nav_path)
-        return [], [], [], [], {}
+        return [], [], [], [], {}, False
 
     toc: list[NavPoint] = []
     landmarks: list[Landmark] = []
     page_list: list[PageTarget] = []
     extra: list[NavSection] = []
+    #: Whether the contents carry this program's own marker (EF-088).
+    synthesised = False
     #: `aria-label` of the sections modelled by name, keyed by `epub:type`.
     #: Read here and written back by the navigation stage, because the
     #: section itself is regenerated and the label is the publisher's word.
@@ -1215,6 +1222,11 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
                     page_list.append(PageTarget(node.label, node.target))
         elif nav_type == "toc":
             toc = _nav_list(lists[0], nav_path)
+            synthesised = any(
+                isinstance(child, etree._Comment)
+                and SYNTHESISED_TOC_MARK in (child.text or "")
+                for child in nav
+            )
         elif not nav_type and not toc:
             # A `nav` with no `epub:type` at all, and nothing has claimed the
             # contents yet. EPUB 2 conversions produce these.
@@ -1235,7 +1247,7 @@ def _parse_nav_doc(data: bytes, nav_path: str, report: Report):
                         aria_label=(nav.get("aria-label") or "").strip(),
                     )
                 )
-    return toc, landmarks, page_list, extra, labels
+    return toc, landmarks, page_list, extra, labels, synthesised
 
 
 def _nav_list(ol, nav_path: str) -> list[NavPoint]:
@@ -1659,10 +1671,11 @@ def _read_navigation(book: Book, report: Report) -> None:
     """The table of contents from wherever the book keeps it: the navigation
     document first, then the NCX the spine names, then an NCX nothing names."""
     if book.nav_path:
-        toc, landmarks, page_list, extra, labels = _parse_nav_doc(
+        toc, landmarks, page_list, extra, labels, synthesised = _parse_nav_doc(
             book.resources[book.nav_path].data, book.nav_path, report
         )
         book.toc = toc
+        book.toc_synthesised = synthesised
         if landmarks:
             book.landmarks = landmarks
         book.page_list = page_list

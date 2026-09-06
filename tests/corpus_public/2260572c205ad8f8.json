@@ -30,7 +30,7 @@
   "preserve": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 9,
       "warn": 1
     },
@@ -44,12 +44,13 @@
       "profile.body-text-found": 1,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
+      "structure.role-named": 1,
       "xhtml.cover-described": 1,
       "xhtml.cover-fitted": 1,
       "xhtml.image-paragraph-centred-unstyled": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:a6d26958231ccf86e857ea7e0c9daf0ff705fab89b22c8f4d4c79dccf15df3ee",
+    "output": "sha256:9c6a15c3320dd647043cf56310fc4062d94c90570100f13d9d465bb40ff04ec7",
     "text_characters": 35,
     "text_added": 0,
     "text_invariant": true,
@@ -58,7 +59,7 @@
   "strict": {
     "written": true,
     "report": {
-      "info": 3,
+      "info": 4,
       "fix": 9,
       "warn": 1
     },
@@ -72,12 +73,13 @@
       "profile.body-text-found": 1,
       "reader.toc-from-ncx": 1,
       "structure.relaid-out": 1,
+      "structure.role-named": 1,
       "xhtml.cover-described": 1,
       "xhtml.cover-fitted": 1,
       "xhtml.image-paragraph-centred-unstyled": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:a6d26958231ccf86e857ea7e0c9daf0ff705fab89b22c8f4d4c79dccf15df3ee",
+    "output": "sha256:9c6a15c3320dd647043cf56310fc4062d94c90570100f13d9d465bb40ff04ec7",
     "text_characters": 35,
     "text_added": 0,
     "text_invariant": true,

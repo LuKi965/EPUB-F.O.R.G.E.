@@ -227,6 +227,27 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
             values={"count": layout.running_heads},
             location=source,
         )
+    # The reader's own count against the raw one: a character the page draws
+    # and no line of this reader carries is a loss that has not happened yet
+    # and is about to. Said here, with the number, so the K1-PDF refusal that
+    # follows has its reason on record; the refusal itself is the gate's.
+    placed: Counter = Counter()
+    for page in pages:
+        for line in page.lines:
+            for character in line.text:
+                if not character.isspace():
+                    placed[character] += 1
+    unplaced = character_inventory(source) - placed
+    if unplaced:
+        sample = "".join(sorted(unplaced)[:12])
+        report.add(
+            "pdf",
+            Level.WARN,
+            "pdf.characters-unplaced",
+            values={"count": sum(unplaced.values()), "sample": sample},
+            location=source,
+        )
+    report.stats["pdf_characters_unplaced"] = sum(unplaced.values())
     report.stats["pdf_layout"] = layout.__dict__.copy()
     # The words the typesetter broke at a line end, joined as the hyphen
     # stage will meet them (`prze-konaniem`): evidence that stage can use —
@@ -247,6 +268,47 @@ def _line_end_words(pages: list[Page]) -> set[str]:
             if left and right and left != "-":
                 words.add(f"{left}{right.group(0)}".casefold())
     return words
+
+
+def drawn_text(source: str) -> str:
+    """Every character the PDF draws, in the order the page tree holds them.
+
+    Deliberately *not* the reader: no lines, no columns, no reading order —
+    a walk over every `LTChar` the page tree holds, wherever it sits. It is
+    the denominator K1-PDF needs and the reader cannot supply, because a
+    construct the reader does not handle is exactly one it would leave out of
+    its own count (EF-087). What this cannot say is where a character belongs;
+    what it can say is that it existed, and a rebuild that lost it has to
+    answer for it. A string rather than a bag so that the fold both sides of
+    K1 go through — three dots into an ellipsis, among others — sees the
+    dots next to each other.
+    """
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LAParams, LTChar
+
+    pieces: list[str] = []
+
+    def walk(element) -> None:
+        if isinstance(element, LTChar):
+            pieces.append(element.get_text())
+            return
+        try:
+            children = list(element)
+        except TypeError:
+            return
+        for child in children:
+            walk(child)
+        pieces.append(" ")
+
+    for page in extract_pages(source, laparams=LAParams(all_texts=True)):
+        walk(page)
+    return "".join(pieces)
+
+
+def character_inventory(source: str) -> "Counter[str]":
+    """`drawn_text` as a bag, whitespace left out — the reader's own count is
+    held against it in `read_pdf`."""
+    return Counter(character for character in drawn_text(source) if not character.isspace())
 
 
 def text_of(source: str) -> str:
@@ -297,7 +359,13 @@ def _read(source: str):
     skipped = 0
     pages: list[Page] = []
     pictures_seen = 0
-    for number, lt_page in enumerate(extract_pages(source, laparams=LAParams()), 1):
+    # `all_texts`: text inside a Form XObject — a figure, to pdfminer — is
+    # otherwise left as bare characters that no line groups, and this reader
+    # walks lines. The independent audit of 2026-09-05 drew a page whose one
+    # visible sentence sat in a form: the reader did not see it, the output
+    # did not carry it, and K1 — reading through this same reader — said
+    # nothing (EF-087). The inventory below is the second opinion.
+    for number, lt_page in enumerate(extract_pages(source, laparams=LAParams(all_texts=True)), 1):
         page = Page(number=number, width=lt_page.width, height=lt_page.height)
         stack = list(lt_page)
         while stack:

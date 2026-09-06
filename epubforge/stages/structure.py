@@ -13,6 +13,7 @@ import re
 
 from .. import covers, paths
 from ..model import folder_for
+from . import navigation
 from ..report import Action, Level, Risk
 from .base import Context, Stage
 
@@ -141,6 +142,22 @@ class StructureStage(Stage):
         page_path, warning = covers.synthesise_cover_page(ctx.book, ctx.policy)
         ctx.synthesised_cover_page = page_path
         ctx.cover_image_missing = bool(warning)
+        # The same reasoning one step further out (EF-088). A document the
+        # navigation reaches has to be in the spine; putting it there *after*
+        # the numbering meant the second rebuild numbered it, and four shelf
+        # books changed their contents page on a rebuild of a rebuild. The
+        # rule is the navigation stage's and so is the sentence; only the
+        # moment is here, where the spine is still allowed to change.
+        ctx.dropped_nav_entries = navigation.drop_entries_pointing_nowhere(ctx.book)
+        ctx.spined_by_navigation = navigation.spine_what_the_navigation_reaches(ctx.book)
+        # And the last two things the naming reads: a book with no contents of
+        # its own gets them, and where the text begins is settled. Both used to
+        # be produced by the navigation stage — after the naming that consumes
+        # them — so the first rebuild named a document by its stem and the
+        # second, now that the evidence existed, called it `chapter-01`
+        # (EF-088, two shelf books).
+        ctx.synthesised_toc = navigation.synthesise_toc(ctx.book)
+        navigation.ensure_body_start(ctx.book)
         if ctx.policy.reorganize_files:
             self._relayout(ctx)
         ctx.build_path_map()
@@ -567,22 +584,37 @@ def _role_stems(book) -> dict[str, str]:
         item.path for item in book.spine
         if item.path in book.resources and book.resources[item.path].is_content_doc
     ]
+    # `linear="no"` is the publisher saying page-turning must not arrive here:
+    # a colophon, a rights notice, the contents page itself. Such a document is
+    # in the spine and is not a chapter, so it may take a name from evidence
+    # that names it outright (a landmark, its own `epub:type`) and never from
+    # rung 3, which infers chapters from *position between contents entries*.
+    #
+    # This became load-bearing with EF-088. Documents the navigation reaches
+    # join the spine before the numbering now, so for the first time they are
+    # here at all — and the first shelf run named a colophon `chapter-02` and
+    # pushed the real chapter two to `chapter-03`.
+    out_of_flow = {item.path for item in book.spine if not item.linear}
+    inferable = [path for path in documents if path not in out_of_flow]
     roles, body_start = _roles_from_landmarks(book, spine_order)
     _roles_from_epub_type(book, documents, roles)
-    entry_paths = _contents_entry_paths(book, spine_order)
+    entry_paths = [
+        path for path in _contents_entry_paths(book, spine_order)
+        if path not in out_of_flow
+    ]
     seen = set(entry_paths)
     if body_start is None:
-        body_start = _body_start_from_evidence(documents, roles, entry_paths, spine_order)
+        body_start = _body_start_from_evidence(inferable, roles, entry_paths, spine_order)
     starts = sorted(
         {
-            path for path in documents
+            path for path in inferable
             if roles.get(path) == "chapter"
             or (path in seen and body_start is not None
                 and spine_order[path] >= body_start and path not in roles)
         },
         key=lambda path: spine_order[path],
     )
-    return _chapter_names(book, documents, roles, seen, starts, spine_order)
+    return _chapter_names(book, inferable, roles, seen, starts, spine_order)
 
 
 def _roles_from_landmarks(book, spine_order: dict) -> tuple[dict[str, str], int | None]:
@@ -625,6 +657,13 @@ def _contents_entry_paths(book, spine_order: dict) -> list[str]:
     contents order, once each — or nothing when there are fewer than two."""
     entry_paths: list[str] = []
     seen: set[str] = set()
+    if book.toc_synthesised:
+        # Contents this program built from the reading order say where the
+        # documents *are*, not where the chapters begin — that is the one
+        # thing they cannot know. Read as evidence they named every page of a
+        # book without contents `chapter-NN`, and a rebuild reading its own
+        # navigation document did the same one pass late (EF-088).
+        return []
     for root in book.toc:
         for node in root.walk():
             target = node.target_path

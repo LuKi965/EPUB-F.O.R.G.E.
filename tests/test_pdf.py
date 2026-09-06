@@ -45,7 +45,8 @@ def _escape(text: str) -> str:
 def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str]]],
              *, title: str = "", author: str = "", language: str = "",
              images: dict[int, list[tuple]] | None = None,
-             outline: list[tuple[str, int]] | None = None) -> pathlib.Path:
+             outline: list[tuple[str, int]] | None = None,
+             forms: dict[int, list[list[tuple[float, float, float, str]]]] | None = None) -> pathlib.Path:
     """Write *pages*, each a list of ``(x, y, size, text)`` lines, y from the
     page bottom as PDF counts it. *images* puts Flate-compressed RGB pictures
     on a page (by index): ``(x, y, width, height, pixel_width, pixel_height,
@@ -70,6 +71,21 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
             )
             xobjects.append(f"/Im{number} {image} 0 R")
             drawn.append(f"q {width} 0 0 {height} {x} {y} cm /Im{number} Do Q\n")
+        # *forms*: lines drawn through a Form XObject — a list of forms per
+        # page, each a list of ``(x, y, size, text)``. The construct of EF-087,
+        # where a reader walking lines saw nothing at all.
+        for number, form_lines in enumerate((forms or {}).get(index, ()), 1):
+            body = "".join(
+                f"BT /F1 {size} Tf {x} {y} Td ({_escape(text)}) Tj ET\n"
+                for x, y, size, text in form_lines
+            ).encode("cp1252")
+            form = add(
+                f"<< /Type /XObject /Subtype /Form /BBox [0 0 {PAGE[0]} {PAGE[1]}] "
+                f"/Resources << /Font << /F1 {font} 0 R >> >> /Length {len(body)} >>\nstream\n".encode()
+                + body + b"\nendstream"
+            )
+            xobjects.append(f"/Fm{number} {form} 0 R")
+            drawn.append(f"q /Fm{number} Do Q\n")
         stream = ("".join(drawn) + "".join(
             f"BT /F1 {size} Tf {x} {y} Td ({_escape(text)}) Tj ET\n" for x, y, size, text in lines
         )).encode("cp1252")

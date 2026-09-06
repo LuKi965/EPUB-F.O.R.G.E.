@@ -670,6 +670,28 @@ def _drop_forbidden(root) -> None:
             element.tail = xmlchars.legal(element.tail)
 
 
+#: A `<style>` element and everything in it, for the rule below.
+_STYLE_BLOCK = re.compile(r"(<style\b[^>]*>)(.*?)(</style>)", re.DOTALL | re.IGNORECASE)
+
+
+def _unescaped_gt(match: "re.Match") -> str:
+    """`>` inside a `<style>` block, written as itself.
+
+    XML escapes `>` on the way out, which is legal and, inside a stylesheet,
+    wrong twice over. A reading system that parses the document as HTML5 — most
+    of them — sees `<style>` as raw text and gets the selector
+    `.list-1&gt;li`, which matches nothing; and this program, reading its own
+    output back, parses the same selector, finds it matches nothing, and sweeps
+    it as an unreachable rule. That is how a real book lost the styling of
+    every list on a rebuild of a rebuild (EF-088): the first pass wrote the
+    entity, the second deleted the rules it had broken.
+
+    Only `>`, and only here. `&lt;` and `&amp;` stay as they are — those two
+    have to be escaped for the document to parse at all.
+    """
+    return match.group(1) + match.group(2).replace("&gt;", ">") + match.group(3)
+
+
 def serialize(root) -> bytes:
     """Emit well-formed XHTML 5 with a stable namespace declaration set."""
     # Before anything else, because everything after this assumes the tree can
@@ -687,7 +709,7 @@ def serialize(root) -> bytes:
 
     root = _with_default_namespace(root)
     etree.cleanup_namespaces(root, keep_ns_prefixes=["epub", "xlink"])
-    body = etree.tostring(root, encoding="unicode", method="xml")
+    body = _STYLE_BLOCK.sub(_unescaped_gt, etree.tostring(root, encoding="unicode", method="xml"))
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         "<!DOCTYPE html>\n"

@@ -9,6 +9,7 @@ from .. import covers, paths, xhtml, xmlchars
 from ..decisions import KEEP, REFERENCE, Option, Question
 from ..model import Landmark, NavPoint, Resource, SpineItem
 from ..question_texts import say
+from ..reader import SYNTHESISED_TOC_MARK
 from ..report import Action, Automation, Level, Risk
 from ..xhtml import EPUB_NS, XHTML_NS
 from .base import Context, Stage
@@ -95,6 +96,200 @@ def _label_attribute(book, kind: str) -> str:
     return f' aria-label="{_escape(value)}"' if value else ""
 
 
+def spine_what_the_navigation_reaches(book) -> "list[str]":
+    """Put a document the navigation points at into the spine, out of the flow.
+
+    `RSC-011: Found a reference to a resource that is not a spine item` — four
+    books on the mixed shelf, in all three modes, and absent from every
+    source's own verdict because EPUB 2 navigated by NCX and had no such rule.
+    EPUB 3 does: what the table of contents leads to has to be part of the
+    publication's reading order.
+
+    The publisher's intent is not in doubt. They put the document in the
+    manifest and linked it from the navigation, so they meant it to be
+    reachable; they left it out of the spine, so they meant page-turning not to
+    arrive at it. `linear="no"` is the standard's own word for exactly that
+    pair — in the spine, out of the flow — and it is what a cover page, a
+    colophon or a rights notice usually wants.
+
+    So the entry is kept and the document is spined, rather than the entry
+    being dropped. Dropping it is the shorter patch and it deletes the only way
+    to reach a page the book still contains.
+
+    Placed where the navigation implies rather than appended: an entry sits
+    before the next entry that *is* in the spine, so a cover listed first comes
+    out first. Only content documents — a table of contents pointing at an
+    image is a different defect and not one `linear="no"` describes.
+
+    A function rather than a method since EF-088, and called from the structure
+    stage **before** the files are numbered. This used to run afterwards, so
+    the second rebuild found the document in the reading order, numbered it,
+    and four shelf books in a hundred and sixty changed their contents page on
+    a rebuild of a rebuild. Exactly EF-080's shape, one stage along. Returns
+    the paths it added, so the navigation stage can report work it no longer
+    does itself.
+    """
+    placed = {item.path for item in book.spine}
+
+    # Navigation order, which is the order a reader meets these in.
+    wanted: list[str] = []
+    ordered: list[str] = []
+
+    def consider(path: str) -> None:
+        if not path:
+            return
+        ordered.append(path)
+        if path in placed or path in wanted:
+            return
+        resource = book.resources.get(path)
+        if resource is not None and resource.is_content_doc:
+            wanted.append(path)
+
+    roots = list(book.toc) + [root for s in book.extra_navs for root in s.entries]
+    for root in roots:
+        for node in root.walk():
+            consider(node.target_path)
+    # Landmarks and the page list are navigation too, and EPUBCheck does not
+    # distinguish: `RSC-011` is about the navigation *document*, and all three
+    # end up inside it. This used to walk the contents alone, so a book whose
+    # cover page is reached from `<guide>` and never from the table of contents
+    # — which is how EPUB 2 covers are normally wired — went out with a
+    # landmark pointing outside the spine.
+    #
+    # Found on the owner's 67-book collection: four books came out of
+    # `preserve` carrying `RSC-011` where their sources carried none, and all
+    # four had `xhtml.cover-fitted` in their findings. The mechanism was right
+    # and its input was half the navigation.
+    for landmark in book.landmarks:
+        consider(landmark.target.split("#", 1)[0] if landmark.target else "")
+    for page in book.page_list:
+        consider(page.target.split("#", 1)[0] if page.target else "")
+    if not wanted:
+        return []
+
+    for path in wanted:
+        after = ordered.index(path)
+        following = next(
+            (
+                other
+                for other in ordered[after + 1:]
+                if any(item.path == other for item in book.spine)
+            ),
+            None,
+        )
+        where = (
+            next(i for i, item in enumerate(book.spine) if item.path == following)
+            if following is not None
+            else len(book.spine)
+        )
+        book.spine.insert(where, SpineItem(path, linear=False))
+
+    return wanted
+
+
+def document_title(resource) -> str:
+    """A document's own title, as the contents would show it."""
+    text = resource.text()
+    for pattern in (
+        r"<title[^>]*>(.*?)</title>",
+        r"<h1[^>]*>(.*?)</h1>",
+        r"<h2[^>]*>(.*?)</h2>",
+    ):
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            stripped = re.sub(r"<[^>]+>", "", match.group(1))
+            cleaned = html.unescape(re.sub(r"\s+", " ", stripped)).strip()
+            if cleaned:
+                return cleaned[:200]
+    return resource.basename.rpartition(".")[0].replace("-", " ")
+
+
+def drop_entries_pointing_nowhere(book) -> int:
+    """Contents entries whose document is not in the book, dropped.
+
+    The narrow half of `_prune_toc`, and the only half the naming needs: an
+    entry pointing at a file that does not exist says nothing about what the
+    files that *do* exist should be called, and leaving it in changed the
+    answer. On the shelf book that showed it (EF-088), the contents came from
+    an NCX listing documents the archive had lost; pruning them emptied the
+    contents, contents were then synthesised — and both happened after the
+    naming, so the second rebuild named by evidence the first did not have.
+
+    The other half — anchors that no longer resolve — stays in the stage,
+    because it needs ids the content stage has not yet assigned.
+    """
+    dropped = 0
+
+    def prune(nodes: list) -> list:
+        nonlocal dropped
+        kept = []
+        for node in nodes:
+            node.children = prune(node.children)
+            target_path = node.target_path
+            if target_path and target_path not in book.resources:
+                dropped += 1
+                node.target = None
+            if node.target or node.children:
+                kept.append(node)
+            else:
+                dropped += 1
+        return kept
+
+    book.toc = prune(book.toc)
+    for section in book.extra_navs:
+        section.entries = prune(section.entries)
+    return dropped
+
+
+def synthesise_toc(book) -> int:
+    """Contents for a book that has none, from the reading order.
+
+    Called before the files are named (EF-088). The names come from the
+    document's own title or first heading, which is the same string the
+    content stage would later fill an empty `<title>` with — so running early
+    costs no label, and running late cost two shelf books their file names on
+    a second rebuild.
+    """
+    if book.toc:
+        return 0
+    book.toc_synthesised = True
+    entries = [
+        NavPoint(document_title(book.get(item.path)), item.path)
+        for item in book.spine
+        if item.linear
+        and book.get(item.path) is not None
+        and book.get(item.path).is_content_doc
+    ]
+    book.toc = entries
+    return len(entries)
+
+
+def ensure_body_start(book) -> None:
+    """The `bodymatter` landmark, when the book does not carry one.
+
+    Where the text begins is rung 1's evidence for the naming, so it has to be
+    settled before the naming rather than after it (EF-088). The rest of the
+    landmark work — deduplication, the cover — stays in the stage: it is about
+    the navigation document, not about what anything is called.
+    """
+    if any(landmark.epub_type == "bodymatter" for landmark in book.landmarks):
+        return
+    first = next(
+        (
+            item.path
+            for item in book.spine
+            if item.linear
+            and book.get(item.path) is not None
+            and book.get(item.path).is_content_doc
+            and item.path
+            != (book.landmarks[0].target.split("#")[0] if book.landmarks else None)
+        ),
+        None,
+    )
+    if first:
+        book.landmarks.append(Landmark("bodymatter", "Start of Content", first))
+
+
 class NavigationStage(Stage):
     name = "navigation"
 
@@ -106,8 +301,10 @@ class NavigationStage(Stage):
         self._prune_toc(ctx)
         self._repoint_duplicate_targets(ctx)
         self._spine_what_the_navigation_reaches(ctx)
-        if not ctx.book.toc:
-            self._synthesize_toc(ctx)
+        # Unconditional: the structure stage may already have synthesised the
+        # contents (EF-088), in which case the book has them and the count to
+        # report is on the context. The function itself does nothing twice.
+        self._synthesize_toc(ctx)
         self._ensure_landmarks(ctx)
         self._write_nav(ctx)
         if ctx.policy.write_ncx:
@@ -222,6 +419,10 @@ class NavigationStage(Stage):
 
         book.page_list = [p for p in book.page_list if p.target.split("#")[0] in book.resources]
         book.landmarks = [l for l in book.landmarks if l.target.split("#")[0] in book.resources]
+        # Plus whatever the structure stage dropped for the same reason before
+        # the naming (EF-088); one sentence, one count, wherever the work was.
+        removed += ctx.dropped_nav_entries
+        ctx.dropped_nav_entries = 0
         if removed:
             self.note(ctx, Level.FIX, "nav.entry-dropped", values={"count": removed})
         if dangling_fragments:
@@ -327,104 +528,45 @@ class NavigationStage(Stage):
         return found
 
     def _spine_what_the_navigation_reaches(self, ctx: Context) -> None:
-        """Put a document the navigation points at into the spine, out of the flow.
+        """Report the spining `spine_what_the_navigation_reaches` did.
 
-        `RSC-011: Found a reference to a resource that is not a spine item` — four
-        books on the mixed shelf, in all three modes, and absent from every
-        source's own verdict because EPUB 2 navigated by NCX and had no such
-        rule. EPUB 3 does: what the table of contents leads to has to be part of
-        the publication's reading order.
+        The work moved into the structure stage, which runs before the files
+        are numbered: a document added to the spine *after* the numbering had
+        the same shape as EF-080's cover page and the same consequence — the
+        second rebuild found it in the reading order, numbered it, and four
+        shelf books changed their contents page for no reason anybody asked
+        for (EF-088, K3). The rules are still this stage's, so the sentence
+        stays here; only the moment changed.
 
-        The publisher's intent is not in doubt. They put the document in the
-        manifest and linked it from the navigation, so they meant it to be
-        reachable; they left it out of the spine, so they meant page-turning not
-        to arrive at it. `linear="no"` is the standard's own word for exactly
-        that pair — in the spine, out of the flow — and it is what a cover page,
-        a colophon or a rights notice usually wants.
-
-        So the entry is kept and the document is spined, rather than the entry
-        being dropped. Dropping it is the shorter patch and it deletes the only
-        way to reach a page the book still contains.
-
-        Placed where the navigation implies rather than appended: an entry sits
-        before the next entry that *is* in the spine, so a cover listed first
-        comes out first. Only content documents — a table of contents pointing
-        at an image is a different defect and not one `linear="no"` describes.
+        Called again here for a pipeline that runs this stage without the
+        structure one; the function does nothing the second time.
         """
-        book = ctx.book
-        placed = {item.path for item in book.spine}
-
-        # Navigation order, which is the order a reader meets these in.
-        wanted: list[str] = []
-        ordered: list[str] = []
-
-        def consider(path: str) -> None:
-            if not path:
-                return
-            ordered.append(path)
-            if path in placed or path in wanted:
-                return
-            resource = book.resources.get(path)
-            if resource is not None and resource.is_content_doc:
-                wanted.append(path)
-
-        roots = list(book.toc) + [root for s in book.extra_navs for root in s.entries]
-        for root in roots:
-            for node in root.walk():
-                consider(node.target_path)
-        # Landmarks and the page list are navigation too, and EPUBCheck does not
-        # distinguish: `RSC-011` is about the navigation *document*, and all
-        # three end up inside it. This used to walk the contents alone, so a
-        # book whose cover page is reached from `<guide>` and never from the
-        # table of contents — which is how EPUB 2 covers are normally wired —
-        # went out with a landmark pointing outside the spine.
-        #
-        # Found on the owner's 67-book collection: four books came out of
-        # `preserve` carrying `RSC-011` where their sources carried none, and
-        # all four had `xhtml.cover-fitted` in their findings. The mechanism was
-        # right and its input was half the navigation.
-        for landmark in book.landmarks:
-            consider(landmark.target.split("#", 1)[0] if landmark.target else "")
-        for page in book.page_list:
-            consider(page.target.split("#", 1)[0] if page.target else "")
-        if not wanted:
+        added = spine_what_the_navigation_reaches(ctx.book) or ctx.spined_by_navigation
+        if not added:
             return
-
-        for path in wanted:
-            after = ordered.index(path)
-            following = next(
-                (
-                    other
-                    for other in ordered[after + 1:]
-                    if any(item.path == other for item in book.spine)
-                ),
-                None,
-            )
-            where = (
-                next(i for i, item in enumerate(book.spine) if item.path == following)
-                if following is not None
-                else len(book.spine)
-            )
-            book.spine.insert(where, SpineItem(path, linear=False))
-
+        ctx.spined_by_navigation = []
         self.note(
             ctx,
             Level.FIX,
             "nav.unspined-target-added",
-            values={"count": len(wanted), "names": ", ".join(sorted(wanted)[:3])},
+            values={"count": len(added), "names": ", ".join(sorted(added)[:3])},
         )
 
     def _synthesize_toc(self, ctx: Context) -> None:
-        book = ctx.book
-        entries: list[NavPoint] = []
-        for item in book.spine:
-            resource = book.get(item.path)
-            if resource is None or not resource.is_content_doc or not item.linear:
-                continue
-            entries.append(NavPoint(self._document_title(resource), item.path))
-        book.toc = entries
-        if entries:
-            self.note(ctx, Level.FIX, "nav.toc-synthesised", values={"count": len(entries)})
+        """Report the contents `synthesise_toc` built, wherever it was built.
+
+        The work moved to the structure stage for EF-088: a book with no
+        contents of its own got them here, *after* the files were named — and
+        the naming reads the contents to tell a chapter from a front-matter
+        page (D-035, rung 3). So the first rebuild named a document by its own
+        stem and the second, now that contents existed, named it `chapter-01`.
+        Two shelf books, and the same shape as EF-080 and the spining above:
+        evidence produced after the decision that consumes it.
+        """
+        added = synthesise_toc(ctx.book) or ctx.synthesised_toc
+        ctx.synthesised_toc = 0
+        if added:
+            self.note(ctx, Level.FIX, "nav.toc-synthesised", values={"count": added})
 
     def _document_title(self, resource: Resource) -> str:
         text = resource.text()
@@ -439,21 +581,10 @@ class NavigationStage(Stage):
 
     def _ensure_landmarks(self, ctx: Context) -> None:
         book = ctx.book
-        by_type = {landmark.epub_type: landmark for landmark in book.landmarks}
-        if "bodymatter" not in by_type:
-            first_body = next(
-                (
-                    item.path
-                    for item in book.spine
-                    if item.linear
-                    and book.get(item.path)
-                    and book.get(item.path).is_content_doc
-                    and item.path != (book.landmarks[0].target.split("#")[0] if book.landmarks else None)
-                ),
-                None,
-            )
-            if first_body:
-                book.landmarks.append(Landmark("bodymatter", "Start of Content", first_body))
+        # Settled in the structure stage, before the naming that reads it;
+        # called again here for a pipeline without that stage, where it does
+        # the same thing at the later moment.
+        ensure_body_start(book)
 
         # Deduplicated by *type and target*, not by type alone.
         #
@@ -772,12 +903,15 @@ class NavigationStage(Stage):
         return nav_path
 
     def _toc_section(self, book, nav_path: str, language: str) -> list[str]:
-        return [
+        lines = [
             f'    <nav epub:type="toc" id="toc" role="doc-toc"{_label_attribute(book, "toc")}>',
             f"      <h1>{_escape(heading(language, 'toc'))}</h1>",
-            self._render_nav_list(book.toc, nav_path, "      "),
-            "    </nav>",
         ]
+        if book.toc_synthesised:
+            lines.append(f"      <!-- {SYNTHESISED_TOC_MARK} -->")
+        lines.append(self._render_nav_list(book.toc, nav_path, "      "))
+        lines.append("    </nav>")
+        return lines
 
     def _landmarks_section(self, book, nav_path: str, language: str) -> list[str]:
         lines = [
