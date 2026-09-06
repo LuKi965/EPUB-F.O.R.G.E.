@@ -9,6 +9,7 @@ found by a person running it on a real shelf rather than by this suite.
 from __future__ import annotations
 
 import pathlib
+import shutil
 
 import pytest
 
@@ -132,7 +133,11 @@ class TestComparing:
         (books / "A").mkdir(parents=True)
         (books / "B").mkdir()
         make_modern_epub(str(books / "A" / "ta sama.epub"), title="Ta sama")
-        make_modern_epub(str(books / "B" / "ta sama.epub"), title="Ta sama")
+        # The same bytes, copied — not the factory called twice. `writestr`
+        # stamps each entry with the clock, so two calls that straddle a
+        # second are two different files, and this went red on the Windows
+        # runner for exactly that (2026-09-06, bieg 14).
+        shutil.copyfile(books / "A" / "ta sama.epub", books / "B" / "ta sama.epub")
 
         signatures = tmp_path / "sig"
         compare(books, signatures, record=True)
@@ -150,7 +155,11 @@ class TestComparing:
         (books / "A").mkdir(parents=True)
         (books / "B").mkdir()
         make_modern_epub(str(books / "A" / "ta sama.epub"), title="Ta sama")
-        make_modern_epub(str(books / "B" / "ta sama.epub"), title="Ta sama")
+        # The same bytes, copied — not the factory called twice. `writestr`
+        # stamps each entry with the clock, so two calls that straddle a
+        # second are two different files, and this went red on the Windows
+        # runner for exactly that (2026-09-06, bieg 14).
+        shutil.copyfile(books / "A" / "ta sama.epub", books / "B" / "ta sama.epub")
 
         taken = []
         real = corpus.signature
