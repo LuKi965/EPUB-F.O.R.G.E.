@@ -87,6 +87,53 @@ class Run:
 
 
 @dataclass
+class Tally:
+    """What a removal actually did, in the terms a person asks about.
+
+    The owner's rule for this entry (2026-09-06): *„wpis w raporcie ma
+    podawać liczby, nie sam fakt — ile ciągów skrócono i z ilu do ilu"*.
+    A visible change made on somebody's word has to be nameable (K6), and
+    „skrócono ciąg z pięćdziesięciu trzech" is a different fact from
+    „usunięto 181 akapitów".
+
+    Counted per run rather than derived from the rule, so that a change to
+    what `Run.to_remove` returns is reflected here without a second edit:
+    a run nothing is taken from is `untouched`, one that keeps some of its
+    height is `shortened`, one that goes entirely is `dropped`.
+    """
+
+    pieces: int = 0
+    shortened: int = 0
+    dropped: int = 0
+    untouched: int = 0
+    #: The tallest run that was shortened, as it stood before.
+    longest: int = 0
+    #: The most a shortened run came down to (1 today, for every one).
+    left: int = 0
+
+    def saw(self, run: "Run") -> None:
+        going = len(run.to_remove)
+        staying = len(run.paragraphs) - going
+        self.pieces += going
+        if not going:
+            self.untouched += 1
+        elif staying:
+            self.shortened += 1
+            self.longest = max(self.longest, len(run.paragraphs))
+            self.left = max(self.left, staying)
+        else:
+            self.dropped += 1
+
+    def add(self, other: "Tally") -> None:
+        self.pieces += other.pieces
+        self.shortened += other.shortened
+        self.dropped += other.dropped
+        self.untouched += other.untouched
+        self.longest = max(self.longest, other.longest)
+        self.left = max(self.left, other.left)
+
+
+@dataclass
 class Found:
     runs: list = field(default_factory=list)
     breaks: int = 0
@@ -253,6 +300,7 @@ class ParagraphStage(Stage):
         removed = 0
         documents = 0
         removed_by_path: dict[str, int] = {}
+        tally = Tally()
         for resource, _, here in found:
             # Taken fresh and given up: the tree is about to change.
             root = ctx.take(resource).root
@@ -275,9 +323,14 @@ class ParagraphStage(Stage):
                 reversible=False,
             )
             taken = {"count": 0}
+            here_tally = Tally()
 
-            def mutate(resource=resource, root=root, here=here, taken=taken):
+            def mutate(resource=resource, root=root, here=here, taken=taken, here_tally=here_tally):
                 for run in here.runs:
+                    # Counted before the removal, while the run still knows
+                    # its height; merged into the book's tally only if the
+                    # contract lets the change stand.
+                    here_tally.saw(run)
                     taken["count"] += remove(run)
                 resource.data = xhtml.serialize(root)
                 return taken["count"]
@@ -297,17 +350,36 @@ class ParagraphStage(Stage):
                 removed += made
                 documents += 1
                 removed_by_path[resource.path] = made
+                tally.add(here_tally)
         if not removed:
             return
-        self.note(ctx, Level.FIX, "paragraphs.empty-runs-removed",
-                  values={"count": removed, "documents": documents, "breaks": breaks})
+        self.note(
+            ctx, Level.FIX, "paragraphs.empty-runs-removed",
+            values={
+                "count": removed,
+                "documents": documents,
+                "breaks": breaks,
+                "shortened": tally.shortened,
+                "longest": tally.longest,
+                "left": tally.left,
+                "dropped": tally.dropped,
+                "untouched": tally.untouched,
+            },
+        )
         ctx.report.stats["space_removed"] = removed_by_path
         self.changed(
             ctx,
             Action.REMOVED,
             "structure",
-            before=f"{removed} × pusty akapit w ciagach, na brzegu albo przy naglowku",
-            after="usuniete; pojedyncze przerwy miedzy akapitami zostaly",
+            before=(
+                f"{removed} × pusty akapit: {tally.shortened} ciąg(ów) między akapitami "
+                f"(najdłuższy {tally.longest}), {tally.dropped} na brzegu albo przy nagłówku"
+            ),
+            after=(
+                f"ciąg między akapitami → {tally.left} pusta linia; "
+                f"{tally.untouched} ciąg(ów) zostawionych bez zmiany wysokości; "
+                f"{breaks} pojedynczych przerw nietkniętych"
+            ),
             automation=automation,
             risk=Risk.APPEARANCE,
             reversible=False,

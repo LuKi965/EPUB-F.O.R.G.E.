@@ -223,13 +223,43 @@ class TestRemoving:
         assert "package.text-lost" not in rules_of(result)
         assert "package.prose-changed" not in rules_of(result)
 
-    def test_the_report_and_the_ledger_say_how_many(self, tmp_path):
+    def test_the_report_says_how_many_runs_and_from_how_many_to_how_many(self, tmp_path):
+        """The owner's rule for this entry: numbers, not the bare fact.
+        A visible change made on somebody's word has to be nameable (K6),
+        and "a run of fifty-three came down to one" is a different fact
+        from "181 paragraphs were removed"."""
         result = rebuilt(book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, empty_paragraph_runs="remove")
         removed = next(f for f in result.report.findings if f.rule == "paragraphs.empty-runs-removed")
-        assert removed.values == {"count": 11, "documents": 1, "breaks": 1}
+        assert removed.values == {
+            "count": 11, "documents": 1, "breaks": 1,
+            # One run between paragraphs (three high) came down to one; the
+            # two edge runs and the one beside the heading went whole.
+            "shortened": 1, "longest": 3, "left": 1, "dropped": 3, "untouched": 0,
+        }
+        assert "1 run(s) between paragraphs were shortened" in removed.message
+        assert "from 3 to 1" in removed.message
+
+    def test_the_ledger_carries_the_same_numbers(self, tmp_path):
+        result = rebuilt(book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, empty_paragraph_runs="remove")
         entry = [c for c in result.report.changes if c.rule == "paragraphs.empty-runs-removed"]
         assert len(entry) == 1 and not entry[0].reversible
+        assert "najdłuższy 3" in entry[0].before and "3 na brzegu" in entry[0].before
+        assert "→ 1 pusta linia" in entry[0].after
         assert result.report.stats["space_removed"] == {"EPUB/text/0000-chapter.xhtml": 11}
+
+    def test_the_tallest_run_is_named_even_among_many(self, tmp_path):
+        """One book on the owner's shelf holds a run of fifty-three. The
+        entry names the tallest that was shortened, not the average."""
+        body = (
+            "<p>a</p>" + EMPTY * 2 + "<p>b</p>" + EMPTY * 9 + "<p>c</p>"
+            + EMPTY * 4 + "<p>d</p>"
+        )
+        result = rebuilt(book(tmp_path / "in.epub", body), tmp_path, empty_paragraph_runs="remove")
+        removed = next(f for f in result.report.findings if f.rule == "paragraphs.empty-runs-removed")
+        assert removed.values["shortened"] == 3
+        assert removed.values["longest"] == 9
+        assert removed.values["left"] == 1
+        assert removed.values["dropped"] == 0
 
     def test_text_in_a_tail_is_not_lost(self, tmp_path):
         """A converter's empty paragraph with words after it, outside any
