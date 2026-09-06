@@ -402,7 +402,10 @@ def _classify(
     # both were being called confirmed on a count of one. Two is the
     # threshold, and it applies only to the shape that needs it.
     enough = elsewhere >= (2 if compound_shape else 1)
-    if run and elsewhere <= hyphenated:
+    if run and (
+        elsewhere <= hyphenated
+        or dictionaries.is_a_word(near + far, language) is False
+    ):
         # For a run the book's "joined form" is very often the book's own
         # damage of the opposite kind: `face-toface` four times in a book
         # that writes `face-to-face` — a converter that dropped the writer's
@@ -411,7 +414,12 @@ def _classify(
         # (`wellto-do`, `letterof-rights`, `side-byside`). A spelling the
         # writer uses is written consistently and a break happens once, so
         # the joined form has to outnumber the hyphenated run — which the
-        # run's own occurrence already counts toward.
+        # run's own occurrence already counts toward. And where there is a
+        # dictionary, the two parts joined have to be a word in it: the same
+        # shelf book wrote `twelve-yearsolder` four times over, and four
+        # copies of a damage are still not a spelling (DROGA 6.4: "when the
+        # joined neighbouring parts are a word in the dictionary"). No
+        # dictionary — Dutch on the owner's shelf — leaves the count alone.
         enough = False
 
     if enough:

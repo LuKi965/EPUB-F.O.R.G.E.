@@ -25,11 +25,11 @@ from epubforge.decisions import KEEP, Answer, Queue
 from epubforge.hyphens import CONFIRMED, LIKELY, UNCERTAIN, find, vocabulary
 
 
-def candidates(*sentences, where="r.xhtml"):
+def candidates(*sentences, where="r.xhtml", language="pl_PL"):
     words = vocabulary(sentences)
     found = []
     for text in sentences:
-        found.extend(find(text, where=where, words=words))
+        found.extend(find(text, where=where, words=words, language=language))
     return found
 
 
@@ -235,6 +235,7 @@ class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
         found = candidates(
             "He was a fel-low-creature after all.",
             "A fellow-creature, and a fellow-creature again.",
+            language="en_US",
         )
         confirmed = [c for c in found if c.confidence == CONFIRMED]
         assert len(confirmed) == 1, [(c.word, c.left, c.right, c.confidence) for c in found]
@@ -246,6 +247,7 @@ class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
         found = candidates(
             "The bedroom-win-dow was open.",
             "The bedroom-window faced the yard; the bedroom-window was old.",
+            language="en_US",
         )
         confirmed = [c for c in found if c.confidence == CONFIRMED]
         assert [(c.word, c.joined) for c in confirmed] == [("bedroom-win-dow", "bedroom-window")]
@@ -261,6 +263,24 @@ class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
             "Once more we meet face-toface, the man said.",
         )
         assert all(c.confidence != CONFIRMED for c in found), [(c.joined, c.confidence) for c in found]
+
+    @pytest.mark.skipif(
+        not hyphens.dictionaries.available("en_US"),
+        reason="ten test mierzy, co słownik dokłada — bez słownika nie ma czego mierzyć",
+    )
+    def test_four_copies_of_a_damage_are_still_not_a_spelling(self):
+        """`twelve-yearsolder` four times in one shelf book, `twelve-years-older`
+        once: the count says spelling, the dictionary says `yearsolder` is
+        nothing. Where there is a dictionary the joined neighbours have to be
+        a word in it; where there is none (Dutch), the count stands alone."""
+        found = candidates(
+            "He was twelve-years-older than her.",
+            "twelve-yearsolder, twelve-yearsolder, twelve-yearsolder and twelve-yearsolder.",
+            language="en_US",
+        )
+        assert not [c for c in found if c.confidence == CONFIRMED and c.word == "twelve-years-older"], [
+            (c.joined, c.confidence) for c in found
+        ]
 
     def test_a_run_with_a_one_letter_piece_is_nobody_s_candidate(self):
         """`O-li-ver!` shouted syllable by syllable, `s-s-spo-tkamy` stammered:
@@ -283,7 +303,10 @@ class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
         """`_CANDIDATE` must not also match the tail of a run — `low-creature`
         inside `fel-low-creature` — because a join of that would write into
         the middle of a longer word, which is the EF-088 shape exactly."""
-        found = candidates("He was a fel-low-creature after all.", "fellow-creature twice: fellow-creature.")
+        found = candidates(
+            "He was a fel-low-creature after all.", "fellow-creature twice: fellow-creature.",
+            language="en_US",
+        )
         assert not {c.word for c in found} & {"low-creature", "fel-low"}, [c.word for c in found]
 
     @pytest.mark.parametrize("run", ["1939-1945-1950", "pkt-1-a", "A-b-c"])
