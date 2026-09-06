@@ -216,3 +216,136 @@ class TestTheConfidenceBucketsAreHonest:
     def test_the_real_ones_from_the_shelf_are_never_confirmed(self, word):
         found = by_word(f"Zdanie o {word} i tyle.")
         assert all(c.confidence != CONFIRMED for c in found.values()), word
+
+
+class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
+    """DROGA 6.4. `fellow-creature` is the writer's; a converter that wraps
+    lines broke it again into `fel-low-creature`, and a detector that saw
+    only `(\\w+)-(\\w+)` between non-word characters could not see the run at
+    all — neither hyphen was a candidate, and the word stayed broken in every
+    book measured on 2026-09-06 that had one.
+
+    A run yields one candidate per hyphen. Each is judged by the two parts
+    beside it, exactly as a plain candidate's halves are, and joins that
+    hyphen alone: the candidate's `word` is the whole run and its `joined`
+    is the run with one hyphen fewer.
+    """
+
+    def test_the_book_s_own_spelling_confirms_the_converter_s_hyphen(self):
+        found = candidates(
+            "He was a fel-low-creature after all.",
+            "A fellow-creature, and a fellow-creature again.",
+        )
+        confirmed = [c for c in found if c.confidence == CONFIRMED]
+        assert len(confirmed) == 1, [(c.word, c.left, c.right, c.confidence) for c in found]
+        assert confirmed[0].word == "fel-low-creature"
+        assert confirmed[0].joined == "fellow-creature"
+        assert "fellow-creature" in confirmed[0].reason
+
+    def test_the_break_may_sit_at_the_second_hyphen(self):
+        found = candidates(
+            "The bedroom-win-dow was open.",
+            "The bedroom-window faced the yard.",
+        )
+        confirmed = [c for c in found if c.confidence == CONFIRMED]
+        assert [(c.word, c.joined) for c in confirmed] == [("bedroom-win-dow", "bedroom-window")]
+
+    def test_the_writer_s_hyphen_in_the_same_run_is_not_confirmed(self):
+        """The other hyphen of `fel-low-creature` is the writer's, and nothing
+        in the book says otherwise: it may be counted, never recommended."""
+        found = candidates(
+            "He was a fel-low-creature after all.",
+            "A fellow-creature, and a fellow-creature again.",
+        )
+        others = [c for c in found if c.joined != "fellow-creature"]
+        assert all(c.confidence != CONFIRMED for c in others), [(c.joined, c.confidence) for c in others]
+
+    def test_a_run_is_not_a_plain_candidate_as_well(self):
+        """`_CANDIDATE` must not also match the tail of a run — `low-creature`
+        inside `fel-low-creature` — because a join of that would write into
+        the middle of a longer word, which is the EF-088 shape exactly."""
+        found = candidates("He was a fel-low-creature after all.", "fellow-creature twice: fellow-creature.")
+        assert not {c.word for c in found} & {"low-creature", "fel-low"}, [c.word for c in found]
+
+    @pytest.mark.parametrize("run", ["1939-1945-1950", "pkt-1-a", "A-b-c"])
+    def test_the_structural_guards_hold_for_every_hyphen_of_a_run(self, run):
+        """A digit anywhere in the run, a single letter beside the hyphen: the
+        same shapes that keep a plain candidate out keep every hyphen of a run
+        out, whatever the book writes elsewhere."""
+        found = candidates(f"Zapis {run} i tyle.", f"{run.replace('-', '', 1)} raz.")
+        assert not [c for c in found if c.word == run], [(c.word, c.confidence) for c in found]
+
+    def test_the_writer_s_abbreviation_stays_when_the_converter_s_hyphen_goes(self):
+        """`ul-tra-HD`: the join removes the converter's hyphen and nothing
+        else, so `ultra-HD` keeps the hyphen before the abbreviation — the
+        guard on capitals is asked of the parts beside *this* hyphen."""
+        found = candidates("Film w ul-tra-HD.", "Nagranie ultra-HD i ultra-HD.")
+        confirmed = [c for c in found if c.confidence == CONFIRMED]
+        assert [(c.word, c.joined) for c in confirmed] == [("ul-tra-HD", "ultra-HD")]
+
+    def test_two_breaks_in_one_run_are_two_candidates_with_the_same_word(self):
+        """`to-mor-row`: both hyphens are the converter's. Each is its own
+        candidate on the same `word`, judged by its own neighbours; the stage
+        joins one per pass (a run is changed at most once by one answer)
+        and meets the other next time."""
+        found = candidates("See you to-mor-row.", "tomorrow and tomorrow and tomorrow.")
+        for candidate in found:
+            assert candidate.word == "to-mor-row"
+        assert {c.joined for c in found} == {"tomor-row", "to-morrow"}
+
+    def test_the_run_written_whole_elsewhere_is_not_evidence_for_any_one_hyphen(self):
+        """`O-li-ver` on the public corpus: a name shouted syllable by
+        syllable, in a book that writes `Oliver` 260 times. The same shape
+        as a word broken twice, and the book cannot tell them apart — so
+        the whole is not evidence, and nothing here is confirmed."""
+        found = candidates("„O-li-ver!” he cried.", "Oliver, Oliver, Oliver, Oliver.")
+        assert all(c.confidence != CONFIRMED for c in found), [(c.joined, c.confidence) for c in found]
+
+
+@pytest.mark.skipif(
+    not hyphens.dictionaries.available("en_US"),
+    reason="ten test mierzy, co słownik dokłada — bez słownika nie ma czego mierzyć",
+)
+class TestTheTypesetterSLineEndIsEvidenceOfItsOwn:
+    """From a PDF the reader knows which hyphens stood at a line end. With the
+    joined form in the dictionary that settles the hyphen (D-052). Without it
+    — a spelling before the reform, a name, a word the list lacks — the
+    acceptance measurement of 2026-09-06 lost thirty-eight of ninety-nine
+    words to silence. Now the break is `LIKELY` with a reason that names the
+    line end, so the class is put to a person once and not dropped.
+    """
+
+    def test_a_line_end_break_the_dictionary_knows_is_confirmed(self):
+        found = find(
+            "The win-dow was open.", where="r.xhtml", words=vocabulary(["The win-dow was open."]),
+            language="en_US", line_end={"win-dow"},
+        )
+        assert [c.confidence for c in found] == [CONFIRMED]
+        assert "końcu wiersza" in found[0].reason
+
+    def test_a_line_end_break_the_dictionary_does_not_know_is_likely_not_silent(self):
+        text = "Old xylo-brandt stood there."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            line_end={"xylo-brandt"},
+        )
+        assert [c.confidence for c in found] == [LIKELY], [(c.word, c.confidence, c.reason) for c in found]
+        assert "końcu wiersza" in found[0].reason
+        assert "słownik nie zna" in found[0].reason
+
+    def test_the_same_word_away_from_a_line_end_is_judged_as_before(self):
+        text = "Old xylo-brandt stood there."
+        found = find(text, where="r.xhtml", words=vocabulary([text]), language="en_US")
+        assert not any("końcu wiersza" in c.reason for c in found)
+
+    def test_a_run_broken_at_its_second_hyphen_matches_what_the_reader_recorded(self):
+        """The reader records the last token before the break with the first
+        word after it: `bedroom-win-` + `dow` → `bedroom-win-dow`. That is the
+        run up to the break, and it is one of the two shapes looked up."""
+        text = "The bedroom-win-dow was open."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            line_end={"bedroom-win-dow"},
+        )
+        confirmed = [c for c in found if c.confidence == CONFIRMED]
+        assert [(c.word, c.joined) for c in confirmed] == [("bedroom-win-dow", "bedroom-window")]

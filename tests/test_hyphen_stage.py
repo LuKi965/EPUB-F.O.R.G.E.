@@ -585,3 +585,55 @@ class TestTheClassesWithoutEvidence:
         )
         assert "ping-pong" in text_of(result)
         assert "savoir-vivre" in text_of(result)
+
+
+class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
+    """DROGA 6.4, the whole way through the stage: a run's converter hyphen
+    is put to a person and joined on their answer, and the writer's hyphen in
+    the same word stays."""
+
+    BOOK = (
+        "<p>He was a fel-low-creature after all, she said.</p>"
+        "<p>A fellow-creature is a fellow-creature whatever it does.</p>"
+    )
+
+    def test_the_converter_s_hyphen_goes_and_the_writer_s_stays(self, tmp_path):
+        asker = Joins()
+        result = rebuild_with(book(tmp_path / "in.epub", self.BOOK), tmp_path, asker)
+        text = text_of(result)
+        assert "fel-low" not in text
+        assert text.count("fellow-creature") == 3
+        assert "hyphens.joined" in rules_of(result)
+
+    def test_the_question_names_the_whole_run_and_what_it_becomes(self, tmp_path):
+        asker = Joins()
+        rebuild_with(book(tmp_path / "in.epub", self.BOOK), tmp_path, asker)
+        asked = [q for q in asker.asked if q.group.startswith("hyphen")]
+        assert len(asked) == 1, [q.summary for q in asked]
+        assert "fel-low-creature" in asked[0].summary
+        assert "fellow-creature" in asked[0].summary + asked[0].detail
+
+    @pytest.mark.skipif(
+        not dictionaries.available("pl_PL"),
+        reason="ten test mierzy, co słownik dokłada — bez słownika nie ma czego mierzyć",
+    )
+    def test_two_converter_hyphens_in_one_run_take_two_rebuilds(self, tmp_path):
+        """`roz-wią-zanie` is two candidates on one word, each judged by its
+        own neighbours: `wią` is not a word and `wiązanie` is, so the second
+        hyphen goes first; then `roz-wiązanie` is a plain candidate for the
+        next rebuild. A run is changed once per pass by the answer given for
+        it, which is what the whole-word join can say about itself, and K3
+        can measure."""
+        source = book(
+            tmp_path / "in.epub",
+            "<p>Znalazł roz-wią-zanie, jak zawsze.</p>",
+        )
+        first = rebuild_with(source, tmp_path, Joins())
+        text = text_of(first)
+        assert "roz-wią-zanie" not in text
+        assert "roz-wiązanie, jak" in text
+        second = rebuild(
+            first.output_path, str(tmp_path / "again.epub"),
+            Policy.preset("preserve", validate_before_publish="off"), asker=Joins(),
+        )
+        assert "rozwiązanie, jak" in text_of(second)

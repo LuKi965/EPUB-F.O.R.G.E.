@@ -54,6 +54,18 @@ _CANDIDATE = re.compile(r"(?<![\w-])(\w+)-(\w+)(?![\w-])", re.UNICODE)
 _CUT_AT_END = re.compile(r"(?<![\w-])(\w+)-$", re.UNICODE)
 _STARTS_A_WORD = re.compile(r"^(\w+)(?![-])", re.UNICODE)
 
+#: A run of three or more parts — a word with a hyphen of its own that a
+#: converter broke a second time: `fel-low-creature`, `bedroom-win-dow`,
+#: `five-and-twen-ty`. `_CANDIDATE` sees one hyphen between non-word
+#: characters and nothing else, so such a run was nobody's candidate, and
+#: the old substring join "repaired" it only by accident, on the strength of
+#: an answer about a different word (61 of the 99 words the acceptance
+#: measurement of 2026-09-06 lost when that accident was closed). Each
+#: hyphen of the run is a candidate of its own: the two parts beside it are
+#: judged exactly as a plain candidate's halves, and the join removes that
+#: one hyphen and leaves the rest of the run as written.
+_RUN = re.compile(r"(?<![\w-])(\w+(?:-\w+){2,})(?![\w-])", re.UNICODE)
+
 #: Words split by this, for the "does the joined form appear elsewhere" test.
 _WORD = re.compile(r"\w+(?:-\w+)*", re.UNICODE)
 
@@ -205,6 +217,12 @@ def wanted_words(texts) -> "set[str]":
             wanted.add(_fold(left + right))
             wanted.add(_fold(f"{left}-{right}"))
             wanted.add(_fold(left))
+        for match in _RUN.finditer(text):
+            pieces = match.group(1).split("-")
+            wanted.add(_fold(match.group(1)))
+            for index in range(len(pieces) - 1):
+                wanted.add(_fold("-".join(pieces[: index + 1]) + "-".join(pieces[index + 1 :])))
+                wanted.add(_fold(pieces[index]))
     return wanted
 
 
@@ -276,93 +294,25 @@ def find(
     markup containing a hyphen; `<span>obo-</span>jętna` is the very defect this
     module exists for, produced by converters that wrap each line of a PDF.
     Telling them apart is `find_across`'s job; not looking was this one's bug.
+
+    Two shapes. A word with one hyphen (`_CANDIDATE`) is judged as a whole. A
+    run of three or more parts (`_RUN`) — a word with a hyphen of its own that
+    a converter broke a second time, `fel-low-creature` — yields one candidate
+    per hyphen: the two parts beside it are judged exactly as a plain
+    candidate's halves, and the join removes that hyphen alone, so the
+    candidate's `word` is the whole run and its `joined` is the run with one
+    hyphen fewer. Where two hyphens of one run are both joined, the first
+    answer wins the pass and the second is met on the next rebuild — one
+    change to a run at a time, which is what the whole-word join can say
+    about itself.
     """
     found: list[Candidate] = []
     for match in _CANDIDATE.finditer(text):
         left, right = match.group(1), match.group(2)
-        if _never_a_candidate(left, right) is not None:
+        verdict = _classify(left, right, left, right, match.group(0), words, language, line_end)
+        if verdict is None:
             continue
-
-        elsewhere = words.get(_fold(left + right), 0)
-        hyphenated = words.get(_fold(f"{left}-{right}"), 0)
-
-        compound_shape = _reads_as_a_compound(left) is not None
-        # One occurrence is thin evidence where both spellings are legitimate
-        # Polish. Measured on the owner's shelf: `czerwonawo-złote` against a
-        # single `czerwonawozłote`, `złocisto-brązowe` against a single
-        # `złocistobrązowe` — both compounds a writer may set either way, and
-        # both were being called confirmed on a count of one. Two is the
-        # threshold, and it applies only to the shape that needs it.
-        enough = elsewhere >= (2 if compound_shape else 1)
-
-        if enough:
-            # The book's own answer, and it outranks the heuristic below —
-            # including the linking vowel, which is how the first version of
-            # this module missed two of the audit's three examples.
-            confidence = CONFIRMED
-            reason = (
-                f"ta książka pisze „{left}{right}” bez łącznika "
-                f"{elsewhere}× — więc to jest to słowo"
-            )
-        elif (
-            line_end
-            and _fold(match.group(0)) in line_end
-            and dictionaries.is_a_word(left + right, language) is True
-        ):
-            # The PDF reader put this hyphen at a line end: the typesetter
-            # broke the word there, and the joined form is in the dictionary.
-            # Without this the first half being a word (`nie-`, `po-`,
-            # `przy-`) kept the candidate out of `CONFIRMED`; measured on
-            # the corpus typeset with pyphen: 22–30 % of the breaks in the
-            # Polish books were left that way. A compound broken at its own
-            # hyphen has no joined form in the dictionary and is not here.
-            confidence = CONFIRMED
-            reason = (
-                f"skład PDF-a przełamał „{left}{right}” na końcu wiersza, "
-                f"a „{left}{right}” jest w słowniku — łącznik jest z łamania, nie od autora"
-            )
-        elif dictionaries.half_is_not_a_word(left, left + right, language):
-            # The dictionary settles it without anybody being asked. A compound
-            # whose first half is not a word does not exist, so the hyphen came
-            # from a converter and not from a writer — which is exactly the
-            # evidence the book itself could not give for a word it uses once.
-            #
-            # Measured on the owner's Book 2: this alone recovers `doboro-wym`,
-            # `przeko-naniem` and `wspo-minał`, three of the six artefacts that
-            # were being dropped without a trace.
-            confidence = CONFIRMED
-            reason = (
-                f"„{left}” nie jest słowem, a „{left}{right}” jest — "
-                f"więc łącznik wstawiła konwersja, nie autor"
-            )
-        elif compound_shape:
-            # The shape says compound and the dictionary could not rule it out.
-            # Not a candidate — for now, and the "for now" is the honest part.
-            #
-            # EF-028 asks for this branch to produce `UNCERTAIN` instead of
-            # nothing, because a real artefact whose shape reads as a compound
-            # currently leaves no trace. The measurement says why that is not a
-            # one-line change: `nie-wielkich` (an artefact on the owner's shelf)
-            # and `pseudo-naukowy` (a word nobody may touch) are **identical**
-            # to every signal available — both halves are words, the joined form
-            # is a word, and the shape is the same. Promoting the whole branch
-            # would put every `pseudo-`, `eks-` and `pół-` in the queue as a
-            # question, which is a worse tool than one that misses six words.
-            #
-            # D-012: the threshold is to be **measured** on the owner's corpus
-            # after the dictionary lands, not guessed. This is where it goes.
-            continue
-        elif hyphenated > 3:
-            # The same hyphenation four times over is a spelling this book uses.
-            # A line break does not fall in the same place four times.
-            continue
-        else:
-            confidence = LIKELY if words.get(_fold(left), 0) == 0 else UNCERTAIN
-            reason = (
-                "nigdzie w książce nie ma ani „{0}{1}”, ani „{0}” osobno".format(left, right)
-                if confidence == LIKELY
-                else f"„{left}” występuje w książce samodzielnie — może być złożeniem"
-            )
+        confidence, reason, elsewhere = verdict
         found.append(
             Candidate(
                 word=match.group(0),
@@ -375,7 +325,156 @@ def find(
                 joined_elsewhere=elsewhere,
             )
         )
+    for match in _RUN.finditer(text):
+        run = match.group(1)
+        pieces = run.split("-")
+        for index in range(len(pieces) - 1):
+            near, far = pieces[index], pieces[index + 1]
+            left, right = "-".join(pieces[: index + 1]), "-".join(pieces[index + 1 :])
+            verdict = _classify(
+                near, far, left, right, "-".join(pieces[: index + 2]), words, language, line_end,
+            )
+            if verdict is None:
+                continue
+            confidence, reason, elsewhere = verdict
+            found.append(
+                Candidate(
+                    word=run,
+                    left=left,
+                    right=right,
+                    where=where,
+                    context=_context(text, match.start(), match.end()),
+                    confidence=confidence,
+                    reason=reason,
+                    joined_elsewhere=elsewhere,
+                )
+            )
     return found
+
+
+def _classify(
+    near: str, far: str, left: str, right: str, up_to_break: str,
+    words: Counter, language: str, line_end: "set[str] | None",
+) -> "tuple[str, str, int] | None":
+    """What the evidence says about one hyphen: `(confidence, reason, how
+    often the joined form appears elsewhere)`, or `None` for a hyphen that is
+    nobody's candidate.
+
+    *near* and *far* are the two parts beside the hyphen — the whole word's
+    halves for a plain candidate, the two neighbouring parts of a run — and
+    every structural and dictionary question is asked of them. *left* and
+    *right* are everything before and after the hyphen, which is what the
+    joined form is made of. *up_to_break* is the text from the start of the
+    word to the end of *far*: the shape the PDF reader records for a hyphen
+    that stood at a line end.
+
+    A run with every hyphen removed is deliberately *not* evidence for any
+    one of them. Measured on the public corpus: `O-li-ver` — a name shouted
+    syllable by syllable, the writer's device — sits in a book that writes
+    `Oliver` 260 times, and that shape is identical to a word a converter
+    broke twice. The book cannot tell them apart, so the two hyphens of
+    `to-mor-row` are settled one at a time by their own neighbours (the
+    dictionary knows `morrow`), and the second is met on the next rebuild.
+    """
+    if _never_a_candidate(near, far) is not None:
+        return None
+
+    elsewhere = words.get(_fold(left + right), 0)
+    hyphenated = words.get(_fold(f"{left}-{right}"), 0)
+    at_line_end = bool(line_end) and (
+        _fold(f"{near}-{far}") in line_end or _fold(up_to_break) in line_end
+    )
+
+    compound_shape = _reads_as_a_compound(near) is not None
+    # One occurrence is thin evidence where both spellings are legitimate
+    # Polish. Measured on the owner's shelf: `czerwonawo-złote` against a
+    # single `czerwonawozłote`, `złocisto-brązowe` against a single
+    # `złocistobrązowe` — both compounds a writer may set either way, and
+    # both were being called confirmed on a count of one. Two is the
+    # threshold, and it applies only to the shape that needs it.
+    enough = elsewhere >= (2 if compound_shape else 1)
+
+    if enough:
+        # The book's own answer, and it outranks the heuristic below —
+        # including the linking vowel, which is how the first version of
+        # this module missed two of the audit's three examples.
+        return (
+            CONFIRMED,
+            f"ta książka pisze „{left}{right}” bez łącznika {elsewhere}× — więc to jest to słowo",
+            elsewhere,
+        )
+    if at_line_end and dictionaries.is_a_word(near + far, language) is True:
+        # The PDF reader put this hyphen at a line end: the typesetter
+        # broke the word there, and the joined form is in the dictionary.
+        # Without this the first half being a word (`nie-`, `po-`,
+        # `przy-`) kept the candidate out of `CONFIRMED`; measured on
+        # the corpus typeset with pyphen: 22–30 % of the breaks in the
+        # Polish books were left that way. A compound broken at its own
+        # hyphen has no joined form in the dictionary and is not here.
+        return (
+            CONFIRMED,
+            f"skład PDF-a przełamał „{near}{far}” na końcu wiersza, "
+            f"a „{near}{far}” jest w słowniku — łącznik jest z łamania, nie od autora",
+            elsewhere,
+        )
+    if dictionaries.half_is_not_a_word(near, near + far, language):
+        # The dictionary settles it without anybody being asked. A compound
+        # whose first half is not a word does not exist, so the hyphen came
+        # from a converter and not from a writer — which is exactly the
+        # evidence the book itself could not give for a word it uses once.
+        #
+        # Measured on the owner's Book 2: this alone recovers `doboro-wym`,
+        # `przeko-naniem` and `wspo-minał`, three of the six artefacts that
+        # were being dropped without a trace.
+        return (
+            CONFIRMED,
+            f"„{near}” nie jest słowem, a „{near}{far}” jest — "
+            f"więc łącznik wstawiła konwersja, nie autor",
+            elsewhere,
+        )
+    if at_line_end:
+        # The typesetter broke the word here and the dictionary does not
+        # know the joined form — a spelling from before the reform
+        # (`nieprzy-szedł`, `wy-tłómaczyłem`), a name, a word the list
+        # lacks (`manufac-tories`). Thirty-eight of the ninety-nine words
+        # the acceptance measurement of 2026-09-06 lost were this shape.
+        # Not confirmed: the break is the typesetter's, the word is not the
+        # dictionary's, and the person answers for the class at once.
+        return (
+            LIKELY,
+            f"skład PDF-a przełamał „{near}{far}” na końcu wiersza, "
+            f"ale słownik nie zna „{near}{far}” — pisownia, której słownik nie ma, "
+            f"albo inne słowo; decyzja należy do człowieka",
+            elsewhere,
+        )
+    if compound_shape:
+        # The shape says compound and the dictionary could not rule it out.
+        # Not a candidate — for now, and the "for now" is the honest part.
+        #
+        # EF-028 asks for this branch to produce `UNCERTAIN` instead of
+        # nothing, because a real artefact whose shape reads as a compound
+        # currently leaves no trace. The measurement says why that is not a
+        # one-line change: `nie-wielkich` (an artefact on the owner's shelf)
+        # and `pseudo-naukowy` (a word nobody may touch) are **identical**
+        # to every signal available — both halves are words, the joined form
+        # is a word, and the shape is the same. Promoting the whole branch
+        # would put every `pseudo-`, `eks-` and `pół-` in the queue as a
+        # question, which is a worse tool than one that misses six words.
+        #
+        # D-012: the threshold is to be **measured** on the owner's corpus
+        # after the dictionary lands, not guessed. This is where it goes.
+        return None
+    if hyphenated > 3:
+        # The same hyphenation four times over is a spelling this book uses.
+        # A line break does not fall in the same place four times.
+        return None
+    confidence = LIKELY if words.get(_fold(near), 0) == 0 else UNCERTAIN
+    reason = (
+        "nigdzie w książce nie ma ani „{0}{1}”, ani „{0}” osobno".format(near, far)
+        if confidence == LIKELY
+        else f"„{near}” występuje w książce samodzielnie — może być złożeniem"
+    )
+    return confidence, reason, elsewhere
 
 
 def question_for(candidate: Candidate):
