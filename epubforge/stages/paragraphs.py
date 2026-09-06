@@ -11,16 +11,18 @@ runs of five and more average some fifty pieces each).
 What becomes of the runs is `Policy.empty_paragraph_runs` — `keep` (the
 default: nothing moves, the report counts), `ask` (one question per book,
 with the neighbourhood of the runs shown), `remove` (the standing answer
-for a batch). Removing a run between two blocks of text leaves **one**
-empty paragraph standing, so that a break the writer may have meant is
-still a break; a run at an edge or beside a heading goes whole, because a
-blank line before a heading or after the last paragraph is nobody's
-composition. The prose is identical before and after (K1 holds exactly,
-there is no text in an empty paragraph), and the removal is a
-transformation with a postcondition that says so; what changes is the
-height of the page, which the render gate is told about
-(`stats["space_removed"]`) so it can hold the document to its ink rather
-than to its screens.
+for a batch). What `remove` takes is `Run.to_remove` and the boundary is
+`KEEP_HEIGHT`: between two blocks of text a run of up to three keeps its
+height, because that is as likely to be a caesura the writer set as a
+converter's leavings; a taller one comes down to a single blank line; and
+a run at an edge or beside a heading goes whole, because a blank line
+before a heading or after the last paragraph is nobody's composition.
+
+The prose is identical before and after (K1 holds exactly, there is no
+text in an empty paragraph), and the removal is a transformation with a
+postcondition that says so; what changes is the height of the page, which
+the render gate is told about (`stats["space_removed"]`) so it can hold
+the document to its ink rather than to its screens.
 """
 
 from __future__ import annotations
@@ -52,6 +54,27 @@ DRAWS = frozenset({"img", "svg", "image", "video", "audio", "object", "canvas"})
 _PREVIEW = 40
 _PREVIEWS = 4
 
+#: How tall a run between two blocks of text may be and still be read as
+#: **composition** — a caesura the writer set on purpose — rather than as a
+#: converter carrying somebody's page pushing.
+#:
+#: The owner's call of 2026-09-06, and it is what `DROGA-DO-1.0` 3.4 asked
+#: for in the first place: *„przy `remove` przerwy liczone tak, żeby dwie
+#: puste linie zostały dwiema"*. A run of two or three in mid-chapter is
+#: often a deliberate larger break — a jump in time, the edge of a part —
+#: and bringing it down to one makes it look like an ordinary scene break:
+#: that is changing the look of the page, not preserving it. Runs of dozens
+#: are the other thing entirely (measured: 133 runs of ten and more on the
+#: thirteen books looked at, one of them 53 high), and those come down to
+#: one blank line.
+#:
+#: Measured on the shelf before this line was drawn, on those thirteen
+#: books: 693 runs between paragraphs, **551 of them two or three high**
+#: (548 exactly two) — so this boundary is the difference between a rebuild
+#: that reshapes almost every caesura in four of those books and one that
+#: touches only what nobody set on purpose.
+KEEP_HEIGHT = 3
+
 
 @dataclass
 class Run:
@@ -79,11 +102,19 @@ class Run:
 
     @property
     def to_remove(self) -> list:
-        """What `remove` takes: the whole run at an edge or beside a
-        heading, all but one between two blocks of text."""
-        if self.shape == "between":
-            return self.paragraphs[1:]
-        return self.paragraphs
+        """What `remove` takes.
+
+        A run at a document edge or beside a heading goes **whole**: a blank
+        line before a heading or after the last paragraph is nobody's
+        composition. Between two blocks of text the height decides
+        (`KEEP_HEIGHT`): up to three stays exactly as it is, taller comes
+        down to a single blank line.
+        """
+        if self.shape != "between":
+            return self.paragraphs
+        if len(self.paragraphs) <= KEEP_HEIGHT:
+            return []
+        return self.paragraphs[1:]
 
 
 @dataclass
@@ -249,6 +280,9 @@ class ParagraphStage(Stage):
         runs = sum(len(here.runs) for _, _, here in found)
         pieces = sum(here.pieces for _, _, here in found)
         breaks = sum(here.breaks for _, _, here in found)
+        # What an answer of "remove" would actually take — never the whole
+        # count, since a caesura of up to `KEEP_HEIGHT` keeps its height.
+        removable = sum(here.removable for _, _, here in found)
         if not runs:
             return
 
@@ -272,11 +306,16 @@ class ParagraphStage(Stage):
                     "paragraphs.empty-runs.detail",
                     count=pieces, runs=runs, documents=len(found), breaks=breaks,
                     edge=shapes["edge"], heading=shapes["heading"], between=shapes["between"],
+                    removable=removable, height=KEEP_HEIGHT,
                     examples="\n".join(shown),
                 ),
                 options=(
                     Option(KEEP, say("paragraphs.empty-runs.keep"), say("paragraphs.empty-runs.keep.why")),
-                    Option("remove", say("paragraphs.empty-runs.remove"), say("paragraphs.empty-runs.remove.why")),
+                    Option(
+                        "remove",
+                        say("paragraphs.empty-runs.remove"),
+                        say("paragraphs.empty-runs.remove.why", height=KEEP_HEIGHT),
+                    ),
                 ),
                 recommended="remove",
                 reversible=False,
@@ -289,12 +328,14 @@ class ParagraphStage(Stage):
             automation = Automation.ASKED
             if choice == "keep" and answer.source == "unanswered":
                 self.note(ctx, Level.PRESERVED, "paragraphs.empty-runs-unanswered",
-                          values={"count": pieces, "runs": runs, "breaks": breaks})
+                          values={"count": pieces, "runs": runs, "breaks": breaks,
+                                  "removable": removable, "height": KEEP_HEIGHT})
                 return
 
         if choice != "remove":
             self.note(ctx, Level.PRESERVED, "paragraphs.empty-runs-kept",
-                      values={"count": pieces, "runs": runs, "breaks": breaks})
+                      values={"count": pieces, "runs": runs, "breaks": breaks,
+                              "removable": removable, "height": KEEP_HEIGHT})
             return
 
         removed = 0

@@ -6,8 +6,9 @@ is a break between scenes and is nobody's business; two or more in a row,
 one at a document edge, one beside a heading is a converter carrying
 somebody's page pushing. The default leaves everything and counts; `ask`
 puts one question per book with the neighbourhood shown; `remove` is the
-standing answer for a batch — and it leaves one blank line of a run
-between paragraphs, so a break stays a break.
+standing answer for a batch — and what it takes is `KEEP_HEIGHT`: a run of
+up to three between paragraphs keeps its height, a taller one comes down to
+one blank line, and an edge or heading run goes whole.
 """
 
 from __future__ import annotations
@@ -48,18 +49,21 @@ def book(path, body: str) -> str:
 EMPTY = "<p></p>"
 NBSP = "<p> </p>"
 
-#: Every shape at once: an edge run, a run beside a heading, a run of three
-#: between paragraphs, a single break between paragraphs, and an edge run at
-#: the end.
+#: Every shape at once, and both sides of `KEEP_HEIGHT`: an edge run, a run
+#: beside a heading, a caesura of three between paragraphs (kept), a single
+#: break (never in question), a run of five between paragraphs (down to one)
+#: and an edge run at the end.
 EVERY_SHAPE = (
     EMPTY * 3
     + "<h1>Rozdział pierwszy</h1>"
     + EMPTY * 2
     + "<p>Pierwszy akapit tekstu, dość długi, żeby było co pokazać w podglądzie.</p>"
     + EMPTY * 3
-    + "<p>Drugi akapit po przepchnięciu.</p>"
+    + "<p>Drugi akapit po cezurze trzech linii.</p>"
     + EMPTY
     + "<p>Trzeci akapit po przerwie między scenami.</p>"
+    + EMPTY * 5
+    + "<p>Czwarty akapit po przepchnięciu na nową stronę.</p>"
     + NBSP * 4
 )
 
@@ -110,12 +114,15 @@ class TestWhatIsCountedAndWhatIsNot:
     def test_the_shapes_from_the_measurement(self):
         root, _ = xhtml.parse(book_body(EVERY_SHAPE))
         found = paragraphs.find_runs(root)
-        assert [run.shape for run in found.runs] == ["edge", "heading", "between", "edge"]
-        assert [len(run.paragraphs) for run in found.runs] == [3, 2, 3, 4]
+        assert [run.shape for run in found.runs] == [
+            "edge", "heading", "between", "between", "edge",
+        ]
+        assert [len(run.paragraphs) for run in found.runs] == [3, 2, 3, 5, 4]
         assert found.breaks == 1
-        assert found.pieces == 12
-        # All of an edge or heading run; all but one of a run between text.
-        assert found.removable == 3 + 2 + 2 + 4
+        assert found.pieces == 17
+        # All of an edge or heading run; nothing from a caesura of three;
+        # all but one of the run of five.
+        assert found.removable == 3 + 2 + 0 + 4 + 4
 
     def test_a_paragraph_with_a_picture_is_not_empty(self):
         root, _ = xhtml.parse(book_body('<p><img src="a.png" alt=""/></p><p></p><p></p><p>x</p>'))
@@ -124,8 +131,13 @@ class TestWhatIsCountedAndWhatIsNot:
         assert found.runs[0].before is not None  # the picture paragraph stands before it
 
     def test_a_no_break_space_is_still_empty(self):
+        """A converter writes `&#160;` where somebody pressed Enter twice;
+        it draws nothing, so the paragraph is empty and the two of them are
+        a run — a caesura of two, which keeps its height."""
         root, _ = xhtml.parse(book_body("<p>a</p><p> </p><p>   </p><p>b</p>"))
-        assert paragraphs.find_runs(root).removable == 1
+        found = paragraphs.find_runs(root)
+        assert [len(run.paragraphs) for run in found.runs] == [2]
+        assert found.pieces == 2
 
     def test_runs_inside_a_div_are_read_in_their_own_sequence(self):
         root, _ = xhtml.parse(book_body("<div><p></p><p></p><p>a</p></div><p>b</p>"))
@@ -156,9 +168,11 @@ class TestTheDefaultLeavesEverythingAndCounts:
         recorder = Recorder()
         result = rebuilt(book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, asker=recorder)
         assert result.output_path
-        assert empties_in(chapter_of(result)) == 13
+        assert empties_in(chapter_of(result)) == 18
         kept = next(f for f in result.report.findings if f.rule == "paragraphs.empty-runs-kept")
-        assert kept.values == {"count": 12, "runs": 4, "breaks": 1}
+        assert kept.values == {
+            "count": 17, "runs": 5, "breaks": 1, "removable": 13, "height": 3,
+        }
         assert not [q for q in recorder.asked if q.group == "paragraphs:empty-runs"]
 
     def test_a_clean_book_says_nothing(self, tmp_path):
@@ -173,9 +187,12 @@ class TestAskingOncePerBook:
         asked = [q for q in recorder.asked if q.group == "paragraphs:empty-runs"]
         assert len(asked) == 1
         question = asked[0]
-        assert "12" in question.summary
+        assert "17" in question.summary
         assert "[3 × pusty akapit]" in question.detail
         assert "Drugi akapit" in question.detail
+        # What an answer of "remove" would actually take, and the boundary.
+        assert "zabierze z nich 13" in question.detail
+        assert "ciąg do 3 pustych linii między akapitami zachowuje" in question.detail
         assert [o.id for o in question.options] == [KEEP, "remove"]
         assert question.recommended == "remove"
         assert not question.reversible
@@ -184,7 +201,7 @@ class TestAskingOncePerBook:
         result = rebuilt(
             book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, asker=Recorder(), empty_paragraph_runs="ask",
         )
-        assert empties_in(chapter_of(result)) == 13
+        assert empties_in(chapter_of(result)) == 18
         assert "paragraphs.empty-runs-unanswered" in rules_of(result)
         assert "paragraphs.empty-runs-removed" not in rules_of(result)
 
@@ -193,7 +210,7 @@ class TestAskingOncePerBook:
             book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, asker=Removes(), empty_paragraph_runs="ask",
         )
         assert "paragraphs.empty-runs-removed" in rules_of(result)
-        assert empties_in(chapter_of(result)) == 2
+        assert empties_in(chapter_of(result)) == 5
 
     def test_a_standing_answer_settles_a_batch(self, tmp_path):
         result = rebuilt(
@@ -204,15 +221,42 @@ class TestAskingOncePerBook:
 
 
 class TestRemoving:
+    @pytest.mark.parametrize(
+        "height, stays",
+        [(2, 2), (3, 3), (4, 1), (9, 1), (53, 1)],
+        ids=["dwie-zostaja-dwiema", "trzy-zostaja-trzema", "cztery", "dziewiec", "piecdziesiat-trzy"],
+    )
+    def test_a_caesura_keeps_its_height_and_a_pushed_run_comes_down(self, tmp_path, height, stays):
+        """Both sides of `KEEP_HEIGHT`, and the owner's own words for the
+        near side: *„przy `remove` przerwy liczone tak, żeby dwie puste
+        linie zostały dwiema"*. A run of two or three in mid-chapter may be
+        a caesura somebody set — a jump in time, the edge of a part — and
+        bringing it down to one would make it look like an ordinary scene
+        break. A run of dozens is a page pushed in a word processor (one on
+        the owner's shelf is 53 high), and that comes down to one."""
+        body = "<p>Koniec sceny.</p>" + EMPTY * height + "<p>Początek następnej.</p>"
+        result = rebuilt(book(tmp_path / "in.epub", body), tmp_path, empty_paragraph_runs="remove")
+        assert empties_in(chapter_of(result)) == stays
+
     def test_a_break_stays_a_break_and_the_pushing_goes(self, tmp_path):
         result = rebuilt(book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, empty_paragraph_runs="remove")
         text = chapter_of(result)
-        # One blank line of the run of three, the single break, nothing else.
-        assert empties_in(text) == 2
+        # The caesura of three, the single break, and one blank line left of
+        # the run of five — nothing else.
+        assert empties_in(text) == 5
         assert text.index("<h1") < text.index("Pierwszy akapit")
         root, _ = xhtml.parse(text.encode("utf-8"))
         blocks = [e for e in xhtml.iter_elements(root) if xhtml.local_name(e) in ("p", "h1")]
-        assert [paragraphs.is_empty(e) for e in blocks] == [False, False, True, False, True, False]
+        assert [paragraphs.is_empty(e) for e in blocks] == [
+            False,              # <h1>
+            False,              # pierwszy akapit
+            True, True, True,   # cezura trzech linii, nietknięta
+            False,              # drugi akapit
+            True,               # pojedyncza przerwa między scenami
+            False,              # trzeci akapit
+            True,               # to, co zostało z ciągu pięciu
+            False,              # czwarty akapit
+        ]
 
     def test_the_text_is_the_same_to_the_character(self, tmp_path):
         source = book(tmp_path / "in.epub", EVERY_SHAPE)
@@ -231,21 +275,23 @@ class TestRemoving:
         result = rebuilt(book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, empty_paragraph_runs="remove")
         removed = next(f for f in result.report.findings if f.rule == "paragraphs.empty-runs-removed")
         assert removed.values == {
-            "count": 11, "documents": 1, "breaks": 1,
-            # One run between paragraphs (three high) came down to one; the
-            # two edge runs and the one beside the heading went whole.
-            "shortened": 1, "longest": 3, "left": 1, "dropped": 3, "untouched": 0,
+            "count": 13, "documents": 1, "breaks": 1,
+            # The run of five came down to one; the two edge runs and the one
+            # beside the heading went whole; the caesura of three was left.
+            "shortened": 1, "longest": 5, "left": 1, "dropped": 3, "untouched": 1,
         }
         assert "1 run(s) between paragraphs were shortened" in removed.message
-        assert "from 3 to 1" in removed.message
+        assert "from 5 to 1" in removed.message
+        assert "1 were left at their height" in removed.message
 
     def test_the_ledger_carries_the_same_numbers(self, tmp_path):
         result = rebuilt(book(tmp_path / "in.epub", EVERY_SHAPE), tmp_path, empty_paragraph_runs="remove")
         entry = [c for c in result.report.changes if c.rule == "paragraphs.empty-runs-removed"]
         assert len(entry) == 1 and not entry[0].reversible
-        assert "najdłuższy 3" in entry[0].before and "3 na brzegu" in entry[0].before
+        assert "najdłuższy 5" in entry[0].before and "3 na brzegu" in entry[0].before
         assert "→ 1 pusta linia" in entry[0].after
-        assert result.report.stats["space_removed"] == {"EPUB/text/0000-chapter.xhtml": 11}
+        assert "1 ciąg(ów) zostawionych bez zmiany wysokości" in entry[0].after
+        assert result.report.stats["space_removed"] == {"EPUB/text/0000-chapter.xhtml": 13}
 
     def test_the_tallest_run_is_named_even_among_many(self, tmp_path):
         """One book on the owner's shelf holds a run of fifty-three. The
@@ -256,9 +302,12 @@ class TestRemoving:
         )
         result = rebuilt(book(tmp_path / "in.epub", body), tmp_path, empty_paragraph_runs="remove")
         removed = next(f for f in result.report.findings if f.rule == "paragraphs.empty-runs-removed")
-        assert removed.values["shortened"] == 3
+        # The nine and the four came down to one each; the caesura of two was
+        # left where it stood.
+        assert removed.values["shortened"] == 2
         assert removed.values["longest"] == 9
         assert removed.values["left"] == 1
+        assert removed.values["untouched"] == 1
         assert removed.values["dropped"] == 0
 
     def test_text_in_a_tail_is_not_lost(self, tmp_path):
@@ -299,7 +348,7 @@ class TestTheSettingIsReachableEverywhere:
         assert len(written) == 1
         with zipfile.ZipFile(written[0]) as archive:
             name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
-            assert empties_in(archive.read(name).decode("utf-8")) == 2
+            assert empties_in(archive.read(name).decode("utf-8")) == 5
 
     def test_the_window_offers_all_three_and_defaults_to_keep(self):
         pytest.importorskip("PySide6")

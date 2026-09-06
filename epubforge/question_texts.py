@@ -359,10 +359,14 @@ TEXTS_PL: dict[str, str] = {
     "paragraphs.empty-runs.detail": (
         "W {documents} dokumentach {count} pustych akapitów stoi w {runs} ciągach: "
         "{between} w ciągach dwóch i więcej między akapitami, {edge} na brzegu "
-        "dokumentu, {heading} przy nagłówku. Pojedyncza pusta linia między "
-        "akapitami to przerwa między scenami — {breaks} takich zostaje bez "
-        "pytania. Usunięcie nie zmienia tekstu co do znaku; zmienia wysokość "
-        "strony, i to Ty o tym decydujesz. Sąsiedztwo:\n{examples}"
+        "dokumentu, {heading} przy nagłówku. Usunięcie zabierze z nich "
+        "{removable}: ciąg do {height} pustych linii między akapitami zachowuje "
+        "wysokość (bywa świadomą cezurą — przeskokiem czasu, granicą części), "
+        "wyższy schodzi do jednej pustej linii, a ciąg na brzegu dokumentu albo "
+        "przy nagłówku znika w całości. Pojedyncza pusta linia między akapitami "
+        "to przerwa między scenami — {breaks} takich zostaje bez pytania. Tekst "
+        "nie zmienia się co do znaku; zmienia się wysokość strony, i to Ty o tym "
+        "decydujesz. Sąsiedztwo:\n{examples}"
     ),
     "paragraphs.empty-runs.keep": "Zostaw tak, jak jest",
     "paragraphs.empty-runs.keep.why": (
@@ -370,9 +374,10 @@ TEXTS_PL: dict[str, str] = {
     ),
     "paragraphs.empty-runs.remove": "Usuń ciągi",
     "paragraphs.empty-runs.remove.why": (
-        "Ciąg między akapitami schodzi do jednej pustej linii, ciąg na brzegu "
-        "i przy nagłówku znika; tekst zostaje co do znaku, raport i bilans "
-        "mówią ile usunięto"
+        "Ciąg wyższy niż {height} między akapitami schodzi do jednej pustej "
+        "linii, ciąg na brzegu i przy nagłówku znika w całości, a ciąg do "
+        "{height} zachowuje wysokość; tekst zostaje co do znaku, raport i bilans "
+        "mówią, ile ciągów skrócono i z ilu do ilu"
     ),
     "pdf.running-heads.keep": "Zostaw w tekście",
     "pdf.running-heads.keep.why": (
@@ -922,10 +927,14 @@ TEXTS_EN: dict[str, str] = {
     "paragraphs.empty-runs.detail": (
         "In {documents} document(s) {count} empty paragraph(s) stand in {runs} "
         "run(s): {between} in runs of two or more between paragraphs, {edge} at "
-        "a document edge, {heading} beside a heading. A single blank line "
+        "a document edge, {heading} beside a heading. Removing takes {removable} "
+        "of them: a run of up to {height} blank lines between paragraphs keeps "
+        "its height (it may be a caesura somebody set — a jump in time, the edge "
+        "of a part), a taller one comes down to one blank line, and a run at a "
+        "document edge or beside a heading goes whole. A single blank line "
         "between paragraphs is a break between scenes — {breaks} of those stay "
-        "without being asked about. Removing changes no character of the text; "
-        "it changes the height of the page, and that is yours to decide. "
+        "without being asked about. No character of the text changes; the height "
+        "of the page does, and that is yours to decide. "
         "The neighbourhood:\n{examples}"
     ),
     "paragraphs.empty-runs.keep": "Leave it as it is",
@@ -934,9 +943,11 @@ TEXTS_EN: dict[str, str] = {
     ),
     "paragraphs.empty-runs.remove": "Remove the runs",
     "paragraphs.empty-runs.remove.why": (
-        "A run between paragraphs comes down to one blank line, a run at an "
-        "edge or beside a heading goes; the text stays to the character, and "
-        "the report and the ledger say how many left"
+        "A run taller than {height} between paragraphs comes down to one blank "
+        "line, a run at an edge or beside a heading goes whole, and a run of up "
+        "to {height} keeps its height; the text stays to the character, and the "
+        "report and the ledger say how many runs were shortened and from how "
+        "many to how many"
     ),
     "pdf.running-heads.keep": "Leave them in the text",
     "pdf.running-heads.keep.why": (
