@@ -20,6 +20,11 @@ HYPHEN_REVIEWS = ("confirmed", "grouped", "each")
 #: What becomes of the running heads and page numbers a PDF brought along:
 #: asked once per book, kept, or removed for all of them (0.5, D-052).
 PDF_RUNNING_HEADS = ("ask", "keep", "remove")
+#: What becomes of runs of empty paragraphs — two or more in a row, at the
+#: edge of a document, beside a heading (D-054): asked once per book, kept
+#: (the default: a single blank line between paragraphs is never touched
+#: and a run is only counted), or removed for a batch.
+EMPTY_PARAGRAPH_RUNS = ("ask", "keep", "remove")
 
 #: Raster/vector formats EPUB 3 readers must support without a fallback.
 #:
@@ -288,6 +293,17 @@ class Policy:
     #: per book whether to remove them (`ask`), or does what a batch has
     #: already decided (`keep`, `remove`). Nothing leaves without an answer.
     pdf_running_heads: str = "ask"
+
+    #: Runs of empty paragraphs (D-054): a single empty paragraph between two
+    #: paragraphs of text is a break between scenes and is never touched; a
+    #: run of two or more, a run at a document edge or beside a heading is a
+    #: converter carrying somebody's page pushing. `keep` counts them and
+    #: changes nothing — the default, because the page's look is the
+    #: publisher's until somebody says otherwise; `ask` puts one question per
+    #: book with the neighbourhood shown; `remove` is the standing answer
+    #: for a batch. Removing leaves one empty paragraph of a run between two
+    #: blocks of text, so a break stays a break.
+    empty_paragraph_runs: str = "keep"
 
     #: Read back and write down the answers a person gave about this book.
     #:

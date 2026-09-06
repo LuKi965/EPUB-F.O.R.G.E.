@@ -167,7 +167,11 @@ class TestTheMigrationIsVisibleAndCannotQuietlyStop:
     #:
     #: **Opuszczenie tej liczby znaczy, że któraś wypadła** — a to jest dokładnie
     #: ten cichy krok wstecz, przed którym ten plik istnieje.
-    ON_THE_CONTRACT = 6
+    #:
+    #: 7 od R-4 (D-054): ciągi pustych akapitów usuwane przez kontrakt —
+    #: warunek końcowy to proza identyczna co do znaku i dokładnie
+    #: zaplanowane akapity, które wyszły (`stages/paragraphs.py`).
+    ON_THE_CONTRACT = 7
 
     #: Reguły, które przez niego idą. Wypisane, żeby błąd mówił **która**
     #: wypadła, a nie tylko że jest ich mniej.

@@ -353,6 +353,21 @@ PL: dict[str, str] = {
     "policy.pdf.heads.keep.tip": "wiersze zostają jako zwykłe akapity, bez pytania",
     "policy.pdf.heads.remove": "usuń wszystkie",
     "policy.pdf.heads.remove.tip": "stała odpowiedź dla partii; raport mówi ile usunięto",
+    "policy.paragraphs.empty": "Ciągi pustych akapitów:",
+    "policy.paragraphs.empty.tip": (
+        "Pojedynczy pusty akapit między dwoma akapitami tekstu to przerwa "
+        "między scenami — program go nie rusza i o niego nie pyta. Dwa i więcej "
+        "pod rząd, pusty na brzegu dokumentu albo przy nagłówku to przepychanie "
+        "tekstu na nową stronę, które konwerter przeniósł. Usuwanie zostawia "
+        "jeden pusty akapit z ciągu między akapitami tekstu, żeby przerwa "
+        "została przerwą; tekst nie zmienia się co do znaku."
+    ),
+    "policy.paragraphs.empty.ask": "pytaj przy każdej książce",
+    "policy.paragraphs.empty.ask.tip": "jedno pytanie z sąsiedztwem ciągów; bez odpowiedzi nic nie znika",
+    "policy.paragraphs.empty.keep": "zostaw i policz",
+    "policy.paragraphs.empty.keep.tip": "nic się nie zmienia; raport mówi, ile ich jest",
+    "policy.paragraphs.empty.remove": "usuń ciągi",
+    "policy.paragraphs.empty.remove.tip": "stała odpowiedź dla partii; raport i bilans mówią ile usunięto",
     "policy.hyphen.review": "Słowa z łącznikiem bez dowodu w książce:",
     "policy.hyphen.review.tip": (
         "Program pyta o słowo z łącznikiem wtedy, gdy ta sama książka pisze je "
@@ -1400,6 +1415,21 @@ EN: dict[str, str] = {
     "policy.pdf.heads.keep.tip": "the lines stay as ordinary paragraphs, no question",
     "policy.pdf.heads.remove": "remove them all",
     "policy.pdf.heads.remove.tip": "the standing answer for a batch; the report says how many left",
+    "policy.paragraphs.empty": "Runs of empty paragraphs:",
+    "policy.paragraphs.empty.tip": (
+        "A single empty paragraph between two paragraphs of text is a break "
+        "between scenes — the program leaves it and does not ask. Two or more "
+        "in a row, an empty one at a document edge or beside a heading is text "
+        "pushed onto a new page, carried along by the converter. Removing "
+        "leaves one empty paragraph of a run between paragraphs of text, so a "
+        "break stays a break; the text does not change by a character."
+    ),
+    "policy.paragraphs.empty.ask": "ask for every book",
+    "policy.paragraphs.empty.ask.tip": "one question showing the runs' neighbourhood; without an answer nothing leaves",
+    "policy.paragraphs.empty.keep": "leave and count",
+    "policy.paragraphs.empty.keep.tip": "nothing changes; the report says how many there are",
+    "policy.paragraphs.empty.remove": "remove the runs",
+    "policy.paragraphs.empty.remove.tip": "the standing answer for a batch; the report and the ledger say how many left",
     "policy.hyphen.review": "Hyphenated words the book does not settle:",
     "policy.hyphen.review.tip": (
         "The program asks about a hyphenated word when the same book writes it "

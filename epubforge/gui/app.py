@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 
 from .. import plan, resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
-from ..policy import GATES, HYPHEN_REVIEWS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
+from ..policy import GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
 from ..quips import quip_for
 from ..report import Level, Report, batch_summary, batch_to_json
 from ..validate import find_epubcheck, validate
@@ -786,6 +786,22 @@ class MainWindow(QMainWindow):
             self.pdf_heads_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
         self.pdf_heads_combo.setCurrentIndex(PDF_RUNNING_HEADS.index(Policy().pdf_running_heads))
         layout.addWidget(self.pdf_heads_combo)
+        # D-054: runs of empty paragraphs are a converter carrying somebody's
+        # page pushing; a single blank line between paragraphs is a break and
+        # is never touched. Kept by default, one question per book on `ask`.
+        empty_label = QLabel(tr("policy.paragraphs.empty"))
+        empty_label.setToolTip(tr("policy.paragraphs.empty.tip"))
+        layout.addWidget(empty_label)
+        self.empty_runs_combo = QComboBox()
+        self.empty_runs_combo.setToolTip(tr("policy.paragraphs.empty.tip"))
+        for index, value in enumerate(EMPTY_PARAGRAPH_RUNS):
+            key = f"policy.paragraphs.empty.{value}"
+            self.empty_runs_combo.addItem(tr(key), value)
+            self.empty_runs_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
+        self.empty_runs_combo.setCurrentIndex(
+            EMPTY_PARAGRAPH_RUNS.index(Policy().empty_paragraph_runs)
+        )
+        layout.addWidget(self.empty_runs_combo)
         # EF-050. Beside the hyphens because it is the other setting that
         # touches characters a reader sees — and unlike them it puts the text
         # back rather than taking it away.
@@ -1124,6 +1140,7 @@ class MainWindow(QMainWindow):
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.hyphen_review = self.hyphen_review_combo.currentData()
         policy.pdf_running_heads = self.pdf_heads_combo.currentData()
+        policy.empty_paragraph_runs = self.empty_runs_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.detect_substitutions = self.substitutions_check.isChecked()
         policy.relative_units = self.relative_units_check.isChecked()

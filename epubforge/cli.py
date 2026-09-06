@@ -14,7 +14,7 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, ledger_lines, plan_batch
-from .policy import GATES, HYPHEN_REVIEWS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
+from .policy import GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -139,6 +139,8 @@ def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:
         policy.hyphen_review = args.hyphen_review
     if getattr(args, "pdf_running_heads", None):
         policy.pdf_running_heads = args.pdf_running_heads
+    if getattr(args, "empty_paragraph_runs", None):
+        policy.empty_paragraph_runs = args.empty_paragraph_runs
     if getattr(args, "memory_limit", None):
         policy.memory_limit = _bytes_from(args.memory_limit)
     if getattr(args, "time_budget", None):
@@ -1148,6 +1150,17 @@ def build_parser() -> argparse.ArgumentParser:
             "what becomes of the running heads and page numbers a PDF source "
             "brought along: 'ask' once per book (default), 'keep' them as text, "
             "'remove' them all — the standing answer for a batch"
+        ),
+    )
+    build.add_argument(
+        "--empty-paragraph-runs",
+        choices=EMPTY_PARAGRAPH_RUNS,
+        help=(
+            "runs of empty paragraphs — two or more in a row, at a document edge, "
+            "beside a heading (a single blank line between paragraphs is never "
+            "touched): 'keep' them and count (default), 'ask' once per book "
+            "with the neighbourhood shown, 'remove' them — the standing answer "
+            "for a batch"
         ),
     )
     build.add_argument(

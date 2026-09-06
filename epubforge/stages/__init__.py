@@ -43,6 +43,7 @@ from .images import ImageStage
 from .kepub import KepubStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
+from .paragraphs import ParagraphStage
 from .pdf import PdfStage
 from .profile import ProfileStage
 from .style import StyleStage
@@ -62,6 +63,10 @@ DEFAULT_STAGES = (
     MetadataStage,
     ProfileStage,
     ContentStage,
+    # After the content stage has settled what a document *is* and before
+    # anything measures its look: runs of empty paragraphs, behind a
+    # setting (D-054); on `keep`, the default, it only counts.
+    ParagraphStage,
     StyleStage,
     TypographyStage,
     HyphenStage,
@@ -101,6 +106,7 @@ __all__ = [
     "HyphenStage",
     "SubstitutionStage",
     "NavigationStage",
+    "ParagraphStage",
     "PdfStage",
     "AccessibilityStage",
     "KepubStage",

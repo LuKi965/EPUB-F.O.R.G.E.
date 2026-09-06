@@ -41,7 +41,7 @@
     "report": {
       "info": 17,
       "fix": 9,
-      "preserved": 7,
+      "preserved": 8,
       "warn": 2
     },
     "rules": {
@@ -60,6 +60,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "paragraphs.empty-runs-kept": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
       "profile.dead-classes-found": 1,
@@ -89,7 +90,7 @@
     "report": {
       "info": 14,
       "fix": 12,
-      "preserved": 7,
+      "preserved": 8,
       "warn": 2
     },
     "rules": {
@@ -108,6 +109,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "paragraphs.empty-runs-kept": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
       "profile.dead-classes-found": 1,

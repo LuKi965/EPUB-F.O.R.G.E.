@@ -42,7 +42,7 @@
     "report": {
       "info": 18,
       "fix": 6,
-      "preserved": 12,
+      "preserved": 13,
       "warn": 4
     },
     "rules": {
@@ -60,6 +60,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "paragraphs.empty-runs-kept": 1,
       "pictures.left-alone": 1,
       "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,
@@ -89,7 +90,7 @@
     "report": {
       "info": 13,
       "fix": 11,
-      "preserved": 12,
+      "preserved": 13,
       "warn": 4
     },
     "rules": {
@@ -107,6 +108,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "paragraphs.empty-runs-kept": 1,
       "pictures.left-alone": 1,
       "pictures.undescribed-found": 1,
       "profile.body-text-found": 1,

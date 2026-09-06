@@ -369,7 +369,10 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
             if change.rule == "structure.relaid-out" and change.before and change.after
         }
         measured = render_fidelity.compare(
-            source, candidate, sample=policy.render_sample, renames=moved
+            source, candidate, sample=policy.render_sample, renames=moved,
+            # Documents made shorter on somebody's word (D-054): held to
+            # their ink rather than to screens that no longer line up.
+            shortened=set((report.stats.get("space_removed") or {}).keys()),
         )
         if not measured.available:
             return _cannot_verify(policy, report, queue)

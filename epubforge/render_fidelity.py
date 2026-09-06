@@ -553,6 +553,7 @@ def compare(
     browser=None,
     on_page=None,
     renames: "dict[str, str] | None" = None,
+    shortened: "set[str] | None" = None,
 ) -> RenderFidelity:
     """Render both books page by page and say what changed.
 
@@ -562,6 +563,15 @@ def compare(
     `renames` is the rebuild's own ledger of moved files — old archive path to
     new archive path — so the pairing can *know* which output page is which
     source page instead of guessing from names it renamed itself (D-035).
+
+    `shortened` names output documents (archive paths) the rebuild made
+    shorter on somebody's word — runs of empty paragraphs removed (D-054).
+    Screen by screen such a document cannot be judged: every line moved up,
+    so the third screen of the output shows the source's fourth, and the
+    last screen the source had is blank in the output by design. Those
+    documents are held to their **ink** instead — the whole document's
+    coverage, summed over its screens, may not fall — and the screens the
+    output no longer needs are a note, not a loss.
     """
     browser = browser or render.find_renderer()
     if browser is None:
@@ -614,6 +624,7 @@ def compare(
             check.notes.append("dokument doszedł, nie było go w źródle")
             result.pages.append(check)
 
+        cut_short = set(shortened or ())
         indices = _sample(len(paired), sample) if sample else list(range(len(paired)))
         result.documents = len(indices)
         result.total = len(before_spine)
@@ -653,8 +664,13 @@ def compare(
                 # The full check: the whole height, judged screen by screen —
                 # after the ordinary comparisons, so the first page of the
                 # list is still the first screen at the first viewport.
+                try:
+                    internal = output_page.resolve().relative_to(after_root.resolve()).as_posix()
+                except ValueError:
+                    internal = ""
                 checks, has, looked = _screens(
-                    source_page, output_page, name, viewports[0], shots, index, browser
+                    source_page, output_page, name, viewports[0], shots, index, browser,
+                    shortened=internal in cut_short,
                 )
                 result.pages.extend(checks)
                 result.screens = max(result.screens, looked)
@@ -674,7 +690,9 @@ def compare(
 _NO_INK = render.Ink(coverage=0.0, left=0.0, top=0.0, right=0.0, bottom=0.0)
 
 
-def _screens(source_page, output_page, name, viewport, shots, index, browser) -> "tuple[list[PageCheck], int, int]":
+def _screens(
+    source_page, output_page, name, viewport, shots, index, browser, *, shortened: bool = False,
+) -> "tuple[list[PageCheck], int, int]":
     """Every screen of one document, each judged on its own:
     `(checks, screens the document has, screens looked at)`.
 
@@ -715,6 +733,29 @@ def _screens(source_page, output_page, name, viewport, shots, index, browser) ->
     for one, two in zip(ones, twos):
         differences.extend(render.difference_bands(one, two, height))
     looked = max(len(inks_before), len(inks_after))
+    if shortened:
+        # Removed on somebody's word (D-054), so the screens no longer line
+        # up and the document is held to its ink: the coverage summed over
+        # every screen may not fall by more than a screen's own tolerance.
+        was = sum(band.coverage for band in inks_before)
+        now = sum(band.coverage for band in inks_after)
+        check = PageCheck(document=f"{name} (cały dokument)", viewport=viewport)
+        check.source_ink = inks_before[0] if inks_before else _NO_INK
+        check.output_ink = inks_after[0] if inks_after else _NO_INK
+        if was > 0 and (was - now) / was > LOST_INK:
+            check.problems.append(
+                f"dokument skrócony na życzenie stracił treść: tusz razem "
+                f"{was:.2f} → {now:.2f} ekranu"
+            )
+        else:
+            check.notes.append(
+                f"dokument skrócony na życzenie (puste akapity usunięte): "
+                f"{len(inks_before)} → {len(inks_after)} ekranów, tusz razem "
+                f"{was:.2f} → {now:.2f} ekranu — sądzony po tuszu, nie ekran po ekranie"
+            )
+        checks.append(check)
+        looked = min(has, looked) if has <= MAX_SCREENS else min(looked, MAX_SCREENS)
+        return checks, has, looked
     for screen in range(1, looked + 1):
         if screen == 1:
             continue  # the first screen is the ordinary comparison above

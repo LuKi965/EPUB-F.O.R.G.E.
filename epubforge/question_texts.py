@@ -353,6 +353,27 @@ TEXTS_PL: dict[str, str] = {
         "którego autor nie napisał — ale usunięcie to usunięcie tekstu, więc "
         "decyzja należy do Ciebie."
     ),
+    "paragraphs.empty-runs.summary": (
+        "{count} pustych akapitów w {runs} ciągach wygląda na przepychanie tekstu"
+    ),
+    "paragraphs.empty-runs.detail": (
+        "W {documents} dokumentach {count} pustych akapitów stoi w {runs} ciągach: "
+        "{between} w ciągach dwóch i więcej między akapitami, {edge} na brzegu "
+        "dokumentu, {heading} przy nagłówku. Pojedyncza pusta linia między "
+        "akapitami to przerwa między scenami — {breaks} takich zostaje bez "
+        "pytania. Usunięcie nie zmienia tekstu co do znaku; zmienia wysokość "
+        "strony, i to Ty o tym decydujesz. Sąsiedztwo:\n{examples}"
+    ),
+    "paragraphs.empty-runs.keep": "Zostaw tak, jak jest",
+    "paragraphs.empty-runs.keep.why": (
+        "Nic się nie zmienia; ciągi zostają tam, gdzie były, i raport je liczy"
+    ),
+    "paragraphs.empty-runs.remove": "Usuń ciągi",
+    "paragraphs.empty-runs.remove.why": (
+        "Ciąg między akapitami schodzi do jednej pustej linii, ciąg na brzegu "
+        "i przy nagłówku znika; tekst zostaje co do znaku, raport i bilans "
+        "mówią ile usunięto"
+    ),
     "pdf.running-heads.keep": "Zostaw w tekście",
     "pdf.running-heads.keep.why": (
         "Nic nie znika; wiersze zostają jako zwykłe akapity tam, gdzie były"
@@ -894,6 +915,28 @@ TEXTS_EN: dict[str, str] = {
         "of the page (digits aside), for example: {examples}. An electronic "
         "book has no pages, so these lines are text the author did not write "
         "— but removing them is removing text, so the decision is yours."
+    ),
+    "paragraphs.empty-runs.summary": (
+        "{count} empty paragraph(s) in {runs} run(s) look like text being pushed"
+    ),
+    "paragraphs.empty-runs.detail": (
+        "In {documents} document(s) {count} empty paragraph(s) stand in {runs} "
+        "run(s): {between} in runs of two or more between paragraphs, {edge} at "
+        "a document edge, {heading} beside a heading. A single blank line "
+        "between paragraphs is a break between scenes — {breaks} of those stay "
+        "without being asked about. Removing changes no character of the text; "
+        "it changes the height of the page, and that is yours to decide. "
+        "The neighbourhood:\n{examples}"
+    ),
+    "paragraphs.empty-runs.keep": "Leave it as it is",
+    "paragraphs.empty-runs.keep.why": (
+        "Nothing changes; the runs stay where they were and the report counts them"
+    ),
+    "paragraphs.empty-runs.remove": "Remove the runs",
+    "paragraphs.empty-runs.remove.why": (
+        "A run between paragraphs comes down to one blank line, a run at an "
+        "edge or beside a heading goes; the text stays to the character, and "
+        "the report and the ledger say how many left"
     ),
     "pdf.running-heads.keep": "Leave them in the text",
     "pdf.running-heads.keep.why": (

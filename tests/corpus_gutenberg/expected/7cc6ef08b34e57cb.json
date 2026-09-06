@@ -38,7 +38,7 @@
     "report": {
       "info": 16,
       "fix": 9,
-      "preserved": 9
+      "preserved": 10
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -53,6 +53,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "paragraphs.empty-runs-kept": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
       "profile.dead-classes-found": 1,
@@ -81,7 +82,7 @@
     "report": {
       "info": 13,
       "fix": 12,
-      "preserved": 9
+      "preserved": 10
     },
     "rules": {
       "a11y.metadata-added": 1,
@@ -96,6 +97,7 @@
       "nav.ncx-written": 1,
       "nav.regenerated": 1,
       "package.regenerated": 1,
+      "paragraphs.empty-runs-kept": 1,
       "profile.body-text-found": 1,
       "profile.break-runs-found": 1,
       "profile.dead-classes-found": 1,

@@ -104,11 +104,12 @@ i zacząć budować to, co stoi od miesiąca.
 | koszyki śmieci generatorów (Word, Calibre, Sigil, InDesign) w obu trybach, każdy za kratką | `epubforge/stages/style.py`, `epubforge/stages/content.py` |
 | eksport KEPUB | `epubforge/kepub.py`, `epubforge/stages/kepub.py` |
 | PDF z warstwą tekstową → ten sam model | `epubforge/pdf.py`, `epubforge/stages/pdf.py` |
+| ciągi pustych akapitów (dwa i więcej, na brzegu, przy nagłówku) za polem polityki `empty_paragraph_runs` — domyślnie tylko liczone; pojedyncza przerwa między akapitami nietykana (D-054) | `epubforge/stages/paragraphs.py` |
 
 Co zostało z odbudowy zapisu — atrybuty `style="…"` do klas, `div`
-owijający jeden blok, `span` bez atrybutów, ciągi pustych akapitów,
-rodziny klas różniące się jedną cechą — ma decyzję właściciela z pomiarem
-na półce i czeka na wykonanie, każde z dowodem bramą, nie deklaracją.
+owijający jeden blok, `span` bez atrybutów, rodziny klas różniące się
+jedną cechą — ma decyzję właściciela z pomiarem na półce i czeka na
+wykonanie, każde z dowodem bramą, nie deklaracją.
 
 **Człowiek w pętli.** Pytania (`epubforge/decisions.py`, teksty w
 `epubforge/question_texts.py`) mają opcje, konsekwencje i rekomendację;
