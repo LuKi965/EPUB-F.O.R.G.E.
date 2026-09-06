@@ -239,6 +239,9 @@ class TypographyStage(Stage):
         reverted: list[str] = []
         for resource, root in documents:
             before = list(root.itertext())
+            # The bytes the tree was read from, for the gate's record of what
+            # this document said before the change (EF-083a).
+            before_data = resource.data
 
             changed = self._repair(root, language, marks, agreed)
             if not any(changed):
@@ -263,7 +266,12 @@ class TypographyStage(Stage):
                 "typography.ranges-dashed",
             )):
                 if made:
-                    self.text_changed(ctx, resource.path, rule)
+                    self.text_changed(
+                        ctx, resource.path, rule, before=before_data, after=resource.data
+                    )
+                    # The next rule's entry starts where this one ended: one
+                    # pass, several rules, one chain.
+                    before_data = resource.data
 
         self._report(
             ctx, ellipses, conjunctions, quotes, dashes, convention, reverted,

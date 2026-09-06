@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import pathlib
 import tempfile
+import zipfile
 from dataclasses import dataclass, replace
 from enum import Enum
 
@@ -802,27 +803,81 @@ def _paired_by_name(source: str, candidate: str, book=None) -> "dict[str, str]":
         return {}
 
 
-def _consent_by_document(divergences, report: Report) -> "tuple[list, list]":
-    """Which diverging documents a consented rule accounts for, and which not.
+def _consent_by_document(divergences, report: Report, source: str, candidate: str) -> "tuple[list, list]":
+    """Which diverging documents the recorded changes account for — exactly —
+    and which not, each with the link of the chain that broke.
 
     EF-083. Consent used to be a rule name anywhere in the report: a hyphen
     joined in chapter four excused a sentence missing from chapter nine, and
     the independent audit of 2026-09-05 showed it with a single dummy finding.
-    Every text-changing stage now records the document and the rule
-    (`Context.text_changes`, on the report as `stats["text_changes"]`), and a
-    difference in a document is excused by an entry for *that* document under
-    a rule from the two consent lists — by nothing else. A document whose
-    text differs with no entry of its own is a loss nobody asked for.
+    The first repair made consent per document — and that was a scope, not
+    a contract: a hyphen joined in chapter nine still excused a sentence
+    missing from chapter nine (EF-083a, `DROGA-DO-1.0` 6.2).
+
+    So every text-changing stage records what the document's prose was
+    before and after its change (`Stage.text_changed`, on the report as
+    `stats["text_changes"]`: a chain of `rule`, `before`, `after` digests per
+    document), and a difference is excused only when that chain leads from
+    the source's prose to the output's: the first entry starts from what the
+    source says, each next one from where the previous left off, and the
+    last one ends where the output is — every link a consented rule. A
+    change nobody recorded breaks the chain wherever it happened, and the
+    document is refused with the link that broke named.
     """
+    from . import fidelity
+
     accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
     recorded = report.stats.get("text_changes") or {}
     excused, unexcused = [], []
-    for divergence in divergences:
-        rules = set(recorded.get(divergence.output_path, ())) | set(
-            recorded.get(divergence.source_path, ())
-        )
-        (excused if rules & accounted else unexcused).append(divergence)
+    with zipfile.ZipFile(source) as before, zipfile.ZipFile(candidate) as after:
+        for divergence in divergences:
+            chain = recorded.get(divergence.output_path) or recorded.get(divergence.source_path) or []
+            was = _prose_digest_in(before, divergence.source_path, fidelity)
+            now = _prose_digest_in(after, divergence.output_path, fidelity)
+            why = _chain_breaks(chain, accounted, was, now)
+            if why is None:
+                excused.append(divergence)
+            else:
+                unexcused.append((divergence, why))
     return excused, unexcused
+
+
+def _prose_digest_in(archive, name: str, fidelity) -> str:
+    try:
+        return fidelity.prose_digest(archive.read(name))
+    except KeyError:
+        return "missing"
+
+
+def _chain_breaks(chain, accounted, was: str, now: str) -> "str | None":
+    """Why the recorded changes do not lead from *was* to *now*, or `None`
+    when they do. Polish, because it is read in a refusal."""
+    if not chain:
+        return "żaden etap nie zapisał zmiany tekstu w tym dokumencie"
+    expected = was
+    for entry in chain:
+        if not isinstance(entry, dict):
+            return f"wpis {entry!r} nie mówi, jaki tekst był przed zmianą i po niej"
+        rule = entry.get("rule")
+        if rule not in accounted:
+            return f"{rule} nie jest zmianą tekstu, na którą ktoś się zgodził"
+        if entry.get("before") != expected:
+            return f"przed {rule} tekst nie był już tym, który wszedł — zmiana bez wpisu wcześniej"
+        expected = entry.get("after")
+    if expected != now:
+        return f"po ostatniej zapisanej zmianie ({chain[-1].get('rule')}) tekst zmienił się jeszcze raz bez wpisu"
+    return None
+
+
+def _consented_rules(divergences, report: Report) -> "list[str]":
+    """The consented rules whose entries excused *divergences*, for the report."""
+    accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+    recorded = report.stats.get("text_changes") or {}
+    rules = set()
+    for divergence in divergences:
+        chain = recorded.get(divergence.output_path) or recorded.get(divergence.source_path) or []
+        rules |= {entry.get("rule") for entry in chain if isinstance(entry, dict)}
+    return sorted(rules & accounted)
 
 
 def _paired_divergences(source: str, candidate: str, report: Report, book=None) -> "list | None":
@@ -956,27 +1011,19 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
             # is refused.
             divergences = _paired_divergences(source, candidate, report, book)
             if divergences:
-                excused, unexcused = _consent_by_document(divergences, report)
+                excused, unexcused = _consent_by_document(divergences, report, source, candidate)
                 if not unexcused:
-                    recorded = report.stats.get("text_changes") or {}
-                    rules = sorted(
-                        {
-                            rule
-                            for divergence in excused
-                            for rule in recorded.get(divergence.output_path, ())
-                            if rule in REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
-                        }
-                    )
                     report.add(
                         "package",
                         Level.WARN,
                         "package.text-changed-on-request",
-                        values={"rules": ", ".join(rules), "detail": check.detail},
+                        values={"rules": ", ".join(_consented_rules(excused, report)), "detail": check.detail},
                     )
                     return ""
+                divergence, why = unexcused[0]
                 check = replace(
                     check,
-                    detail=f"{check.detail}; bez zgody w {unexcused[0].output_path}",
+                    detail=f"{check.detail}; bez zgody w {divergence.output_path}: {why}",
                 )
         report.add(
             "package",
@@ -1043,31 +1090,23 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
             return f"K1 (prose) could not be measured: {type(exc).__name__}: {exc}"
         if not divergences:
             return ""
-        excused, unexcused = _consent_by_document(divergences, report)
+        excused, unexcused = _consent_by_document(divergences, report, source, candidate)
         if not unexcused:
-            recorded = report.stats.get("text_changes") or {}
-            rules = sorted(
-                {
-                    rule
-                    for divergence in excused
-                    for rule in recorded.get(divergence.output_path, ())
-                    if rule in REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
-                }
-            )
             report.add(
                 "package",
                 Level.WARN,
                 "package.prose-changed-on-request",
-                values={"rules": ", ".join(rules), "detail": str(divergences[0])},
+                values={"rules": ", ".join(_consented_rules(excused, report)), "detail": str(divergences[0])},
             )
             return ""
+        divergence, why = unexcused[0]
         report.add(
             "package",
             Level.ERROR,
             "package.prose-changed",
-            values={"count": len(unexcused), "detail": str(unexcused[0])},
+            values={"count": len(unexcused), "detail": f"{divergence}\n    {why}"},
         )
-        return f"K1: {unexcused[0]}"
+        return f"K1: {divergence} ({why})"
 
     def both(candidate: str) -> str:
         return gate(candidate) or sharper(candidate)
@@ -1855,7 +1894,8 @@ def _publish(source, destination, ctx, before_side, queue, report) -> "Result | 
         # per-document consent (EF-083). On the report rather than the
         # context because the gate is handed the report and nothing else.
         report.stats["text_changes"] = {
-            path: sorted(rules) for path, rules in sorted(ctx.text_changes.items())
+            path: [dict(entry) for entry in entries]
+            for path, entries in sorted(ctx.text_changes.items())
         }
         reconciled = balance.reconcile(
             before_side, balance.Side.of(book), report.changes

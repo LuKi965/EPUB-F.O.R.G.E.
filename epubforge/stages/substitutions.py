@@ -191,6 +191,7 @@ class SubstitutionStage(Stage):
                 ),
                 reversible=False,
             )
+            before_data = resource.data
             try:
                 made = carry_out(
                     step,
@@ -202,7 +203,10 @@ class SubstitutionStage(Stage):
                 )
                 repaired += bool(made)
                 if made:
-                    self.text_changed(ctx, resource.path, "substitutions.replaced")
+                    self.text_changed(
+                        ctx, resource.path, "substitutions.replaced",
+                        before=before_data, after=resource.data,
+                    )
             except PostconditionFailed:
                 reverted += 1
 

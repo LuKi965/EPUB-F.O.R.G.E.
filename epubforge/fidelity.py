@@ -693,6 +693,24 @@ def canonical_text(text: str) -> str:
     return _RUN_OF_SPACE.sub(" ", folded).strip()
 
 
+def prose_digest(data: bytes) -> str:
+    """The prose of one document as a token two moments can be compared by.
+
+    EF-083a. A stage that changes text records the document's prose before
+    and after its change, and the K1 gate asks whether the recorded changes,
+    one after another, lead from the source's prose to the output's. Equality
+    is all that question needs, so a digest of `document_text` is enough and
+    a copy of the text is not carried — a nine-thousand-document omnibus
+    would otherwise keep two copies of every changed chapter until the gate.
+    A document that will not parse has no prose to digest and says so, which
+    breaks any chain it sits in — the honest answer.
+    """
+    text = document_text(data)
+    if text is None:
+        return "unparsable"
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 @dataclass
 class TextDivergence:
     """One document whose prose did not come out the way it went in."""

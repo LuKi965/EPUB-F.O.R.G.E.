@@ -59,14 +59,21 @@ class Context:
     #: point at is not in the book (EF-088), for the navigation stage to add
     #: to its own count.
     dropped_nav_entries: int = 0
-    #: Which rules changed the text of which document: `{path: {rule, …}}`.
+    #: What changed the text of which document, in order:
+    #: `{path: [{"rule", "before", "after"}, …]}` with the prose digests
+    #: (`fidelity.prose_digest`) of the document before and after each change.
     #: EF-083. The K1 gate used to excuse a loss anywhere in the book on the
     #: strength of a consented rule anywhere in the report — a hyphen joined
-    #: in chapter four excused a sentence missing from chapter nine. Every
-    #: stage that changes text on a person's word writes the document and the
-    #: rule here, and the gate excuses a difference in a document only by an
-    #: entry for *that* document. What is not written here was not asked for.
-    text_changes: dict[str, set[str]] = field(default_factory=dict)
+    #: in chapter four excused a sentence missing from chapter nine. Then it
+    #: excused by document (2026-09-05), which was a scope, not a contract: a
+    #: hyphen joined in chapter nine still excused a sentence missing from
+    #: chapter nine. EF-083a (DROGA-DO-1.0, 6.2): every stage that changes
+    #: text on a person's word writes what the document said before and
+    #: after, and the gate excuses a difference only when the recorded
+    #: changes, applied one after another, lead from the source's prose to
+    #: the output's. What is not written here was not asked for, wherever
+    #: it happened.
+    text_changes: dict[str, list[dict]] = field(default_factory=dict)
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None
@@ -304,13 +311,28 @@ class Stage:
             self.name, level, rule, values=values, location=location, detail=detail
         )
 
-    def text_changed(self, ctx: Context, path: str, rule: str) -> None:
-        """Record that *rule* changed the text of the document at *path*.
+    def text_changed(
+        self, ctx: Context, path: str, rule: str, *, before: bytes, after: bytes
+    ) -> None:
+        """Record that *rule* changed the text of the document at *path*,
+        from the prose *before* held to the prose *after* holds.
 
-        The K1 gate's per-document consent (EF-083): a difference in a
-        document is excused by an entry for that document and no other.
+        The K1 gate's consent (EF-083, EF-083a): a difference in a document
+        is excused only by the chain of entries for that document, and only
+        when the chain leads from the source's prose exactly to the output's.
+        Both sides are the document's bytes at the two moments — the stage
+        hands over what it had and what it made, and the digest is taken
+        here through the same reading the gate uses (`fidelity.prose_digest`),
+        so that a stage cannot describe its change in different words than
+        the gate will measure it in.
         """
-        ctx.text_changes.setdefault(path, set()).add(rule)
+        from .. import fidelity
+
+        ctx.text_changes.setdefault(path, []).append({
+            "rule": rule,
+            "before": fidelity.prose_digest(before),
+            "after": fidelity.prose_digest(after),
+        })
 
     def changed(
         self,

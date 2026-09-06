@@ -263,8 +263,24 @@ class TestAtTheGate:
 
         def gate_with_a_consent(src, pol, report, book=None):
             report.add("xhtml", Level.FIX, "xhtml.watermark-removed")
-            report.stats["text_changes"] = {"b.xhtml": ["xhtml.watermark-removed"]}
-            return original(src, pol, report, book)
+            inner = original(src, pol, report, book)
+
+            def gate(candidate):
+                # EF-083a: the entry says what the document's prose was on
+                # both sides, and the gate checks the chain against the
+                # archives — so the consent is written the way a stage would
+                # have written it, from the real source and the real output.
+                import zipfile
+
+                with zipfile.ZipFile(src) as before, zipfile.ZipFile(candidate) as after:
+                    report.stats["text_changes"] = {"b.xhtml": [{
+                        "rule": "xhtml.watermark-removed",
+                        "before": pipeline._prose_digest_in(before, "a.xhtml", fidelity),
+                        "after": pipeline._prose_digest_in(after, "b.xhtml", fidelity),
+                    }]}
+                return inner(candidate)
+
+            return gate
 
         monkeypatch.setattr(pipeline, "_text_gate", gate_with_a_consent)
         result = with_consent(source, str(tmp_path / "out.epub"), policy)

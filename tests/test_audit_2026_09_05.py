@@ -398,6 +398,7 @@ class TestEF083ConsentIsPerDocument:
         bind_to = "a"
 
         def run(self, ctx):
+            was = {r.path: r.data for r in ctx.book.content_docs()}
             for resource in ctx.book.content_docs():
                 if b"EPSILON" in resource.data:
                     resource.data = resource.data.replace(b"EPSILON ", b"")
@@ -405,7 +406,12 @@ class TestEF083ConsentIsPerDocument:
             self.note(ctx, Level.FIX, "hyphens.joined", values={"count": 1})
             target = {"a": [p for p in ctx.book.resources if p.endswith("a.xhtml")][0],
                       "b": lost_in}[self.bind_to]
-            self.text_changed(ctx, target, "hyphens.joined")
+            # Honest about what the bound document said before and after —
+            # for a, nothing changed, and the entry says so.
+            self.text_changed(
+                ctx, target, "hyphens.joined",
+                before=was[target], after=ctx.book.resources[target].data,
+            )
 
     class LoseAWordInBBoundToB(LoseAWordInB):
         bind_to = "b"
@@ -426,6 +432,94 @@ class TestEF083ConsentIsPerDocument:
         )
         assert result.output_path, result.report.to_text()
         assert "package.text-changed-on-request" in {f.rule for f in result.report.findings}
+
+
+class TestEF083aConsentIsTheExactChange(TestEF083ConsentIsPerDocument):
+    """Per document was a scope, not a contract (DROGA-DO-1.0, 6.2): a hyphen
+    joined in chapter nine excused a sentence missing from chapter nine. Now
+    every recorded change says what the document's prose was before and
+    after, and the gate follows the chain from the source to the output —
+    a change with no entry breaks it wherever it happened."""
+
+    class TwoChangesOneRecorded(Stage):
+        """Takes `EPSILON` out of b and records it honestly; then takes
+        `ZETA` out too and records nothing — the sentence a consent used to
+        cover for. `order` says which of the two happens first."""
+
+        name = "probe"
+        mutates = True
+        order = "recorded-first"
+
+        def run(self, ctx):
+            b = next(r for r in ctx.book.content_docs() if b"EPSILON" in r.data)
+            if self.order == "recorded-first":
+                before = b.data
+                b.data = b.data.replace(b"EPSILON ", b"")
+                self.text_changed(ctx, b.path, "hyphens.joined", before=before, after=b.data)
+                b.data = b.data.replace(b" ZETA", b"")
+            else:
+                b.data = b.data.replace(b" ZETA", b"")
+                before = b.data
+                b.data = b.data.replace(b"EPSILON ", b"")
+                self.text_changed(ctx, b.path, "hyphens.joined", before=before, after=b.data)
+            self.note(ctx, Level.FIX, "hyphens.joined", values={"count": 1})
+
+    class UnrecordedFirst(TwoChangesOneRecorded):
+        order = "unrecorded-first"
+
+    class TwoChangesBothRecorded(Stage):
+        name = "probe"
+        mutates = True
+
+        def run(self, ctx):
+            b = next(r for r in ctx.book.content_docs() if b"EPSILON" in r.data)
+            first = b.data
+            b.data = b.data.replace(b"EPSILON ", b"")
+            self.text_changed(ctx, b.path, "hyphens.joined", before=first, after=b.data)
+            second = b.data
+            b.data = b.data.replace(b" ZETA", b"")
+            self.text_changed(ctx, b.path, "substitutions.replaced", before=second, after=b.data)
+            self.note(ctx, Level.FIX, "hyphens.joined", values={"count": 1})
+
+    def _refusal(self, result) -> str:
+        found = [f for f in result.report.findings if f.rule in ("package.text-lost", "package.prose-changed")]
+        assert found, result.report.to_text()
+        return "\n".join(str(f.values.get("detail", "")) for f in found)
+
+    def test_a_second_change_after_the_recorded_one_is_refused(self, tmp_path):
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.TwoChangesOneRecorded],
+        )
+        assert not result.output_path, result.report.to_text()
+        assert "bez wpisu" in self._refusal(result)
+
+    def test_a_change_before_the_recorded_one_is_refused_too(self, tmp_path):
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.UnrecordedFirst],
+        )
+        assert not result.output_path, result.report.to_text()
+        assert "bez wpisu" in self._refusal(result)
+
+    def test_a_chain_of_recorded_changes_is_honoured(self, tmp_path):
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.TwoChangesBothRecorded],
+        )
+        assert result.output_path, result.report.to_text()
+        excused = [f for f in result.report.findings if f.rule == "package.text-changed-on-request"]
+        assert excused and "hyphens.joined" in excused[0].values["rules"]
+        assert "substitutions.replaced" in excused[0].values["rules"]
+
+    def test_the_record_carries_what_the_document_said(self, tmp_path):
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.TwoChangesBothRecorded],
+        )
+        chain = next(iter(result.report.stats["text_changes"].values()))
+        assert [entry["rule"] for entry in chain] == ["hyphens.joined", "substitutions.replaced"]
+        assert chain[0]["after"] == chain[1]["before"] != chain[1]["after"]
 
 
 class TestEF084TheBalanceHoldsResourcesByIdentity:

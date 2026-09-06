@@ -347,6 +347,7 @@ class HyphenStage(Stage):
                 ),
                 reversible=False,
             )
+            before_data = resource.data
             try:
                 made = carry_out(
                     krok,
@@ -358,7 +359,10 @@ class HyphenStage(Stage):
                 )
                 joined += made
                 if made:
-                    self.text_changed(ctx, resource.path, "hyphens.joined")
+                    self.text_changed(
+                        ctx, resource.path, "hyphens.joined",
+                        before=before_data, after=resource.data,
+                    )
             except PostconditionFailed:
                 # Liczona, nie zgłaszana z osobna: `_report_changes` mówi o tym
                 # jednym zdaniem dla całej książki, i mówiło tak, zanim kontrakt
@@ -449,6 +453,7 @@ class HyphenStage(Stage):
             tree = ctx.take(resource)
             root = tree.root
             before = "".join(root.itertext())
+            before_data = resource.data
             expected = before
             changed = 0
             for candidate, replacement in agreed:
@@ -482,7 +487,9 @@ class HyphenStage(Stage):
                 continue
             resource.data = xhtml.serialize(root)
             joined += changed
-            self.text_changed(ctx, resource.path, "hyphens.joined")
+            self.text_changed(
+                ctx, resource.path, "hyphens.joined", before=before_data, after=resource.data
+            )
 
         self._report_changes(ctx, joined, reverted)
 

@@ -2503,15 +2503,19 @@ class ContentStage(Stage):
             postcondition=lambda: not mojibake.census(root),
             reversible=False,
         )
+        before_data = xhtml.serialize(root)
         try:
             changed = carry_out(
                 krok,
-                snapshot=lambda: xhtml.serialize(root),
+                snapshot=lambda: before_data,
                 restore=lambda data: self._reload(ctx, resource, root, data),
                 mutate=lambda: mojibake.apply(root),
             )
             if changed:
-                self.text_changed(ctx, resource.path, "xhtml.mojibake-translated")
+                self.text_changed(
+                    ctx, resource.path, "xhtml.mojibake-translated",
+                    before=before_data, after=xhtml.serialize(root),
+                )
         except PostconditionFailed as niepowodzenie:
             self.note(
                 ctx,
@@ -3250,6 +3254,10 @@ class ContentStage(Stage):
         # the second marker in a document gets skipped.
         displaced: list = []
         tokens: list[str] = []
+        # What the document said before the first notice went, for the gate's
+        # record (EF-083a): taken once, when it is first needed, and closed
+        # after the walk — several notices in one document are one change.
+        before_notices: "bytes | None" = None
 
         for element in xhtml.iter_elements(root):
             if len(element) or xhtml.local_name(element).lower() in {"html", "head", "body"}:
@@ -3265,11 +3273,11 @@ class ContentStage(Stage):
                 # been taken out must not also be reported as preserved — two
                 # findings contradicting each other in one report is worse than
                 # either of them being absent.
-                if ctx.policy.remove_shop_notices and self._strip_shop_notice(
-                    element, resource
-                ):
-                    self.text_changed(ctx, resource.path, "xhtml.shop-notice-removed")
-                    continue
+                if ctx.policy.remove_shop_notices:
+                    snapshot = before_notices if before_notices is not None else xhtml.serialize(root)
+                    if self._strip_shop_notice(element, resource):
+                        before_notices = snapshot
+                        continue
                 notices.append(text[:120])
                 continue
 
@@ -3292,6 +3300,12 @@ class ContentStage(Stage):
                 displaced.append(element)
                 if text not in tokens:
                     tokens.append(text)
+
+        if before_notices is not None:
+            self.text_changed(
+                ctx, resource.path, "xhtml.shop-notice-removed",
+                before=before_notices, after=xhtml.serialize(root),
+            )
 
         if consolidated:
             for sheet in self._linked_stylesheets(ctx, root, resource):
@@ -3377,15 +3391,18 @@ class ContentStage(Stage):
             # w nagłówku. Usunięcie nie: skasowanego znacznika nie ma skąd wziąć.
             reversible=relocating,
         )
+        before_data = xhtml.serialize(root)
         try:
             moved = carry_out(
                 krok,
-                snapshot=lambda: xhtml.serialize(root),
+                snapshot=lambda: before_data,
                 restore=lambda data: self._reload(ctx, resource, root, data),
                 mutate=mutate,
             )
             if moved:
-                self.text_changed(ctx, resource.path, rule)
+                self.text_changed(
+                    ctx, resource.path, rule, before=before_data, after=xhtml.serialize(root)
+                )
         except PostconditionFailed as niepowodzenie:
             # Znacznik zostaje w książce. Widoczny ciąg znaków, który da się
             # zgłosić, kosztuje mniej niż zdanie powieści zabrane przy okazji —
