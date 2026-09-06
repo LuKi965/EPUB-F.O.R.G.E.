@@ -25,12 +25,21 @@ nietknięta, nigdy gorsza.
 
 ## 2. Zamysł — trzy zdania, które rozstrzygają spory
 
-1. **Naprawiaj kod, nie zmieniaj obrazu.** Wygląd książki to intencja
-   wydawcy; kod książki to sposób, w jaki wydawca tę intencję zapisał.
-   Program ma prawo zmieniać sposób zapisu, nie ma prawa zmieniać intencji.
-   Konstrukcja niezgodna ze standardem, ale niosąca wygląd, jest
-   **tłumaczona** na zgodny odpowiednik, nigdy kasowana; jeśli tłumaczenie
-   zmieniłoby wygląd — niezgodność zostaje, z powodem w raporcie.
+1. **Odbuduj kod, zachowaj obraz.** Wygląd książki to intencja wydawcy;
+   kod książki to sposób, w jaki wydawca tę intencję zapisał. Program ma
+   prawo zmieniać sposób zapisu, nie ma prawa zmieniać intencji. Słowami
+   właściciela: *sensem aplikacji jest zachowanie wyglądu przy jednoczesnym
+   odbudowaniu ebooka w standardzie* — zachowanie dotyczy **wyglądu**, nie
+   **kodu**. Program nie łata zastanego zapisu: kontener, dokument pakietu,
+   nazwy plików, dokument nawigacji, arkusz stylów i nazwy klas są
+   **budowane od nowa**, a wejściowy zapis jest źródłem dwóch rzeczy —
+   strumienia treści i dowodów o wyglądzie. Nazwa klasy, kolejność reguł,
+   liczba znaczników i sposób zapisu deklaracji nie są intencją wydawcy;
+   intencją jest to, co czytelnik widzi. Granicą nie jest ostrożność wobec
+   kodu, tylko **dowód o obrazie** (brama renderu, K1, K6). Konstrukcja
+   niezgodna ze standardem, ale niosąca wygląd, jest **tłumaczona** na
+   zgodny odpowiednik, nigdy kasowana; jeśli tłumaczenie zmieniłoby wygląd
+   — niezgodność zostaje, z powodem w raporcie.
 2. **Żaden znak tekstu nie ginie.** Nie „prawie żaden" i nie „liczba znaków
    się zgadza": każdy znak kolejności czytania źródła musi być w wyniku, w tej
    samej kolejności. To jest brama zapisu, nie ostrzeżenie — książka, która
@@ -81,6 +90,26 @@ alternatywne obrazów, tabele, nawigacja, dostępność, profile zgodności
 czytników, cięcie fontów, KEPUB. Na końcu **writer** (`epubforge/writer.py`)
 pisze świeży kontener, a **bramy** decydują, czy w ogóle wolno go zapisać.
 
+**Co jest już zbudowane** — żeby nie budować tego drugi raz. Najczęstszy
+błąd czytelnika tego repozytorium: przeczytać, że celem jest odbudowa,
+i zacząć budować to, co stoi od miesiąca.
+
+| obszar | gdzie |
+|---|---|
+| świeży kontener OCF i dokument pakietu | `epubforge/writer.py`, `epubforge/ocf.py` |
+| nazwy plików z roli (`cover`, `toc`, `chapter-NN`), okładka i spis syntetyzowane przed numerowaniem | `epubforge/stages/structure.py`, `epubforge/covers.py` |
+| dokument nawigacji regenerowany, NCX obok | `epubforge/stages/navigation.py` |
+| nazwy klas przetłumaczone na słownik projektu (`ef-<kategoria>-<numer>`), domyślnie włączone | `epubforge/stages/style.py`, `epubforge/naming.py` |
+| odbudowa arkusza: format, scalanie, kolejność, martwe reguły — domknięta | `epubforge/stages/style.py`, `epubforge/stylesheet.py` |
+| koszyki śmieci generatorów (Word, Calibre, Sigil, InDesign) w obu trybach, każdy za kratką | `epubforge/stages/style.py`, `epubforge/stages/content.py` |
+| eksport KEPUB | `epubforge/kepub.py`, `epubforge/stages/kepub.py` |
+| PDF z warstwą tekstową → ten sam model | `epubforge/pdf.py`, `epubforge/stages/pdf.py` |
+
+Co zostało z odbudowy zapisu — atrybuty `style="…"` do klas, `div`
+owijający jeden blok, `span` bez atrybutów, ciągi pustych akapitów,
+rodziny klas różniące się jedną cechą — ma decyzję właściciela z pomiarem
+na półce i czeka na wykonanie, każde z dowodem bramą, nie deklaracją.
+
 **Człowiek w pętli.** Pytania (`epubforge/decisions.py`, teksty w
 `epubforge/question_texts.py`) mają opcje, konsekwencje i rekomendację;
 odpowiedź może być stała dla całej partii, jest pamiętana obok pliku i
@@ -121,6 +150,21 @@ funkcja wymaga złamania którejś, funkcja jest źle zaprojektowana.
 | K11 | deklaracja nie jest pomiarem: rozszerzenie, nagłówek ZIP, pusty atrybut — sprawdzamy na materiale |
 | K12 | model jest kontraktem: konstrukcja nieodczytana do modelu znika z wyniku, więc każda taka strata jest naprawiona albo świadomie wpisana z powodem |
 
+**Trzy z nich bywają czytane opacznie** — i to jest najczęstsza przyczyna,
+dla której ktoś wycofuje się do mikro-poprawek tam, gdzie kontrakt każe
+odbudować:
+
+- **K12** nie znaczy „nie ruszaj zastanej struktury". Znaczy: konstrukcja
+  nieodczytana do modelu **znika bez śladu**, i to jest wada. Świadoma
+  zmiana z wpisem w bilansie jest tym, czego K12 żąda, nie tym, czego
+  zabrania.
+- **K6** nie znaczy „nie zmieniaj". Znaczy „zmieniaj i napisz".
+- **S-02** („cokolwiek program usuwa, jest do odznaczenia albo do
+  potwierdzenia") nie zabrania usuwania. Wymaga kratki albo pytania.
+
+Trzy, które faktycznie ograniczają i których nie wolno naginać: **K1**,
+**K2/K3** i **S-05** (bez odpowiedzi nic się nie zmienia).
+
 **Cztery jakości, oceniane osobno** — sukces w jednej nie kompensuje porażki
 w innej: zgodność techniczna (EPUBCheck 5.3.0), integralność semantyczna (K1,
 bilans zasobów i atrybutów, graf odwołań, metadane), wierność wizualna
@@ -151,11 +195,24 @@ odporność na złośliwe archiwa). Zwykła publikacja wymaga wszystkich czterec
 - **Półka właściciela** (160 książek, prywatne, nigdy w tym repozytorium):
   odciski całego wyjścia przed i po każdej zmianie w potoku, przebiegi całej
   półki z pełnym renderem, K3 mierzone na półce (drugi przebieg: 0 zmian
-  w 60 książkach).
+  w 160 książkach, trzy razy z rzędu; przed naprawami z września 2026 było
+  15 z 160), odbiór PDF na materiale zastępczym z porównaniem kolumna po
+  kolumnie z poprzednim biegiem — także czasu.
 - **Audyty**: samoocena i tury niezależnych audytorów, z rejestrem ustaleń,
   w którym sprawdzenie autora jest **materiałem**, a werdykt należy do
   audytora. Rejestr, decyzje właściciela, rekordy przebiegów i lekcje żyją
   w **prywatnym repozytorium notatek**, nie tutaj.
+
+**Kiedy książka jest skończona.** Kiedy jej tekst jest co do znaku ten sam,
+jej strony wyglądają tak samo na przypiętym silniku, a w jej kodzie nie ma
+ani jednej nazwy, reguły ani konstrukcji wniesionej przez narzędzie, którym
+posłużył się wydawca — i wszystko, co program zostawił nietknięte, zostawił
+z powodem, który mówi o książce, a nie o programie. Siedem warunków, każdy
+mierzalny: tekst co do znaku (K1), strony bez różnicy (brama renderu),
+zero nazw obcych narzędzi w wyniku, zero zapisu spoza standardu projektu
+(`style="…"`, `div` wokół jednego bloku, `span` bez atrybutów), EPUBCheck
+bez zastrzeżeń, lint Calibre bez ostrzeżeń, drugi przebieg bez zmian (K3
+na półce, nie na atrapie).
 
 ## 7. Mapa repozytorium
 
