@@ -256,6 +256,14 @@ class TypographyStage(Stage):
             conjunctions += changed[1]
             quotes += changed[2]
             dashes += changed[3]
+            for made, rule in zip(changed, (
+                "typography.ellipsis-normalised",
+                "typography.conjunctions-bound",
+                "typography.quotes-retyped",
+                "typography.ranges-dashed",
+            )):
+                if made:
+                    self.text_changed(ctx, resource.path, rule)
 
         self._report(
             ctx, ellipses, conjunctions, quotes, dashes, convention, reverted,

@@ -322,7 +322,7 @@ class HyphenStage(Stage):
                 reversible=False,
             )
             try:
-                joined += carry_out(
+                made = carry_out(
                     krok,
                     snapshot=lambda resource=resource: resource.data,
                     restore=lambda data, resource=resource: setattr(
@@ -330,6 +330,9 @@ class HyphenStage(Stage):
                     ),
                     mutate=mutate,
                 )
+                joined += made
+                if made:
+                    self.text_changed(ctx, resource.path, "hyphens.joined")
             except PostconditionFailed:
                 # Liczona, nie zgłaszana z osobna: `_report_changes` mówi o tym
                 # jednym zdaniem dla całej książki, i mówiło tak, zanim kontrakt
@@ -350,7 +353,14 @@ class HyphenStage(Stage):
         """
         expected = before
         for candidate, replacement in planned:
-            expected = expected.replace(candidate.word, replacement)
+            # The same whole-word rule the mutation applies. With `str.replace`
+            # here and whole words there, any candidate that is the start of a
+            # longer word (`pick-up` in `pick-uptruck`) made the two disagree,
+            # the postcondition failed, and the whole document went back —
+            # every document of the PDF acceptance material, 790 confirmed
+            # candidates, one joined. K3 could not see it: a repair that stops
+            # happening is stable. The acceptance measurement could.
+            expected = _WHOLE_WORD(candidate.word).sub(replacement, expected)
         return typography.unchanged(expected, after)
 
     def _report_left(self, ctx: Context, unanswered: int, kept: int) -> None:
@@ -448,6 +458,7 @@ class HyphenStage(Stage):
                 continue
             resource.data = xhtml.serialize(root)
             joined += changed
+            self.text_changed(ctx, resource.path, "hyphens.joined")
 
         self._report_changes(ctx, joined, reverted)
 

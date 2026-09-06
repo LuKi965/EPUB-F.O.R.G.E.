@@ -364,4 +364,8 @@ class TestJoiningAHyphenTouchesOnlyThatWord:
         first, second = twice(source, tmp_path)
         page = b"".join(data for name, data in members(first.output_path).items() if name.endswith(".xhtml"))
         assert b"pick-uptruck" in page, "the longer word must keep its hyphen"
+        rules = {f.rule: f.values for f in first.report.findings}
+        assert "hyphens.reverted" not in rules, "the postcondition and the mutation must agree on whole words"
+        assert rules.get("hyphens.joined", {}).get("count"), "the candidate itself was joined"
+        assert b"Wsiad\xc5\x82 do pickup i" in page, page[:600]
         assert_stable(first, second)

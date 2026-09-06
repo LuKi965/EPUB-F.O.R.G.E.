@@ -59,6 +59,14 @@ class Context:
     #: point at is not in the book (EF-088), for the navigation stage to add
     #: to its own count.
     dropped_nav_entries: int = 0
+    #: Which rules changed the text of which document: `{path: {rule, …}}`.
+    #: EF-083. The K1 gate used to excuse a loss anywhere in the book on the
+    #: strength of a consented rule anywhere in the report — a hyphen joined
+    #: in chapter four excused a sentence missing from chapter nine. Every
+    #: stage that changes text on a person's word writes the document and the
+    #: rule here, and the gate excuses a difference in a document only by an
+    #: entry for *that* document. What is not written here was not asked for.
+    text_changes: dict[str, set[str]] = field(default_factory=dict)
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None
@@ -295,6 +303,14 @@ class Stage:
         ctx.report.add(
             self.name, level, rule, values=values, location=location, detail=detail
         )
+
+    def text_changed(self, ctx: Context, path: str, rule: str) -> None:
+        """Record that *rule* changed the text of the document at *path*.
+
+        The K1 gate's per-document consent (EF-083): a difference in a
+        document is excused by an entry for that document and no other.
+        """
+        ctx.text_changes.setdefault(path, set()).add(rule)
 
     def changed(
         self,

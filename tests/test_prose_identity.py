@@ -254,14 +254,16 @@ class TestAtTheGate:
 
         source = self._book(tmp_path)
         policy = Policy.preset("preserve", render_gate="off", validate_before_publish="off")
-        # The consent the gate looks for is a finding, so put one in the way
-        # the stage would have.
+        # The consent the gate looks for is the document's own entry (EF-083:
+        # a rule name anywhere in the report stopped being enough), so put one
+        # in the way the stage would have — for the document that diverged.
         from epubforge import pipeline
 
         original = pipeline._text_gate
 
         def gate_with_a_consent(src, pol, report, book=None):
             report.add("xhtml", Level.FIX, "xhtml.watermark-removed")
+            report.stats["text_changes"] = {"b.xhtml": ["xhtml.watermark-removed"]}
             return original(src, pol, report, book)
 
         monkeypatch.setattr(pipeline, "_text_gate", gate_with_a_consent)

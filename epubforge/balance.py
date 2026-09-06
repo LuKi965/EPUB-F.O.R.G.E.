@@ -131,12 +131,25 @@ class Side:
     #: an entry for every document of a 9 809-document book is a log, and the
     #: totals above are the balance.
     semantic_attributes_by_document: dict = field(default_factory=dict)
+    #: Every resource by the name it had in the *source*, whatever it is
+    #: called now: the model records `original_path` on every rename, so an
+    #: output resource is identified by where it came from. EF-084: counts per
+    #: category let a generated NCX stand in for a lost text file — one
+    #: `other` went out, one `other` came in, the balance closed. A bag of
+    #: numbers cannot tell a replacement from a loss; a set of identities can.
+    identities: dict = field(default_factory=dict)
+    #: The names the resources carry *now*, for following a ledger that
+    #: speaks of a file by the name it had at the moment of the entry.
+    paths: set = field(default_factory=set)
 
     @classmethod
     def of(cls, book) -> "Side":
         side = cls()
         for path, resource in book.resources.items():
             side.counts[kind_of(path, getattr(resource, "media_type", ""))] += 1
+            origin = getattr(resource, "original_path", None) or path
+            side.identities[origin] = kind_of(path, getattr(resource, "media_type", ""))
+            side.paths.add(path)
         side.spine_items = len(book.spine)
         side.metadata_entries = _metadata_entries(book)
         side.text_characters = _characters_of(book)
@@ -334,6 +347,10 @@ class Balance:
     after: Side
     #: `(category, lost, explained)` for every category that shrank.
     unexplained: list = field(default_factory=list)
+    #: Source resources that are in the output under no name at all, and that
+    #: no removal or reconstruction in the ledger names (EF-084). Held by
+    #: identity, so a resource added elsewhere cannot stand in for one lost.
+    unexplained_paths: list = field(default_factory=list)
     #: `(attribute, before, after)` for every semantic attribute the output
     #: carries fewer of than the source. Not part of `closes`: a count of
     #: names inside tags is evidence to look at, not a proof of loss, and a
@@ -343,7 +360,13 @@ class Balance:
 
     @property
     def closes(self) -> bool:
-        return not self.unexplained
+        # Both: the counts per category, and the identities (EF-084). The
+        # identity half was measured on the owner's 160 books before it
+        # joined the verdict — the first run refused real books over the NCX
+        # and the navigation document, which the ledger moves by the name
+        # they had at the moment of the entry; `reconcile` follows that chain
+        # now, and the second run had nothing unexplained.
+        return not self.unexplained and not self.unexplained_paths
 
     def as_dict(self) -> dict:
         return {
@@ -354,6 +377,7 @@ class Balance:
                 {"category": category, "lost": lost, "explained": explained}
                 for category, lost, explained in self.unexplained
             ],
+            "unexplained_paths": list(self.unexplained_paths),
             "attributes_fell": [
                 {"attribute": name, "before": was, "after": now}
                 for name, was, now in self.attributes_fell
@@ -361,6 +385,10 @@ class Balance:
         }
 
     def __str__(self) -> str:
+        if self.unexplained_paths and not self.unexplained:
+            shown = ", ".join(self.unexplained_paths[:3])
+            more = f" (+{len(self.unexplained_paths) - 3})" if len(self.unexplained_paths) > 3 else ""
+            return f"{len(self.unexplained_paths)} zasobów źródła bez wpisu w bilansie zmian: {shown}{more}"
         if self.closes:
             return "bilans się zamyka"
         return "; ".join(
@@ -385,6 +413,46 @@ def reconcile(before: Side, after: Side, changes) -> Balance:
         category = subject if subject in KINDS else _category_for(change)
         explained[category] = explained.get(category, 0) + 1
 
+    # By identity (EF-084): a source resource that is in the output under no
+    # name — its own or a new one — has to be named by a removal or a
+    # reconstruction in the ledger. The ledger writes the path as the subject
+    # or, for an orphan, at the head of `before` ("path (N B)"); both count.
+    named: set[str] = set()
+    moved: dict[str, str] = {}
+    for change in changes or ():
+        action = getattr(change.action, "value", change.action)
+        subject = getattr(change, "subject", "") or ""
+        before_text = getattr(change, "before", "") or ""
+        after_text = getattr(change, "after", "") or ""
+        if action == "moved" and before_text and after_text:
+            # A file written again under a new name — the NCX, most often —
+            # is the same resource; the ledger says where it went.
+            moved[before_text] = after_text
+            continue
+        if action not in EXPLAINS_A_LOSS:
+            continue
+        for text in (subject, before_text):
+            head = text.split(" (", 1)[0].strip()
+            if head:
+                named.add(head)
+    # A ledger entry speaks of a file by the name it had *then*: the
+    # relayout moves `EPUB/extra.txt` to `EPUB/misc/extra.txt` and a later
+    # removal names the second. So every name a resource has carried is
+    # followed, move by move, and any of them present in the output or named
+    # by a removal explains the source identity.
+    def names_of(path: str) -> set:
+        chain = {path}
+        while path in moved and moved[path] not in chain:
+            path = moved[path]
+            chain.add(path)
+        return chain
+
+    present = set(after.identities) | after.paths
+    unexplained_paths = sorted(
+        path for path in before.identities
+        if not (names_of(path) & present) and not (names_of(path) & named)
+    )
+
     unexplained = []
     for category in (*KINDS, "spine_items", "metadata_entries"):
         was = before.as_dict()[category]
@@ -397,7 +465,13 @@ def reconcile(before: Side, after: Side, changes) -> Balance:
             unexplained.append((category, lost, covered))
 
     fell = _attributes_that_fell(before, after, changes)
-    return Balance(before=before, after=after, unexplained=unexplained, attributes_fell=fell)
+    return Balance(
+        before=before,
+        after=after,
+        unexplained=unexplained,
+        unexplained_paths=unexplained_paths,
+        attributes_fell=fell,
+    )
 
 
 def _attributes_that_fell(before: Side, after: Side, changes) -> list:

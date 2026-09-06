@@ -2510,6 +2510,8 @@ class ContentStage(Stage):
                 restore=lambda data: self._reload(ctx, resource, root, data),
                 mutate=lambda: mojibake.apply(root),
             )
+            if changed:
+                self.text_changed(ctx, resource.path, "xhtml.mojibake-translated")
         except PostconditionFailed as niepowodzenie:
             self.note(
                 ctx,
@@ -3266,6 +3268,7 @@ class ContentStage(Stage):
                 if ctx.policy.remove_shop_notices and self._strip_shop_notice(
                     element, resource
                 ):
+                    self.text_changed(ctx, resource.path, "xhtml.shop-notice-removed")
                     continue
                 notices.append(text[:120])
                 continue
@@ -3381,6 +3384,8 @@ class ContentStage(Stage):
                 restore=lambda data: self._reload(ctx, resource, root, data),
                 mutate=mutate,
             )
+            if moved:
+                self.text_changed(ctx, resource.path, rule)
         except PostconditionFailed as niepowodzenie:
             # Znacznik zostaje w książce. Widoczny ciąg znaków, który da się
             # zgłosić, kosztuje mniej niż zdanie powieści zabrane przy okazji —

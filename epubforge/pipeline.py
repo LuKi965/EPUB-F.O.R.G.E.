@@ -393,7 +393,13 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         if measured.ok:
             report.add(
                 "render", Level.INFO, "render.checked",
-                values={"count": len(measured.pages), "engine": measured.engine},
+                values={
+                    "count": len(measured.pages),
+                    "engine": measured.engine,
+                    "documents": measured.documents,
+                    "total": measured.total,
+                    "screens": measured.screens,
+                },
             )
             return ""
 
@@ -796,6 +802,44 @@ def _paired_by_name(source: str, candidate: str, book=None) -> "dict[str, str]":
         return {}
 
 
+def _consent_by_document(divergences, report: Report) -> "tuple[list, list]":
+    """Which diverging documents a consented rule accounts for, and which not.
+
+    EF-083. Consent used to be a rule name anywhere in the report: a hyphen
+    joined in chapter four excused a sentence missing from chapter nine, and
+    the independent audit of 2026-09-05 showed it with a single dummy finding.
+    Every text-changing stage now records the document and the rule
+    (`Context.text_changes`, on the report as `stats["text_changes"]`), and a
+    difference in a document is excused by an entry for *that* document under
+    a rule from the two consent lists — by nothing else. A document whose
+    text differs with no entry of its own is a loss nobody asked for.
+    """
+    accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+    recorded = report.stats.get("text_changes") or {}
+    excused, unexcused = [], []
+    for divergence in divergences:
+        rules = set(recorded.get(divergence.output_path, ())) | set(
+            recorded.get(divergence.source_path, ())
+        )
+        (excused if rules & accounted else unexcused).append(divergence)
+    return excused, unexcused
+
+
+def _paired_divergences(source: str, candidate: str, report: Report, book=None) -> "list | None":
+    """Every carried document whose prose came out different, or `None` when
+    the two archives cannot be paired at all."""
+    from . import fidelity
+
+    moved = {
+        change.before: change.after
+        for change in report.changes
+        if change.rule == "structure.relaid-out" and change.before and change.after
+    } or _paired_by_name(source, candidate, book)
+    if not moved:
+        return None
+    return fidelity.prose_is_identical(source, candidate, moved)
+
+
 def _text_gate(source: str, policy: Policy, report: Report, book=None):
     """K1 at the gate: every word of the source is in the file about to be named.
 
@@ -885,25 +929,55 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
                     return f"K1-PDF: {second.detail}"
         if check.ok:
             return ""
-        consented = sorted(
-            {
-                finding.rule
-                for finding in report.findings
-                if finding.rule in REMOVES_TEXT_ON_PURPOSE
-            }
-        )
-        if consented:
-            # Text did leave the book, and somebody asked for it to. Reported
-            # rather than refused, and reported rather than passed over in
-            # silence: the person reading this is entitled to know that the
-            # invariant no longer holds character for character and why.
-            report.add(
-                "package",
-                Level.WARN,
-                "package.text-changed-on-request",
-                values={"rules": ", ".join(consented), "detail": check.detail},
+        if pdf.is_pdf(source):
+            # A PDF has no documents to pair the output's with, so the consent
+            # here is still by rule name over the whole report — said as such.
+            consented = sorted(
+                {
+                    finding.rule
+                    for finding in report.findings
+                    if finding.rule in REMOVES_TEXT_ON_PURPOSE
+                }
             )
-            return ""
+            if consented:
+                report.add(
+                    "package",
+                    Level.WARN,
+                    "package.text-changed-on-request",
+                    values={"rules": ", ".join(consented), "detail": check.detail},
+                )
+                return ""
+        else:
+            # Text did leave the book. Excused only where somebody asked for it
+            # in the very document it left (EF-083): the diverging documents
+            # are found by pairing source with output, and each has to carry
+            # its own entry. A loss in a document with no entry, or a loss
+            # that no carried document accounts for — a document gone whole —
+            # is refused.
+            divergences = _paired_divergences(source, candidate, report, book)
+            if divergences:
+                excused, unexcused = _consent_by_document(divergences, report)
+                if not unexcused:
+                    recorded = report.stats.get("text_changes") or {}
+                    rules = sorted(
+                        {
+                            rule
+                            for divergence in excused
+                            for rule in recorded.get(divergence.output_path, ())
+                            if rule in REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+                        }
+                    )
+                    report.add(
+                        "package",
+                        Level.WARN,
+                        "package.text-changed-on-request",
+                        values={"rules": ", ".join(rules), "detail": check.detail},
+                    )
+                    return ""
+                check = replace(
+                    check,
+                    detail=f"{check.detail}; bez zgody w {unexcused[0].output_path}",
+                )
         report.add(
             "package",
             Level.ERROR,
@@ -969,27 +1043,31 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
             return f"K1 (prose) could not be measured: {type(exc).__name__}: {exc}"
         if not divergences:
             return ""
-        accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
-        consented = sorted({
-            finding.rule
-            for finding in report.findings
-            if finding.rule in accounted
-        })
-        if consented:
+        excused, unexcused = _consent_by_document(divergences, report)
+        if not unexcused:
+            recorded = report.stats.get("text_changes") or {}
+            rules = sorted(
+                {
+                    rule
+                    for divergence in excused
+                    for rule in recorded.get(divergence.output_path, ())
+                    if rule in REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+                }
+            )
             report.add(
                 "package",
                 Level.WARN,
                 "package.prose-changed-on-request",
-                values={"rules": ", ".join(consented), "detail": str(divergences[0])},
+                values={"rules": ", ".join(rules), "detail": str(divergences[0])},
             )
             return ""
         report.add(
             "package",
             Level.ERROR,
             "package.prose-changed",
-            values={"count": len(divergences), "detail": str(divergences[0])},
+            values={"count": len(unexcused), "detail": str(unexcused[0])},
         )
-        return f"K1: {divergences[0]}"
+        return f"K1: {unexcused[0]}"
 
     def both(candidate: str) -> str:
         return gate(candidate) or sharper(candidate)
@@ -1768,6 +1846,12 @@ def _publish(source, destination, ctx, before_side, queue, report) -> "Result | 
         # the ledger accounts for — the other direction, and the one that does
         # not require trusting the thing under suspicion to have written itself
         # down.
+        # What changed the text of which document, for the K1 gate's
+        # per-document consent (EF-083). On the report rather than the
+        # context because the gate is handed the report and nothing else.
+        report.stats["text_changes"] = {
+            path: sorted(rules) for path, rules in sorted(ctx.text_changes.items())
+        }
         reconciled = balance.reconcile(
             before_side, balance.Side.of(book), report.changes
         )

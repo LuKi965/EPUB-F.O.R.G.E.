@@ -327,6 +327,63 @@ def ink_of(image_path: "str | pathlib.Path") -> Ink:
     )
 
 
+def ink_bands(image_path: "str | pathlib.Path", band: int) -> "list[Ink]":
+    """`ink_of`, once per horizontal band of *band* pixels, top to bottom.
+
+    One tall screenshot is several screens; measured whole, a paragraph that
+    vanished from the fourth screen is a two-per-cent dip in a number nobody
+    holds against the page (EF-089). Measured per band, that screen went from
+    printed to blank, and that is the shape the judgement was written for.
+    The paper colour is taken from the whole image, so a band that is all
+    text is not mistaken for a band that is all paper.
+    """
+    from PIL import Image
+
+    inks: list[Ink] = []
+    with Image.open(image_path) as opened:
+        image = opened.convert("L")
+        width, height = image.size
+        paper = image.histogram().index(max(image.histogram()))
+        mask = image.point(lambda shade: 255 if abs(shade - paper) > 24 else 0)
+        for top in range(0, height, band):
+            piece = mask.crop((0, top, width, min(top + band, height)))
+            box = piece.getbbox()
+            drawn = piece.histogram()[255]
+            if not drawn or box is None:
+                inks.append(Ink(0.0, 0.0, 0.0, 0.0, 0.0))
+                continue
+            left, top_, right, bottom = box
+            inks.append(Ink(
+                coverage=drawn / (piece.width * piece.height),
+                left=left / piece.width,
+                top=top_ / piece.height,
+                right=right / piece.width,
+                bottom=bottom / piece.height,
+            ))
+    return inks
+
+
+def difference_bands(one: "str | pathlib.Path", two: "str | pathlib.Path", band: int) -> "list[float]":
+    """`difference`, once per horizontal band of *band* pixels."""
+    from PIL import Image, ImageChops
+
+    with Image.open(one) as first, Image.open(two) as second:
+        left = first.convert("L")
+        right = second.convert("L")
+        size = (max(left.width, right.width), max(left.height, right.height))
+        canvas_one = Image.new("L", size, 255)
+        canvas_two = Image.new("L", size, 255)
+        canvas_one.paste(left, (0, 0))
+        canvas_two.paste(right, (0, 0))
+        delta = ImageChops.difference(canvas_one, canvas_two)
+        out: list[float] = []
+        for top in range(0, size[1], band):
+            piece = delta.crop((0, top, size[0], min(top + band, size[1])))
+            histogram = piece.histogram()
+            out.append(sum(histogram[25:]) / (piece.width * piece.height))
+    return out
+
+
 def difference(one: "str | pathlib.Path", two: "str | pathlib.Path") -> float:
     """Fraction of pixels that differ, after putting both on one canvas.
 

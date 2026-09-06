@@ -335,3 +335,120 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
         refusal = pipeline._text_gate(str(source), Policy(), report)(candidate)
         assert refusal.startswith("K1-PDF")
         assert "package.pdf-characters-lost" in {f.rule for f in report.findings}
+
+
+class TestEF083ConsentIsPerDocument:
+    """A hyphen joined in chapter four used to excuse a sentence missing from
+    chapter nine: the gate looked for a rule name anywhere in the report."""
+
+    TWO = {
+        "EPUB/a.xhtml": "ALFA BETA GAMMA",
+        "EPUB/b.xhtml": "DELTA EPSILON ZETA",
+    }
+
+    def _book(self, path: pathlib.Path) -> str:
+        package = PACKAGE.replace(
+            '<item id="c" href="chapter.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="a" href="a.xhtml" media-type="application/xhtml+xml"/>'
+            '<item id="b" href="b.xhtml" media-type="application/xhtml+xml"/>',
+        ).replace('<itemref idref="c"/>', '<itemref idref="a"/><itemref idref="b"/>')
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("mimetype", "application/epub+zip")
+            archive.writestr("META-INF/container.xml", CONTAINER)
+            archive.writestr("EPUB/package.opf", package)
+            for name, text in self.TWO.items():
+                archive.writestr(
+                    name,
+                    '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>'
+                    f"</head><body><p>{text}</p></body></html>",
+                )
+            archive.writestr("EPUB/nav.xhtml", NAV.replace("chapter.xhtml", "a.xhtml"))
+            archive.writestr("EPUB/extra.txt", "x")
+        return str(path)
+
+    class LoseAWordInB(Stage):
+        """Takes `EPSILON` out of b and, as the audit's probe did, drops a
+        consented rule into the report — here honestly bound to document a."""
+
+        name = "probe"
+        mutates = True
+        bind_to = "a"
+
+        def run(self, ctx):
+            for resource in ctx.book.content_docs():
+                if b"EPSILON" in resource.data:
+                    resource.data = resource.data.replace(b"EPSILON ", b"")
+                    lost_in = resource.path
+            self.note(ctx, Level.FIX, "hyphens.joined", values={"count": 1})
+            target = {"a": [p for p in ctx.book.resources if p.endswith("a.xhtml")][0],
+                      "b": lost_in}[self.bind_to]
+            self.text_changed(ctx, target, "hyphens.joined")
+
+    class LoseAWordInBBoundToB(LoseAWordInB):
+        bind_to = "b"
+
+    def test_consent_in_one_document_does_not_excuse_a_loss_in_another(self, tmp_path):
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.LoseAWordInB],
+        )
+        assert not result.output_path, result.report.to_text()
+        rules = {f.rule for f in result.report.findings}
+        assert "package.text-lost" in rules or "package.prose-changed" in rules
+
+    def test_consent_in_the_document_itself_is_honoured(self, tmp_path):
+        result = pipeline.rebuild(
+            self._book(tmp_path / "in.epub"), str(tmp_path / "out.epub"), measuring(),
+            stages=[*DEFAULT_STAGES, self.LoseAWordInBBoundToB],
+        )
+        assert result.output_path, result.report.to_text()
+        assert "package.text-changed-on-request" in {f.rule for f in result.report.findings}
+
+
+class TestEF084TheBalanceHoldsResourcesByIdentity:
+    """A generated NCX made up the number for a lost text file: one `other`
+    out, one `other` in, and the balance closed on a book that had lost a
+    resource nobody had asked to remove."""
+
+    def test_a_loss_the_ledger_does_not_name_is_found_whatever_else_was_added(self, tmp_path):
+        class DropResource(Stage):
+            name = "probe"
+            mutates = True
+
+            def run(self, ctx):
+                for path, resource in list(ctx.book.resources.items()):
+                    if resource.media_type == "text/plain":
+                        del ctx.book.resources[path]
+
+        source = book(tmp_path / "source.epub")
+        result = pipeline.rebuild(
+            source, str(tmp_path / "out.epub"), measuring(), stages=[*DEFAULT_STAGES, DropResource]
+        )
+        balance = result.report.balance
+        assert balance is not None
+        assert balance.unexplained_paths == ["EPUB/extra.txt"], balance.as_dict()
+        assert not result.output_path, "a loss by identity is a refusal, whatever the counts say"
+        assert "package.balance-unexplained" in {f.rule for f in result.report.findings}
+
+    def test_a_removal_the_ledger_names_is_explained(self, tmp_path):
+        from epubforge.report import Action
+
+        class DropAndSay(Stage):
+            name = "probe"
+            mutates = True
+
+            def run(self, ctx):
+                for path, resource in list(ctx.book.resources.items()):
+                    if resource.media_type == "text/plain":
+                        del ctx.book.resources[path]
+                        self.changed(
+                            ctx, Action.REMOVED, path, before=path, after="",
+                            rule="structure.orphan-removed",
+                        )
+
+        source = book(tmp_path / "source.epub")
+        result = pipeline.rebuild(
+            source, str(tmp_path / "out.epub"), measuring(), stages=[*DEFAULT_STAGES, DropAndSay]
+        )
+        assert result.report.balance.unexplained_paths == []
+        assert result.output_path, result.report.to_text()

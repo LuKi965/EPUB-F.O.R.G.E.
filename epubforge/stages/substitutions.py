@@ -192,16 +192,17 @@ class SubstitutionStage(Stage):
                 reversible=False,
             )
             try:
-                repaired += bool(
-                    carry_out(
-                        step,
-                        snapshot=lambda resource=resource: resource.data,
-                        restore=lambda data, resource=resource: setattr(
-                            resource, "data", data
-                        ),
-                        mutate=mutate,
-                    )
+                made = carry_out(
+                    step,
+                    snapshot=lambda resource=resource: resource.data,
+                    restore=lambda data, resource=resource: setattr(
+                        resource, "data", data
+                    ),
+                    mutate=mutate,
                 )
+                repaired += bool(made)
+                if made:
+                    self.text_changed(ctx, resource.path, "substitutions.replaced")
             except PostconditionFailed:
                 reverted += 1
 

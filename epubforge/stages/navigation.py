@@ -900,6 +900,20 @@ class NavigationStage(Stage):
                 # found" against the regenerated nav.
                 self._redirect(ctx, book.nav_path, nav_path)
                 book.remove(book.nav_path)
+                # The same document, written again under the program's own
+                # name. Said as a move so the balance, which since EF-084
+                # holds resources by identity, sees where the source's
+                # navigation document went rather than a document gone.
+                self.changed(
+                    ctx,
+                    Action.MOVED,
+                    "documents",
+                    before=book.nav_path,
+                    after=nav_path,
+                    risk=Risk.NONE,
+                    reversible=True,
+                    rule="nav.regenerated",
+                )
         return nav_path
 
     def _toc_section(self, book, nav_path: str, language: str) -> list[str]:
