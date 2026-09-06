@@ -1667,6 +1667,24 @@ def _declared_nav(book: Book) -> str | None:
     return None
 
 
+_BODY_START = re.compile(rb"<body(?:\s(?:[^>\"']|\"[^\"]*\"|'[^']*')*)?>", re.I)
+_BODY_EPUB_TYPE = re.compile(rb"\sepub:type\s*=\s*(?:\"([^\"]*)\"|'([^']*)')")
+
+
+def _body_epub_type(data: bytes) -> str:
+    """The `epub:type` on a document's `<body>`, as the publisher wrote it —
+    `frontmatter` on a navigation document, as a rule. Read over the bytes
+    like the balance reads attributes, with the same care for a quoted `>`."""
+    start = _BODY_START.search(data)
+    if start is None:
+        return ""
+    found = _BODY_EPUB_TYPE.search(start.group(0))
+    if found is None:
+        return ""
+    raw = found.group(1) if found.group(1) is not None else found.group(2)
+    return " ".join((raw or b"").decode("utf-8", "replace").split())
+
+
 def _read_navigation(book: Book, report: Report) -> None:
     """The table of contents from wherever the book keeps it: the navigation
     document first, then the NCX the spine names, then an NCX nothing names."""
@@ -1681,6 +1699,7 @@ def _read_navigation(book: Book, report: Report) -> None:
         book.page_list = page_list
         book.extra_navs = extra
         book.nav_labels = labels
+        book.nav_body_type = _body_epub_type(book.resources[book.nav_path].data)
         if extra:
             report.add(
                 "reader",

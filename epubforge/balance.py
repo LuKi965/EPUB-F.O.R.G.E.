@@ -25,6 +25,7 @@ nothing about whether the reader lost anything.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass, field
 
@@ -98,6 +99,38 @@ def semantic_attributes_in(data: bytes) -> dict:
     return counts
 
 
+#: The same attribute with its value, inside a named tag: what the count by
+#: name cannot see. EF-089's second half (DROGA-DO-1.0, 6.3): an `alt` moved
+#: from the picture it described to a different one, or an `aria-label`
+#: reworded, leaves every name's count exactly where it was. Counted as
+#: `(tag, name, value)` — the value in either quote style, the tag as
+#: written, lower-cased, so that a rewrite of markup that keeps every
+#: attribute where it belongs balances and one that moves it does not.
+_ATTRIBUTE_VALUE_RE = re.compile(
+    rb"\s(alt|role|aria-[a-z]+|epub:type|lang|xml:lang|title|dir|hidden)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
+)
+_TAG_NAME_RE = re.compile(rb"<([A-Za-z][\w:.-]*)")
+
+
+def semantic_attribute_triples_in(data: bytes) -> dict:
+    """How many times each `(tag, name, value)` the document's tags carry."""
+    counts: dict = {}
+    for tag in _START_TAG_RE.finditer(data):
+        start = tag.group(0)
+        named = _TAG_NAME_RE.match(start)
+        element = named.group(1).decode("ascii", "replace").lower() if named else "?"
+        for match in _ATTRIBUTE_VALUE_RE.finditer(start):
+            name = match.group(1).decode("ascii")
+            raw = match.group(2) if match.group(2) is not None else match.group(3)
+            # The value as a reader meets it: entities resolved (the source
+            # writes `i&#160;Ian`, the rebuild writes the character, and the
+            # first shelf run called that a lost `alt`), whitespace folded.
+            value = " ".join(html.unescape((raw or b"").decode("utf-8", "replace")).split())
+            key = (element, name, value)
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def _semantic_attributes_by_document(book) -> dict:
     """Per content document, keyed by its archive path."""
     by_document: dict = {}
@@ -105,6 +138,15 @@ def _semantic_attributes_by_document(book) -> dict:
         if not getattr(resource, "is_content_doc", False):
             continue
         by_document[resource.path] = semantic_attributes_in(resource.data)
+    return by_document
+
+
+def _semantic_triples_by_document(book) -> dict:
+    by_document: dict = {}
+    for resource in book.resources.values():
+        if not getattr(resource, "is_content_doc", False):
+            continue
+        by_document[resource.path] = semantic_attribute_triples_in(resource.data)
     return by_document
 
 
@@ -131,6 +173,10 @@ class Side:
     #: an entry for every document of a 9 809-document book is a log, and the
     #: totals above are the balance.
     semantic_attributes_by_document: dict = field(default_factory=dict)
+    #: `(tag, name, value)` counts per content document — the attribute
+    #: where it stands and what it says (EF-089, second half). Not
+    #: serialised, for the same reason as the map above.
+    semantic_triples_by_document: dict = field(default_factory=dict)
     #: Every resource by the name it had in the *source*, whatever it is
     #: called now: the model records `original_path` on every rename, so an
     #: output resource is identified by where it came from. EF-084: counts per
@@ -155,6 +201,7 @@ class Side:
         side.text_characters = _characters_of(book)
         side.semantic_attributes_by_document = _semantic_attributes_by_document(book)
         side.semantic_attributes = _summed(side.semantic_attributes_by_document.values())
+        side.semantic_triples_by_document = _semantic_triples_by_document(book)
         return side
 
     def as_dict(self) -> dict:
@@ -397,7 +444,7 @@ class Balance:
         )
 
 
-def reconcile(before: Side, after: Side, changes) -> Balance:
+def reconcile(before: Side, after: Side, changes, rewrites: "dict | None" = None) -> Balance:
     """Compare the two sides and hold the ledger to the difference.
 
     A category that grew is not examined: a rebuild that generates a navigation
@@ -464,7 +511,7 @@ def reconcile(before: Side, after: Side, changes) -> Balance:
         if covered < lost:
             unexplained.append((category, lost, covered))
 
-    fell = _attributes_that_fell(before, after, changes)
+    fell = _attributes_that_fell(before, after, changes, rewrites or {})
     return Balance(
         before=before,
         after=after,
@@ -474,7 +521,7 @@ def reconcile(before: Side, after: Side, changes) -> Balance:
     )
 
 
-def _attributes_that_fell(before: Side, after: Side, changes) -> list:
+def _attributes_that_fell(before: Side, after: Side, changes, rewrites: "dict | None" = None) -> list:
     """Every semantic attribute the output carries fewer of than the source,
     once the documents the ledger says were removed are taken out.
 
@@ -502,7 +549,64 @@ def _attributes_that_fell(before: Side, after: Side, changes) -> list:
         now = after.semantic_attributes.get(name, 0)
         if now < was.get(name, 0):
             fell.append((name, was[name], now))
+    fell.extend(
+        _attributes_that_moved(before, after, changes, {name for name, _, _ in fell}, rewrites or {})
+    )
     return fell
+
+
+def _attributes_that_moved(before: Side, after: Side, changes, already: set, rewrites: dict) -> list:
+    """The same count taken with the tag and the value (EF-089, second half).
+
+    A name's count can hold while the attribute itself did not: an `alt`
+    moved from one picture to another, an `aria-label` reworded, a `role`
+    that left a `<nav>` and turned up on a `<div>` — none of that moves a
+    number by name, all of it is a change assistive software meets. So the
+    same comparison is made once more on `(tag, name, value)`, with the
+    documents the ledger says were removed taken out as above; a triple the
+    output carries fewer of is reported as the attribute, its value and the
+    element it stood on. A name already reported as fallen is not reported
+    again in its own triples — one line says it.
+
+    *rewrites* is what this program changed on purpose and said so: attribute
+    name → the documents whose value of it a reported repair rewrote (the
+    cover's `alt` described, a document's `lang` corrected on the evidence
+    of its letters). Measured on the owner's 160 books before this joined
+    the report: without it, 151 books "lost" an `alt` on the cover page and
+    a `lang` on `<html>` — every one a repair with its own line. Those pairs
+    of document and name are left out on both sides; everything else in the
+    document still counts.
+    """
+    def counted(by_document: dict) -> dict:
+        total: dict = {}
+        for path, counts in by_document.items():
+            for key, count in counts.items():
+                if path in rewrites.get(key[1], ()):
+                    continue
+                total[key] = total.get(key, 0) + count
+        return total
+
+    was = counted(before.semantic_triples_by_document)
+    for path, counts in before.semantic_triples_by_document.items():
+        if path in after.semantic_triples_by_document:
+            continue
+        if not _ledger_says_removed(path, changes):
+            continue
+        for key, count in counts.items():
+            if path in rewrites.get(key[1], ()):
+                continue
+            was[key] = was.get(key, 0) - count
+    now_all = counted(after.semantic_triples_by_document)
+    moved = []
+    for key in sorted(was):
+        element, name, value = key
+        if name in already:
+            continue
+        now = now_all.get(key, 0)
+        if now < was[key]:
+            shown = value if len(value) <= 40 else value[:37] + "…"
+            moved.append((f'{name}="{shown}" na <{element}>', was[key], now))
+    return moved
 
 
 def _ledger_says_removed(path: str, changes) -> bool:

@@ -6,7 +6,7 @@
     "report": {
       "info": 12,
       "fix": 2,
-      "preserved": 1,
+      "preserved": 2,
       "warn": 4
     },
     "rules": {
@@ -16,6 +16,7 @@
       "a11y.placeholder-alt": 1,
       "a11y.table-without-headers": 1,
       "metadata.property-superseded": 1,
+      "nav.body-type-carried": 1,
       "nav.cover-page-generated": 1,
       "nav.labels-carried": 1,
       "nav.ncx-written": 1,
@@ -30,7 +31,7 @@
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:89c967682c5d64cf913cb60aa8e269ef1eb071f93a07495e03a79c37f9e012e3",
+    "output": "sha256:4356781e15b5b59dad098023b904faf9d298a81f221145795c0518a1b4f41c82",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -41,7 +42,7 @@
     "report": {
       "info": 18,
       "fix": 6,
-      "preserved": 11,
+      "preserved": 12,
       "warn": 4
     },
     "rules": {
@@ -53,6 +54,7 @@
       "css.unreachable-rules-found": 5,
       "hyphens.detected": 1,
       "metadata.property-superseded": 1,
+      "nav.body-type-carried": 1,
       "nav.cover-page-generated": 1,
       "nav.labels-carried": 1,
       "nav.ncx-written": 1,
@@ -76,7 +78,7 @@
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:4f29beb5f9d3d0e9b879b730da1777b2b2dfaa26893bfe08de8b53de06d0572c",
+    "output": "sha256:5ed6875261f6e64355316bd9fc8ec535137884ea482e3ae3724602852b451e12",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,
@@ -87,7 +89,7 @@
     "report": {
       "info": 13,
       "fix": 11,
-      "preserved": 11,
+      "preserved": 12,
       "warn": 4
     },
     "rules": {
@@ -99,6 +101,7 @@
       "css.unreachable-rules-removed": 5,
       "hyphens.detected": 1,
       "metadata.property-superseded": 1,
+      "nav.body-type-carried": 1,
       "nav.cover-page-generated": 1,
       "nav.labels-carried": 1,
       "nav.ncx-written": 1,
@@ -122,7 +125,7 @@
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:da7b58a87ffe4dd1485822c437b71cb27d6d8edcda4dea51512f25a1399258ec",
+    "output": "sha256:2f29715d3575a46ae456544e974fb3837091f50eb7a1d061f10d366d763136df",
     "text_characters": 232077,
     "text_added": 2,
     "text_invariant": true,

@@ -219,3 +219,108 @@ class TestADocumentTheLedgerRemovedIsTakenOutOfTheComparison:
             assert "OEBPS/orphan.xhtml" not in archive.namelist()
         assert "package.attributes-fell" not in rules_of(result)
         assert result.report.balance.attributes_fell == []
+
+
+class AriaLabelMover(Stage):
+    """Moves the `aria-label` from the note's span onto the paragraph that
+    holds it. Every name's count stays exactly where it was."""
+
+    name = "xhtml"
+
+    def run(self, ctx):
+        from epubforge import xhtml
+
+        for resource in ctx.book.content_docs():
+            root = ctx.take(resource).root
+            for span in root.iter(qname("span")):
+                label = span.attrib.pop("aria-label", None)
+                if label is not None:
+                    span.getparent().set("aria-label", label)
+            resource.data = xhtml.serialize(root)
+
+
+class AltReworder(Stage):
+    """Keeps every `alt` and changes what one says."""
+
+    name = "xhtml"
+
+    def run(self, ctx):
+        from epubforge import xhtml
+
+        for resource in ctx.book.content_docs():
+            root = ctx.take(resource).root
+            for image in root.iter(qname("img")):
+                if image.get("alt") == "Rycina":
+                    image.set("alt", "Obraz")
+            resource.data = xhtml.serialize(root)
+
+
+class TestTheAttributeIsCountedWhereItStandsAndWhatItSays:
+    """EF-089, second half (DROGA-DO-1.0, 6.3): a count by name holds while
+    the attribute moved to another element or says something else. The same
+    count is taken once more as (tag, name, value)."""
+
+    def test_triples_carry_the_tag_and_the_value_in_either_quote_style(self):
+        page = PAGE.format(body="<p aria-label='Uwaga  ważna'>x</p><img src=\"i.png\" alt=\"Rycina\"/>").encode("utf-8")
+        triples = balance.semantic_attribute_triples_in(page)
+        assert triples[("p", "aria-label", "Uwaga ważna")] == 1
+        assert triples[("img", "alt", "Rycina")] == 1
+        assert triples[("html", "lang", "pl")] == 1
+
+    def test_an_attribute_moved_to_another_element_is_seen(self, tmp_path):
+        result = build(tmp_path, stages=(*DEFAULT_STAGES, AriaLabelMover))
+        assert result.output_path, "a warning, not a refusal"
+        assert "package.attributes-fell" in rules_of(result)
+        fell = {name for name, _, _ in result.report.balance.attributes_fell}
+        assert any(name.startswith('aria-label="uwaga" na <span>') for name in fell), fell
+        assert "aria-label" not in fell, "the count by name did not fall — that is the point"
+
+    def test_an_attribute_that_says_something_else_is_seen(self, tmp_path):
+        result = build(tmp_path, stages=(*DEFAULT_STAGES, AltReworder))
+        assert result.output_path
+        fell = {name for name, _, _ in result.report.balance.attributes_fell}
+        assert any(name.startswith('alt="Rycina" na <img>') for name in fell), fell
+
+    def test_a_name_that_fell_is_said_once(self, tmp_path):
+        """The `alt` stripped from the only image: the name fell to zero and
+        that line says it; its triple is not repeated underneath."""
+        result = build(tmp_path, stages=(*DEFAULT_STAGES, AltStripper))
+        names = [name for name, _, _ in result.report.balance.attributes_fell]
+        assert names.count("alt") == 1
+        assert not any(name.startswith('alt="') for name in names)
+
+
+class TestTheNavigationBodyKeepsItsType:
+    """Found by the (tag, name, value) count on its first shelf run: the
+    regenerated navigation document was written with a bare `<body>`, and
+    the publisher's `epub:type="frontmatter"` on the old one left with it —
+    six shelf books and every Gutenberg book of the corpus, without a line."""
+
+    def _nav_with_typed_body(self, tmp_path):
+        from tests.test_shelf_refusals import MODERN_NAV, make_book
+
+        typed = MODERN_NAV.replace("<body>", '<body epub:type="frontmatter">')
+        assert typed != MODERN_NAV
+        return make_book(
+            tmp_path / "in.epub", {"c0.xhtml": PAGE.format(body="<p>Tekst.</p>")},
+            extra_files={"OEBPS/nav.xhtml": typed.encode("utf-8")},
+        )
+
+    def test_the_type_is_carried_and_said(self, tmp_path):
+        source = self._nav_with_typed_body(tmp_path)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve", render_gate="off"))
+        assert result.output_path, result.report.to_text()
+        with zipfile.ZipFile(result.output_path) as archive:
+            nav = next(n for n in archive.namelist() if n.endswith("nav.xhtml"))
+            assert b'<body epub:type="frontmatter">' in archive.read(nav)
+        assert "nav.body-type-carried" in rules_of(result)
+        assert not any(name.startswith("epub:type=") for name, _, _ in result.report.balance.attributes_fell)
+
+
+class TestTheValueIsReadAsAReaderMeetsIt:
+    def test_an_entity_and_the_character_are_the_same_value(self):
+        """`i&#160;Ian` in the source, the character in the rebuild: the
+        first shelf run called that a lost `alt` on a real book."""
+        source = PAGE.format(body='<img src="i.png" alt="Logo 007 i&#160;Ian"/>').encode("utf-8")
+        output = PAGE.format(body='<img src="i.png" alt="Logo 007 i Ian"/>').encode("utf-8")
+        assert balance.semantic_attribute_triples_in(source) == balance.semantic_attribute_triples_in(output)

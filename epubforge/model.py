@@ -524,6 +524,12 @@ class Book:
     #: the audit of 2026-09-03 the label went with the source document: a
     #: K12 loss, found by counting semantic attributes before and after.
     nav_labels: dict[str, str] = field(default_factory=dict)
+    #: The `epub:type` the publisher put on the navigation document's own
+    #: `<body>` (`frontmatter`, as a rule), carried onto the regenerated one.
+    #: Until 2026-09-06 it left with the source document — found by the
+    #: balance counting attributes with their values (EF-089): six shelf
+    #: books and every Gutenberg book of the corpus lost it without a line.
+    nav_body_type: str = ""
     #: The contents are this program's own, built from the reading order for
     #: a book that had none — set when they are synthesised and set again when
     #: a navigation document carrying the marker is read back (EF-088). What

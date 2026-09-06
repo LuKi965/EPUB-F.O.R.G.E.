@@ -1003,6 +1003,14 @@ class NavigationStage(Stage):
                 values={"count": len(written_labels), "names": ", ".join(written_labels)},
                 location=nav_path,
             )
+        if book.nav_body_type:
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "nav.body-type-carried",
+                values={"value": book.nav_body_type},
+                location=nav_path,
+            )
         if carried:
             self.note(
                 ctx,
@@ -1020,6 +1028,10 @@ class NavigationStage(Stage):
     def _add_nav_document(self, ctx: Context, nav_path: str, language: str, sections: list[str]) -> None:
         book = ctx.book
         body = "\n".join(sections)
+        # The publisher's own `epub:type` on the body, word for word — the
+        # same reason as `_label_attribute`: this document is rebuilt from
+        # the model, and what the model did not carry left with the source.
+        body_type = f' epub:type="{_escape(book.nav_body_type)}"' if book.nav_body_type else ""
         markup = f"""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="{XHTML_NS}" xmlns:epub="{EPUB_NS}" lang="{language}" xml:lang="{language}">
@@ -1027,7 +1039,7 @@ class NavigationStage(Stage):
     <meta charset="utf-8"/>
     <title>{_escape(book.metadata.title)} — {_escape(heading(language, "title"))}</title>
   </head>
-  <body>
+  <body{body_type}>
 {body}
   </body>
 </html>

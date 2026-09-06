@@ -42,7 +42,9 @@ class TestWhatTheOwnersOwnRunFound:
         to distrust and a bad thing for a program asking to be trusted with a
         library.
         """
-        source = inspect.getsource(render.shoot)
+        # `_chromium` is the one place the command is built; `shoot` and
+        # `shoot_screens` both go through it.
+        source = inspect.getsource(render._chromium)
         assert '"--headless=new"' in source
         assert '"--headless",' not in source
 
@@ -56,7 +58,7 @@ class TestWhatTheOwnersOwnRunFound:
         """
         from epubforge import render_fidelity
 
-        for function in (render.shoot, render_fidelity.compare):
+        for function in (render._chromium, render_fidelity.compare):
             source = inspect.getsource(function)
             if "TemporaryDirectory" not in source:
                 continue

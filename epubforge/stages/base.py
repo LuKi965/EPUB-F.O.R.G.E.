@@ -74,6 +74,15 @@ class Context:
     #: the output's. What is not written here was not asked for, wherever
     #: it happened.
     text_changes: dict[str, list[dict]] = field(default_factory=dict)
+    #: Which semantic attribute's *value* a stage rewrote on purpose, in which
+    #: document: `{name: {path, …}}`. The balance counts attributes with their
+    #: values since EF-089 — a cover's `alt` this program described, a `lang`
+    #: it corrected on the evidence of the letters, an image marked
+    #: decorative on somebody's answer would all count as attributes that
+    #: fell. A stage that rewrites one says so here, and only there is the
+    #: fall excused; measured on the owner's shelf: 51 books before this,
+    #: every one of them a repair with its own report line.
+    attribute_rewrites: dict[str, set[str]] = field(default_factory=dict)
     #: The unique identifier as found in the source, captured before metadata
     #: normalisation because font deobfuscation is keyed on it.
     original_identifier: str | None = None
@@ -310,6 +319,13 @@ class Stage:
         ctx.report.add(
             self.name, level, rule, values=values, location=location, detail=detail
         )
+
+    def attribute_rewritten(self, ctx: Context, path: str, *names: str) -> None:
+        """Record that this stage rewrote the value of the semantic attribute
+        *names* in the document at *path* — a repair the report states, not
+        a loss for the balance to warn about (EF-089)."""
+        for name in names:
+            ctx.attribute_rewrites.setdefault(name, set()).add(path)
 
     def text_changed(
         self, ctx: Context, path: str, rule: str, *, before: bytes, after: bytes

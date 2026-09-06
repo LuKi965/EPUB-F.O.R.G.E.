@@ -6,13 +6,14 @@
     "report": {
       "info": 11,
       "fix": 2,
-      "preserved": 1,
+      "preserved": 2,
       "warn": 1
     },
     "rules": {
       "a11y.metadata-added": 1,
       "a11y.table-without-headers": 1,
       "metadata.property-superseded": 1,
+      "nav.body-type-carried": 1,
       "nav.cover-page-generated": 1,
       "nav.labels-carried": 1,
       "nav.ncx-written": 1,
@@ -26,7 +27,7 @@
       "profile.paragraphs-consistent": 1,
       "xhtml.untouched": 1
     },
-    "output": "sha256:12abc872397ac617788159256350bf9dfc2c62c545608c112fb968c758fe840f",
+    "output": "sha256:7cc36cb5e14d8488dc59f9f2de266f822dc570837c33c6d260e255b535f42702",
     "text_characters": 365559,
     "text_added": 2,
     "text_invariant": true,
@@ -37,7 +38,7 @@
     "report": {
       "info": 15,
       "fix": 8,
-      "preserved": 6,
+      "preserved": 7,
       "warn": 1
     },
     "rules": {
@@ -49,6 +50,7 @@
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,
+      "nav.body-type-carried": 1,
       "nav.cover-page-generated": 1,
       "nav.labels-carried": 1,
       "nav.ncx-written": 1,
@@ -69,7 +71,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:5cc1b1bd87af712793d7fd387022254ed95b4b1d9dddcf9c8265c2e939221e53",
+    "output": "sha256:c841c5f42972926b1495f76466e0c67c0ac53a6483d1c052acedf070e944b0b9",
     "text_characters": 365559,
     "text_added": 2,
     "text_invariant": true,
@@ -80,7 +82,7 @@
     "report": {
       "info": 12,
       "fix": 11,
-      "preserved": 6,
+      "preserved": 7,
       "warn": 1
     },
     "rules": {
@@ -92,6 +94,7 @@
       "hyphens.detected": 1,
       "hyphens.left-alone": 1,
       "metadata.property-superseded": 1,
+      "nav.body-type-carried": 1,
       "nav.cover-page-generated": 1,
       "nav.labels-carried": 1,
       "nav.ncx-written": 1,
@@ -112,7 +115,7 @@
       "xhtml.image-paragraph-kept": 1,
       "xhtml.presentational-markup-converted": 1
     },
-    "output": "sha256:79919ef053c5bfe0e55b05426f8d7774dce0cb05972423ba2bb50643bb941597",
+    "output": "sha256:eb5b02f2e427c0aec007a613540eda7b1c0f59e4d7c43a6b5754bffed953408c",
     "text_characters": 365559,
     "text_added": 2,
     "text_invariant": true,

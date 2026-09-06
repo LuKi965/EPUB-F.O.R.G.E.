@@ -34,8 +34,9 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 397 → 396 on 2026-09-06: the three identical `package.budget-exceeded`
 # call sites folded into `pipeline._budget_refused` (one literal site) and
 # `package.time-budget-is-a-setting` came in beside it. No finding lost its
-# identity; two duplicates of one did.
-TAGGED_TODAY = 396
+# identity; two duplicates of one did. 397 with `render.checked-whole`,
+# 398 with `nav.body-type-carried`.
+TAGGED_TODAY = 398
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -147,7 +148,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 299
+TEMPLATED_TODAY = 301
 
 
 class TestTheTranslationCannotStall:

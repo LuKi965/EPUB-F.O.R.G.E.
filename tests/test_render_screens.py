@@ -74,7 +74,7 @@ class TestTheReportSaysHowFarItLooked:
 
 
 # ------------------------------------------------------------- the real thing
-def _book(path: pathlib.Path, hidden: bool) -> str:
+def _book(path: pathlib.Path, hidden: bool, *, offset: int = 1800, present: bool = True) -> str:
     container = (
         '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">'
         '<rootfiles><rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>'
@@ -89,10 +89,11 @@ def _book(path: pathlib.Path, hidden: bool) -> str:
         '<item id="n" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/></manifest>'
         '<spine><itemref idref="c"/></spine></package>'
     )
-    style = "margin-top:1800px;" + ("visibility:hidden;" if hidden else "")
+    style = f"margin-top:{offset}px;" + ("visibility:hidden;" if hidden else "")
+    lower = f'<p style="{style}">LOWER PARAGRAPH MUST STAY VISIBLE</p>' if present else ""
     chapter = (
         '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head><body>'
-        f'<p>VISIBLE FIRST PARAGRAPH</p><p style="{style}">LOWER PARAGRAPH MUST STAY VISIBLE</p>'
+        f"<p>VISIBLE FIRST PARAGRAPH</p>{lower}"
         "</body></html>"
     )
     nav = (
@@ -108,14 +109,63 @@ def _book(path: pathlib.Path, hidden: bool) -> str:
     return str(path)
 
 
-@pytest.mark.renders
-def test_a_paragraph_hidden_on_the_third_screen_is_caught_by_the_full_check(tmp_path):
+def _chromium():
     if not os.environ.get("EPUBFORGE_RENDER_TESTS") or render.find_renderer() is None:
         pytest.skip("set EPUBFORGE_RENDER_TESTS=1 and name a Chromium")
+
+
+@pytest.mark.renders
+def test_a_paragraph_hidden_on_the_third_screen_is_caught_by_the_full_check(tmp_path):
+    _chromium()
     source = _book(tmp_path / "source.epub", hidden=False)
     damaged = _book(tmp_path / "damaged.epub", hidden=True)
     full = render_fidelity.compare(source, damaged, sample=0)
     assert not full.ok, [str(page) for page in full.pages]
-    assert full.screens == render_fidelity.SCREENS
+    assert full.whole and 3 <= full.screens <= render_fidelity.SCREENS
     sampled = render_fidelity.compare(source, damaged, sample=12)
-    assert sampled.screens == 1, "the sampled check says what it looked at"
+    assert sampled.screens == 1 and not sampled.whole, "the sampled check says what it looked at"
+
+
+@pytest.mark.renders
+def test_a_paragraph_hidden_on_the_twelfth_screen_is_caught_too(tmp_path):
+    """Past the eight screens of one tall shot (DROGA-DO-1.0, 6.3): the full
+    check follows the document to its last screen and says how many."""
+    _chromium()
+    source = _book(tmp_path / "source.epub", hidden=False, offset=9000)
+    damaged = _book(tmp_path / "damaged.epub", hidden=True, offset=9000)
+    full = render_fidelity.compare(source, damaged, sample=0)
+    assert not full.ok, [str(page) for page in full.pages]
+    assert full.whole and full.longest >= 12 and full.screens == full.longest
+    assert any("ekran 12" in str(page) for page in full.pages if page.problems), [
+        str(page) for page in full.pages
+    ]
+
+
+@pytest.mark.renders
+def test_an_output_that_ends_before_the_source_does_is_a_loss_down_there(tmp_path):
+    """The output simply lacks the low paragraph, so it is shorter than the
+    source: the screens it never reaches are judged against no ink."""
+    _chromium()
+    source = _book(tmp_path / "source.epub", hidden=False, offset=9000)
+    shorter = _book(tmp_path / "shorter.epub", hidden=False, offset=9000, present=False)
+    full = render_fidelity.compare(source, shorter, sample=0)
+    assert not full.ok, [str(page) for page in full.pages]
+    assert any("ekran 12" in str(page) for page in full.pages if page.problems)
+
+
+@pytest.mark.renders
+def test_shoot_screens_measures_the_height_and_follows_it(tmp_path):
+    _chromium()
+    page = tmp_path / "doc.xhtml"
+    page.write_text(
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head><body>'
+        '<p>FIRST</p><p style="margin-top:9000px">' + "LOW PARAGRAPH " * 40 + "</p></body></html>",
+        encoding="utf-8",
+    )
+    height, shots = render.shoot_screens(
+        page, tmp_path, "a", viewport=(600, 800), chunk_screens=8, cap_screens=64
+    )
+    assert height >= 9000 and len(shots) == 2
+    low = render.ink_bands(shots[1], 800)
+    assert not low[3].blank, "the low paragraph is on the twelfth screen — the fourth band of the second shot"
+    assert not (tmp_path / ".epubforge-a-0.html").exists(), "the wrapper is tidied away"

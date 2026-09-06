@@ -66,6 +66,13 @@ SAMPLE = 12
 #: "checked".
 SCREENS = 8
 
+#: The most screens of one document the full check looks at. Past this it
+#: says so — "N screens, M looked at" — rather than looking at nothing and
+#: calling the document checked. Sixty-four screens of 800 px is 51 200 px:
+#: longer than any chapter on either shelf, and a document longer than that
+#: is a report line, not a silent stop.
+MAX_SCREENS = 64
+
 #: A page is "materially different" past this fraction of changed pixels.
 #: Anti-aliasing and a one-pixel reflow sit well under it; a lost paragraph,
 #: a moved image or a changed font sit well over.
@@ -134,7 +141,14 @@ class RenderFidelity:
     #: order, and how many screens of each were looked at.
     documents: int = 0
     total: int = 0
+    #: Screens looked at, of the longest document (the full check) or one (a
+    #: sample). `whole` says every compared document was looked at down to
+    #: its last screen; `longest` says how many screens the longest one has,
+    #: which is more than `screens` only when a document ran past
+    #: `MAX_SCREENS` and the report has to say so.
     screens: int = 1
+    whole: bool = False
+    longest: int = 1
     #: Whether the comparison actually ran to the end. `available` says the
     #: engine was there; this says the work got done. EF-081's neighbour
     #: (EF-082): an OPF written with apostrophes — perfectly legal XML, zero
@@ -603,7 +617,9 @@ def compare(
         indices = _sample(len(paired), sample) if sample else list(range(len(paired)))
         result.documents = len(indices)
         result.total = len(before_spine)
-        result.screens = SCREENS if not sample else 1
+        result.screens = 1
+        result.longest = 1
+        result.whole = not sample
         shots = room_path / "obrazy"
         shots.mkdir()
         for number, index in enumerate(indices):
@@ -634,12 +650,17 @@ def compare(
                 _judge(check)
                 result.pages.append(check)
             if not sample:
-                # The full check: one tall shot, judged screen by screen —
+                # The full check: the whole height, judged screen by screen —
                 # after the ordinary comparisons, so the first page of the
                 # list is still the first screen at the first viewport.
-                result.pages.extend(
-                    _screens(source_page, output_page, name, viewports[0], shots, index, browser)
+                checks, has, looked = _screens(
+                    source_page, output_page, name, viewports[0], shots, index, browser
                 )
+                result.pages.extend(checks)
+                result.screens = max(result.screens, looked)
+                result.longest = max(result.longest, has)
+                if has > looked:
+                    result.whole = False
         # Said here, at the end, and only if there was something to look at:
         # every early return above leaves `completed` False on purpose.
         result.completed = bool(result.pages)
@@ -648,45 +669,75 @@ def compare(
     return result
 
 
-def _screens(source_page, output_page, name, viewport, shots, index, browser) -> "list[PageCheck]":
-    """The first `SCREENS` screens of one document, each judged on its own.
+#: The ink of a screen that was never drawn — the output ended before the
+#: source did, or the other way round. Blank, and said so.
+_NO_INK = render.Ink(coverage=0.0, left=0.0, top=0.0, right=0.0, bottom=0.0)
 
-    The tall viewport is the ordinary one stacked `SCREENS` high; a band that
-    printed in the source and came out blank, or lost a tenth of its ink, is
-    the same loss on the fifth screen as on the first (EF-089). Bands past the
-    end of both documents — paper on both sides — say nothing and are not
-    recorded, so `pages` counts screens that carried something.
+
+def _screens(source_page, output_page, name, viewport, shots, index, browser) -> "tuple[list[PageCheck], int, int]":
+    """Every screen of one document, each judged on its own:
+    `(checks, screens the document has, screens looked at)`.
+
+    Tall shots of `SCREENS` viewport heights, as many as the taller of the
+    two documents needs up to `MAX_SCREENS` (`render.shoot_screens`); a band
+    that printed in the source and came out blank, or lost a tenth of its
+    ink, is the same loss on the twelfth screen as on the first (EF-089).
+    A screen the output does not reach at all — it ended earlier than the
+    source — is judged against no ink, which is what it is. Bands past the
+    end of both documents say nothing and are not recorded, so `pages`
+    counts screens that carried something.
     """
     width, height = viewport
-    tall = (width, height * SCREENS)
     checks: list[PageCheck] = []
     if _refit_marked(output_page):
         # A cover this program fitted to the page: the source overflowed
         # onto the second screen and the output does not, by design. The
         # first-screen comparison judges the refit; the lower screens would
         # only see the overflow gone and call it a loss.
-        return checks
+        return checks, 1, 1
     try:
-        one = render.shoot(source_page, shots / f"a{index}-tall.png", viewport=tall, browser=browser)
-        two = render.shoot(output_page, shots / f"b{index}-tall.png", viewport=tall, browser=browser)
+        before_px, ones = render.shoot_screens(
+            source_page, shots, f"a{index}", viewport=viewport, browser=browser,
+            chunk_screens=SCREENS, cap_screens=MAX_SCREENS,
+        )
+        after_px, twos = render.shoot_screens(
+            output_page, shots, f"b{index}", viewport=viewport, browser=browser,
+            chunk_screens=SCREENS, cap_screens=MAX_SCREENS,
+        )
     except render.RenderError as exc:
-        check = PageCheck(document=name, viewport=tall)
+        check = PageCheck(document=name, viewport=(width, height * SCREENS))
         check.problems.append(f"nie udało się narysować: {exc}")
-        return [check]
-    inks_before = render.ink_bands(one, height)
-    inks_after = render.ink_bands(two, height)
-    differences = render.difference_bands(one, two, height)
-    for screen, (before, after, difference) in enumerate(zip(inks_before, inks_after, differences), 1):
+        return [check], 1, 1
+    has = max(1, -(-max(before_px, after_px) // height))
+    inks_before = [band for shot in ones for band in render.ink_bands(shot, height)]
+    inks_after = [band for shot in twos for band in render.ink_bands(shot, height)]
+    differences: list[float] = []
+    for one, two in zip(ones, twos):
+        differences.extend(render.difference_bands(one, two, height))
+    looked = max(len(inks_before), len(inks_after))
+    for screen in range(1, looked + 1):
         if screen == 1:
             continue  # the first screen is the ordinary comparison above
+        before = inks_before[screen - 1] if screen <= len(inks_before) else _NO_INK
+        after = inks_after[screen - 1] if screen <= len(inks_after) else _NO_INK
         if before.blank and after.blank:
             continue
         check = PageCheck(document=f"{name} (ekran {screen})", viewport=viewport)
         check.source_ink, check.output_ink = before, after
-        check.difference = difference
+        # A screen one side never drew differs from the other exactly as
+        # much as the other has ink on it.
+        check.difference = (
+            differences[screen - 1] if screen <= len(differences)
+            else max(before.coverage, after.coverage)
+        )
         _judge(check)
         checks.append(check)
-    return checks
+    looked = min(has, looked) if has <= MAX_SCREENS else min(looked, MAX_SCREENS)
+    if has > MAX_SCREENS:
+        check = PageCheck(document=name, viewport=viewport)
+        check.notes.append(f"dokument ma {has} ekranów, sprawdzono {looked}")
+        checks.append(check)
+    return checks, has, looked
 
 
 def drawn(

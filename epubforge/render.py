@@ -216,6 +216,23 @@ def shoot(
     if browser is None:
         raise RenderError("no renderer")
     target = pathlib.Path(destination)
+    _chromium(browser, pathlib.Path(page).absolute().as_uri(), viewport, target)
+    if not target.is_file() or target.stat().st_size == 0:
+        raise RenderError(f"renderer produced nothing for {page}")
+    return target
+
+
+def _chromium(
+    browser: "pathlib.Path",
+    url: str,
+    viewport: "tuple[int, int]",
+    target: "pathlib.Path",
+    *,
+    dump_dom: bool = False,
+    local_frames: bool = False,
+) -> str:
+    """One run of the engine: a screenshot of *url* at *viewport*, and its
+    standard output (the DOM, when asked for it)."""
     width, height = viewport
     # The browser writes its profile here and does not always let go of it
     # before the process exits, which on Windows makes deleting the directory
@@ -247,8 +264,15 @@ def shoot(
             f"--window-size={width},{height}",
             "--virtual-time-budget=5000",
             f"--screenshot={target}",
-            pathlib.Path(page).absolute().as_uri(),
         ]
+        if dump_dom:
+            command.append("--dump-dom")
+        if local_frames:
+            # A wrapper page reading the height of the document it frames —
+            # both files on disk, beside each other. Only that: the network
+            # is off above, and nothing here opens anything but the book.
+            command.append("--allow-file-access-from-files")
+        command.append(url)
         try:
             # Through `spawn`, which on Windows says *do not give this child a
             # console*. Without that flag a windowed application opens one black
@@ -257,14 +281,100 @@ def shoot(
             # suspicious to anybody nearby. He was right on both counts: a
             # program that looks like it is doing something it should not be is
             # a program nobody should hand a library to.
-            spawn.run(
+            finished = spawn.run(
                 command, capture_output=True, timeout=_TIMEOUT, check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise RenderError(f"renderer timed out on {page}") from exc
-    if not target.is_file() or target.stat().st_size == 0:
-        raise RenderError(f"renderer produced nothing for {page}")
-    return target
+            raise RenderError(f"renderer timed out on {url}") from exc
+    out = getattr(finished, "stdout", b"") or b""
+    return out.decode("utf-8", "replace") if isinstance(out, bytes) else str(out)
+
+
+#: The wrapper through which the full check looks at a document below its
+#: first screens. An `<iframe>` as tall as the document, moved up by the
+#: chunk's offset, so that the window shows the document from that offset
+#: down; and the document's height written into the wrapper's own title,
+#: which `--dump-dom` hands back — the one number a screenshot cannot say.
+_WRAPPER = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>h=?</title>
+<style>html,body{{margin:0;padding:0;overflow:hidden;background:#fff}}
+#f{{border:0;display:block;position:absolute;left:0;top:-{offset}px;width:{width}px;height:{height}px}}</style></head>
+<body><iframe id="f" src="{src}"></iframe>
+<script>
+var f=document.getElementById('f');
+f.addEventListener('load',function(){{var d=f.contentDocument;
+var h=Math.max(d.documentElement.scrollHeight,d.body?d.body.scrollHeight:0);
+document.title='h='+h;}});
+</script></body></html>
+"""
+_HEIGHT_IN_TITLE = re.compile(r"<title>h=(\d+)</title>")
+
+
+def shoot_screens(
+    page: "str | pathlib.Path",
+    shots_dir: "str | pathlib.Path",
+    prefix: str,
+    *,
+    viewport: "tuple[int, int]",
+    browser: "pathlib.Path | None" = None,
+    chunk_screens: int,
+    cap_screens: int,
+) -> "tuple[int, list[pathlib.Path]]":
+    """The whole height of one page, in tall shots of `chunk_screens`
+    viewport heights each: `(height in pixels, shots from the top down)`.
+
+    EF-089's other half (DROGA-DO-1.0, 6.3). One tall shot of eight screens
+    is most chapters and not all of them, and a paragraph on the twelfth
+    screen is as much the book as one on the first. The engine cannot scroll
+    a screenshot, so the document is shown through `_WRAPPER` beside it: an
+    `<iframe>` as tall as the document, moved up by each chunk's offset. The
+    first run learns the height from the wrapper's title; the rest follow
+    until the height or `cap_screens` is reached — and the height comes back
+    so that the caller can say how far it looked, in screens of screens.
+
+    The wrapper lives next to the page, so the page's own relative links
+    resolve exactly as they do for a plain shot, and is removed afterwards.
+    """
+    from urllib.parse import quote
+
+    browser = browser or find_renderer()
+    if browser is None:
+        raise RenderError("no renderer")
+    page = pathlib.Path(page).absolute()
+    shots_dir = pathlib.Path(shots_dir)
+    width, height = viewport
+    chunk = height * chunk_screens
+    ceiling = height * cap_screens
+    full: "int | None" = None
+    shots: "list[pathlib.Path]" = []
+    offset = 0
+    while True:
+        wrapper = page.with_name(f".epubforge-{prefix}-{offset}.html")
+        wrapper.write_text(
+            _WRAPPER.format(
+                offset=offset, width=width, height=full or chunk, src=quote(page.name),
+            ),
+            encoding="utf-8",
+        )
+        target = shots_dir / f"{prefix}-{offset}.png"
+        try:
+            dom = _chromium(
+                browser, wrapper.as_uri(), (width, chunk), target, dump_dom=True, local_frames=True,
+            )
+        finally:
+            wrapper.unlink(missing_ok=True)
+        if not target.is_file() or target.stat().st_size == 0:
+            raise RenderError(f"renderer produced nothing for {page}")
+        shots.append(target)
+        if full is None:
+            found = _HEIGHT_IN_TITLE.search(dom)
+            # A document the engine could not measure — one that did not load
+            # in the frame — is taken at one chunk: what the plain shot would
+            # have seen, and no claim beyond it.
+            full = int(found.group(1)) if found else chunk
+        offset += chunk
+        if offset >= full or offset >= ceiling:
+            break
+    return full, shots
 
 
 @dataclass(frozen=True)

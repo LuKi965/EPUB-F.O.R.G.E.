@@ -63,7 +63,15 @@ class TestAnHonestBookGoesThrough:
     def test_it_publishes_and_says_it_looked(self, tmp_path):
         _, result = rebuilt(tmp_path, PARAGRAPHS)
         assert result.status.wrote_a_file, result.report.to_text()
+        # The whole book (`render_sample=0` here) is looked at down to the
+        # last screen of every document, and the line says so (EF-089).
+        assert "render.checked-whole" in rules_of(result)
+
+    def test_a_sample_says_it_was_a_sample(self, tmp_path):
+        _, result = rebuilt(tmp_path, PARAGRAPHS, render_sample=12)
+        assert result.status.wrote_a_file, result.report.to_text()
         assert "render.checked" in rules_of(result)
+        assert "render.checked-whole" not in rules_of(result)
 
     def test_the_default_is_the_one_the_owner_chose(self):
         assert Policy().render_gate == "stop"
@@ -252,7 +260,7 @@ class TestTheWholeBookCanBeAsked:
     def test_zero_means_every_page(self, tmp_path):
         _, result = rebuilt(tmp_path, PARAGRAPHS, render_sample=0)
         checked = next(
-            f for f in result.report.findings if f.rule == "render.checked"
+            f for f in result.report.findings if f.rule == "render.checked-whole"
         )
         assert "1" in checked.message
 

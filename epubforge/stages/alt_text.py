@@ -390,6 +390,9 @@ class AltTextStage(Stage):
                 done += 1
             if touched:
                 resource.data = xhtml.serialize(root)
+                # The value this program wrote on a person's word — a repair
+                # with its own report line, not an attribute that fell (EF-089).
+                self.attribute_rewritten(ctx, path, *attributes)
         return done
 
 

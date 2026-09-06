@@ -1373,6 +1373,7 @@ class ContentStage(Stage):
                 values={"was": stated, "now": settled},
                 location=resource.path,
             )
+            self.attribute_rewritten(ctx, resource.path, "lang", "xml:lang")
         elif stated != language:
             self.note(
                 ctx,
@@ -3589,6 +3590,7 @@ class ContentStage(Stage):
                 # — unlike "cover", which names the slot rather than the picture.
                 image.set("alt", ctx.book.metadata.title)
                 described += 1
+                self.attribute_rewritten(ctx, resource.path, "alt")
             elif alt is None:
                 image.set("alt", "")
                 missing_alt += 1

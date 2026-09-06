@@ -392,16 +392,19 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
                     values={"detail": str(page)}, location=page.document,
                 )
         if measured.ok:
-            report.add(
-                "render", Level.INFO, "render.checked",
-                values={
-                    "count": len(measured.pages),
-                    "engine": measured.engine,
-                    "documents": measured.documents,
-                    "total": measured.total,
-                    "screens": measured.screens,
-                },
-            )
+            values = {
+                "count": len(measured.pages),
+                "engine": measured.engine,
+                "documents": measured.documents,
+                "total": measured.total,
+                "screens": measured.screens,
+            }
+            if measured.whole:
+                # Every compared document to its last screen (EF-089): the
+                # word "checked" may mean the whole height only when it does.
+                report.add("render", Level.INFO, "render.checked-whole", values=values)
+            else:
+                report.add("render", Level.INFO, "render.checked", values=values)
             return ""
 
         kept = _keep_evidence(source, candidate, destination, measured, report)
@@ -1544,6 +1547,26 @@ def _refuse_when_memory_is_short(source, policy, report) -> "Result | None":
     return Result(report, None, None, Status.BLOCKED)
 
 
+def _value_rewrites(ctx, report: Report) -> "dict[str, set[str]]":
+    """Attribute name → documents whose value of it a stage rewrote on
+    purpose (`Stage.attribute_rewritten`), under every name the document
+    has had: the stage names it as it was at the time, and the balance sees
+    the source's name on one side and the output's on the other."""
+    moved = {
+        change.before: change.after
+        for change in report.changes
+        if change.rule == "structure.relaid-out" and change.before and change.after
+    }
+    back = {after: before for before, after in moved.items()}
+    rewrites: dict[str, set[str]] = {}
+    for name, paths in ctx.attribute_rewrites.items():
+        aliases = set()
+        for path in paths:
+            aliases |= {path, moved.get(path, path), back.get(path, path)}
+        rewrites[name] = aliases
+    return rewrites
+
+
 def _budget_refused(report: Report, area: str, exc: BudgetExceeded) -> None:
     """The refusal a spent budget produces, wherever it was spent.
 
@@ -1898,7 +1921,7 @@ def _publish(source, destination, ctx, before_side, queue, report) -> "Result | 
             for path, entries in sorted(ctx.text_changes.items())
         }
         reconciled = balance.reconcile(
-            before_side, balance.Side.of(book), report.changes
+            before_side, balance.Side.of(book), report.changes, _value_rewrites(ctx, report)
         )
         report.balance = reconciled
         if not reconciled.closes:
