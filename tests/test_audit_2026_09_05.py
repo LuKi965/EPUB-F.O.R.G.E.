@@ -336,6 +336,29 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
         assert refusal.startswith("K1-PDF")
         assert "package.pdf-characters-lost" in {f.rule for f in report.findings}
 
+    def test_the_inventory_walks_the_parse_the_reader_made(self, tmp_path, monkeypatch):
+        """Three reads of one file cost one parse; a file that changed
+        underneath is parsed again, not answered from memory."""
+        import pdfminer.high_level
+        from tests.test_pdf import make_pdf
+
+        from epubforge import pdf
+
+        parses = []
+        real = pdfminer.high_level.extract_pages
+        monkeypatch.setattr(
+            pdfminer.high_level, "extract_pages", lambda *a, **k: parses.append(1) or real(*a, **k)
+        )
+        source = str(self._pdf(tmp_path))
+        pdf._read(source)
+        assert "UNIQUE FORM TEXT MUST SURVIVE" in pdf.drawn_text(source)
+        assert pdf.character_inventory(source)["Q"] == 1
+        assert len(parses) == 1, "the reader's parse serves the inventory"
+        make_pdf(tmp_path / "form.pdf", [[(50, 700, 12, "A different page, written over the first.")]])
+        assert "different page" in pdf.drawn_text(source)
+        assert "UNIQUE" not in pdf.drawn_text(source)
+        assert len(parses) == 2, "a changed file is parsed again"
+
 
 class TestEF083ConsentIsPerDocument:
     """A hyphen joined in chapter four used to excuse a sentence missing from

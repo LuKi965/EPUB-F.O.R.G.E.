@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
 import posixpath
 import re
 import uuid
@@ -282,27 +283,56 @@ def drawn_text(source: str) -> str:
     answer for it. A string rather than a bag so that the fold both sides of
     K1 go through — three dots into an ellipsis, among others — sees the
     dots next to each other.
+
+    The walk is its own; the parse it walks need not be. pdfminer's layout
+    analysis is most of what reading a PDF costs, and a rebuild asks for this
+    text twice after the reader has parsed the same file (the reader's own
+    count, then K1-PDF) — two parses more, for nothing the first had not
+    seen. So `_read` walks the pages it parses and leaves the result here,
+    keyed by the file's path, size and modification time; a file that changed
+    underneath is parsed again.
     """
     from pdfminer.high_level import extract_pages
-    from pdfminer.layout import LAParams, LTChar
+    from pdfminer.layout import LAParams
 
+    identity = _identity(source)
+    if _DRAWN is not None and _DRAWN[0] == identity:
+        return _DRAWN[1]
     pieces: list[str] = []
-
-    def walk(element) -> None:
-        if isinstance(element, LTChar):
-            pieces.append(element.get_text())
-            return
-        try:
-            children = list(element)
-        except TypeError:
-            return
-        for child in children:
-            walk(child)
-        pieces.append(" ")
-
     for page in extract_pages(source, laparams=LAParams(all_texts=True)):
-        walk(page)
-    return "".join(pieces)
+        _walk_characters(page, pieces)
+    return _remember_drawn(identity, "".join(pieces))
+
+
+#: The last parse's drawn text: (file identity, text). One slot — a rebuild
+#: reads one source, and the gate that reads it again comes right after.
+_DRAWN: "tuple[tuple, str] | None" = None
+
+
+def _identity(source: str) -> tuple:
+    status = os.stat(source)
+    return (os.path.realpath(source), status.st_size, status.st_mtime_ns)
+
+
+def _remember_drawn(identity: tuple, text: str) -> str:
+    global _DRAWN
+    _DRAWN = (identity, text)
+    return text
+
+
+def _walk_characters(element, pieces: list) -> None:
+    from pdfminer.layout import LTChar
+
+    if isinstance(element, LTChar):
+        pieces.append(element.get_text())
+        return
+    try:
+        children = list(element)
+    except TypeError:
+        return
+    for child in children:
+        _walk_characters(child, pieces)
+    pieces.append(" ")
 
 
 def character_inventory(source: str) -> "Counter[str]":
@@ -359,13 +389,17 @@ def _read(source: str):
     skipped = 0
     pages: list[Page] = []
     pictures_seen = 0
+    drawn: list[str] = []
+    identity = _identity(source)
     # `all_texts`: text inside a Form XObject — a figure, to pdfminer — is
     # otherwise left as bare characters that no line groups, and this reader
     # walks lines. The independent audit of 2026-09-05 drew a page whose one
     # visible sentence sat in a form: the reader did not see it, the output
     # did not carry it, and K1 — reading through this same reader — said
-    # nothing (EF-087). The inventory below is the second opinion.
+    # nothing (EF-087). The inventory below is the second opinion — walked
+    # here, over the same parse, so that it does not cost a second one.
     for number, lt_page in enumerate(extract_pages(source, laparams=LAParams(all_texts=True)), 1):
+        _walk_characters(lt_page, drawn)
         page = Page(number=number, width=lt_page.width, height=lt_page.height)
         stack = list(lt_page)
         while stack:
@@ -399,6 +433,7 @@ def _read(source: str):
         page.split = split
         _reading_order(page, split)
         pages.append(page)
+    _remember_drawn(identity, "".join(drawn))
 
     info: dict = {}
     outline: list[Outline] = []

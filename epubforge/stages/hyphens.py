@@ -28,7 +28,6 @@ library caller change nothing at all.
 
 from __future__ import annotations
 
-import functools
 import re
 
 from .. import dictionaries, hyphens, typography, xhtml
@@ -39,9 +38,18 @@ from ..report import Action, Level, Risk
 from .base import Context, Stage, machinery_nav
 
 
-@functools.lru_cache(maxsize=512)
-def _WHOLE_WORD(word: str) -> "re.Pattern":
-    """*word* where it stands alone, not where it starts a longer one.
+#: A run of word characters and hyphens — the unit a join works on. Every
+#: candidate is one such run (`_CANDIDATE` is `(\w+)-(\w+)` between
+#: non-word characters), so "the candidate where it stands alone" is "the
+#: run that equals it": `pick-up` inside `pick-uptruck` or `super-pick-up` is
+#: part of a longer run, and that run is its own candidate or nothing.
+_TOKEN = re.compile(r"[\w-]+", re.UNICODE)
+
+
+def _join_whole_words(text: str, planned: list) -> "tuple[str, dict[str, int]]":
+    """*text* with every planned candidate replaced where it stands alone,
+    and how many times each was — the one rule for the mutation and for the
+    check that guards it.
 
     A plain `str.replace` joined `pick-up` inside `pick-uptruck` and produced
     `pickuptruck` in four places of one shelf book — a word nobody had been
@@ -51,11 +59,27 @@ def _WHOLE_WORD(word: str) -> "re.Pattern":
     was the second rebuild joining the two copies the first had left, now that
     the book "wrote them joined elsewhere" — its own damage as evidence).
 
-    A hyphen counts as a word character on both sides here: `pick-up` inside
-    `super-pick-up` is part of a longer hyphenated word, and that word is its
-    own candidate or nothing.
+    One pass over the runs, not one regular expression per candidate: with
+    790 candidates and two thousand text nodes the latter compiled and ran
+    over a million patterns and the hyphen stage took longer than reading the
+    PDF (the acceptance measurement of 2026-09-06). And one pass means a run
+    is changed at most once, by the answer given for it — what one answer
+    produced is not put through another's.
     """
-    return re.compile(rf"(?<![\w-]){re.escape(word)}(?![\w-])")
+    wanted: dict[str, str] = {}
+    for candidate, replacement in planned:
+        wanted.setdefault(candidate.word, replacement)
+    hits: dict[str, int] = {}
+
+    def swap(match) -> str:
+        run = match.group(0)
+        replacement = wanted.get(run)
+        if replacement is None:
+            return run
+        hits[run] = hits.get(run, 0) + 1
+        return replacement
+
+    return _TOKEN.sub(swap, text), hits
 
 
 def _across_candidates(documents: list, words, tongue: str) -> list:
@@ -289,10 +313,12 @@ class HyphenStage(Stage):
                     text = getattr(element, attribute)
                     if not text:
                         continue
-                    for candidate, replacement in planned:
-                        text, hits = _WHOLE_WORD(candidate.word).subn(replacement, text)
-                        changed += bool(hits)
-                    setattr(element, attribute, text)
+                    text, hits = _join_whole_words(text, planned)
+                    if hits:
+                        # Counted as it always was: a candidate met in a node,
+                        # not every copy of it there.
+                        changed += len(hits)
+                        setattr(element, attribute, text)
                 if changed:
                     resource.data = xhtml.serialize(root)
                 return changed
@@ -351,16 +377,14 @@ class HyphenStage(Stage):
         after text, character for character. Anything else the pass did to the
         document shows up as a mismatch and the document goes back.
         """
-        expected = before
-        for candidate, replacement in planned:
-            # The same whole-word rule the mutation applies. With `str.replace`
-            # here and whole words there, any candidate that is the start of a
-            # longer word (`pick-up` in `pick-uptruck`) made the two disagree,
-            # the postcondition failed, and the whole document went back —
-            # every document of the PDF acceptance material, 790 confirmed
-            # candidates, one joined. K3 could not see it: a repair that stops
-            # happening is stable. The acceptance measurement could.
-            expected = _WHOLE_WORD(candidate.word).sub(replacement, expected)
+        # The same function the mutation applies, not a restatement of its
+        # rule. With `str.replace` here and whole words there, any candidate
+        # that is the start of a longer word (`pick-up` in `pick-uptruck`)
+        # made the two disagree, the postcondition failed, and the whole
+        # document went back — every document of the PDF acceptance material,
+        # 790 confirmed candidates, one joined. K3 could not see it: a repair
+        # that stops happening is stable. The acceptance measurement could.
+        expected, _ = _join_whole_words(before, planned)
         return typography.unchanged(expected, after)
 
     def _report_left(self, ctx: Context, unanswered: int, kept: int) -> None:

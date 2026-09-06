@@ -304,6 +304,30 @@ class TestTheTextInvariantStillHolds:
             "Była obo-jętna dziś.", "Była obojętna wczoraj.", planned
         )
 
+    def test_a_candidate_is_joined_only_where_it_stands_alone(self):
+        """`pick-up` is not `pick-uptruck`, nor `super-pick-up` (EF-088); the
+        mutation and the check share the one function that says so."""
+        from epubforge.stages.hyphens import _join_whole_words
+
+        planned = [(type("C", (), {"word": "pick-up"})(), "pickup")]
+        text, hits = _join_whole_words(
+            "A pick-up, the pick-uptruck, a super-pick-up; pick-up's. Pick-up", planned
+        )
+        assert text == "A pickup, the pick-uptruck, a super-pick-up; pickup's. Pick-up"
+        assert hits == {"pick-up": 2}
+
+    def test_one_answer_is_not_put_through_another(self):
+        """One pass: what an answer produced is not a candidate for the next."""
+        from epubforge.stages.hyphens import _join_whole_words
+
+        planned = [
+            (type("C", (), {"word": "a-b"})(), "c-d"),
+            (type("C", (), {"word": "c-d"})(), "cd"),
+        ]
+        text, hits = _join_whole_words("a-b c-d", planned)
+        assert text == "c-d cd"
+        assert hits == {"a-b": 1, "c-d": 1}
+
 
 class TestAWordCutByMarkup:
     """DELTA-2026-08-15-001, and it corrects a decision written into the module.

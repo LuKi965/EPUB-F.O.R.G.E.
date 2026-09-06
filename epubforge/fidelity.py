@@ -515,7 +515,7 @@ def first_character_lost(source_text: str, output_text: str) -> int:
 
 
 def pdf_characters_survive(source: "str | pathlib.Path", candidate: "str | pathlib.Path") -> Check:
-    """K1 for a PDF source, counted by a second reader.
+    """K1 for a PDF source, counted by a second walk of the page tree.
 
     `text_is_preserved` reads the PDF through the same reader the conversion
     uses, so a construct that reader does not handle is missing from *both*
@@ -524,7 +524,9 @@ def pdf_characters_survive(source: "str | pathlib.Path", candidate: "str | pathl
     This is the other side of the ledger: every character the page draws,
     counted without any notion of lines or order, has to be in the output at
     least as many times. Order is the subsequence check's business; existence
-    is this one's, and it does not depend on the reader being right.
+    is this one's, and it does not depend on the reader being right — the
+    parse is pdfminer's either way, the walk over it is not the reader's
+    (`pdf.drawn_text`).
     """
     from . import pdf
     from .typography import canonical
