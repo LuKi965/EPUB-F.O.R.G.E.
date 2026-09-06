@@ -328,11 +328,19 @@ def find(
     for match in _RUN.finditer(text):
         run = match.group(1)
         pieces = run.split("-")
+        if any(len(piece) == 1 for piece in pieces):
+            # `O-li-ver`, `s-s-spo-tkamy`: a name shouted syllable by
+            # syllable, a stammer — a run with a one-letter piece anywhere
+            # is somebody spelling a word out, and no hyphen of it is a
+            # converter's. Measured on the owner's shelf (three editions of
+            # one book), where `li`+`ver` passed the dictionary as `liver`.
+            continue
         for index in range(len(pieces) - 1):
             near, far = pieces[index], pieces[index + 1]
             left, right = "-".join(pieces[: index + 1]), "-".join(pieces[index + 1 :])
             verdict = _classify(
                 near, far, left, right, "-".join(pieces[: index + 2]), words, language, line_end,
+                run=True,
             )
             if verdict is None:
                 continue
@@ -355,6 +363,7 @@ def find(
 def _classify(
     near: str, far: str, left: str, right: str, up_to_break: str,
     words: Counter, language: str, line_end: "set[str] | None",
+    run: bool = False,
 ) -> "tuple[str, str, int] | None":
     """What the evidence says about one hyphen: `(confidence, reason, how
     often the joined form appears elsewhere)`, or `None` for a hyphen that is
@@ -393,6 +402,17 @@ def _classify(
     # both were being called confirmed on a count of one. Two is the
     # threshold, and it applies only to the shape that needs it.
     enough = elsewhere >= (2 if compound_shape else 1)
+    if run and elsewhere <= hyphenated:
+        # For a run the book's "joined form" is very often the book's own
+        # damage of the opposite kind: `face-toface` four times in a book
+        # that writes `face-to-face` — a converter that dropped the writer's
+        # hyphen at a line end. Measured on the owner's shelf before this
+        # guard: 52 confirmed runs in one book, nearly every one that shape
+        # (`wellto-do`, `letterof-rights`, `side-byside`). A spelling the
+        # writer uses is written consistently and a break happens once, so
+        # the joined form has to outnumber the hyphenated run — which the
+        # run's own occurrence already counts toward.
+        enough = False
 
     if enough:
         # The book's own answer, and it outranks the heuristic below —

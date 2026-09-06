@@ -245,10 +245,29 @@ class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
     def test_the_break_may_sit_at_the_second_hyphen(self):
         found = candidates(
             "The bedroom-win-dow was open.",
-            "The bedroom-window faced the yard.",
+            "The bedroom-window faced the yard; the bedroom-window was old.",
         )
         confirmed = [c for c in found if c.confidence == CONFIRMED]
         assert [(c.word, c.joined) for c in confirmed] == [("bedroom-win-dow", "bedroom-window")]
+
+    def test_the_book_s_own_opposite_damage_is_not_evidence(self):
+        """Measured on the owner's shelf: `face-toface` four times in a book
+        that writes `face-to-face` — a converter dropped the writer's hyphen
+        at a line end. That is not the book spelling the run's join; it is
+        the same damage the other way round. The joined form has to
+        outnumber the hyphenated run."""
+        found = candidates(
+            "They met face-to-face at last, face-to-face and face-to-face.",
+            "Once more we meet face-toface, the man said.",
+        )
+        assert all(c.confidence != CONFIRMED for c in found), [(c.joined, c.confidence) for c in found]
+
+    def test_a_run_with_a_one_letter_piece_is_nobody_s_candidate(self):
+        """`O-li-ver!` shouted syllable by syllable, `s-s-spo-tkamy` stammered:
+        somebody spelling a word out, and the dictionary knowing `liver` does
+        not make the second hyphen a converter's."""
+        found = candidates("„O-li-ver!” he cried; s-s-spo-tkamy się.", "Oliver came; spotkamy się.")
+        assert not [c for c in found if c.word in ("O-li-ver", "s-s-spo-tkamy")], [c.word for c in found]
 
     def test_the_writer_s_hyphen_in_the_same_run_is_not_confirmed(self):
         """The other hyphen of `fel-low-creature` is the writer's, and nothing
@@ -298,7 +317,8 @@ class TestAWordWithAHyphenOfItsOwnBrokenASecondTime:
         syllable, in a book that writes `Oliver` 260 times. The same shape
         as a word broken twice, and the book cannot tell them apart — so
         the whole is not evidence, and nothing here is confirmed."""
-        found = candidates("„O-li-ver!” he cried.", "Oliver, Oliver, Oliver, Oliver.")
+        found = candidates("See you to-mor-row.", "Tomorrow, tomorrow, tomorrow and tomorrow.")
+        assert found, "the run is still a candidate, only not a confirmed one"
         assert all(c.confidence != CONFIRMED for c in found), [(c.joined, c.confidence) for c in found]
 
 
