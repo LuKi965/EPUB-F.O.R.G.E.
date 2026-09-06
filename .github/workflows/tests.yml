@@ -61,8 +61,25 @@ jobs:
           test -f "$jar"
           echo "EPUBCHECK_JAR=$jar" >> "$GITHUB_ENV"
 
+      # With coverage, because one criterion in the register is a number
+      # only this machine can supply: EF-073's fifth part reads "coverage of
+      # the font subset stage in CI above 80 %", and the audits of 2026-09-04
+      # and 2026-09-05 could only measure it locally — the run on push did
+      # not measure it at all. A threshold on the one module the finding is
+      # about, not on the total: a total hides the module that went dark.
       - name: Run tests
-        run: pytest -q -rs
+        run: pytest -q -rs --cov=epubforge --cov-report=term-missing:skip-covered --cov-report=json:coverage.json
+
+      - name: Coverage of the font subset stage (EF-073)
+        run: |
+          python - <<'EOF'
+          import json, sys
+          files = json.load(open("coverage.json"))["files"]
+          module = next(v for k, v in files.items() if k.replace("\\", "/").endswith("epubforge/stages/font_subset.py"))
+          percent = module["summary"]["percent_covered"]
+          print(f"epubforge/stages/font_subset.py: {percent:.1f} % covered")
+          sys.exit(0 if percent > 80 else 1)
+          EOF
 
       # K2 says the output is a function of the input. Iterating a set is the
       # classic way for that to stop being true, and one process can never
