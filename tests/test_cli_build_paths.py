@@ -141,6 +141,8 @@ class TestTheFlagsThatCarryAValue:
         assert parsed().modified_override is None
         assert parsed("--hyphen-review", "each").hyphen_review == "each"
         assert parsed("--memory-limit", "512M").memory_limit == _bytes_from("512M") > 0
+        assert parsed("--time-budget", "900").time_budget_seconds == 900.0
+        assert parsed().time_budget_seconds == 300.0
 
 
 class TestTheReadOnlyCommands:

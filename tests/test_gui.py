@@ -313,6 +313,13 @@ class TestTheMemoryGuardIsInTheWindow:
         window.memory_limit_edit.setText("cztery gigabajty")
         assert window._policy().memory_limit is None
 
+    def test_the_time_ceiling_is_in_the_window_and_reaches_the_policy(self, window):
+        """DROGA-DO-1.0, 6.5: five minutes by default, and the person's to move."""
+        assert window.time_budget_spin.value() == 300
+        assert len(window.time_budget_spin.toolTip()) > 40
+        window.time_budget_spin.setValue(900)
+        assert window._policy().time_budget_seconds == 900.0
+
     def test_the_inspector_says_what_a_book_will_cost(self, window, tmp_path):
         """Before the rebuild rather than during it. On a book big enough to
         matter this is the difference between a line of text and a process the

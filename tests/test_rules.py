@@ -31,7 +31,11 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: wrong about, deleted along with the finding that reported it. What it may
 #: never do is fall because a `note()` lost its identifier, and every call site
 #: carrying one is what the two tests below actually check.
-TAGGED_TODAY = 397
+# 397 → 396 on 2026-09-06: the three identical `package.budget-exceeded`
+# call sites folded into `pipeline._budget_refused` (one literal site) and
+# `package.time-budget-is-a-setting` came in beside it. No finding lost its
+# identity; two duplicates of one did.
+TAGGED_TODAY = 396
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.

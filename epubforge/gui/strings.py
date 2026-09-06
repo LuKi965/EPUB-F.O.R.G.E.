@@ -526,6 +526,13 @@ PL: dict[str, str] = {
         "nie widziała, jest gorsze niż zapytanie drugi raz."
     ),
     "policy.memory": "Odmawiaj, gdy zabraknie pamięci",
+    "policy.time.budget.prefix": "budżet czasu na książkę: ",
+    "policy.time.budget.tip": (
+        "Ile sekund może zająć jedna książka, zanim program odmówi. Domyślnie "
+        "pięć minut — granica, za którą coś idzie źle, a nie tylko wolno. Duży "
+        "PDF na wolnej maszynie to nie zepsuta książka: podnieś budżet, a "
+        "odmowa i tak powie obie liczby."
+    ),
     "policy.memory.limit.placeholder": "budżet pamięci, np. 4G — puste znaczy „zapytaj system”",
     "policy.memory.limit.tip": (
         "Stały budżet zamiast pytania, ile pamięci jest akurat wolnej. Przydaje "
@@ -1539,6 +1546,13 @@ EN: dict[str, str] = {
         "seen is worse than asking a second time."
     ),
     "policy.memory": "Refuse when memory runs short",
+    "policy.time.budget.prefix": "time budget per book: ",
+    "policy.time.budget.tip": (
+        "How many seconds one book may take before the program refuses. Five "
+        "minutes by default — the line past which something has gone wrong "
+        "rather than slowly. A large PDF on a slow machine is not a broken book: "
+        "raise the budget, and a refusal still says both numbers."
+    ),
     "policy.memory.limit.placeholder": "memory budget, e.g. 4G — empty means \"ask the system\"",
     "policy.memory.limit.tip": (
         "A fixed budget instead of asking how much memory happens to be free. "

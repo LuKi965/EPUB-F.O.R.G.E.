@@ -141,6 +141,8 @@ def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:
         policy.pdf_running_heads = args.pdf_running_heads
     if getattr(args, "memory_limit", None):
         policy.memory_limit = _bytes_from(args.memory_limit)
+    if getattr(args, "time_budget", None):
+        policy.time_budget_seconds = float(args.time_budget)
     # `None` means "whatever the mode says", which is not the same as "off" —
     # the preset already chose, and a default of "off" here would quietly
     # disarm strict's gate for everybody who never passes the flag.
@@ -1112,6 +1114,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "a fixed memory budget (2G, 512M) instead of asking the machine what "
             "is free — so the answer does not depend on what else is running"
+        ),
+    )
+    build.add_argument(
+        "--time-budget",
+        metavar="SECONDS",
+        type=float,
+        help=(
+            "how long one book may take before the rebuild refuses (default 300). "
+            "A large PDF on a slow machine is not a broken book; raise this rather "
+            "than trusting a ceiling somebody else chose"
         ),
     )
 

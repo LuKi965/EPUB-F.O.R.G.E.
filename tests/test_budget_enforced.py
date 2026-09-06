@@ -635,3 +635,57 @@ class TestTheClockActuallyStopsAStageInTheMiddle:
         touched: list = []
         result, _ = self._run(tmp_path, monkeypatch, touched)
         assert budget_findings(result)[0].values["limit"] == "wall clock"
+
+
+class TestTheTimeCeilingIsASetting:
+    """DROGA-DO-1.0, 6.5. A 138-page two-column PDF took 510 s on a slow build
+    and was refused by a constant nobody could move: right about the build,
+    useless to the person. The ceiling is the policy's now, reachable like
+    every other setting, and the refusal says so."""
+
+    def test_the_policy_carries_the_module_default(self, monkeypatch):
+        assert Policy().time_budget_seconds == budget_module.MAX_SECONDS
+        monkeypatch.setattr(budget_module, "MAX_SECONDS", 7.0)
+        assert Policy().time_budget_seconds == 7.0, "read at construction, not baked in at import"
+
+    def _slow(self, tmp_path, seconds: float):
+        class SlowStage(Stage):
+            name = "slow"
+
+            def run(self, ctx):
+                time.sleep(0.2)
+
+        source = make_modern_epub(str(tmp_path / "in.epub"))
+        destination = tmp_path / "out.epub"
+        result = rebuild(
+            source, str(destination),
+            Policy.preset("preserve", time_budget_seconds=seconds),
+            stages=[*DEFAULT_STAGES, SlowStage],
+        )
+        return result, destination
+
+    def test_the_policy_ceiling_is_the_one_the_rebuild_spends(self, tmp_path):
+        """No monkeypatch of the module constant: the number came from the policy."""
+        result, destination = self._slow(tmp_path, 0.05)
+        assert result.status is Status.BLOCKED and not destination.exists()
+        refusal = budget_findings(result)[0]
+        assert refusal.values["limit"] == "wall clock" and refusal.values["allowed"] == "0s"
+
+    def test_the_refusal_says_the_ceiling_can_be_raised(self, tmp_path):
+        result, _ = self._slow(tmp_path, 0.05)
+        assert "package.time-budget-is-a-setting" in {f.rule for f in result.report.findings}
+
+    def test_a_raised_ceiling_lets_the_same_book_through(self, tmp_path):
+        result, destination = self._slow(tmp_path, 60.0)
+        assert result.status is not Status.BLOCKED, result.report.to_text()
+        assert destination.exists()
+
+    def test_the_other_limits_do_not_claim_to_be_settings(self, tmp_path, monkeypatch):
+        """An archive with more entries than allowed is a property of the
+        book; telling the person to raise the time budget would be a lie."""
+        monkeypatch.setattr(budget_module, "MAX_ENTRIES", 1)
+        source = make_modern_epub(str(tmp_path / "in.epub"))
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        assert result.status is Status.BLOCKED
+        assert budget_findings(result)[0].values["limit"] == "archive entries"
+        assert "package.time-budget-is-a-setting" not in {f.rule for f in result.report.findings}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 
+from . import budget as _budget
 from . import watermark
 
 #: What `Policy.validate_before_publish` may say. Ordered least to most
@@ -355,6 +356,24 @@ class Policy:
     #: be running that minute — and for the tests, which otherwise measure the
     #: container rather than the program.
     memory_limit: "int | None" = None
+
+    #: Seconds one book may take, end to end, before the rebuild refuses.
+    #:
+    #: `budget.MAX_SECONDS` (five minutes) was a constant: the line past which
+    #: something has gone wrong rather than slowly. On the PDF acceptance
+    #: material of 2026-09-06 a 138-page two-column PDF took 510 s on a slow
+    #: build of this program and was refused — the refusal was right about the
+    #: build and said nothing the person could act on, because the ceiling
+    #: was nobody's to move (`DROGA-DO-1.0` 6.5). The machine and the book are
+    #: the person's; a fixed number in the code is this program deciding for
+    #: them how patient they are. So the ceiling is a setting, reachable from
+    #: the window and the command line like every other one (S-04), the
+    #: default is the old constant, and the refusal names the setting.
+    #:
+    #: Read at construction, not baked in at import, for the same reason
+    #: `Budget` reads its own constants that way: a test that tunes
+    #: `MAX_SECONDS` must be tuning the number this policy carries.
+    time_budget_seconds: float = field(default_factory=lambda: _budget.MAX_SECONDS)
 
     #: Remove files present in the archive but referenced by nothing.
     #:

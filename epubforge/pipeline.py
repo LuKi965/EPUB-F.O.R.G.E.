@@ -1369,7 +1369,10 @@ def rebuild(
     report = Report(source=source, output=destination)
     # Made here, so the deadline covers reading as well as rebuilding: a book
     # that takes five minutes to *open* has already cost what the limit is for.
-    budget = Budget(cancelled=cancelled)
+    # The ceiling is the policy's (`time_budget_seconds`), not the module's:
+    # a person with a slow machine and a large PDF is entitled to more than
+    # five minutes, and the refusal tells them where to say so.
+    budget = Budget(cancelled=cancelled, seconds=float(policy.time_budget_seconds))
 
     # F-019. Every parse in this program charges the *active* budget rather
     # than one handed down through call sites, because the call-site version is
@@ -1502,6 +1505,26 @@ def _refuse_when_memory_is_short(source, policy, report) -> "Result | None":
     return Result(report, None, None, Status.BLOCKED)
 
 
+def _budget_refused(report: Report, area: str, exc: BudgetExceeded) -> None:
+    """The refusal a spent budget produces, wherever it was spent.
+
+    Both numbers, always — that was the rule from the start. And for the one
+    limit that is a setting rather than a property of the book, a second line
+    that says so: a wall-clock refusal on a slow machine is right about the
+    machine and useless if it does not say the ceiling can be raised
+    (`Policy.time_budget_seconds`; the 138-page PDF of 2026-09-06).
+    """
+    report.add(
+        area,
+        Level.ERROR,
+        "package.budget-exceeded",
+        values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
+        location=exc.where,
+    )
+    if exc.limit == "wall clock":
+        report.add(area, Level.INFO, "package.time-budget-is-a-setting", values={})
+
+
 def _read_or_refuse(source, report, budget, rendition) -> "tuple[Book | None, Result | None]":
     """The book, or the refusal that stands in for it."""
     try:
@@ -1513,13 +1536,7 @@ def _read_or_refuse(source, report, budget, rendition) -> "tuple[Book | None, Re
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose
         # message does not say what it was is a limit nobody can act on.
-        report.add(
-            "reader",
-            Level.ERROR,
-            "package.budget-exceeded",
-            values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
-            location=exc.where,
-        )
+        _budget_refused(report, "reader", exc)
         return None, Result(report, None, None, Status.BLOCKED)
     except EpubReadError as exc:
         report.add(
@@ -1691,13 +1708,7 @@ def _run_stages(ctx, stages, budget, report) -> "Result | None":
             # and still publish.
             budget.deadline(stage.name)
         except BudgetExceeded as exc:
-            report.add(
-                stage.name,
-                Level.ERROR,
-                "package.budget-exceeded",
-                values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
-                location=exc.where,
-            )
+            _budget_refused(report, stage.name, exc)
             return Result(report, book, None, Status.BLOCKED)
         except Exception as exc:  # noqa: BLE001 — reported, then the run stops
             # A stage mutates the shared Book as it goes, so an exception leaves
@@ -1791,13 +1802,7 @@ def _refuse_before_publication(source, destination, ctx, budget, report) -> "Res
     try:
         budget.deadline("publication")
     except BudgetExceeded as exc:
-        report.add(
-            "package",
-            Level.ERROR,
-            "package.budget-exceeded",
-            values={"limit": exc.limit, "found": exc.found, "allowed": exc.allowed},
-            location=exc.where,
-        )
+        _budget_refused(report, "package", exc)
         return Result(report, book, None, Status.BLOCKED)
 
     broken = invariants.check(book)

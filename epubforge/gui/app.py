@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QSpinBox,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -887,6 +888,18 @@ class MainWindow(QMainWindow):
         self.memory_limit_edit.setToolTip(tr("policy.memory.limit.tip"))
         layout.addWidget(self.memory_limit_edit)
         self.memory_check.toggled.connect(self.memory_limit_edit.setEnabled)
+        # The time ceiling, for the same reason the memory budget is here: a
+        # constant in the code was this program deciding how patient the
+        # person is. Five minutes by default; a large PDF on a slow machine
+        # is not a broken book (DROGA-DO-1.0, 6.5).
+        self.time_budget_spin = QSpinBox()
+        self.time_budget_spin.setRange(30, 24 * 3600)
+        self.time_budget_spin.setSingleStep(60)
+        self.time_budget_spin.setValue(int(Policy().time_budget_seconds))
+        self.time_budget_spin.setPrefix(tr("policy.time.budget.prefix"))
+        self.time_budget_spin.setSuffix(" s")
+        self.time_budget_spin.setToolTip(tr("policy.time.budget.tip"))
+        layout.addWidget(self.time_budget_spin)
 
         self._mode_changed()
         return column
@@ -1130,6 +1143,7 @@ class MainWindow(QMainWindow):
                 # default, so falling back to the machine's own answer is the
                 # behaviour somebody who mistyped would have wanted anyway.
                 policy.memory_limit = None
+        policy.time_budget_seconds = float(self.time_budget_spin.value())
         policy.validate_before_publish = self.gate_combo.currentData()
         for key, edit in (
             ("title", self.title_edit),
