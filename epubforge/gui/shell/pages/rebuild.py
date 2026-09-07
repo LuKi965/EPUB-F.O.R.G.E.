@@ -247,6 +247,10 @@ class RebuildPage(QWidget):
             row.removed.connect(self._remove_book)
             row.toggled.connect(self._toggle_book)
             books_card.body.addWidget(row)
+        # Spare height goes to the bottom of the card. Without this the layout
+        # shares it out between the rows, and the card reads as three widgets
+        # adrift in it rather than a list.
+        books_card.body.addStretch(1)
         left.addWidget(books_card, 3)
 
         plan_card = Card(tr("shell.plan.title"), tr("shell.plan.body"), glyph="sliders",
@@ -465,6 +469,7 @@ class RebuildPage(QWidget):
             row = BookRow(book, self.tokens, results=True)
             row.opened.connect(self._select_book)
             results.body.addWidget(row)
+        results.body.addStretch(1)
 
         self._changes_card = Card(tr("shell.results.changes"), tr("shell.results.changes.body"),
                                   glyph="text", tokens=self.tokens)

@@ -49,10 +49,14 @@ class SettingRow(QFrame):
         heading = QHBoxLayout()
         heading.setSpacing(8)
         title = label(tr(option.label_key), "cardTitle")
-        heading.addWidget(title)
+        # The name takes the row and the badge follows it: without the stretch
+        # factor Qt hands the wrapped label its minimum width — the width of
+        # its longest word — and a four-word setting name becomes a column.
+        heading.addWidget(title, 1)
         if option.risky:
-            heading.addWidget(StatusBadge(tr("shell.drawer.risky"), "warning", tokens, "warning"))
-        heading.addStretch(1)
+            heading.addWidget(
+                StatusBadge(tr("shell.drawer.risky"), "warning", tokens, "warning"), 0
+            )
         words.addLayout(heading)
         # The catalogue's help was written for a tooltip: several paragraphs
         # about what a switch does to a book. In a list of forty settings that

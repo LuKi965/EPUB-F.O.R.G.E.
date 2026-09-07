@@ -176,6 +176,51 @@ class TestTheRebuildFlow:
         assert page.outcome.written == 1
 
 
+class TestTheQuestionsStillReachAPerson:
+    """A rebuild that cannot decide something asks — and the thing it asks
+    lives in the window's thread. The new shell must not quietly drop that."""
+
+    def test_a_resolver_is_built_for_the_run_and_handed_to_the_backend(self, qt_app):
+        seen: dict = {}
+
+        class Recording(DemoBackend):
+            def rebuild(self, plan, books, **kwargs):
+                seen["resolver"] = kwargs.get("resolver")
+                return super().rebuild(plan, books, **kwargs)
+
+        sentinel = object()
+        widget = RebuildPage(tokens_module.DARK, Recording(), resolver_factory=lambda: sentinel)
+        try:
+            widget.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
+            widget.stage = Stage.PLAN
+            widget.run()
+            settle(qt_app, widget, lambda: widget.stage is Stage.RESULTS)
+        finally:
+            widget.runner.stop()
+            widget.close()
+        assert seen["resolver"] is sentinel
+
+    def test_declining_questions_means_nobody_is_asked(self, qt_app):
+        seen: dict = {}
+
+        class Recording(DemoBackend):
+            def rebuild(self, plan, books, **kwargs):
+                seen["resolver"] = kwargs.get("resolver")
+                return super().rebuild(plan, books, **kwargs)
+
+        widget = RebuildPage(tokens_module.DARK, Recording(), resolver_factory=lambda: object())
+        try:
+            widget.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
+            widget.stage = Stage.PLAN
+            widget.overrides = {"ask": False}
+            widget.run()
+            settle(qt_app, widget, lambda: widget.stage is Stage.RESULTS)
+        finally:
+            widget.runner.stop()
+            widget.close()
+        assert seen["resolver"] is None
+
+
 class TestTheOriginalIsNeverTheDestination:
     def test_a_destination_equal_to_the_source_refuses_before_anything_runs(
         self, qt_app, page, tmp_path, monkeypatch
