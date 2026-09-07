@@ -41,6 +41,11 @@ RUNNING_HEAD_CLASS = "ef-pdf-running-head"
 #: the two halves back together when the head goes, and drops the mark when
 #: it stays.
 CONTINUED_CLASS = "ef-pdf-continued"
+#: The class on the callout labels printed *on* a drawing — "A16" beside an
+#: arrow — gathered under the drawing they belong to. Unlike the two above this
+#: is not a mark for a later stage to remove: it says what the text is, and the
+#: rebuilt book keeps it.
+LABEL_CLASS = "ef-pdf-labels"
 
 #: A heading is a line set larger than the body — these are the ratios, and
 #: they are reported with every heading they produce.
@@ -62,6 +67,18 @@ INDENT_POINTS = 8.0
 SHORT_LINE_RATIO = 0.7
 #: Fewer text characters than this per page, on average, is not a text layer.
 MIN_CHARACTERS_PER_PAGE = 20
+#: How the page is cut into areas that are read one after another. A gap wider
+#: than this share of the page width is a gutter between columns; wider than
+#: this share of the height, a band across it. The band is the larger of the
+#: two on purpose: ordinary space between paragraphs runs to about three per
+#: cent of a page's height (a line pitch and a half on a 595-point page), and a
+#: threshold under that would cut a column into paragraphs and read them across
+#: the gutter — which is the defect two-column detection was written for.
+GUTTER_SHARE = 0.04
+BAND_SHARE = 0.06
+#: How many times the page may be cut. Six is far more than any page needs; it
+#: is here so that a pathological page cannot recurse forever.
+REGION_DEPTH = 6
 
 
 def is_pdf(path: str) -> bool:
@@ -79,6 +96,9 @@ class Line:
     page: int
     bold: bool = False
     running_head: bool = False
+    #: Which area of the page this line belongs to. Lines of one area are read
+    #: one after another; a paragraph never runs from one area into the next.
+    region: int = 0
 
 
 @dataclass
@@ -88,6 +108,23 @@ class Picture:
     media_type: str
     page: int
     y1: float
+    #: The rest of the box. Kept because a label printed *on* a drawing is
+    #: text that belongs to the drawing, and the only way to know that is to
+    #: know where the drawing is.
+    x0: float = 0.0
+    x1: float = 0.0
+    y0: float = 0.0
+    #: Short lines that stand inside this picture: callout labels, the "A16"
+    #: beside an arrow. They are not paragraphs and they are not lost.
+    labels: list = field(default_factory=list)
+
+    def holds(self, line: "Line") -> bool:
+        """Whether *line* stands inside this picture's box."""
+        if self.x1 <= self.x0 or self.y1 <= self.y0:
+            return False
+        middle_x = (line.x0 + line.x1) / 2
+        middle_y = (line.y0 + line.y1) / 2
+        return self.x0 <= middle_x <= self.x1 and self.y0 <= middle_y <= self.y1
 
 
 @dataclass
@@ -100,6 +137,9 @@ class Page:
     columns: bool = False
     #: The x that divides two columns, when there are two.
     split: "float | None" = None
+    #: The page cut into the areas a person reads one after another, in that
+    #: order. One region is an ordinary page of prose.
+    regions: list = field(default_factory=list)
 
 
 @dataclass
@@ -202,6 +242,8 @@ class Layout:
     torn_paragraphs: int = 0
     fragment_paragraphs: int = 0
     median_paragraph: int = 0
+    #: How many areas the pages were cut into. One per page is prose.
+    regions: int = 0
 
 
 # ----------------------------------------------------------------- reading
@@ -210,25 +252,9 @@ class Layout:
 def read_pdf(source: str, report: Report, budget=None) -> Book:
     """Load *source* into a :class:`Book`, or refuse it with the reason said."""
     pages, info, outline, layout = _read(source)
-    layout.pages = len(pages)
-    layout.lines = sum(len(page.lines) for page in pages)
-    layout.characters = sum(
-        len(line.text.replace(" ", "")) for page in pages for line in page.lines
-    )
-    if not pages or layout.characters < MIN_CHARACTERS_PER_PAGE * len(pages):
-        report.add(
-            "pdf",
-            Level.ERROR,
-            "pdf.no-text-layer",
-            values={"pages": len(pages), "characters": layout.characters},
-            location=source,
-        )
-        raise EpubReadError("the PDF has no text layer to read; scanning it would need OCR")
+    _refuse_a_book_of_pictures(pages, layout, source, report)
 
-    _mark_running_heads(pages, layout)
-    layout.column_pages = sum(1 for page in pages if page.columns)
-    body_size = _body_size(pages)
-    layout.body_size = body_size
+    body_size = _lay_out_all(pages, layout)
 
     book = Book()
     book.source_version = "pdf"
@@ -241,6 +267,73 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
     layout.fragment_paragraphs = quality.fragments
     layout.median_paragraph = quality.median_characters
     layout.outline_entries = len(outline)
+    _fill_the_book(book, sections, layout)
+    layout.running_heads = sum(1 for page in pages for line in page.lines if line.running_head)
+
+    _say_what_was_read(report, source, layout, len(sections), quality)
+    _say_what_was_noticed(report, source, layout)
+    _say_what_was_not_placed(report, source, pages)
+    report.stats["pdf_layout"] = layout.__dict__.copy()
+    # The words the typesetter broke at a line end, joined as the hyphen
+    # stage will meet them (`prze-konaniem`), and **how many times each was
+    # broken there**: evidence that stage can use — a hyphen the reader put
+    # at a line end is a converter's, not a writer's, and on typeset
+    # material a third of them were otherwise left because their first half
+    # happened to be a word (`nie-`, `po-`).
+    #
+    # The count is what tells the two apart the other way round (DROGA 6.12).
+    # `to-day` is the author's spelling in a book from 1890; the typesetter
+    # happening to break a line there does not make it a converter's hyphen.
+    # A word this reader joined at a break appears in the text once per
+    # break, so a hyphenated form the book carries **more often than it was
+    # broken** stands somewhere nobody broke — and that is the author
+    # writing it.
+    report.stats["pdf_line_end_words"] = dict(sorted(_line_end_words(pages).items()))
+    return book
+
+
+def _lay_out_all(pages: list[Page], layout: "Layout") -> float:
+    """Running heads, then the areas of each page, then the body size — the
+    reader's whole view of the document, in the order the three must happen.
+
+    Shared with `text_of`, which is the left side of K1-PDF: both sides have to
+    mean the same thing by "the order the source is read in", and since pages
+    are cut into areas that is no longer the order of the lines down the page.
+    """
+    _mark_running_heads(pages, layout)
+    # After the running heads, because a head at the top of the page is a band
+    # of its own and would cut every page in two before anything else could.
+    for page in pages:
+        _lay_out(page)
+    layout.column_pages = sum(1 for page in pages if page.columns)
+    layout.regions = sum(len(page.regions) for page in pages)
+    layout.body_size = _body_size(pages)
+    return layout.body_size
+
+
+def _refuse_a_book_of_pictures(pages: list[Page], layout: "Layout", source: str, report: Report) -> None:
+    """A PDF with no text layer is a stack of scans, and this reader cannot
+    read a scan. Refused with the two numbers that say why."""
+    layout.pages = len(pages)
+    layout.lines = sum(len(page.lines) for page in pages)
+    layout.characters = sum(
+        len(line.text.replace(" ", "")) for page in pages for line in page.lines
+    )
+    if pages and layout.characters >= MIN_CHARACTERS_PER_PAGE * len(pages):
+        return
+    report.add(
+        "pdf",
+        Level.ERROR,
+        "pdf.no-text-layer",
+        values={"pages": len(pages), "characters": layout.characters},
+        location=source,
+    )
+    raise EpubReadError("the PDF has no text layer to read; scanning it would need OCR")
+
+
+def _fill_the_book(book: Book, sections: list, layout: "Layout") -> None:
+    """One document, one spine entry and one nav point per section, and the
+    pictures those sections stand on."""
     for index, (title, blocks) in enumerate(sections, 1):
         path = f"text/section-{index:04d}.xhtml"
         # A section the outline did not name and no heading opened: the first
@@ -251,16 +344,18 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
         layout.paragraphs += counts["paragraphs"]
         layout.headings += counts["headings"]
         for block in blocks:
-            if block.kind == "image":
+            if block.kind == "image" and block.picture.name not in book.resources:
                 picture = block.picture
-                if picture.name not in book.resources:
-                    book.add(Resource(path=picture.name, media_type=picture.media_type, data=picture.data))
-                    layout.images += 1
+                book.add(Resource(path=picture.name, media_type=picture.media_type, data=picture.data))
+                layout.images += 1
         book.add(Resource(path=path, media_type="application/xhtml+xml", data=markup.encode("utf-8")))
         book.spine.append(SpineItem(path=path))
         book.toc.append(NavPoint(label=label, target=path))
-    layout.running_heads = sum(1 for page in pages for line in page.lines if line.running_head)
 
+
+def _say_what_was_read(report: Report, source: str, layout: "Layout",
+                       sections: int, quality: "Quality") -> None:
+    """What the reader did, and — the part it used not to say — how well."""
     report.add(
         "pdf",
         Level.FIX,
@@ -271,7 +366,7 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
             "paragraphs": layout.paragraphs,
             "headings": layout.headings,
             "images": layout.images,
-            "sections": len(sections),
+            "sections": sections,
         },
         location=source,
     )
@@ -293,6 +388,11 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
     else:
         report.add("pdf", Level.INFO, "pdf.reading-quality",
                    values=how_it_went, location=source)
+
+
+def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None:
+    """The four things about the document that a reader of the report would
+    want to know were there — each said only when it was."""
     if layout.outline_entries:
         report.add(
             "pdf",
@@ -325,44 +425,34 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
             values={"count": layout.running_heads},
             location=source,
         )
-    # The reader's own count against the raw one: a character the page draws
-    # and no line of this reader carries is a loss that has not happened yet
-    # and is about to. Said here, with the number, so the K1-PDF refusal that
-    # follows has its reason on record; the refusal itself is the gate's.
+
+
+def _say_what_was_not_placed(report: Report, source: str, pages: list[Page]) -> None:
+    """The reader's own count against the raw one: a character the page draws
+    and no line of this reader carries is a loss that has not happened yet and
+    is about to. Said here, with the number, so the K1-PDF refusal that follows
+    has its reason on record; the refusal itself is the gate's."""
     placed: Counter = Counter()
     for page in pages:
-        for line in page.lines:
-            for character in line.text:
+        # A label lifted onto its picture has left `page.lines` and is printed
+        # under the picture instead. It is placed; counting only the lines
+        # would call it lost.
+        texts = [line.text for line in page.lines]
+        texts += [label for picture in page.pictures for label in picture.labels]
+        for text in texts:
+            for character in text:
                 if not character.isspace():
                     placed[character] += 1
     unplaced = character_inventory(source) - placed
     if unplaced:
-        sample = "".join(sorted(unplaced)[:12])
         report.add(
             "pdf",
             Level.WARN,
             "pdf.characters-unplaced",
-            values={"count": sum(unplaced.values()), "sample": sample},
+            values={"count": sum(unplaced.values()), "sample": "".join(sorted(unplaced)[:12])},
             location=source,
         )
     report.stats["pdf_characters_unplaced"] = sum(unplaced.values())
-    report.stats["pdf_layout"] = layout.__dict__.copy()
-    # The words the typesetter broke at a line end, joined as the hyphen
-    # stage will meet them (`prze-konaniem`), and **how many times each was
-    # broken there**: evidence that stage can use — a hyphen the reader put
-    # at a line end is a converter's, not a writer's, and on typeset
-    # material a third of them were otherwise left because their first half
-    # happened to be a word (`nie-`, `po-`).
-    #
-    # The count is what tells the two apart the other way round (DROGA 6.12).
-    # `to-day` is the author's spelling in a book from 1890; the typesetter
-    # happening to break a line there does not make it a converter's hyphen.
-    # A word this reader joined at a break appears in the text once per
-    # break, so a hyphenated form the book carries **more often than it was
-    # broken** stands somewhere nobody broke — and that is the author
-    # writing it.
-    report.stats["pdf_line_end_words"] = dict(sorted(_line_end_words(pages).items()))
-    return book
 
 
 def _line_end_words(pages: list[Page]) -> "Counter[str]":
@@ -449,11 +539,23 @@ def character_inventory(source: str) -> "Counter[str]":
 
 def text_of(source: str) -> str:
     """Every character of the text layer, whitespace collapsed — the left side
-    of K1 for a PDF source, joined line to line by the same rule the reader
-    uses, so that the two sides agree about where a line break was a space
-    and where it was not."""
-    pages, _, _, _ = _read(source)
-    return re.sub(r"\s+", " ", join_lines(line.text for page in pages for line in page.lines)).strip()
+    of K1 for a PDF source, read the way the conversion reads it.
+
+    Not the lines down the page: the *blocks*, in the order the reader takes
+    the areas of each page, with the labels lifted onto a drawing standing
+    where the drawing stands. The two sides of K1 have to agree about the
+    source's order or the subsequence test is asking a different question of
+    each — and since pages are cut into areas the order down the page is not
+    the reader's. They also agree about where a line break was a space and
+    where it was not, because both go through `join_lines`.
+    """
+    pages, _, _, layout = _read(source)
+    body_size = _lay_out_all(pages, layout)
+    parts = [
+        " ".join(block.picture.labels) if block.kind == "image" else block.text
+        for block in _blocks(pages, body_size)
+    ]
+    return re.sub(r"\s+", " ", " ".join(part for part in parts if part)).strip()
 
 
 def join_lines(lines) -> str:
@@ -625,10 +727,12 @@ def _picture(image, number: int, page: int) -> Picture | None:
     filters = [f for f in filters if isinstance(f, str)]
     try:
         if "DCTDecode" in filters:
-            return Picture(f"images/pdf-{number:04d}.jpg", image.stream.get_rawdata(), "image/jpeg", page, image.y1)
+            return Picture(f"images/pdf-{number:04d}.jpg", image.stream.get_rawdata(), "image/jpeg",
+                           page, image.y1, image.x0, image.x1, image.y0)
         if "JPXDecode" in filters:
             data = _png_via_pillow(io.BytesIO(image.stream.get_rawdata()))
-            return Picture(f"images/pdf-{number:04d}.png", data, "image/png", page, image.y1) if data else None
+            return Picture(f"images/pdf-{number:04d}.png", data, "image/png", page, image.y1,
+                           image.x0, image.x1, image.y0) if data else None
         width, height = image.srcsize
         bits = image.bits or 8
         mode = _pillow_mode(image.colorspace)
@@ -640,7 +744,8 @@ def _picture(image, number: int, page: int) -> Picture | None:
         picture = Image.frombytes(mode, (width, height), raw)
         out = io.BytesIO()
         picture.save(out, format="PNG")
-        return Picture(f"images/pdf-{number:04d}.png", out.getvalue(), "image/png", page, image.y1)
+        return Picture(f"images/pdf-{number:04d}.png", out.getvalue(), "image/png", page, image.y1,
+                       image.x0, image.x1, image.y0)
     except Exception:  # noqa: BLE001 — an image this cannot decode is skipped and counted, never invented
         return None
 
@@ -713,6 +818,135 @@ def _two_columns(page: Page) -> "float | None":
     if straddling > 0.1 * len(body):
         return None
     return split
+
+
+def _widest_gap(spans: "list[tuple[float, float]]") -> "tuple[float, float] | None":
+    """The widest run with nothing over it: `(width, where it is cut)`.
+
+    The spans are merged first, so a gap is a place *no* line reaches — not
+    the space beside one short line with another line above it.
+    """
+    if len(spans) < 2:
+        return None
+    ordered = sorted(spans)
+    merged = [list(ordered[0])]
+    for start, end in ordered[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    if len(merged) < 2:
+        return None
+    best = max(
+        ((merged[i + 1][0] - merged[i][1], (merged[i + 1][0] + merged[i][1]) / 2)
+         for i in range(len(merged) - 1)),
+        key=lambda pair: pair[0],
+    )
+    return best
+
+
+def _regions(lines: "list[Line]", width: float, height: float,
+             columns: bool = False, depth: int = 0) -> "list[list[Line]]":
+    """The page cut into the areas a person reads one after another.
+
+    The recursive XY cut, in the order that is safe for reading: a band across
+    the page first, and — on a page set in columns — the columns within a band.
+    Both are needed and neither alone is enough: a heading over two columns is
+    a band, and the two columns under it are not.
+
+    The band is what "one column, or two" could not do. The page that made it
+    necessary is a manual whose legend stands at a fixed x while the drawing
+    beside it carries the same labels; read straight down, a wrapped legend
+    entry is cut in half by a label — 26 % of that book's paragraphs
+    (`pdf.reading-quality-poor`), 2 % once the page is read by area.
+
+    **The vertical cut needs *columns* and takes it from `_two_columns`**,
+    which is measured on the whole page. Things standing side by side are
+    normally read *across*, not down: that is what a table is. Cutting on any
+    wide vertical gap read one Gutenberg book's errata table — page number,
+    misprint, correction — as three lists, every page number before every
+    misprint, and K1 refused the rebuild. The gate was right; the cut was
+    wrong. A page genuinely set in columns is the exception, and it is the one
+    thing `_two_columns` is careful about.
+    """
+    if len(lines) <= 1 or depth >= REGION_DEPTH:
+        return [_in_order(lines)] if lines else []
+    # A band, when the gap is wider than any ordinary space between
+    # paragraphs. Taken before a column split because top-to-bottom is always
+    # the reading order and left-to-right is only ever true inside a band.
+    across = _widest_gap([(line.y0, line.y1) for line in lines])
+    if across and across[0] >= BAND_SHARE * height:
+        cut = across[1]
+        upper = [line for line in lines if (line.y0 + line.y1) / 2 > cut]
+        lower = [line for line in lines if (line.y0 + line.y1) / 2 <= cut]
+        if upper and lower:
+            return (_regions(upper, width, height, columns, depth + 1)
+                    + _regions(lower, width, height, columns, depth + 1))
+    down = _widest_gap([(line.x0, line.x1) for line in lines]) if columns else None
+    if down and down[0] >= GUTTER_SHARE * width:
+        cut = down[1]
+        left = [line for line in lines if (line.x0 + line.x1) / 2 < cut]
+        right = [line for line in lines if (line.x0 + line.x1) / 2 >= cut]
+        if left and right:
+            return (_regions(left, width, height, columns, depth + 1)
+                    + _regions(right, width, height, columns, depth + 1))
+    return [_in_order(lines)]
+
+
+def _in_order(lines: "list[Line]") -> "list[Line]":
+    return sorted(lines, key=lambda line: (-round(line.y1), line.x0))
+
+
+def _lift_labels(page: Page) -> None:
+    """Move short lines that stand on a drawing out of the text and onto it.
+
+    A callout label — the "A16" beside an arrow — is text about the picture,
+    not a paragraph of the book. Left in the flow it is a one-word paragraph
+    at best and, when it falls between two lines of a legend, the thing that
+    cuts a sentence in half. It goes with the picture, which is where a person
+    reading the picture will look for it.
+    """
+    if not page.pictures:
+        return
+    kept: list[Line] = []
+    for line in page.lines:
+        text = line.text.strip()
+        label = len(text.split()) <= FRAGMENT_WORDS and text[-1:] not in tuple(SENTENCE_ENDS)
+        home = next((p for p in page.pictures if p.holds(line)), None) if label else None
+        if home is not None:
+            home.labels.append(text)
+        else:
+            kept.append(line)
+    page.lines = kept
+
+
+def _lay_out(page: Page) -> None:
+    """Give the page its regions, and its lines in the order they are read.
+
+    Running heads take no part in the cutting. A head at the top of a page is
+    a band of its own by any measure, and a page cut under it would lose the
+    one thing the head's position tells us: that the paragraph it interrupts
+    continues below it. So the areas are found among the body lines, and each
+    head then joins the area it stands over.
+    """
+    _lift_labels(page)
+    body = [line for line in page.lines if not line.running_head]
+    heads = [line for line in page.lines if line.running_head]
+    regions = _regions(body, page.width, page.height, page.columns)
+    for index, region in enumerate(regions):
+        for line in region:
+            line.region = index
+    for head in heads:
+        below = [line for line in body if line.y1 < head.y1]
+        head.region = (
+            max(below, key=lambda line: line.y1).region if below
+            else (len(regions) - 1 if regions else 0)
+        )
+    page.regions = [
+        _in_order(list(region) + [h for h in heads if h.region == index])
+        for index, region in enumerate(regions)
+    ] or ([_in_order(heads)] if heads else [])
+    page.lines = [line for region in page.regions for line in region]
 
 
 def _reading_order(page: Page, split: "float | None") -> None:
@@ -811,70 +1045,155 @@ def _heading_level(line: Line, body_size: float) -> str | None:
 
 
 def _blocks(pages: list[Page], body_size: float, breaks: set[int] = frozenset()) -> list[Block]:
-    """Lines joined into paragraphs and headings, pictures in the flow. A
-    page in *breaks* is one the outline names as a chapter's first, and a
-    paragraph does not run into a new chapter: the first line there starts
-    a block whatever the geometry says."""
-    blocks: list[Block] = []
-    previous: Line | None = None
-    current: Block | None = None
-    interrupted = False
-    previous_left = previous_width = 0.0
+    """Lines joined into paragraphs and headings, pictures in the flow.
+
+    The unit is the **region**, not the page: a paragraph never runs from one
+    area of the page into another, because those are two things a person reads
+    one after the other rather than one thing that continues. That is what
+    stops a legend beside a drawing from being cut in half by the drawing's
+    own labels.
+
+    A page in *breaks* is one the outline names as a chapter's first, and a
+    paragraph does not run into a new chapter: the first line there starts a
+    block whatever the geometry says.
+    """
+    flow = _Flow()
     for page in pages:
-        pitch = _pitch(page)
-        # Measured per column on a two-column page: against the page's own
-        # left edge every right-hand line looked indented and began a
-        # paragraph — 5 552 paragraphs where the source had 2 036.
-        geometry = _column_geometry(page)
-        # The lines in their reading order (column by column on a two-column
-        # page); a picture goes in before the first line that stands below
-        # it, which on a one-column page is its place in the flow.
-        items: list[object] = list(page.lines)
-        for picture in sorted(page.pictures, key=lambda p: -p.y1):
-            place = next((i for i, line in enumerate(items) if isinstance(line, Line) and line.y1 < picture.y1), len(items))
-            items.insert(place, picture)
-        for item in items:
-            if isinstance(item, Picture):
-                blocks.append(Block(kind="image", picture=item))
-                current = None
-                previous = None
-                continue
-            line = item
-            block_left, width = geometry[0 if page.split is None or line.x0 < page.split else 1]
-            if line.running_head:
-                blocks.append(Block(kind="head", lines=[line]))
-                # A running head does not end the paragraph it interrupts,
-                # but the text keeps the page's order: what follows is the
-                # paragraph's second half, marked so the stage can rejoin it.
-                interrupted = current is not None and current.kind == "p"
-                continue
-            level = _heading_level(line, body_size)
-            kind = level or "p"
-            starts_new = (
-                current is None
-                or current.kind != kind
-                or (previous is not None and line.page != previous.page and line.page in breaks)
-                or (previous is not None and previous.page == line.page
-                    and previous.y0 - line.y1 > PARAGRAPH_GAP_RATIO * pitch)
-                or (kind == "p" and line.x0 - block_left > INDENT_POINTS and previous is not None)
-                # The short line is the *previous* line, measured in its own
-                # column: the last line of a left-hand column is not short
-                # against the right-hand column's edge.
-                or (kind == "p" and previous is not None
-                    and (previous.x1 - previous_left) < SHORT_LINE_RATIO * previous_width
-                    and _starts_a_sentence(line.text))
-            )
-            if starts_new:
-                current = Block(kind=kind)
-                blocks.append(current)
-            elif interrupted:
-                current = Block(kind=kind, continued=True)
-                blocks.append(current)
-            interrupted = False
-            current.lines.append(line)
-            previous = line
-            previous_left, previous_width = block_left, width
-    return blocks
+        _page_blocks(page, flow, body_size, breaks)
+    return flow.blocks
+
+
+@dataclass
+class _Flow:
+    """What the reader carries from one line to the next — across the areas of
+    a page and across pages, because a paragraph crosses both."""
+
+    blocks: "list[Block]" = field(default_factory=list)
+    current: "Block | None" = None
+    previous: "Line | None" = None
+    #: The left edge and width of the area the *previous* line stood in, which
+    #: is not always the area the current one stands in.
+    left: float = 0.0
+    width: float = 0.0
+    #: A running head stands between the two halves of a paragraph; the half
+    #: after it is marked so the stage that rejoins them can find it.
+    interrupted: bool = False
+
+
+@dataclass
+class _Area:
+    """One area of a page, measured on its own lines.
+
+    Measured on the region rather than the page because against the page's
+    left edge every line of a right-hand column looks indented and starts a
+    paragraph — 5 552 paragraphs where the source had 2 036.
+    """
+
+    page: Page
+    left: float
+    width: float
+    #: A list whose continuation lines are indented under a marker.
+    hanging: bool
+    #: The page's line pitch, which says how much space is more than a
+    #: paragraph ever leaves.
+    pitch: float
+    #: Whether the line being placed is the area's first.
+    first: bool = True
+
+
+def _page_blocks(page: Page, flow: "_Flow", body_size: float, breaks: set[int]) -> None:
+    """One page's areas, in reading order, with its pictures among them."""
+    pitch = _pitch(page)
+    regions = page.regions or ([page.lines] if page.lines else [])
+    pictures = sorted(page.pictures, key=lambda picture: -picture.y1)
+    placed = 0
+    for region in regions:
+        if not region:
+            continue
+        # A picture stands where it stands: before the first area whose top is
+        # below it.
+        top = max(line.y1 for line in region)
+        while placed < len(pictures) and pictures[placed].y1 > top:
+            flow.blocks.append(Block(kind="image", picture=pictures[placed]))
+            placed += 1
+        left, width = _region_geometry(region, page)
+        area = _Area(page=page, left=left, width=width,
+                     hanging=_hanging_indent(region, left), pitch=pitch)
+        _area_blocks(region, area, flow, body_size, breaks)
+    for picture in pictures[placed:]:
+        flow.blocks.append(Block(kind="image", picture=picture))
+
+
+def _area_blocks(region: "list[Line]", area: "_Area", flow: "_Flow",
+                 body_size: float, breaks: set[int]) -> None:
+    """The lines of one area, joined into paragraphs and headings."""
+    for line in region:
+        if line.running_head:
+            flow.blocks.append(Block(kind="head", lines=[line]))
+            # The head is furniture, not the area's first line: the body line
+            # under it continues whatever the head cut in two, which is the
+            # whole point of marking it.
+            area.first = False
+            flow.interrupted = flow.current is not None and flow.current.kind == "p"
+            continue
+        kind = _heading_level(line, body_size) or "p"
+        if _starts_a_block(line, kind, flow, area, breaks):
+            flow.current = Block(kind=kind)
+            flow.blocks.append(flow.current)
+        elif flow.interrupted:
+            flow.current = Block(kind=kind, continued=True)
+            flow.blocks.append(flow.current)
+        flow.interrupted = False
+        area.first = False
+        flow.current.lines.append(line)
+        flow.previous, flow.left, flow.width = line, area.left, area.width
+
+
+def _starts_a_block(line: Line, kind: str, flow: "_Flow", area: "_Area",
+                    breaks: set[int]) -> bool:
+    """Whether *line* begins a block rather than continuing the one before it."""
+    if flow.current is None or flow.current.kind != kind:
+        return True
+    # Two areas of a page are two things read one after the other — except on a
+    # page set in two columns of one body, where the paragraph at the foot of
+    # the left column is the one at the head of the right. That page is
+    # recognised by `_two_columns`, which is measured; everywhere else a new
+    # area starts a new block.
+    if area.first and not area.page.columns:
+        return True
+    previous = flow.previous
+    if previous is None:
+        return False
+    # A paragraph does not run into a new chapter.
+    if line.page != previous.page and line.page in breaks:
+        return True
+    # More space above this line than a paragraph ever leaves.
+    if previous.page == line.page and previous.y0 - line.y1 > PARAGRAPH_GAP_RATIO * area.pitch:
+        return True
+    return kind == "p" and _starts_a_paragraph(line, flow, area)
+
+
+def _starts_a_paragraph(line: Line, flow: "_Flow", area: "_Area") -> bool:
+    """The marks of a new paragraph in prose: an indent, a list marker, or a
+    line before it that ended short of its own area's edge."""
+    # An indent starts a paragraph in prose and continues one in a list; in a
+    # list the *marker* is what starts it.
+    if not area.hanging and line.x0 - area.left > INDENT_POINTS:
+        return True
+    if area.hanging and abs(line.x0 - area.left) <= INDENT_POINTS and _marker(line.text):
+        return True
+    # The short line is the *previous* line, so it is measured in the area *it*
+    # stood in: the last line of a left-hand column fills its column and is not
+    # short, though against the right-hand column's edge it looks shorter than
+    # nothing.
+    return ((flow.previous.x1 - flow.left) < SHORT_LINE_RATIO * flow.width
+            and _starts_a_sentence(line.text))
+
+
+def _region_geometry(region: "list[Line]", page: Page) -> "tuple[float, float]":
+    """The left edge and width of one area, measured on its own lines."""
+    left = _block_left(region)
+    return left, _block_width(region, left, page.width)
 
 
 def _pitch(page: Page) -> float:
@@ -910,6 +1229,43 @@ def _column_geometry(page: Page) -> dict:
         left = _block_left(lines)
         out[column] = (left, _block_width(lines, left, page.width / 2))
     return out
+
+
+#: What a list marker looks like at the start of a line: a bullet, or a short
+#: run of letters and digits ending in a dot or a bracket — "1.", "4.2",
+#: "A16.", "C11A.", "6.6.4.2". Long enough to catch a manual's numbering,
+#: short enough not to catch a sentence that happens to start with a word and
+#: a full stop.
+MARKER = re.compile(r"^(?:[•·▪◦‣–—-]|\(?[A-Za-z]?\d{1,3}(?:\.\d{1,3}){0,3}[.)]?|[A-Z]{1,2}\d{0,3}[.)])(?=\s|$)")
+#: A region is a hanging-indent list when at least this many of its lines start
+#: at its left edge with a marker. Two is enough to be a list and too few to
+#: happen by accident — a paragraph beginning "1939. " twice in one region.
+MARKED_LINES_FOR_A_LIST = 2
+
+
+def _marker(text: str) -> str:
+    """The list marker this line starts with, or ""."""
+    found = MARKER.match(text.strip())
+    return found.group(0) if found else ""
+
+
+def _hanging_indent(region: "list[Line]", left: float) -> bool:
+    """Whether this area is a list whose continuations are indented.
+
+    Prose indents the *first* line of a paragraph; a list indents everything
+    *but* the first, so that the marker stands out on the left. The rule that
+    starts a paragraph at an indent is right for the first and exactly wrong
+    for the second: in a legend of forty entries it starts a new paragraph at
+    every wrapped line, which is where a quarter of the manual's torn
+    sentences came from.
+    """
+    marked = sum(
+        1 for line in region
+        if abs(line.x0 - left) <= INDENT_POINTS and _marker(line.text)
+    )
+    if marked < MARKED_LINES_FOR_A_LIST:
+        return False
+    return any(line.x0 - left > INDENT_POINTS for line in region)
 
 
 def _starts_a_sentence(text: str) -> bool:
@@ -958,12 +1314,32 @@ def _sections(pages: list[Page], outline: list[Outline], body_size: float) -> li
     return [("", blocks)]
 
 
+def _figure(picture: Picture) -> str:
+    """The picture, with the labels printed on it gathered underneath.
+
+    `_lift_labels` takes a callout — the "A16" beside an arrow — out of the
+    flow, because on its own line in the middle of a legend it is not a
+    paragraph and cuts one in half. Taking it out is only half the job: every
+    character the PDF draws has to arrive somewhere, and a label moved and not
+    printed is a character lost. On the owner's manual that was 1 097 of them.
+
+    So they are printed under the picture they stand on, which is also where a
+    reader looking at the drawing will look for them.
+    """
+    image = f'<img src="../{escape(picture.name)}" alt=""/>'
+    if not picture.labels:
+        return f"    <p>{image}</p>"
+    labels = " ".join(escape(label) for label in picture.labels)
+    return (f"    <figure>\n      <p>{image}</p>\n"
+            f'      <p class="{LABEL_CLASS}">{labels}</p>\n    </figure>')
+
+
 def _render(blocks: list[Block], title: str, language: str) -> tuple[str, dict]:
     counts = {"paragraphs": 0, "headings": 0}
     body: list[str] = []
     for block in blocks:
         if block.kind == "image":
-            body.append(f'    <p><img src="../{escape(block.picture.name)}" alt=""/></p>')
+            body.append(_figure(block.picture))
         elif block.kind == "head":
             body.append(f'    <p class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>')
         elif block.kind in ("h1", "h2"):

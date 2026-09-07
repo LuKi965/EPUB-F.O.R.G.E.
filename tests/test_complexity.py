@@ -36,7 +36,7 @@ PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 
 #: Ile bloków (funkcji, metod, klas) ma dziś ocenę D. Wolno zejść, nie wolno
 #: urosnąć — a kiedy schodzi, ta liczba idzie w dół razem z nim.
-COMPLEX_TODAY = 33
+COMPLEX_TODAY = 32
 
 #: Najgorsza dopuszczalna ocena. Od `e887252` w pakiecie nie ma ani jednego
 #: bloku gorszego niż D; ta stała jest jedyną rzeczą, która pilnuje, żeby

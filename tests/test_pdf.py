@@ -467,6 +467,56 @@ class TestTheReader:
         assert above < image < below
         assert 'alt=""' in text  # nothing invented: the image question decides
 
+    def test_a_label_standing_on_a_drawing_goes_under_it_and_is_not_lost(self, tmp_path):
+        """A callout on the artwork is not a paragraph of the book — and it is
+        not nothing either. It is moved out of the flow and printed under the
+        picture it stands on; every character the PDF draws has to arrive
+        somewhere. Moved and not printed, 1 097 of them went missing on the
+        owner's manual and `pdf.characters-unplaced` said so."""
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (40 * 30)
+        lines = column(["A line above the picture, and another line of prose", "to make a paragraph."], top=700)
+        # Inside the picture's box (x 72..192, y 450..540), as a callout is.
+        lines += [(100.0, 500.0, 9.0, "A16")]
+        lines += column(["And a paragraph below it."], top=400)
+        source = make_pdf(tmp_path / "callout.pdf", [lines], images={0: [(72, 450, 120, 90, 40, 30, red)]})
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        text = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert f'<p class="{pdf.LABEL_CLASS}">A16</p>' in text
+        assert text.index("<img ") < text.index("A16") < text.index("below it")
+        # Not left in the flow as a one-word paragraph of its own.
+        assert "<p>A16</p>" not in text
+        assert "pdf.characters-unplaced" not in {f.rule for f in report.findings}
+        assert report.stats["pdf_characters_unplaced"] == 0
+
+    def test_the_left_side_of_k1_reads_the_page_the_way_the_reader_does(self, tmp_path):
+        """`text_of` is the source side of K1 and `read_pdf` is the output
+        side. Both are this module reading one file, and the gate between them
+        is a subsequence test — so they have to agree about what order the
+        source is in, or each is answering a different question.
+
+        They stopped agreeing the day the reader began cutting pages into
+        areas: `text_of` was still reading the lines straight down the page,
+        and the owner's 105-page manual was refused for text "lost" that was
+        only somewhere else. Nothing was lost; the gate had two sources.
+        """
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (40 * 30)
+        # A drawing with a callout on it, beside a legend that wraps: the page
+        # whose reading order the areas changed.
+        lines = [(100.0, 500.0, 9.0, "A16")]
+        lines += column(["A16. Wskaznik poziomu wody w tacce", "na skropliny"], top=470, left=242)
+        source = make_pdf(tmp_path / "k1.pdf", [lines] * 4,
+                          images={index: [(72, 450, 120, 90, 40, 30, red)] for index in range(4)})
+        book = pdf.read_pdf(str(source), Report())
+        rebuilt_text = " ".join(
+            fidelity.document_text(book.resources[item.path].data) for item in book.spine
+        )
+        assert fidelity.first_character_lost(pdf.text_of(str(source)), rebuilt_text) == -1
+        # And it is the areas' order both sides carry, not the page's.
+        assert pdf.text_of(str(source)).index("A16 ") < pdf.text_of(str(source)).index("A16.")
+
 
 # --------------------------------------------------------------------------
 # The stage, through the whole pipeline.
@@ -529,21 +579,29 @@ class TestTheReaderSaysHowWellItWent:
         assert said[0].level is not Level.WARN
         assert said[0].values["torn"] == 0
 
-    def test_labels_on_a_diagram_torn_into_the_legend_are_warned_about(self, tmp_path):
+    def test_a_legend_beside_a_drawing_is_read_whole(self, tmp_path):
         """The shape the manual is full of, reproduced from its own geometry.
 
         A legend stands in a column at a fixed x; the same labels are also
         printed *on the drawing* beside it, at whatever x the artwork puts
         them. Read top to bottom across the whole page, the drawing's labels
-        fall between the legend's lines — so a legend entry that wraps is cut
+        fall between the legend's lines — so a legend entry that wraps was cut
         in half by a label that belongs to a picture:
 
             A16. Wskaznik poziomu wody w tacce   (legend, x242)
             A15                                  (on the drawing, x149)
             na skropliny                         (the legend line, continued)
 
-        which is where a quarter of that book's paragraphs came from.
+        which is where a quarter of that book's paragraphs came from. The
+        labels go onto the drawing they stand on (`_lift_labels`) and the entry
+        is one paragraph again. On the owner's own 105-page manual this took the
+        torn share from 26 % to 2 %.
         """
+        pytest.importorskip("PIL.Image")
+        grey = bytes([220, 220, 220]) * (40 * 30)
+        # The drawing itself: x 55..200, y 180..270, which is where the labels
+        # stand and where the legend at x242 does not.
+        artwork = {index: [(55, 180, 145, 90, 40, 30, grey)] for index in range(4)}
         pages = []
         for _ in range(4):
             lines = [
@@ -561,13 +619,38 @@ class TestTheReaderSaysHowWellItWent:
                 (242.0, 181.0, 12.0, "A17. Drzwiczki dostepu do zespolu"),
             ]
             pages.append(lines)
-        source = make_pdf(tmp_path / "legenda.pdf", pages, title="Opis", language="pl")
+        source = make_pdf(tmp_path / "legenda.pdf", pages, title="Opis", language="pl", images=artwork)
         report = Report(source=str(source))
-        pdf.read_pdf(str(source), report)
+        book = pdf.read_pdf(str(source), report)
+        markup = next(r.data for r in book.resources.values() if r.path.endswith(".xhtml")).decode("utf-8")
+        assert "<p>A16. Wskaznik poziomu wody w tacce na skropliny</p>" in markup
+        # Nothing was dropped to get there: the labels are printed under the
+        # drawing they stand on, and not one of them is left in the legend.
+        assert f'class="{pdf.LABEL_CLASS}">A12 A14 A13 A15 A16</p>' in markup
+        assert "<p>A16</p>" not in markup
         said = next(f for f in report.findings if (f.rule or "").startswith("pdf.reading"))
-        assert said.rule == "pdf.reading-quality-poor", said.values
-        assert said.level is Level.WARN
-        assert said.values["share"] >= 10
+        assert said.rule == "pdf.reading-quality", said.values
+        assert said.values["torn"] == 0
+
+    def test_a_document_read_badly_is_warned_about(self):
+        """The warning has to be reachable, or it says nothing when it is
+        silent. Ten torn paragraphs in ninety is over the measured share."""
+        def document(torn):
+            """`torn` sentences cut in two, in ninety paragraphs."""
+            blocks = []
+            for _ in range(torn):
+                blocks += [pdf.Block(kind="p", lines=[pdf.Line("Wskaźnik poziomu wody w tacce", 0, 1, 0, 1, 10, 1)]),
+                           pdf.Block(kind="p", lines=[pdf.Line("na skropliny", 0, 1, 0, 1, 10, 1)])]
+            while len(blocks) < 90:
+                blocks.append(pdf.Block(kind="p", lines=[pdf.Line("Zdanie, które kończy się kropką.", 0, 1, 0, 1, 10, 1)]))
+            return pdf.measure_quality(blocks)
+
+        quality = document(torn=10)
+        assert quality.paragraphs == 90 and quality.torn == 10
+        assert quality.torn_share >= pdf.TORN_SHARE_WARN
+        assert quality.poor is True
+        # And one under the share is not poor: the threshold is a threshold.
+        assert document(torn=8).poor is False
 
     def test_the_share_that_raises_it_is_a_measured_number_with_its_evidence(self):
         """`D-012`: a threshold in this program says where it came from."""
