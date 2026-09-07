@@ -147,6 +147,9 @@ class Card(QFrame):
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(18, 16, 18, 16)
         self.body.setSpacing(10)
+        #: Kept so a card whose title counts something can be retitled without
+        #: the page around it being rebuilt.
+        self.title_label = None
         if title:
             heading = QHBoxLayout()
             heading.setSpacing(8)
@@ -154,10 +157,15 @@ class Card(QFrame):
                 mark = QLabel()
                 mark.setPixmap(icons.icon(glyph, tokens.muted).pixmap(18, 18))
                 heading.addWidget(mark, 0, Qt.AlignTop)
-            heading.addWidget(label(title, "cardTitle"), 1)
+            self.title_label = label(title, "cardTitle")
+            heading.addWidget(self.title_label, 1)
             self.body.addLayout(heading)
         if subtitle:
             self.body.addWidget(label(subtitle, "cardSubtitle"))
+
+    def retitle(self, title: str) -> None:
+        if self.title_label is not None:
+            self.title_label.setText(title)
 
     def add(self, widget) -> None:
         self.body.addWidget(widget)

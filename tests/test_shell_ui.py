@@ -343,6 +343,125 @@ class TestTheRebuildFlow:
         assert page.outcome.written == 1
 
 
+class TestThePlanAgreesWithItself:
+    """Everything on the plan screen counts the same books at the same moment."""
+
+    def test_unticking_a_book_changes_the_count_at_once(self, qt_app, page):
+        page.start(["a.epub", "b.epub", "c.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        assert page.ready_count == 3
+        assert page._summary_values["files"].text() == "3"
+        page._toggle_book(page.books[0], False)
+        assert page.ready_count == 2
+        assert page._summary_values["files"].text() == "2"
+        assert tr("shell.plan.count", count=2) == page.books_card.title_label.text()
+
+    def test_and_with_nothing_ticked_the_rebuild_is_not_offered(self, qt_app, page):
+        page.start(["a.epub", "b.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        for book in page.books:
+            page._toggle_book(book, False)
+        assert not page.run_button.isEnabled()
+        assert not page.plan_button.isEnabled()
+        assert page.nothing_note.isVisibleTo(page)
+
+    def test_a_file_that_could_not_be_read_is_not_in_the_plan(self, qt_app):
+        class Broken(DemoBackend):
+            def analyse(self, paths, **kwargs):
+                books = super().analyse(paths, **kwargs)
+                books[0].status = BookStatus.FAILED
+                books[0].error = "nie da się otworzyć"
+                return books
+
+        widget = RebuildPage(tokens_module.DARK, Broken())
+        try:
+            widget.start(["broken.epub", "fine.epub"])
+            settle(qt_app, widget, lambda: widget.stage is Stage.PLAN)
+            broken, fine = widget.books
+            assert not broken.chosen and fine.chosen
+            assert widget.ready_count == 1
+            # And it is still on the list, with its reason: the batch is a
+            # record of what was asked for.
+            assert broken.error
+        finally:
+            widget.runner.stop()
+            widget.close()
+
+    def test_its_checkbox_cannot_be_ticked_back_on(self, qt_app):
+        from epubforge.gui.shell.widgets import BookRow
+
+        book = BookItem(source=pathlib.Path("x.epub"), title="x", status=BookStatus.FAILED,
+                        error="nie da się otworzyć")
+        row = BookRow(book, tokens_module.DARK)
+        assert not row.choose.isEnabled()
+        assert row.choose.toolTip()
+
+    def test_a_readable_book_is_still_a_choice(self, qt_app):
+        from epubforge.gui.shell.widgets import BookRow
+
+        book = BookItem(source=pathlib.Path("x.epub"), title="x", status=BookStatus.READY)
+        assert BookRow(book, tokens_module.DARK).choose.isEnabled()
+
+
+class TestTheChosenResultIsVisiblyTheChosenOne:
+    def test_exactly_one_row_is_selected_and_it_drives_the_report(self, qt_app, page):
+        page.start(["a.epub", "b.epub", "c.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        rows = page._result_rows
+        assert sum(1 for row in rows if row.property("selected") == "true") == 1
+        page._select_book(rows[2].book)
+        assert page._selected is rows[2].book
+        assert [row.property("selected") == "true" for row in rows] == [False, False, True]
+        assert tr("shell.results.selected") in rows[2].accessibleDescription()
+
+    def test_the_keyboard_selects_too(self, qt_app, page):
+        from PySide6.QtCore import QEvent
+        from PySide6.QtGui import QKeyEvent
+
+        page.start(["a.epub", "b.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        second = page._result_rows[1]
+        second.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier))
+        assert page._selected is second.book
+
+
+class TestAFailureDoesNotThrowAwayTheBatch:
+    """The flow used to answer every exception by going back to the file
+    picker — losing the list, the preset, the folder and every override."""
+
+    def test_the_list_and_the_plan_survive_and_there_is_a_way_on(self, qt_app, page, tmp_path):
+        class Angry(DemoBackend):
+            def rebuild(self, plan, books, **kwargs):
+                raise RuntimeError("silnik padł")
+
+        page.start(["a.epub", "b.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.preset = Preset.STRICT
+        page.destination = tmp_path
+        page.overrides = {"validate": False}
+        page.backend = Angry()
+        page.run()
+        settle(qt_app, page, lambda: not page.runner.busy)
+        qt_app.processEvents()
+        assert len(page.books) == 2
+        assert page.preset is Preset.STRICT
+        assert page.destination == tmp_path
+        assert page.overrides == {"validate": False}
+        assert page._failure and "silnik" in page._failure
+
+    def test_and_the_problem_files_can_be_dropped_without_losing_the_rest(self, qt_app, page):
+        page.start(["a.epub", "b.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.books[0].status = BookStatus.FAILED
+        page._drop_failed()
+        assert [book.title for book in page.books] == ["b"]
+        assert page.stage is Stage.PLAN
+
+
 class TestTheQuestionsStillReachAPerson:
     """A rebuild that cannot decide something asks — and the thing it asks
     lives in the window's thread. The new shell must not quietly drop that."""

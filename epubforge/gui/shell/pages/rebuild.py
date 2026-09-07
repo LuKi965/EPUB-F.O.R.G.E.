@@ -210,6 +210,12 @@ class RebuildPage(Responsive, QWidget):
         self.busy_changed.emit(False)
 
     def _analysed(self, books: "list[BookItem]") -> None:
+        for book in books:
+            # A file the analysis could not read starts unticked. It stays in
+            # the list, with its reason beside it — the batch is a record of
+            # what was asked for — but nothing sends it to the engine to fail
+            # a second time.
+            book.chosen = book.rebuildable
         self.books = list(getattr(self, "_carry_over", [])) + list(books)
         self._carry_over = []
         if not books:
@@ -233,8 +239,58 @@ class RebuildPage(Responsive, QWidget):
             )
 
     def _on_failed(self, message: str) -> None:
-        QMessageBox.warning(self, tr("shell.error.title"), tr("shell.error.body", error=message))
-        self.show_files()
+        """Something threw. The batch is not thrown away with it.
+
+        This used to send the flow back to the file picker, which lost the
+        list, the preset, the destination folder and every changed setting —
+        a person who had spent a minute setting up thirty books had to do all
+        of it again because one of them raised in a library.
+        """
+        self._failure = message
+        if not self.books:
+            QMessageBox.warning(
+                self, tr("shell.error.title"), tr("shell.error.body", error=message)
+            )
+            self.show_files()
+            return
+        self.show_failure(message)
+
+    def show_failure(self, message: str) -> None:
+        self._go(Stage.PLAN)
+        card = Card(tr("shell.error.title"), tr("shell.error.body", error=message),
+                    glyph="error", tokens=self.tokens)
+        card.setObjectName("dangerCard")
+        card.body.addWidget(label(tr("shell.error.kept"), "cardSubtitle"))
+        row = QHBoxLayout()
+        again = button(tr("shell.error.retry"), kind="primary", glyph="rebuild",
+                       tokens=self.tokens)
+        again.clicked.connect(self._retry)
+        row.addWidget(again)
+        back = button(tr("shell.error.back"), glyph="chevron", tokens=self.tokens)
+        back.clicked.connect(self.show_plan)
+        row.addWidget(back)
+        drop = button(tr("shell.error.drop"), glyph="trash", tokens=self.tokens,
+                      tip=tr("shell.error.drop.tip"))
+        drop.clicked.connect(self._drop_failed)
+        row.addWidget(drop)
+        row.addStretch(1)
+        card.body.addLayout(row)
+        self.body.addWidget(card)
+        self.body.addWidget(SafetyNote(self.tokens))
+        self.body.addStretch(1)
+
+    def _retry(self) -> None:
+        """The same books, the same plan, once more."""
+        if self.books:
+            self.run()
+
+    def _drop_failed(self) -> None:
+        """Take out what could not be done and keep the rest of the batch."""
+        self.books = [book for book in self.books if book.rebuildable]
+        if self.books:
+            self.show_plan()
+        else:
+            self.show_files()
 
     def _cancel(self) -> None:
         self.runner.cancel()
@@ -251,9 +307,10 @@ class RebuildPage(Responsive, QWidget):
         left = QVBoxLayout(left_side)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(CARD_GAP)
-        ready = sum(1 for book in self.books if book.chosen and book.status is not BookStatus.FAILED)
-        books_card = Card(tr("shell.plan.count", count=ready), tr("shell.plan.subtitle"),
-                          glyph="book", tokens=self.tokens)
+        self.books_card = books_card = Card(
+            tr("shell.plan.count", count=self.ready_count), tr("shell.plan.subtitle"),
+            glyph="book", tokens=self.tokens,
+        )
         actions = QHBoxLayout()
         add = button(tr("shell.files.add"), glyph="plus", tokens=self.tokens)
         add.clicked.connect(self.add_files)
@@ -323,31 +380,37 @@ class RebuildPage(Responsive, QWidget):
                     tokens=self.tokens)
         values = self.backend.defaults_for(self.preset)
         values.update(self.overrides)
-        chosen = sum(1 for book in self.books if book.chosen)
-        for key, value in (
-            (tr("shell.summary.files"), str(chosen)),
-            (tr("shell.summary.mode"), tr(dict((p, k) for p, k, _ in PRESET_CARDS)[self.preset])),
-            (tr("shell.summary.epubcheck"),
+        self._summary_values = {}
+        for name, key, value in (
+            ("files", tr("shell.summary.files"), str(self.ready_count)),
+            ("mode", tr("shell.summary.mode"),
+             tr(dict((p, k) for p, k, _ in PRESET_CARDS)[self.preset])),
+            ("epubcheck", tr("shell.summary.epubcheck"),
              tr("shell.summary.on") if values.get("validate") else tr("shell.summary.off")),
-            (tr("shell.summary.destination"), self._destination_text()),
+            ("destination", tr("shell.summary.destination"), self._destination_text()),
         ):
             row = QHBoxLayout()
             row.addWidget(label(key, "muted"))
             row.addStretch(1)
-            row.addWidget(label(value, "cardTitle"))
+            said = label(value, "cardTitle")
+            self._summary_values[name] = said
+            row.addWidget(said)
             card.body.addLayout(row)
         card.body.addWidget(SafetyNote(self.tokens))
         card.body.addStretch(1)
-        run = button(tr("shell.run"), kind="primary", glyph="play", tokens=self.tokens,
-                     tip=tr("shell.run.tip"))
-        run.setMinimumHeight(44)
-        run.clicked.connect(self.run)
-        card.body.addWidget(run)
-        plan_only = button(tr("shell.run.plan"), glyph="save", tokens=self.tokens,
-                           tip=tr("shell.run.plan.tip"))
-        plan_only.clicked.connect(lambda: self.run(plan_only=True))
-        card.body.addWidget(plan_only)
+        self.run_button = button(tr("shell.run"), kind="primary", glyph="play", tokens=self.tokens,
+                                 tip=tr("shell.run.tip"))
+        self.run_button.setMinimumHeight(44)
+        self.run_button.clicked.connect(self.run)
+        card.body.addWidget(self.run_button)
+        self.plan_button = button(tr("shell.run.plan"), glyph="save", tokens=self.tokens,
+                                  tip=tr("shell.run.plan.tip"))
+        self.plan_button.clicked.connect(lambda: self.run(plan_only=True))
+        card.body.addWidget(self.plan_button)
+        self.nothing_note = label(tr("shell.plan.nothing.note"), "muted")
+        card.body.addWidget(self.nothing_note)
         card.body.addWidget(label(tr("shell.time.note"), "muted"))
+        self._refresh_plan()
         return card
 
     def _risky_in(self, preset: Preset) -> bool:
@@ -383,8 +446,43 @@ class RebuildPage(Responsive, QWidget):
         else:
             self.show_files()
 
+    @property
+    def ready_count(self) -> int:
+        """Books that are ticked *and* can actually be rebuilt."""
+        return sum(1 for book in self.books if book.chosen and book.rebuildable)
+
     def _toggle_book(self, book: BookItem, state: bool) -> None:
         book.chosen = state
+        self._refresh_plan()
+
+    def _refresh_plan(self) -> None:
+        """Counts, buttons and the summary, the moment a tick changes.
+
+        The plan used to be drawn once and then quietly disagree with itself:
+        untick two of three books and the card still said three, the summary
+        still said three, and Rebuild was still offered for a batch that might
+        be empty — which was found out by pressing it.
+        """
+        if self.stage is not Stage.PLAN:
+            # The widgets below belong to the plan screen; after the results
+            # have replaced it they are deleted objects, and asking a deleted
+            # object for anything is how a window dies without a message.
+            return
+        ready = self.ready_count
+        if getattr(self, "books_card", None) is not None:
+            self.books_card.retitle(tr("shell.plan.count", count=ready))
+        said = getattr(self, "_summary_values", {})
+        if "files" in said:
+            said["files"].setText(str(ready))
+        if "destination" in said:
+            said["destination"].setText(self._destination_text())
+        for name in ("run_button", "plan_button"):
+            item = getattr(self, name, None)
+            if item is not None:
+                item.setEnabled(bool(ready))
+        note = getattr(self, "nothing_note", None)
+        if note is not None:
+            note.setVisible(not ready)
 
     def _open_drawer(self) -> None:
         self.drawer.open_with(
@@ -490,9 +588,11 @@ class RebuildPage(Responsive, QWidget):
         columns = Panels(CARD_GAP)
         results = Card(tr("shell.results.list"), tr("shell.results.list.body"), glyph="book",
                        tokens=self.tokens)
+        self._result_rows = []
         for book in outcome.books:
             row = BookRow(book, self.tokens, results=True)
             row.opened.connect(self._select_book)
+            self._result_rows.append(row)
             results.body.addWidget(row)
         results.body.addStretch(1)
 
@@ -602,7 +702,20 @@ class RebuildPage(Responsive, QWidget):
         return card
 
     def _select_book(self, book: "BookItem | None") -> None:
+        """One book is the selected one, and it is visibly the selected one.
+
+        The changes below and both save shortcuts act on it, so which book
+        they mean cannot be a thing only this object knows.
+        """
         self._selected = book
+        for row in getattr(self, "_result_rows", []):
+            chosen = row.book is book
+            row.set_selected(chosen)
+            row.setAccessibleDescription(
+                (tr("shell.results.selected") + ". " if chosen else "")
+                + f"{tr(f'shell.status.{row.book.status.value}')}. "
+                + (row.book.summary or row.book.error)
+            )
         if book is None or not hasattr(self, "_changes_body"):
             return
         clear_layout(self._changes_body)
