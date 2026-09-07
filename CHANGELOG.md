@@ -40,6 +40,79 @@ written; only the current version was reset.
 
 ## Unreleased
 
+(Nic jeszcze nie czeka — 0.4.0 wyszło 2026-09-07.)
+
+## 0.4.0 — alpha — 2026-09-07
+
+### Nowe okno: zadanie przed mechanizmem
+
+Stare okno pokazywało maszynę. Cztery zakładki nazwane podsystemami
+(*Przebudowa*, *Biblioteka*, *Korpus*, *Diagnostyka*), a w pierwszej z nich
+kolumna czterdziestu przełączników — wszystko widoczne, zanim ktokolwiek
+powiedział, co chce zrobić. Człowiek, który przyszedł naprawić jedną książkę,
+musiał najpierw przeczytać architekturę programu.
+
+Nowe okno pyta o zadanie. Pięć miejsc — **Start, Przebudowa, Narzędzia,
+Historia, Ustawienia** — a przebudowa jest przepływem: **Pliki → Analiza →
+Plan przebudowy → Wyniki**. Na ścieżce podstawowej stoją trzy zrozumiałe
+plany (*Zachowaj wygląd*, *Maksymalna zgodność*, *Tylko naprawa kontenera*),
+a cała reszta polityki mieszka w jednej szufladzie *Dostosuj szczegóły*:
+z wyszukiwarką, pogrupowana po tym, co robi z książką, a nie po tym, w którym
+module siedzi.
+
+**Silnik nie ruszył się o milimetr.** Strony nowego okna nie widzą ani
+`Policy`, ani `Report`, ani potoku — rozmawiają z jednym adapterem
+(`gui/shell/backend.py`), a preset i odstępstwa zamienia w politykę **jedna**
+funkcja z własnymi testami. Stare okno składało politykę, czytając czterdzieści
+widżetów rozsianych po kolumnie; w takim układzie jedno zapomniane
+`isChecked()` jest ustawieniem, które po cichu nic nie robi.
+
+Czego nowe okno **nie** zgubiło: menu i skróty, pytania zadawane w trakcie
+przebudowy, scalanie uszkodzonych kopii, raport pojedynczy i zbiorczy w tym
+samym JSON-ie co dotąd, przełączanie języka, upuszczanie plików w dowolnym
+miejscu okna, pliki podane z wiersza poleceń i z powłoki Windows. Biblioteka,
+diagnostyka i korpus zachowały każdą funkcję — przestały tylko być
+równorzędne z przebudową, bo prawie nikt nie przychodzi tu po nie.
+
+Czego stare okno nie miało:
+
+- **przycisk Anuluj, który naprawdę zatrzymuje pracę.** `Worker.cancel`
+  istniał od dawna i nikt go nie wołał; teraz anulowanie schodzi do potoku,
+  a nie chowa pasek postępu;
+- **analizę przed planem** — książki są czytane i opisane, zanim cokolwiek
+  zostanie napisane, a plik, którego nie da się odczytać, jest jednym
+  wierszem z powodem zamiast partii, która staje na trzeciej książce
+  z trzydziestu;
+- **historię zadań** — data, liczba książek, statusy i folder docelowy;
+  bez treści książek i bez raportów, bo raport leży tam, gdzie go zapisano;
+- **stan wyników przed logiem**: ile gotowych, ile napraw, ile wymaga uwagi,
+  a surowy raport techniczny — na życzenie.
+
+Bezpieczeństwo jest widoczne, bo o to chodzi w tym programie: zdanie
+*„oryginały pozostaną nietknięte"* stoi na ekranie planu i na ekranie
+wykonania, a próba zapisania książki na jej własne miejsce jest zatrzymana,
+zanim plik źródłowy zostanie w ogóle otwarty.
+
+**Dostępność:** widoczny pierścień fokusu na każdej kontrolce, kolejność
+tabulacji zgodna z układem, Escape zamyka szufladę i oddaje fokus przyciskowi,
+który ją otworzył, żaden status nie stoi na samym kolorze (kolor + glif +
+słowo), a okno mieści się w 1100×700 i działa przy skalowaniu 150 %.
+
+Stare okno zostaje do czasu przeczytania testów parytetu — pod
+`EPUBFORGE_LEGACY_UI=1`. Nie jest wydaniem, tylko wyjściem awaryjnym.
+
+**Dowody:** `tests/test_shell_ui.py` — 89 testów: przepływ, anulowanie,
+częściowa porażka partii, „oryginał nigdy nie jest celem", presety
+i odstępstwa, szuflada, klawiatura, statusy, historia, oraz reguła domowa
+przepisana na nowe okno (każde pole `Policy` ma sterowanie albo uzasadniony
+wyjątek). `tools/ui_screenshots.py` rysuje siedem stanów z listy akceptacyjnej
+z prawdziwego okna — i to one wykazały trzy wady układu, które ta wersja
+naprawia: nachodzące na siebie napisy w strefie upuszczania, plakietkę
+ostrzeżenia zgniatającą tytuł ustawienia i karty ściśnięte poniżej własnego
+minimum przy 1100×700.
+
+### Co jeszcze weszło w tym wydaniu
+
 ### What the independent audit of 2026-09-04 found, and what changed
 
 An auditor who had not written a line of this program repeated the

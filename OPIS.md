@@ -239,10 +239,11 @@ na półce, nie na atrapie).
 
 ## 8. Co warto wiedzieć przed audytem
 
-- **Stan.** Wydana wersja to `0.3.1` (alpha; wydawany jest tylko Windows).
-  Gałąź rozwojowa niesie ponad nią: eksport KEPUB, PDF jako wejście,
-  wykonanie rekomendacji dwóch audytów i kilka napraw K3 — wszystko opisane
-  w `CHANGELOG.md` pod „Unreleased". Nic z tego nie jest wydane.
+- **Stan.** Wydana wersja to `0.4.0` (alpha; wydawany jest tylko Windows):
+  nowe okno (Start, Przebudowa, Narzędzia, Historia, Ustawienia), eksport
+  KEPUB, PDF jako wejście, wykonanie rekomendacji dwóch audytów i naprawy K3
+  — wszystko opisane w `CHANGELOG.md`. Stare okno zostaje pod
+  `EPUBFORGE_LEGACY_UI=1` do czasu werdyktu o parytecie.
 - **Prywatność.** Repozytorium kodu jest publiczne; półka właściciela jest
   prywatna. Żadna nazwa książki, autora ani wydawcy z półki nie ma prawa tu
   trafić — w dokumentach książki to „Książka N" albo numer. To jest reguła

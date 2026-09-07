@@ -30,7 +30,20 @@ SOURCE = pathlib.Path(epubforge.__file__).parent
 #: jednym a drugim doszedł czytnik PDF-a i etapy, które go obsługują.
 #: Spadek znaczy, że któryś zwężono do tego, co naprawdę może wylecieć —
 #: i to jest kierunek.
-BROAD_TODAY = 65
+#:
+#: **Podniesione 65 → 71 (2026-09-07, revamp UI).** Zapadka nie zabrania
+#: rosnąć — zmusza do argumentu, więc oto on, sześć miejsc po kolei:
+#: `state.load_history` ×2 (plik historii, który ktoś edytował albo który
+#: został po zaniku prądu; nikogo przebudowa od tego nie zależy, a okno ma
+#: się otworzyć), `backend._analyse_one` (lxml i zipfile na cudzym pliku —
+#: jeden wiersz mówiący „nie da się odczytać" zamiast partii, która staje
+#: na trzeciej książce z trzydziestu), `backend._rebuild_one` (ten sam
+#: handler, który stare okno ma w `Worker.run`: awaria wychodzi do raportu
+#: i do wiersza tabeli), `workers` ×2 (bez nich zadanie umiera w wątku, a
+#: okno zostaje na ekranie postępu na zawsze). Wszystkie z powodem
+#: i wszystkie zgłaszają się człowiekowi — czyli spełniają regułę, której
+#: ten plik pilnuje.
+BROAD_TODAY = 71
 
 #: Co liczy się jako szerokie: wszystko, co złapie błąd, którego nikt nie
 #: wymienił z nazwy.
