@@ -50,6 +50,7 @@ def _selftest(target: str) -> int:
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication([])
+    tools = 0
     if name == "legacy":
         from . import theme
         from .app import MainWindow
@@ -60,10 +61,19 @@ def _selftest(target: str) -> int:
         from .shell.window import MainWindow, chosen_tokens
 
         window = MainWindow(chosen_tokens(app) or tokens_module.DARK)
+        # And every specialist tool is opened once. They are built on demand,
+        # so a tool page missing from a frozen build would fail the first time
+        # somebody pressed its tile and nowhere before that — the same shape of
+        # defect as EF-094, one floor down.
+        for tool in ("library", "diagnostics", "corpus"):
+            window.tools.open_tool(tool)
+            tools += 1
     from .. import version_string
 
     with open(target, "w", encoding="utf-8") as handle:
-        handle.write(f"{name} {type(window).__module__} {version_string()}\n")
+        handle.write(
+            f"{name} {type(window).__module__} {version_string()} tools={tools}\n"
+        )
     window.close()
     return 0
 

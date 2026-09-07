@@ -225,6 +225,12 @@ class MainWindow(QMainWindow):
         self.rebuild.start(paths)
 
     def _busy_changed(self, busy: bool) -> None:
+        """Whether the window has work running, for anything that has to know.
+
+        The rebuild says so; the window remembers it. `closeEvent` asks the
+        runners themselves rather than this flag — a flag can be stale and a
+        thread cannot.
+        """
         self.busy = busy
 
     def say(self, message: str) -> None:

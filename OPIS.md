@@ -239,10 +239,12 @@ na półce, nie na atrapie).
 
 ## 8. Co warto wiedzieć przed audytem
 
-- **Stan.** Wydana wersja to `0.4.1` (alpha; wydawany jest tylko Windows):
-  nowe okno (Start, Przebudowa, Narzędzia, Historia, Ustawienia), eksport
-  KEPUB, PDF jako wejście, wykonanie rekomendacji dwóch audytów i naprawy K3
-  — wszystko opisane w `CHANGELOG.md`. Stare okno zostaje pod
+- **Stan.** Wydana wersja to `0.4.2` (alpha; wydawany jest tylko Windows):
+  nowe okno (Start, Przebudowa, Narzędzia, Historia, Ustawienia) po drugiej
+  iteracji — układ liczony z miejsca dla treści, Narzędzia jako własne strony,
+  praca narzędzi w `gui/toolwork.py` wspólnie dla obu okien — eksport KEPUB,
+  PDF jako wejście, wykonanie rekomendacji dwóch audytów i naprawy K3 —
+  wszystko opisane w `CHANGELOG.md`. Stare okno zostaje pod
   `EPUBFORGE_LEGACY_UI=1` do czasu werdyktu o parytecie.
 - **Prywatność.** Repozytorium kodu jest publiczne; półka właściciela jest
   prywatna. Żadna nazwa książki, autora ani wydawcy z półki nie ma prawa tu

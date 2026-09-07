@@ -76,6 +76,13 @@ hiddenimports = [
     "epubforge.gui.shell",
     "epubforge.gui.shell.window",
     "epubforge.gui.shell.pages",
+    # The specialist tools are pages of their own now, and a page that is
+    # missing from the build fails only when somebody opens it — which is
+    # nowhere anybody here can test.
+    "epubforge.gui.shell.pages.tools",
+    "epubforge.gui.shell.pages.tools.library",
+    "epubforge.gui.shell.pages.tools.diagnostics",
+    "epubforge.gui.shell.pages.tools.corpus",
     # And the old one, because the escape hatch has to work in the build it
     # is an escape hatch for.
     "epubforge.gui.app",

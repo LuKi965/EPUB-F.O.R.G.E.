@@ -40,7 +40,15 @@ class TestTheFrozenEntryUsesTheDispatcher:
 
     @pytest.mark.parametrize(
         "name",
-        ["epubforge.gui.shell", "epubforge.gui.shell.window", "epubforge.gui.shell.pages"],
+        [
+            "epubforge.gui.shell",
+            "epubforge.gui.shell.window",
+            "epubforge.gui.shell.pages",
+            "epubforge.gui.shell.pages.tools",
+            "epubforge.gui.shell.pages.tools.library",
+            "epubforge.gui.shell.pages.tools.diagnostics",
+            "epubforge.gui.shell.pages.tools.corpus",
+        ],
     )
     def test_the_build_is_told_to_collect_the_new_window(self, name):
         """`gui.run` imports the shell inside a function, and a spec that does
@@ -91,6 +99,9 @@ class TestTheBuildCanProveWhichWindowItOpens:
         assert gui.run() == 0
         said = answer.read_text(encoding="utf-8").strip()
         assert said.startswith("shell epubforge.gui.shell.window"), said
+        # And every specialist tool was opened: they are built on demand, so a
+        # page missing from a frozen build fails at the tile and nowhere before.
+        assert "tools=3" in said, said
 
     def test_and_says_legacy_when_the_flag_is_set(self, tmp_path, monkeypatch):
         pytest.importorskip("PySide6.QtWidgets")
@@ -109,3 +120,4 @@ class TestTheBuildCanProveWhichWindowItOpens:
         source = (ROOT / "packaging" / "smoke_test.py").read_text(encoding="utf-8")
         assert "EPUBFORGE_UI_SELFTEST" in source
         assert 'said.startswith("shell ' in source
+        assert '"tools=3" not in said' in source

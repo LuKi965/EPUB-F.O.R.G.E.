@@ -156,6 +156,12 @@ def check_the_window(gui: Path, env: dict, work: Path) -> None:
         )
     if "epubforge.gui.shell" not in said:
         raise SystemExit(f"unexpected window class in the frozen build: {said!r}")
+    if "tools=3" not in said:
+        # The three specialist pages are built when somebody opens them, so one
+        # missing from the bundle would fail at the tile and nowhere earlier.
+        raise SystemExit(
+            f"the frozen build could not open every specialist tool: {said!r}"
+        )
     return 0
 
 

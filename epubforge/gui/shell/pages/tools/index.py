@@ -23,6 +23,14 @@ from ....strings import tr
 from ...responsive import Cards, LayoutMode, Responsive, spread
 from ...tokens import CARD_GAP, Tokens
 from ...widgets import PageHeader, StatusBadge, Tile, page_body
+# Imported here rather than inside `_build`, and that is not a style
+# preference: PyInstaller builds from the imports it can see, and 0.4.0
+# shipped an installer without the new window because one import was
+# somewhere it could not (EF-094). A page nobody can open in the frozen
+# build is the same defect one floor down.
+from .corpus import CorpusToolPage
+from .diagnostics import DiagnosticsToolPage
+from .library import LibraryToolPage
 
 
 def palette_for(tokens: Tokens) -> legacy_theme.Palette:
@@ -135,10 +143,6 @@ class ToolsPage(Responsive, QWidget):
             sink(message)
 
     def _build(self, name: str) -> QWidget:
-        from .corpus import CorpusToolPage
-        from .diagnostics import DiagnosticsToolPage
-        from .library import LibraryToolPage
-
         page = {
             "library": LibraryToolPage,
             "diagnostics": DiagnosticsToolPage,

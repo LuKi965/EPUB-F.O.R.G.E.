@@ -40,7 +40,69 @@ written; only the current version was reset.
 
 ## Unreleased
 
-(Nic jeszcze nie czeka — 0.4.1 wyszło 2026-09-07.)
+(Nic jeszcze nie czeka — 0.4.2 wyszło 2026-09-07.)
+
+## 0.4.2 — alpha — 2026-09-07
+
+### Druga iteracja revampu: układ, stan, wątki i Narzędzia
+
+Właściciel przekazał drugi zestaw korekt do interfejsu i poprosił, żeby najpierw
+je przeanalizować, „bo mogą niechcący ingerować w funkcje samej aplikacji i to
+te jeszcze niedokończone". Sześć z siedmiu zarzutów technicznych potwierdziło
+się co do linijki; poniżej jest to, co z nich wyszło. Silnik, polityka, raporty
+i konwersja PDF są bez zmian — zmienia się okno.
+
+**Bez starego menu i paska statusu.** Każdy cel z `Plik / Ustawienia / Pomoc`
+jest w bocznym pasku albo na stronie, a zdanie z paska statusu stoi na Starcie
+jako karta. Skróty zostają jako akcje okna: `Ctrl+O`, `Ctrl+S`,
+`Ctrl+Shift+S`, `Ctrl+M`, `Ctrl+,` i `Ctrl+Q` — przy czym oba zapisy raportu
+są **nieaktywne poza Wynikami**. Pułapka po drodze: panele Narzędzi wołały
+`window().statusBar()`, a `QMainWindow.statusBar()` *tworzy* pasek na żądanie,
+więc samo usunięcie go z konstruktora oddałoby go z powrotem przy pierwszym
+skanie biblioteki. Panel ma teraz ujście, o które prosi okno.
+
+**Układ liczony z miejsca dla treści.** Jeden mechanizm dla całej powłoki
+(`shell/responsive.py`): trzy tryby, dwa progi, histereza. Strona pyta o
+*własną* szerokość, a nie o szerokość okna, i przebudowuje kompozycję tylko
+przy zmianie trybu — przepinając widżety, nie tworząc ich od nowa. Minimum okna
+`1100×700` → `800×520` (przy prośbie o `900×600` okno oddawało `1100×700`),
+rozmiar startowy i odtworzona geometria przycięte do dostępnego ekranu.
+
+**Stan, który zgadza się sam ze sobą.** Odznaczenie książki natychmiast zmienia
+licznik, podsumowanie i dostępność przycisków; przy zerze wykonywalnych książek
+przebudowa jest wyłączona, a nie odrzucana po kliknięciu. Plik, którego analiza
+nie umiała odczytać, jest odznaczony i nie do zaznaczenia — zostaje na liście
+z powodem. W Wynikach dokładnie jeden wiersz jest widocznie wybrany i to on
+rządzi raportem. Wyjątek w trakcie przebudowy nie kasuje już listy, presetu,
+folderu i zmienionych ustawień: jest ekran błędu z trzema wyjściami.
+
+**Historia i pamięć folderów.** Rekord historii bierze lokalizacje z *książek*,
+a nie z wybranego folderu — więc przebudowa obok oryginałów też ma dokąd
+odesłać; kilka lokalizacji pokazuje się jako lista, nie jako pierwsza z nich.
+Ustawienie „zapamiętaj ostatni folder" było zapisywane i **nieczytane przez
+nikogo**; teraz działa dla czterech rodzajów folderów, a wyłączenie go kasuje
+zapamiętane wartości.
+
+**Kończenie wątku bez czekania.** `Runner` robił `quit()` i `wait(5000)` na
+wątku okna: interfejs stał, a zadanie czekające na odpowiedź kończyło się
+porzuceniem żywego wątku. Teraz to maszyna stanu — `deleteLater`, wyczyszczenie
+referencji i sygnał `idle` dopiero po `QThread.finished`. Zamknięcie okna w
+trakcie pracy jest odraczane i domykane samo, a pytania do użytkownika dają się
+zatrzymać (bez tego anulowanie nie anuluje niczego, dopóki ktoś nie odpowie).
+
+**Narzędzia jako strony tej powłoki.** Biblioteka, Diagnostyka i Korpus nie są
+już starymi panelami wrzuconymi w ramkę. Żeby to nie było skopiowaniem
+implementacji, praca przeniosła się do `gui/toolwork.py` — bez Qt — i wołają ją
+**oba okna**, więc przegląd biblioteki drukuje w nich to samo, bo to ten sam
+kod.
+
+**Czym to jest sprawdzone.** `tests/geometry.py` mierzy ułożoną stronę zamiast
+zakładać, że skoro jest `QScrollArea`, to jest dobrze: rozmiar, zasięg
+przewijania, nakładanie się kontrolek i obecność głównej akcji. Każdy ekran w
+pięciu rozmiarach i dwóch językach, plus skalowanie 1.0 / 1.25 / 1.5 / 2.0 w
+osobnych procesach, bo Qt czyta skalę raz. Ten pomiar od razu znalazł dwie
+rzeczy, które naprawiono w tym samym wydaniu: strona Korpusu nie mieściła się
+w 800 px, a odtworzona geometria okna nie była przycinana do ekranu.
 
 ## 0.4.1 — alpha — 2026-09-07
 
