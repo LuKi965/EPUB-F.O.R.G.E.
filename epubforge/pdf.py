@@ -253,6 +253,10 @@ class Layout:
     characters: int = 0
     paragraphs: int = 0
     headings: int = 0
+    #: Grids rebuilt as tables, and the cells in them — cells that used to be
+    #: one-or-two-word paragraphs.
+    tables: int = 0
+    table_cells: int = 0
     images: int = 0
     images_skipped: int = 0
     running_heads: int = 0
@@ -378,6 +382,9 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout",
         markup, counts = _render(blocks, label, anchored)
         layout.paragraphs += counts["paragraphs"]
         layout.headings += counts["headings"]
+        layout.tables += counts["tables"]
+        layout.table_cells += sum(len(row) for block in blocks
+                                  if block.kind == "table" for row in block.rows)
         for page in counts["anchored"]:
             placed.setdefault(page, f"{path}#{_anchor(page)}")
         for block in blocks:
@@ -475,6 +482,14 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             Level.PRESERVED,
             "pdf.outline-used",
             values={"count": layout.outline_entries, "unresolved": layout.outline_unresolved},
+            location=source,
+        )
+    if layout.tables:
+        report.add(
+            "pdf",
+            Level.FIX,
+            "pdf.tables-rebuilt",
+            values={"count": layout.tables, "cells": layout.table_cells},
             location=source,
         )
     if layout.images_skipped:
@@ -1121,14 +1136,21 @@ def _body_size(pages: list[Page]) -> float:
 
 @dataclass
 class Block:
-    kind: str  # "p", "h1", "h2", "head" (running head), "image"
+    kind: str  # "p", "h1", "h2", "head" (running head), "image", "table"
     lines: list[Line] = field(default_factory=list)
     picture: Picture | None = None
     #: A paragraph a running head cut in two; this is the second half.
     continued: bool = False
+    #: A table's cells, row by row. `lines` holds the same cells flat, so
+    #: everything that counts lines counts a table's without knowing about it.
+    rows: list = field(default_factory=list)
 
     @property
     def text(self) -> str:
+        if self.kind == "table":
+            # Cells are not one paragraph broken across lines: a hyphen at the
+            # end of a cell is the cell's own word, so they join with a space.
+            return " ".join(cell.text.strip() for row in self.rows for cell in row)
         return join_lines(line.text for line in self.lines)
 
 
@@ -1251,8 +1273,22 @@ def _page_blocks(page: Page, flow: "_Flow", body_size: float, breaks: set[int]) 
 
 def _area_blocks(region: "list[Line]", area: "_Area", flow: "_Flow",
                  body_size: float, breaks: set[int]) -> None:
-    """The lines of one area, joined into paragraphs and headings."""
+    """The lines of one area, joined into tables, paragraphs and headings."""
+    grids = _tables(region)
+    opens = {id(run[0][0]): run for run in grids}
+    inside = {id(cell) for run in grids for row in run for cell in row}
     for line in region:
+        run = opens.get(id(line))
+        if run is not None:
+            flow.blocks.append(Block(kind="table", rows=run,
+                                     lines=[cell for row in run for cell in row]))
+            # A table ends whatever stood before it and starts whatever comes
+            # after: nothing runs through a grid.
+            flow.current = flow.previous = None
+            area.first = False
+            continue
+        if id(line) in inside:
+            continue
         if line.running_head:
             flow.blocks.append(Block(kind="head", lines=[line]))
             # The head is furniture, not the area's first line: the body line
@@ -1313,6 +1349,86 @@ def _starts_a_paragraph(line: Line, flow: "_Flow", area: "_Area") -> bool:
     # nothing.
     return ((flow.previous.x1 - flow.left) < SHORT_LINE_RATIO * flow.width
             and _starts_a_sentence(line.text))
+
+
+#: Cells of one row sit on one baseline — this much of their own type size
+#: apart at the most. They are not exactly level: on the owner's manual the
+#: tick in a cell is set at 12 pt beside a word at 9, and their tops differ by
+#: a point. Measured against the type and not the page's line pitch, which on
+#: a page of few lines is not a line pitch at all: the synthetic page of the
+#: test below has three rows 16 pt apart and a median gap of 42.
+ROW_SLACK = 0.5
+#: How far a cell may sit from the one above it and still be in its column.
+#: Swept over the manual: 6 pt finds 72 tables and 453 cells, 12 pt finds 73
+#: and 484, 24 pt finds 75 and 542 — a flat middle. What it has to tolerate is
+#: a right-aligned column: the page numbers of a table of contents share their
+#: right edge and stand 4.6 pt apart at the left.
+COLUMN_SLACK = 12.0
+#: Rows standing further apart than this many times their type size are two
+#: tables, not one. Measured on the manual: its rows are 16.7 pt apart at 9 pt.
+TABLE_ROW_GAP = 3.0
+#: Two rows standing on one grid are a table. Measured on the Gutenberg corpus:
+#: across four prose books and one verse play this finds **nothing at all**,
+#: and in the other two it finds exactly what is there — an errata table of
+#: page, misprint and correction, and a table of contents.
+ROWS_FOR_A_TABLE = 2
+
+
+def _tables(region: "list[Line]") -> "list[list[list[Line]]]":
+    """The runs of rows in this area that stand on one grid.
+
+    A table is the shape this reader used to be worst at: every cell became a
+    paragraph of one or two words, so a page of them read as a heap. The manual
+    has 73 of them — the beverage tables, the compatibility ticks, its own table
+    of contents — and 484 cells that were 484 paragraphs.
+
+    Rows have to be **consecutive**. A margin figure standing beside the table
+    ends it and a new one starts under it, which splits one grid into two on
+    the page where that happens. That is the price of not moving any text: the
+    cells come out in the order they were already read in, so nothing about the
+    reading order changes when a table is recognised — only the markup does.
+    """
+    body = [line for line in region if not line.running_head]
+    found: list = []
+    run: list = []
+    for row in _rows(body):
+        if _joins_the_grid(row, run):
+            run.append(row)
+            continue
+        if len(run) >= ROWS_FOR_A_TABLE:
+            found.append(run)
+        run = [row] if _side_by_side(row) else []
+    if len(run) >= ROWS_FOR_A_TABLE:
+        found.append(run)
+    return found
+
+
+def _rows(lines: "list[Line]") -> "list[list[Line]]":
+    """The area's lines grouped by the baseline they stand on."""
+    rows: list = []
+    for line in lines:
+        here = rows[-1][0] if rows else None
+        if here is not None and abs(here.y1 - line.y1) <= ROW_SLACK * max(here.size, line.size):
+            rows[-1].append(line)
+        else:
+            rows.append([line])
+    return [sorted(row, key=lambda line: line.x0) for row in rows]
+
+
+def _side_by_side(row: "list[Line]") -> bool:
+    """Two or more cells on one baseline, none overlapping the next."""
+    return len(row) >= 2 and all(a.x1 <= b.x0 for a, b in zip(row, row[1:]))
+
+
+def _joins_the_grid(row: "list[Line]", run: "list[list[Line]]") -> bool:
+    if not _side_by_side(row):
+        return False
+    if not run:
+        return True
+    above = run[-1]
+    return (len(row) == len(above)
+            and all(abs(a.x0 - b.x0) <= COLUMN_SLACK for a, b in zip(row, above))
+            and above[0].y1 - row[0].y1 <= TABLE_ROW_GAP * max(above[0].size, row[0].size))
 
 
 def _region_geometry(region: "list[Line]", page: Page) -> "tuple[float, float]":
@@ -1463,6 +1579,27 @@ def _figure(picture: Picture, mark: str = "") -> str:
     return f"    <figure{mark}>\n" + "\n".join(inside) + "\n    </figure>"
 
 
+def _grid(rows: "list[list[Line]]", mark: str = "") -> str:
+    """The rows as a table, cell for cell.
+
+    Every cell is a `td`. Which row is the head is a question this reader has
+    no answer to — the manual sets its header row in the same face and, on the
+    page that started this, outside the grid altogether — and a `th` invented
+    from nothing would be a claim the file never made.
+    """
+    out = [f"    <table{mark}>"]
+    for row in rows:
+        out.append("      <tr>")
+        # One cell to a line, and the reason is not tidiness: the text of a
+        # document is read with `itertext()`, which gives back what stands
+        # *between* the elements too. Cells written end to end come back as
+        # one word — "Opis ekspresu6" — and K1 refused the book for it.
+        out += [f"        <td>{escape(cell.text.strip())}</td>" for cell in row]
+        out.append("      </tr>")
+    out.append("    </table>")
+    return "\n".join(out)
+
+
 def _render(blocks: list[Block], title: str,
             anchored: "set[int] | None" = None) -> tuple[str, dict]:
     """The section's markup, and what went into it.
@@ -1471,7 +1608,7 @@ def _render(blocks: list[Block], title: str,
     page carries the anchor, and `counts["anchored"]` says which pages actually
     got one — a nav entry is only allowed to point where something is.
     """
-    counts: dict = {"paragraphs": 0, "headings": 0, "anchored": []}
+    counts: dict = {"paragraphs": 0, "headings": 0, "tables": 0, "anchored": []}
     wanted = set(anchored or ())
     body: list[str] = []
     for block in blocks:
@@ -1483,6 +1620,9 @@ def _render(blocks: list[Block], title: str,
             mark = f' id="{_anchor(page)}"'
         if block.kind == "image":
             body.append(_figure(block.picture, mark))
+        elif block.kind == "table":
+            counts["tables"] += 1
+            body.append(_grid(block.rows, mark))
         elif block.kind == "head":
             body.append(f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>')
         elif block.kind in ("h1", "h2"):

@@ -562,6 +562,58 @@ class TestTheReader:
         assert "pdf.characters-unplaced" not in {f.rule for f in report.findings}
         assert report.stats["pdf_characters_unplaced"] == 0
 
+    def test_a_grid_of_cells_comes_back_a_table(self, tmp_path):
+        """A table read line by line is a heap: every cell a paragraph of a
+        word or two. The owner's manual has 73 of them and 484 such cells —
+        beverage tables, compatibility ticks, its own table of contents.
+
+        Nothing moves to make one. The cells were already read left to right
+        along each row, so recognising the grid changes the markup and not one
+        character of the order.
+        """
+        rows = [("Americano", "tak", "tak"), ("Cappuccino", "tak", "nie"), ("Cold Brew", "nie", "tak")]
+        lines = column(["A sentence of prose standing over the table."], top=700)
+        for index, (name, hot, cold) in enumerate(rows):
+            y = 660.0 - index * 16
+            lines += [(72.0, y, 10.0, name), (220.0, y, 10.0, hot), (300.0, y, 10.0, cold)]
+        lines += column(["And a sentence of prose standing under it."], top=580)
+        source = make_pdf(tmp_path / "grid.pdf", [lines], title="Grid")
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert markup.count("<tr>") == 3 and markup.count("<td>") == 9
+        assert "<td>Americano</td>" in markup and "<td>nie</td>" in markup
+        # A cell is not a paragraph, and the prose around it still is.
+        assert "<p>Americano</p>" not in markup
+        assert "<p>A sentence of prose standing over the table.</p>" in markup
+        assert "<p>And a sentence of prose standing under it.</p>" in markup
+        said = next(f for f in report.findings if f.rule == "pdf.tables-rebuilt")
+        assert said.values == {"count": 1, "cells": 9}
+        # The order is untouched: what K1 reads on the source's side is what
+        # the document carries, cell for cell.
+        text = fidelity.document_text(markup.encode("utf-8"))
+        assert fidelity.first_character_lost(pdf.text_of(str(source)), text) == -1
+        assert text.index("Americano") < text.index("Cappuccino") < text.index("Cold Brew")
+
+    def test_prose_is_not_a_table_however_it_falls(self, tmp_path):
+        """Measured on the Gutenberg corpus: over four prose books and one
+        verse play this finds nothing at all. A line of prose is one cell, and
+        one cell is not a row."""
+        pages = [column(THREE_PARAGRAPHS) for _ in range(3)]
+        report = Report()
+        pdf.read_pdf(str(make_pdf(tmp_path / "prose.pdf", pages)), report)
+        assert report.stats["pdf_layout"]["tables"] == 0
+        assert "pdf.tables-rebuilt" not in {f.rule for f in report.findings}
+
+    def test_the_grid_the_table_is_measured_on_is_recorded(self):
+        """`D-012`: the numbers that decide what a table is say where they came
+        from — a sweep over the manual and a count over the corpus."""
+        source = pathlib.Path("epubforge/pdf.py").read_text(encoding="utf-8")
+        column_slack = source[source.index("#: How far a cell may sit from the one above"):]
+        assert "6 pt finds 72" in column_slack and "24 pt finds 75" in column_slack
+        rows = source[source.index("#: Two rows standing on one grid are a table."):]
+        assert "nothing at all" in rows[:400]
+
     def test_a_name_written_under_a_picture_becomes_its_caption(self, tmp_path):
         """"Americano" under the icon of it is the picture's name, not a
         one-word paragraph between two others. Seven of them in the owner's
