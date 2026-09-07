@@ -613,6 +613,55 @@ class TestTheReader:
         assert fidelity.first_character_lost(pdf.text_of(str(source)), text) == -1
         assert text.index("Americano") < text.index("Cappuccino") < text.index("Cold Brew")
 
+    def test_a_procedure_comes_back_a_list_with_its_own_numbers(self, tmp_path):
+        """A manual is mostly procedures, and a procedure read as loose
+        paragraphs is a list no reading system can see. The markers are text
+        the source drew — every one of them is kept — so the list is told to
+        set none of its own, which is the one thing the stylesheet says.
+        """
+        lines = column(["Postepuj nastepujaco:"], top=700)
+        # As a manual sets one: the marker at the edge, the sentence beside it,
+        # and what does not fit wrapped under the sentence, not under the
+        # marker. That hanging indent is what says the area is a list.
+        steps = [
+            (72.0, 680.0, 10.0, "1."), (90.0, 680.0, 10.0, "Ustaw kubek pod wylewka napojow"),
+            (90.0, 666.0, 10.0, "i zamknij pokrywe;"),
+            (72.0, 652.0, 10.0, "2."), (90.0, 652.0, 10.0, "Wcisnij pasek personalizacji"),
+            (90.0, 638.0, 10.0, "u dolu obrazka;"),
+            (72.0, 624.0, 10.0, "3."), (90.0, 624.0, 10.0, "Wytwarzanie zostanie przerwane."),
+        ]
+        source = make_pdf(tmp_path / "steps.pdf", [lines + steps])
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        document = next(r for r in book.resources.values() if r.path.endswith(".xhtml"))
+        markup = document.data.decode()
+        assert markup.count("<li>") == 3 and f'<ul class="{pdf.LIST_CLASS}">' in markup
+        assert "<li>1. Ustaw kubek pod wylewka napojow i zamknij pokrywe;</li>" in markup
+        # The marker is in the text, so the list must not draw its own.
+        sheet = book.resources[pdf.STYLESHEET_PATH]
+        assert sheet.media_type == "text/css"
+        assert "list-style: none" in sheet.data.decode()
+        assert f'href="../{pdf.STYLESHEET_PATH}"' in markup
+        assert report.stats["pdf_layout"]["lists"] == 1
+
+    def test_a_column_of_bullets_is_a_list_and_not_a_table(self, tmp_path):
+        """A note set as "•" at the left edge and the sentence beside it makes
+        rows of two cells that line up as neatly as any table's. Read as one it
+        came out a column of bullets beside a column of prose."""
+        rows = []
+        for index, text in enumerate(["Aby recznie przerwac wytwarzanie, wcisnij Stop.",
+                                      "Po zakonczeniu mozesz zwiekszyc ilosc napoju.",
+                                      "Funkcje goracej wody mozna uzyc do podgrzania filizanki."]):
+            y = 700.0 - index * 16
+            rows += [(72.0, y, 10.0, "•"), (90.0, y, 10.0, text)]
+        report = Report()
+        book = pdf.read_pdf(str(make_pdf(tmp_path / "note.pdf", [rows])), report)
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<table" not in markup
+        assert markup.count("<li>") == 3
+        assert "<li>• Aby recznie przerwac wytwarzanie, wcisnij Stop.</li>" in markup
+        assert report.stats["pdf_layout"]["tables"] == 0
+
     def test_prose_is_not_a_table_however_it_falls(self, tmp_path):
         """Measured on the Gutenberg corpus: over four prose books and one
         verse play this finds nothing at all. A line of prose is one cell, and
@@ -682,8 +731,10 @@ class TestTheReader:
         report = Report(source=str(source))
         book = pdf.read_pdf(str(source), report)
         markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
-        assert "<p>A16. Wskaznik poziomu wody w tacce na skropliny</p>" in markup
-        assert "<p>A15. Kratka tacki</p>" in markup
+        assert "<li>A16. Wskaznik poziomu wody w tacce na skropliny</li>" in markup
+        assert "<li>A15. Kratka tacki</li>" in markup
+        # A legend is a list, and comes back one.
+        assert f'<ul class="{pdf.LIST_CLASS}">' in markup
         # Gathered, not dropped: every callout is in the book, in one place.
         assert f'<p class="{pdf.LABEL_CLASS}">A12 A14 A13 A15 A16</p>' in markup
         assert report.stats["pdf_characters_unplaced"] == 0
@@ -729,8 +780,8 @@ class TestTheReader:
         lines += column(["Prose under the legend, which is a paragraph of its own", "and stays one."], top=250)
         book = pdf.read_pdf(str(make_pdf(tmp_path / "legend.pdf", [lines])), Report())
         markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
-        assert "<p>A6. Tacka na skropliny</p>" in markup
-        assert "<p>A7. Kabel zasilajacy</p>" in markup
+        assert "<li>A6. Tacka na skropliny</li>" in markup
+        assert "<li>A7. Kabel zasilajacy</li>" in markup
         assert "<p>A6.</p>" not in markup
 
     def test_a_drawing_this_reader_cannot_carry_is_reported(self, tmp_path):
@@ -884,7 +935,7 @@ class TestTheReaderSaysHowWellItWent:
         report = Report(source=str(source))
         book = pdf.read_pdf(str(source), report)
         markup = next(r.data for r in book.resources.values() if r.path.endswith(".xhtml")).decode("utf-8")
-        assert "<p>A16. Wskaznik poziomu wody w tacce na skropliny</p>" in markup
+        assert "<li>A16. Wskaznik poziomu wody w tacce na skropliny</li>" in markup
         # Nothing was dropped to get there: the labels are printed under the
         # drawing they stand on, and not one of them is left in the legend.
         assert f'class="{pdf.LABEL_CLASS}">A12 A14 A13 A15 A16</p>' in markup

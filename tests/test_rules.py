@@ -41,8 +41,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # was read, not only what it did with it. 408 with `pdf.tables-rebuilt`: a grid
 # of cells is a table, and the report says how many were found. 409 with
 # `pdf.drawing-not-carried`: a diagram drawn in curves is not in the book, and
-# a book quietly missing every diagram its source had is not honest.
-TAGGED_TODAY = 409
+# a book quietly missing every diagram its source had is not honest. 410 with
+# `pdf.lists-rebuilt`: a manual is mostly procedures, and a procedure read as
+# loose paragraphs is a list no reading system can see.
+TAGGED_TODAY = 410
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -154,7 +156,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 310
+TEMPLATED_TODAY = 311
 
 
 class TestTheTranslationCannotStall:

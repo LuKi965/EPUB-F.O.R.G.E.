@@ -263,6 +263,8 @@ class Layout:
     #: one-or-two-word paragraphs.
     tables: int = 0
     table_cells: int = 0
+    #: Runs of marked paragraphs marked up as lists.
+    lists: int = 0
     #: Pages carrying a vector drawing, and the drawings whose callouts were
     #: gathered out of the prose.
     drawing_pages: int = 0
@@ -393,33 +395,44 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout",
         # is the book's own front matter and takes the title; a later one is
         # named by its number, which is the one thing that is true of it.
         label = title or (book.metadata.title if index == 1 else f"{index}")
-        markup, counts = _render(blocks, label, anchored)
-        layout.paragraphs += counts["paragraphs"]
-        layout.headings += counts["headings"]
-        layout.tables += counts["tables"]
-        layout.labelled_drawings += counts["labelled_drawings"]
-        layout.table_cells += sum(len(row) for block in blocks
-                                  if block.kind == "table" for row in block.rows)
-        for page in counts["anchored"]:
-            placed.setdefault(page, f"{path}#{_anchor(page)}")
-        for block in blocks:
-            if block.kind == "image" and block.picture.name not in book.resources:
-                picture = block.picture
-                book.add(Resource(path=picture.name, media_type=picture.media_type, data=picture.data))
-                layout.images += 1
-        book.add(Resource(path=path, media_type="application/xhtml+xml", data=markup.encode("utf-8")))
-        book.spine.append(SpineItem(path=path))
+        _add_section(book, path, label, blocks, layout, anchored, placed)
         if not outline:
             book.toc.append(NavPoint(label=label, target=path))
-        # A page the outline names and no block starts on — an empty page, or
-        # one whose blocks all began earlier — still has to be reachable: the
-        # document it falls in is the truthful answer.
-        for page in {p for p in anchored if p not in placed}:
-            if any(_block_page(block) >= page for block in blocks):
-                placed.setdefault(page, path)
+    if layout.lists:
+        book.add(Resource(path=STYLESHEET_PATH, media_type="text/css",
+                          data=STYLESHEET.encode("utf-8")))
     if outline:
         book.toc.extend(_navigation(outline, placed))
     layout.navigation_entries = sum(len(list(node.walk())) for node in book.toc)
+
+
+def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layout",
+                 anchored: set, placed: dict) -> None:
+    """One section as a document, a spine entry and the pictures it stands on,
+    with the anchors it turned out to carry written into *placed*."""
+    markup, counts = _render(blocks, label, anchored)
+    layout.paragraphs += counts["paragraphs"]
+    layout.headings += counts["headings"]
+    layout.tables += counts["tables"]
+    layout.labelled_drawings += counts["labelled_drawings"]
+    layout.lists += counts["lists"]
+    layout.table_cells += sum(len(row) for block in blocks
+                              if block.kind == "table" for row in block.rows)
+    for page in counts["anchored"]:
+        placed.setdefault(page, f"{path}#{_anchor(page)}")
+    for block in blocks:
+        if block.kind == "image" and block.picture.name not in book.resources:
+            picture = block.picture
+            book.add(Resource(path=picture.name, media_type=picture.media_type, data=picture.data))
+            layout.images += 1
+    book.add(Resource(path=path, media_type="application/xhtml+xml", data=markup.encode("utf-8")))
+    book.spine.append(SpineItem(path=path))
+    # A page the outline names and no block starts on — an empty page, or one
+    # whose blocks all began earlier — still has to be reachable: the document
+    # it falls in is the truthful answer.
+    for page in {p for p in anchored if p not in placed}:
+        if any(_block_page(block) >= page for block in blocks):
+            placed.setdefault(page, path)
 
 
 def _anchor(page: int) -> str:
@@ -505,6 +518,14 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             Level.FIX,
             "pdf.tables-rebuilt",
             values={"count": layout.tables, "cells": layout.table_cells},
+            location=source,
+        )
+    if layout.lists:
+        report.add(
+            "pdf",
+            Level.FIX,
+            "pdf.lists-rebuilt",
+            values={"count": layout.lists},
             location=source,
         )
     if layout.drawing_pages:
@@ -1600,12 +1621,24 @@ def _tables(region: "list[Line]") -> "list[list[list[Line]]]":
         if _joins_the_grid(row, run):
             run.append(row)
             continue
-        if len(run) >= ROWS_FOR_A_TABLE:
+        if len(run) >= ROWS_FOR_A_TABLE and not _is_a_list(run):
             found.append(run)
         run = [row] if _side_by_side(row) else []
-    if len(run) >= ROWS_FOR_A_TABLE:
+    if len(run) >= ROWS_FOR_A_TABLE and not _is_a_list(run):
         found.append(run)
     return found
+
+
+def _is_a_list(run: "list[list[Line]]") -> bool:
+    """Whether this grid is really a list with its markers in a column.
+
+    A note set as "•" at the left edge and the sentence beside it makes rows of
+    two cells that line up as neatly as any table's, and read as a table it
+    comes out as a column of bullets and a column of prose. What gives it away
+    is the first column: nothing in it but markers.
+    """
+    return all(len(row) == 2 and not row[0].text.strip()[len(_marker(row[0].text.strip())):].strip()
+               for row in run)
 
 
 #: How wide the white between two pieces of text on one baseline may be for
@@ -1690,9 +1723,31 @@ def _pitch(page: Page) -> float:
     return float(gaps[len(gaps) // 2])
 
 
+#: What share of an area's lines have to start at one edge for that edge to be
+#: a stack rather than an accident. Swept over the owner's manual: 10 % gives
+#: 192 lists and 15 torn paragraphs, 15 % gives 189 and 17, 25 % gives 168 and
+#: 16 — and over the whole range the six books of the Gutenberg corpus do not
+#: move by a single paragraph, because prose has one stack and no argument.
+STACK_SHARE = 0.15
+
+
 def _block_left(lines: list, fallback: float = 0.0) -> float:
+    """The area's left edge: the leftmost stack of line starts, not the
+    commonest one.
+
+    A hanging-indent list has two stacks — the markers at the edge and the
+    continuations set inside it — and the continuations can outnumber the
+    markers. On page 48 of the owner's manual they do, by one line: 17 lines
+    start at 178 pt and 16 at 163. Taking the commonest put the area's edge
+    *inside* its own list, so no line was outdented, no marker opened anything,
+    and forty-two lines of a numbered procedure came out as one paragraph.
+    """
     starts = Counter(round(line.x0) for line in lines if not line.running_head)
-    return float(starts.most_common(1)[0][0]) if starts else fallback
+    if not starts:
+        return fallback
+    enough = max(2, round(STACK_SHARE * sum(starts.values())))
+    stacks = [x for x, count in starts.items() if count >= enough]
+    return float(min(stacks)) if stacks else float(starts.most_common(1)[0][0])
 
 
 def _block_width(lines: list, left: float, fallback: float) -> float:
@@ -1844,6 +1899,70 @@ def _grid(rows: "list[list[Line]]", mark: str = "") -> str:
     return "\n".join(out)
 
 
+#: Two paragraphs in a row, each opening with a marker, are a list. One is a
+#: sentence that happens to begin "1939." — measured on the Gutenberg corpus,
+#: where six books of prose and verse yield 2 to 16 items in all, against 550
+#: in the owner's manual, which is a manual and is mostly procedures.
+ITEMS_FOR_A_LIST = 2
+#: The class on a list whose markers are printed in its own text.
+LIST_CLASS = "ef-pdf-list"
+STYLESHEET_PATH = "styles/pdf.css"
+#: Written by the reader for its own markup, and as short as it can be: a PDF
+#: has no design to carry across, so this says only the one thing the markup
+#: would otherwise be lying about.
+STYLESHEET = """\
+/* A list whose markers stand in its own text. The source drew "1." and "•"
+   as characters and this rebuild keeps every one of them, so the reading
+   system must not set a second marker beside them. */
+ul.ef-pdf-list { list-style: none; padding-left: 0; margin-left: 0; }
+"""
+
+
+def _list_runs(blocks: list) -> "list[tuple[int, int]]":
+    """Runs of paragraphs that each open with a list marker, as index pairs.
+
+    A manual is mostly procedures: 550 of this one's 1 421 blocks open with
+    "1.", "•" or "6.6.4", and read as paragraphs they are a list a reading
+    system cannot see. The markers are text the source drew, so they stay in
+    the item and the list is told not to set its own beside them.
+    """
+    runs: list = []
+    start: "int | None" = None
+    for index in range(len(blocks) + 1):
+        block = blocks[index] if index < len(blocks) else None
+        marked = (block is not None and block.kind == "p" and not block.continued
+                  and bool(_marker(block.text.strip())))
+        if marked and start is None:
+            start = index
+        elif not marked and start is not None:
+            if index - start >= ITEMS_FOR_A_LIST:
+                runs.append((start, index - 1))
+            start = None
+    return runs
+
+
+def _element(block: Block, mark: str, counts: dict, item: bool = False) -> str:
+    """One block as its markup. *item* makes a paragraph a list item."""
+    if block.kind == "image":
+        return _figure(block.picture, mark)
+    if block.kind == "table":
+        counts["tables"] += 1
+        return _grid(block.rows, mark)
+    if block.kind == "labels":
+        counts["labelled_drawings"] += 1
+        return f'    <p{mark} class="{LABEL_CLASS}">{escape(block.text)}</p>'
+    if block.kind == "head":
+        return f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>'
+    if block.kind in ("h1", "h2"):
+        counts["headings"] += 1
+        return f"    <{block.kind}{mark}>{escape(block.text)}</{block.kind}>"
+    if block.continued:
+        return f'    <p{mark} class="{CONTINUED_CLASS}">{escape(block.text)}</p>'
+    counts["paragraphs"] += 1
+    tag = "li" if item else "p"
+    return f"    <{tag}{mark}>{escape(block.text)}</{tag}>"
+
+
 def _render(blocks: list[Block], title: str,
             anchored: "set[int] | None" = None) -> tuple[str, dict]:
     """The section's markup, and what went into it.
@@ -1853,34 +1972,26 @@ def _render(blocks: list[Block], title: str,
     got one — a nav entry is only allowed to point where something is.
     """
     counts: dict = {"paragraphs": 0, "headings": 0, "tables": 0,
-                    "labelled_drawings": 0, "anchored": []}
+                    "labelled_drawings": 0, "lists": 0, "anchored": []}
     wanted = set(anchored or ())
+    runs = _list_runs(blocks)
+    opens = {first for first, _ in runs}
+    closes = {last for _, last in runs}
+    listed = {index for first, last in runs for index in range(first, last + 1)}
     body: list[str] = []
-    for block in blocks:
+    for index, block in enumerate(blocks):
         page = _block_page(block)
         mark = ""
         if page in wanted:
             wanted.discard(page)
             counts["anchored"].append(page)
             mark = f' id="{_anchor(page)}"'
-        if block.kind == "image":
-            body.append(_figure(block.picture, mark))
-        elif block.kind == "table":
-            counts["tables"] += 1
-            body.append(_grid(block.rows, mark))
-        elif block.kind == "labels":
-            counts["labelled_drawings"] += 1
-            body.append(f'    <p{mark} class="{LABEL_CLASS}">{escape(block.text)}</p>')
-        elif block.kind == "head":
-            body.append(f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>')
-        elif block.kind in ("h1", "h2"):
-            counts["headings"] += 1
-            body.append(f"    <{block.kind}{mark}>{escape(block.text)}</{block.kind}>")
-        elif block.continued:
-            body.append(f'    <p{mark} class="{CONTINUED_CLASS}">{escape(block.text)}</p>')
-        else:
-            counts["paragraphs"] += 1
-            body.append(f"    <p{mark}>{escape(block.text)}</p>")
+        if index in opens:
+            counts["lists"] += 1
+            body.append(f'    <ul class="{LIST_CLASS}">')
+        body.append(_element(block, mark, counts, item=index in listed))
+        if index in closes:
+            body.append("    </ul>")
     # No `xml:lang` on the document, deliberately. The PDF states one language,
     # in its catalogue, about the whole file; stamping that on all ten documents
     # turns one claim into ten that later look independent. They are not, and
@@ -1891,6 +2002,9 @@ def _render(blocks: list[Block], title: str,
     # a fact about itself. It was not stating anything; this reader was. With
     # no declaration on the document, the publication's applies, which is what
     # one claim about one file means.
+    # The sheet is linked only where it is needed, which is where a list is.
+    sheet = (f'    <link rel="stylesheet" type="text/css" href="../{STYLESHEET_PATH}"/>\n'
+             if counts["lists"] else "")
     markup = (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         "<!DOCTYPE html>\n"
@@ -1898,7 +2012,8 @@ def _render(blocks: list[Block], title: str,
         "  <head>\n"
         '    <meta charset="utf-8"/>\n'
         f"    <title>{escape(title or ' ')}</title>\n"
-        "  </head>\n"
+        + sheet
+        + "  </head>\n"
         "  <body>\n"
         + "\n".join(body)
         + "\n  </body>\n</html>\n"
