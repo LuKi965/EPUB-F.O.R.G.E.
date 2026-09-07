@@ -192,6 +192,17 @@ class MainWindow(QMainWindow):
         rect = QRect(*where)
         if not fits_on_a_screen(rect):
             return
+        # Trimmed to the screen it lands on, not taken on trust: a window
+        # remembered on a large monitor and restored on a laptop would
+        # otherwise open wider than the desktop, with its right-hand column
+        # somewhere nobody can drag it back from.
+        screen = QApplication.screenAt(rect.center()) or self.screen()
+        if screen is not None:
+            room = screen.availableGeometry()
+            rect.setWidth(min(rect.width(), room.width()))
+            rect.setHeight(min(rect.height(), room.height()))
+            rect.moveLeft(max(room.left(), min(rect.left(), room.right() - rect.width())))
+            rect.moveTop(max(room.top(), min(rect.top(), room.bottom() - rect.height())))
         self.move(rect.topLeft())
         self.resize(max(MIN_WINDOW[0], rect.width()), max(MIN_WINDOW[1], rect.height()))
 
