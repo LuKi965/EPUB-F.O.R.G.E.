@@ -28,6 +28,19 @@ class PdfStage(Stage):
         if ctx.book.source_version != "pdf":
             return
         self._ask_about_language(ctx)
+        found, examples = self._running_heads(ctx)
+        count = sum(len(heads) for _, _, heads in found)
+        if not count:
+            return
+        choice, automation = self._answer(ctx, found, examples, count)
+        if choice != "remove":
+            self._keep(ctx, found, count)
+            return
+        self._take_out(ctx, found, automation)
+
+    def _running_heads(self, ctx: Context) -> "tuple[list, list]":
+        """Every paragraph the reader marked as a running head, per document,
+        and up to five of them read as examples for the question."""
         found: list[tuple[object, object, list]] = []
         examples: list[str] = []
         for resource in ctx.book.content_docs():
@@ -46,10 +59,10 @@ class PdfStage(Stage):
                     text = "".join(element.itertext()).strip()
                     if text and text not in examples and len(examples) < 5:
                         examples.append(text)
-        count = sum(len(heads) for _, _, heads in found)
-        if not count:
-            return
+        return found, examples
 
+    def _answer(self, ctx: Context, found: list, examples: list, count: int) -> "tuple[str, object]":
+        """The standing answer of the batch, or one question for all of them."""
         choice = ctx.policy.pdf_running_heads
         if choice == "ask":
             question = Question(
@@ -69,23 +82,24 @@ class PdfStage(Stage):
                 subject=f"{count} lines",
             )
             choice = "remove" if ctx.decide(question).option == "remove" else "keep"
-            automation = Automation.ASKED
-        else:
-            automation = Automation.DETERMINISTIC
+            return choice, Automation.ASKED
+        return choice, Automation.DETERMINISTIC
 
-        if choice != "remove":
-            for resource, root, heads in found:
-                for element in heads:
-                    # The mark has done its work; the text stays as ordinary prose.
-                    _drop_class(element, pdf.RUNNING_HEAD_CLASS)
-                # The halves a head cut apart stay apart: that is the page's
-                # order, and the head is still standing between them.
-                for element in _continuations(root):
-                    _drop_class(element, pdf.CONTINUED_CLASS)
-                resource.data = xhtml.serialize(root)
-            self.note(ctx, Level.PRESERVED, "pdf.running-heads-kept", values={"count": count})
-            return
+    def _keep(self, ctx: Context, found: list, count: int) -> None:
+        """Nothing leaves the book: only the marks the reader put on, which have
+        done their work."""
+        for resource, root, heads in found:
+            for element in heads:
+                # The mark has done its work; the text stays as ordinary prose.
+                _drop_class(element, pdf.RUNNING_HEAD_CLASS)
+            # The halves a head cut apart stay apart: that is the page's
+            # order, and the head is still standing between them.
+            for element in _continuations(root):
+                _drop_class(element, pdf.CONTINUED_CLASS)
+            resource.data = xhtml.serialize(root)
+        self.note(ctx, Level.PRESERVED, "pdf.running-heads-kept", values={"count": count})
 
+    def _take_out(self, ctx: Context, found: list, automation) -> None:
         rejoined = 0
         removed = 0
         documents = 0
