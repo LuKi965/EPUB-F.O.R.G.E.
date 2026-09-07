@@ -277,8 +277,7 @@ class TestTheKeyboardWithoutAMenu:
         from PySide6.QtWidgets import QStatusBar
 
         assert window.findChild(QStatusBar) is None
-        news = window.tools._news[window.tools.router.currentWidget()]
-        assert news.text() == "gotowe: 12"
+        assert window.tools.router.currentWidget().news.text() == "gotowe: 12"
 
     def test_a_panel_in_the_old_window_still_reaches_its_status_bar(self, qt_app):
         """The seam works both ways, or the old window loses its progress line
@@ -1086,6 +1085,154 @@ class TestTheWindowComesBackWhereItWas:
         assert state.remembered_geometry() is None
         state.save_geometry(30, 40, 1000, 700)
         assert state.remembered_geometry() == (30, 40, 1000, 700)
+
+
+class TestTheToolsAreThisWindowsOwnPages:
+    """Not the old panels dropped into a frame.
+
+    The work they do is another matter: that lives in `gui/toolwork.py`, with
+    no Qt in it, and both windows call it — so neither can drift from the other
+    about what a survey prints.
+    """
+
+    def test_the_shell_never_reaches_for_the_old_panels(self):
+        import ast
+
+        offenders = []
+        for path in (ROOT / "epubforge" / "gui" / "shell").rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("tabs"):
+                    offenders.append(f"{path.name}:{node.lineno}")
+                if isinstance(node, ast.ImportFrom) and node.module is None:
+                    names = {alias.name for alias in node.names}
+                    if names & {"LibraryPanel", "DiagnosticsPanel", "CorpusPanel"}:
+                        offenders.append(f"{path.name}:{node.lineno}")
+        assert not offenders, offenders
+
+    def test_the_work_itself_has_no_window_in_it(self):
+        """`toolwork` is what makes one implementation serve two windows; an
+        import of Qt in it would be the first step back to two."""
+        source = (ROOT / "epubforge" / "gui" / "toolwork.py").read_text(encoding="utf-8")
+        assert "PySide6" not in source
+        assert "QWidget" not in source
+
+    def test_and_the_old_panels_call_the_same_functions(self):
+        """The point of the move: not a copy, the same code."""
+        from epubforge.gui import toolwork
+        from epubforge.gui.tabs import DiagnosticsPanel, LibraryPanel
+
+        assert LibraryPanel._render_survey is toolwork.render_survey
+        assert DiagnosticsPanel._describe is toolwork.describe
+        assert DiagnosticsPanel._health is toolwork.check_health
+        assert DiagnosticsPanel._render is toolwork.compare_render
+        assert DiagnosticsPanel._fidelity is toolwork.compare_fidelity
+        assert DiagnosticsPanel._validate is toolwork.validate_book
+
+    @pytest.mark.parametrize("name", ["library", "diagnostics", "corpus"])
+    def test_every_tool_has_the_same_shape(self, qt_app, window, name):
+        window.navigate("tools")
+        window.tools.open_tool(name)
+        page = window.tools.router.currentWidget()
+        from epubforge.gui.shell.pages.tools.base import ToolPage
+
+        assert isinstance(page, ToolPage)
+        # A sentence about what it is for, somewhere to point it, one main
+        # action, a compact progress line, and an answer somebody can take away.
+        assert page.card.title_label.text()
+        assert page.findChild(type(page.result)) is not None
+        assert page._buttons and page._buttons[0].isEnabled()
+        assert page.copy_button.isEnabled()
+        assert not page.save_button.isEnabled()
+        assert not page.progress.isVisible()
+
+    @pytest.mark.parametrize("name", ["library", "diagnostics", "corpus"])
+    def test_and_a_way_back_to_the_index(self, qt_app, window, name):
+        window.navigate("tools")
+        window.tools.open_tool(name)
+        assert window.tools.router.currentWidget() is not window.tools._index
+        window.tools.router.currentWidget().back_requested.emit()
+        assert window.tools.router.currentWidget() is window.tools._index
+
+    def test_they_use_the_shell_s_own_worker(self, qt_app, window):
+        from epubforge.gui.shell.workers import Runner
+
+        window.tools.open_tool("library")
+        page = window.tools.router.currentWidget()
+        assert isinstance(page.runner, Runner)
+        # And the window knows about it, so closing stops it like anything else.
+        assert page.runner in window.runners()
+
+    def test_a_tool_with_nothing_to_look_at_says_so_and_starts_nothing(self, qt_app, window):
+        window.tools.open_tool("library")
+        page = window.tools.router.currentWidget()
+        page.folder.setText("")
+        page.run()
+        assert not page.runner.busy
+        assert tr("common.nofolder") in page.result.toPlainText()
+
+    def test_a_tool_runs_its_work_and_shows_what_came_back(self, qt_app, window, monkeypatch):
+        from epubforge.gui.shell.pages.tools import library as library_page
+        from epubforge.gui.toolwork import ToolAnswer
+
+        answer = ToolAnswer(text="120 książek", payload="{}", headline="gotowe: 120",
+                            suggestion="przeglad.json")
+        monkeypatch.setattr(library_page, "library", lambda folder, **kwargs: answer)
+        window.tools.open_tool("library")
+        page = window.tools.router.currentWidget()
+        page.folder.setText("/tmp")
+        page.run()
+        settle(qt_app, window.rebuild, lambda: not page.runner.busy)
+        qt_app.processEvents()
+        assert page.result.toPlainText() == "120 książek"
+        assert page.news.text() == "gotowe: 120"
+        assert page.save_button.isEnabled()
+
+    def test_changing_the_question_forgets_the_last_answer(self, qt_app, window):
+        """Save is offered separately from Run, so the two can drift: run one
+        question, pick another, press Save, and out comes the first answer
+        under the second one's name."""
+        from epubforge.gui.toolwork import ToolAnswer
+
+        window.tools.open_tool("library")
+        page = window.tools.router.currentWidget()
+        page.show_answer(ToolAnswer(text="x", payload="{}"))
+        assert page.save_button.isEnabled()
+        page.inventory_choice.setChecked(True)
+        assert not page.save_button.isEnabled()
+
+    def test_the_corpus_page_still_answers_the_streak_question(self, qt_app, window, tmp_path):
+        """The owner has been asking this from outside the program; it must not
+        have been left behind in the old panel."""
+        import json
+
+        signatures = tmp_path / "expected"
+        signatures.mkdir()
+        (tmp_path / "runs.json").write_text(
+            json.dumps([
+                {"version": "0.2.4", "books": 90, "modes": ["preserve"], "clean": True},
+                {"version": "0.2.6", "books": 99, "modes": ["preserve"], "clean": True},
+            ]),
+            encoding="utf-8",
+        )
+        window.tools.open_tool("corpus")
+        page = window.tools.router.currentWidget()
+        page._signatures_used = signatures
+        said = page.streak()
+        assert "0.2.4" in said and "0.2.6" in said
+
+    def test_merging_copies_is_still_a_dialog_and_still_reachable(self, qt_app):
+        """On a page of its own: asking the real window for it would open the
+        dialog, and a modal dialog in a test is a test that never ends."""
+        from epubforge.gui.shell.pages.tools import ToolsPage
+
+        page = ToolsPage(tokens_module.DARK)
+        seen = []
+        page.merge_requested.connect(lambda: seen.append(True))
+        page.open_tool("merge")
+        assert seen == [True]
+        assert page.router.currentWidget() is page._index
+        page.close()
 
 
 class TestTheAdapterSpeaksInPlainData:

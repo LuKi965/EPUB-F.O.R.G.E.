@@ -225,8 +225,11 @@ class TestTheEdgeCasesAreReachableFromTheWindow:
         panel.books.setText(str(tmp_path))
 
         from epubforge.edge_cases import build_edges
+        from epubforge.gui import toolwork
 
-        panel._handle_edges(build_edges(tmp_path))
+        # The panel shows what `toolwork` renders; both windows show the same
+        # text, which is why the rendering moved out of the panel.
+        panel.handle(toolwork.render_edges(build_edges(tmp_path)))
         text = panel.output.toPlainText()
         assert len(list(tmp_path.glob("*.epub"))) == 4
         for name in ("brzeg-bez-okladki", "brzeg-400-sekcji"):
@@ -362,9 +365,10 @@ class TestTheFixtureBooksAreAskedForInTheWindow:
         panel prints what the book has to have in it, which is the only form of
         the question the owner can act on."""
         from epubforge.fixtures import ROLES, Match
+        from epubforge.gui import toolwork
 
         panel = self.panel(window)
-        panel._handle_fixtures([Match(role.id) for role in ROLES])
+        panel.handle(toolwork.render_fixtures([Match(role.id) for role in ROLES]))
         text = panel.output.toPlainText()
         for role in ROLES:
             assert role.id in text
@@ -376,9 +380,12 @@ class TestTheFixtureBooksAreAskedForInTheWindow:
         import pathlib
 
         from epubforge.fixtures import Match
+        from epubforge.gui import toolwork
 
         panel = self.panel(window)
-        panel._handle_fixtures([Match("ksiazka-1", pathlib.Path(tmp_path / "jest.epub"))])
+        panel.handle(
+            toolwork.render_fixtures([Match("ksiazka-1", pathlib.Path(tmp_path / "jest.epub"))])
+        )
         assert "jest.epub" in panel.output.toPlainText()
 
     def test_a_near_miss_is_offered_as_a_question_and_not_as_the_answer(self, window, tmp_path):
@@ -387,10 +394,13 @@ class TestTheFixtureBooksAreAskedForInTheWindow:
         import pathlib
 
         from epubforge.fixtures import Match
+        from epubforge.gui import toolwork
 
         panel = self.panel(window)
-        panel._handle_fixtures(
-            [Match("ksiazka-1", None, (pathlib.Path(tmp_path / "podobna.epub"),))]
+        panel.handle(
+            toolwork.render_fixtures(
+                [Match("ksiazka-1", None, (pathlib.Path(tmp_path / "podobna.epub"),))]
+            )
         )
         text = panel.output.toPlainText()
         assert "podobna.epub" in text

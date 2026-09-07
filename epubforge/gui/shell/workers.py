@@ -89,6 +89,36 @@ class RebuildJob(_Job):
         self.finished.emit(outcome)
 
 
+class ToolJob(_Job):
+    """One specialist tool, run off the window's thread.
+
+    The work itself is a function in `gui.toolwork` — no Qt, no widgets — and
+    this only carries it across the thread boundary and reports what it says on
+    the way. Both windows run the same functions; only this side differs.
+    """
+
+    finished = Signal(object)  # ToolAnswer
+
+    def __init__(self, work) -> None:
+        super().__init__()
+        self._work = work
+
+    def run(self) -> None:
+        from .models import Progress
+
+        def tick(done: int, total: int, name: str) -> None:
+            self.progress.emit(Progress(done, total, name, "tool"))
+
+        try:
+            answer = self._work(tick)
+        except Exception as exc:  # noqa: BLE001 — a tool that fails says so
+            # These read whole shelves of somebody else's books. A broken one is
+            # a message in the result area, not a window that closes.
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+            return
+        self.finished.emit(answer)
+
+
 class Runner(QObject):
     """Owns one job and the thread it runs on, and ends both without waiting.
 

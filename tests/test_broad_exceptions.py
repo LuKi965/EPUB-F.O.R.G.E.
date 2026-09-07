@@ -43,7 +43,13 @@ SOURCE = pathlib.Path(epubforge.__file__).parent
 #: okno zostaje na ekranie postępu na zawsze). Wszystkie z powodem
 #: i wszystkie zgłaszają się człowiekowi — czyli spełniają regułę, której
 #: ten plik pilnuje.
-BROAD_TODAY = 71
+#:
+#: **Podniesione 71 → 72 (2026-09-07, druga iteracja revampu).** Jedno miejsce:
+#: `workers.ToolJob.run`. Narzędzia czytają całe półki cudzych książek — lxml,
+#: zipfile, EPUBCheck, przeglądarka — i awaria jednego z nich ma być wiadomością
+#: w polu wyniku, a nie martwym wątkiem i stroną, która do końca sesji pokazuje
+#: pasek postępu. Ten sam argument co przy dwóch handlerach w `workers` obok.
+BROAD_TODAY = 72
 
 #: Co liczy się jako szerokie: wszystko, co złapie błąd, którego nikt nie
 #: wymienił z nazwy.

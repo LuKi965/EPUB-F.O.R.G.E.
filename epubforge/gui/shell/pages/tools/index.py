@@ -5,22 +5,24 @@ destinations in the old window — equal in weight to the rebuild itself, which
 is the thing almost nobody comes here to do. They keep every function they had;
 what changes is that a person has to ask for them.
 
-The panels themselves are the ones the program already has (`gui/tabs.py`).
-Rewriting three working panels to change where they are reached from would be
-a large diff that improves nothing — and the design package's own rule is to
-keep every currently reachable function, not to rebuild it.
+Each of them is now a page of this shell rather than an old panel dropped into
+a frame: the same heading, the same cards, the same responsive layout and the
+same worker as everything else. What they *do* did not move with them — that
+lives in `gui/toolwork.py`, which has no Qt in it and which the old window's
+panels call as well, so neither window can drift from the other about what a
+survey prints.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
-from ... import theme as legacy_theme
-from ...strings import tr
-from ..responsive import Cards, LayoutMode, Responsive, spread
-from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
-from ..widgets import PageHeader, StatusBadge, Tile, button, label, page_body
+from .... import theme as legacy_theme
+from ....strings import tr
+from ...responsive import Cards, LayoutMode, Responsive, spread
+from ...tokens import CARD_GAP, Tokens
+from ...widgets import PageHeader, StatusBadge, Tile, page_body
 
 
 def palette_for(tokens: Tokens) -> legacy_theme.Palette:
@@ -65,8 +67,6 @@ class ToolsPage(Responsive, QWidget):
         self.tokens = tokens
         self.palette_colors = palette_for(tokens)
         self._panels: dict[str, QWidget] = {}
-        #: Tool page → the label its panel's one-line news goes into.
-        self._news: dict = {}
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -124,39 +124,25 @@ class ToolsPage(Responsive, QWidget):
         self.router.setCurrentWidget(self._index)
 
     def say(self, message: str) -> None:
-        """The one line a panel used to put in the status bar.
+        """One line of news, to whichever tool is open.
 
-        It goes under the tool's own heading, where the person running the tool
-        is already looking, rather than at the far bottom edge of the window.
+        It goes under the tool's own heading, where the person running it is
+        already looking, rather than at the far bottom edge of the window.
         """
-        news = self._news.get(self.router.currentWidget())
-        if news is not None:
-            news.setText(message)
+        page = self.router.currentWidget()
+        sink = getattr(page, "say", None)
+        if callable(sink):
+            sink(message)
 
     def _build(self, name: str) -> QWidget:
-        from ...tabs import CorpusPanel, DiagnosticsPanel, LibraryPanel
+        from .corpus import CorpusToolPage
+        from .diagnostics import DiagnosticsToolPage
+        from .library import LibraryToolPage
 
-        panels = {"library": LibraryPanel, "diagnostics": DiagnosticsPanel, "corpus": CorpusPanel}
-        key = {
-            "library": "shell.tools.library",
-            "diagnostics": "shell.tools.diagnostics",
-            "corpus": "shell.tools.corpus",
-        }[name]
-
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(CONTENT_MARGIN, 24, CONTENT_MARGIN, 22)
-        layout.setSpacing(CARD_GAP)
-        top = QHBoxLayout()
-        top.addWidget(
-            PageHeader(tr("shell.tools.eyebrow"), tr(f"{key}.title"), tr(f"{key}.body")), 1
-        )
-        back = button(tr("shell.tools.back"), glyph="chevron", tokens=self.tokens)
-        back.clicked.connect(self.show_index)
-        top.addWidget(back, 0, Qt.AlignTop)
-        layout.addLayout(top)
-        news = label("", "muted")
-        layout.addWidget(news)
-        self._news[page] = news
-        layout.addWidget(panels[name](self.palette_colors), 1)
+        page = {
+            "library": LibraryToolPage,
+            "diagnostics": DiagnosticsToolPage,
+            "corpus": CorpusToolPage,
+        }[name](self.tokens)
+        page.back_requested.connect(self.show_index)
         return page

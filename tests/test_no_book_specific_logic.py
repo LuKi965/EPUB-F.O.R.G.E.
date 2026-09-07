@@ -40,7 +40,11 @@ PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 #: `fixtures` is the catalogue itself; `cli` and the GUI are how a person reads
 #: it. Nothing that rebuilds a book is here, and nothing may be added without
 #: the argument for why a rebuild decision depends on which book it is.
-MAY_KNOW_ABOUT_FIXTURES = {"fixtures.py", "cli.py", "tabs.py"}
+#:
+#: `tabs.py` was the GUI entry until the tool work moved into `gui/toolwork.py`
+#: so that both windows could ask the same questions. That is a swap and not a
+#: widening: the panels now delegate and no longer import the catalogue.
+MAY_KNOW_ABOUT_FIXTURES = {"fixtures.py", "cli.py", "toolwork.py"}
 
 
 def modules() -> "list[pathlib.Path]":
@@ -339,7 +343,7 @@ def test_the_exemption_list_is_not_quietly_growing():
     the Witcher on purpose; it is `fixtures` becoming importable from one more
     place each release until something on the rebuild path has it.
     """
-    assert MAY_KNOW_ABOUT_FIXTURES == {"fixtures.py", "cli.py", "tabs.py"}
+    assert MAY_KNOW_ABOUT_FIXTURES == {"fixtures.py", "cli.py", "toolwork.py"}
     for name in MAY_KNOW_ABOUT_FIXTURES:
         assert any(path.name == name for path in modules()), f"{name} is gone"
 
