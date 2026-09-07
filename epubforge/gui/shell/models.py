@@ -202,6 +202,25 @@ class BatchOutcome:
     def all_well(self) -> bool:
         return bool(self.books) and not self.failed and not self.cancelled
 
+    @property
+    def folders(self) -> "tuple[str, ...]":
+        """Every folder a file of this run actually landed in.
+
+        `destination` is what the person *chose*, and it is `None` for the
+        common case — books written beside their sources. Asking the books
+        where they went is the only answer that is true in both cases, and it
+        is the one the history needs: a run over three shelves lands in three
+        folders and none of them is "the destination".
+        """
+        seen: list[str] = []
+        for book in self.books:
+            if book.output is None:
+                continue
+            place = str(Path(book.output).parent)
+            if place not in seen:
+                seen.append(place)
+        return tuple(seen)
+
 
 @dataclass
 class JobRecord:

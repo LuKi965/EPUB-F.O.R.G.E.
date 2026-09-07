@@ -128,3 +128,31 @@ def forget_folders() -> None:
     store = settings()
     for kind in FOLDER_KINDS:
         store.remove(f"folders/{kind}")
+
+
+# --------------------------------------------------------------------------
+# where the window was
+# --------------------------------------------------------------------------
+
+def save_geometry(x: int, y: int, width: int, height: int) -> None:
+    """Remember where the window was, as four numbers.
+
+    Four numbers rather than Qt's opaque `saveGeometry` blob, because what
+    comes back has to be *checked* against the screens this machine has now,
+    and a blob cannot be checked — `restoreGeometry` would simply put the
+    window back where the second monitor used to be.
+    """
+    settings().setValue("window/where", [int(x), int(y), int(width), int(height)])
+
+
+def remembered_geometry() -> "tuple[int, int, int, int] | None":
+    stored = settings().value("window/where")
+    if not stored or len(list(stored)) != 4:
+        return None
+    try:
+        x, y, width, height = (int(value) for value in stored)
+    except (TypeError, ValueError):
+        return None
+    if width < 200 or height < 150:
+        return None
+    return x, y, width, height

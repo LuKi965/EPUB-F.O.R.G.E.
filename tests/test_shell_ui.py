@@ -786,6 +786,174 @@ class TestHistoryRemembersLittleAndNothingPrivate:
         assert state.load_history() == []
 
 
+@pytest.fixture
+def own_settings(tmp_path, monkeypatch):
+    """A settings store of this test's own.
+
+    The real one is the machine's, and a test that writes into it is a test
+    that changes where somebody's dialogs open.
+    """
+    from PySide6.QtCore import QSettings
+
+    from epubforge.gui.shell import state
+
+    store = QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat)
+    monkeypatch.setattr(state, "settings", lambda: store)
+    return store
+
+
+class TestHistoryKnowsWhereTheFilesActuallyWent:
+    def test_the_folders_come_from_the_books_and_not_from_the_choice(self, tmp_path):
+        """With no destination chosen the books land beside their sources, and
+        the old record wrote "" for exactly that — the common case."""
+        from epubforge.gui.shell.models import BatchOutcome
+
+        one, two = tmp_path / "a", tmp_path / "b"
+        outcome = BatchOutcome(
+            books=(
+                BookItem(source=one / "x.epub", title="x", status=BookStatus.DONE,
+                         output=one / "x.forged.epub"),
+                BookItem(source=two / "y.epub", title="y", status=BookStatus.DONE,
+                         output=two / "y.forged.epub"),
+            ),
+        )
+        assert outcome.destination is None
+        assert outcome.folders == (str(one), str(two))
+
+    def test_a_book_that_was_not_written_names_no_folder(self, tmp_path):
+        from epubforge.gui.shell.models import BatchOutcome
+
+        outcome = BatchOutcome(
+            books=(BookItem(source=tmp_path / "x.epub", title="x", status=BookStatus.FAILED),)
+        )
+        assert outcome.folders == ()
+
+    def test_one_folder_offers_a_button_and_several_offer_a_list(self, qt_app):
+        from epubforge.gui.shell.pages.history import HistoryRow
+
+        one = JobRecord(when="", count=1, written=1, attention=0, failed=0, preset="p",
+                        destinations=("/tmp/a",))
+        row = HistoryRow(one, tokens_module.DARK)
+        from PySide6.QtWidgets import QPushButton
+
+        texts = [item.text() for item in row.findChildren(QPushButton)]
+        assert texts == [tr("shell.history.open")]
+
+        many = JobRecord(when="", count=2, written=2, attention=0, failed=0, preset="p",
+                         destinations=("/tmp/a", "/tmp/b"))
+        row = HistoryRow(many, tokens_module.DARK)
+        item = row.findChildren(QPushButton)[0]
+        assert item.text() == tr("shell.history.open.many", count=2)
+        assert [action.text() for action in item.menu().actions()] == ["/tmp/a", "/tmp/b"]
+
+    def test_a_run_that_wrote_nothing_and_was_stopped_is_not_a_success(self, qt_app, window):
+        from epubforge.gui.shell.models import BatchOutcome
+
+        outcome = BatchOutcome(
+            books=(BookItem(source=pathlib.Path("a.epub"), title="a",
+                            status=BookStatus.CANCELLED),),
+            cancelled=True,
+        )
+        record = JobRecord(
+            when="", count=1, written=0, attention=0, failed=0, preset="p",
+            cancelled=outcome.cancelled,
+        )
+        assert record.status is BookStatus.CANCELLED
+        assert record.folders == ()
+
+    def test_and_a_run_with_no_books_at_all_is_not_written_down(self, qt_app, window, monkeypatch):
+        from epubforge.gui.shell.models import BatchOutcome
+
+        written = []
+        monkeypatch.setattr(
+            "epubforge.gui.shell.window.remember", lambda record: written.append(record) or []
+        )
+        window._record(BatchOutcome(books=(), cancelled=True))
+        assert written == []
+
+
+class TestTheFolderTheDialogOpensIn:
+    """"Remember the last folder" was in the window from the first version and
+    did nothing whatever: written by the checkbox, read by nobody."""
+
+    def test_it_is_remembered_when_the_setting_is_on(self, own_settings, tmp_path):
+        from epubforge.gui.shell import state
+
+        own_settings.setValue("remember-folder", True)
+        state.remember_folder("input", str(tmp_path / "polka" / "ksiazka.epub"))
+        assert state.last_folder("input") == str(tmp_path / "polka")
+
+    def test_the_folder_is_kept_and_never_the_file(self, own_settings, tmp_path):
+        from epubforge.gui.shell import state
+
+        own_settings.setValue("remember-folder", True)
+        state.remember_folder("report", str(tmp_path / "raporty" / "raport.json"))
+        assert state.last_folder("report") == str(tmp_path / "raporty")
+
+    def test_nothing_is_remembered_when_the_setting_is_off(self, own_settings, tmp_path):
+        from epubforge.gui.shell import state
+
+        own_settings.setValue("remember-folder", False)
+        state.remember_folder("input", str(tmp_path / "polka" / "x.epub"))
+        assert state.last_folder("input") == ""
+
+    def test_switching_it_off_forgets_what_was_remembered(self, own_settings, tmp_path, qt_app):
+        """An instruction, not a pause: somebody who unticks this is saying the
+        program should not be keeping a note of where their books are."""
+        from epubforge.gui.shell import state
+
+        own_settings.setValue("remember-folder", True)
+        for kind in state.FOLDER_KINDS:
+            state.remember_folder(kind, str(tmp_path / kind / "x.epub"))
+        state.forget_folders()
+        own_settings.setValue("remember-folder", True)
+        assert [state.last_folder(kind) for kind in state.FOLDER_KINDS] == ["", "", "", ""]
+
+    def test_the_four_kinds_do_not_share_a_memory(self, own_settings, tmp_path):
+        from epubforge.gui.shell import state
+
+        own_settings.setValue("remember-folder", True)
+        state.remember_folder("input", str(tmp_path / "wejscie" / "a.epub"))
+        state.remember_folder("output", str(tmp_path / "wyjscie" / "b.epub"))
+        assert state.last_folder("input") == str(tmp_path / "wejscie")
+        assert state.last_folder("output") == str(tmp_path / "wyjscie")
+
+
+class TestTheWindowComesBackWhereItWas:
+    def test_a_remembered_rectangle_on_a_screen_we_have_is_used(self, qt_app):
+        from PySide6.QtCore import QRect
+
+        from epubforge.gui.shell.window import fits_on_a_screen
+
+        where = QApplication.primaryScreen().availableGeometry()
+        assert fits_on_a_screen(QRect(where.x() + 40, where.y() + 40, 900, 600))
+
+    def test_and_one_on_a_monitor_that_is_gone_is_not(self, qt_app):
+        """The failure this prevents looks exactly like a program that will not
+        start: the window opens where the second monitor used to be."""
+        from PySide6.QtCore import QRect
+
+        from epubforge.gui.shell.window import fits_on_a_screen
+
+        assert not fits_on_a_screen(QRect(9000, 5000, 1200, 800))
+
+    def test_the_opening_size_never_exceeds_the_screen(self, qt_app):
+        from epubforge.gui.shell.window import opening_size
+
+        screen = QApplication.primaryScreen()
+        width, height = opening_size(screen)
+        assert width <= screen.availableGeometry().width()
+        assert height <= screen.availableGeometry().height()
+
+    def test_a_stored_rectangle_that_makes_no_sense_is_ignored(self, own_settings):
+        from epubforge.gui.shell import state
+
+        own_settings.setValue("window/where", [10, 10, 3, 3])
+        assert state.remembered_geometry() is None
+        state.save_geometry(30, 40, 1000, 700)
+        assert state.remembered_geometry() == (30, 40, 1000, 700)
+
+
 class TestTheAdapterSpeaksInPlainData:
     def test_pages_never_import_the_engine(self):
         """The seam, as a test rather than as an intention."""

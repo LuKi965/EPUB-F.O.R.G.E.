@@ -34,7 +34,15 @@ from . import tokens as tokens_module
 from .backend import EngineBackend
 from .models import JobRecord
 from .pages import HistoryPage, HomePage, RebuildPage, SettingsPage, ToolsPage
-from .state import forget_history, load_history, remember, settings
+from .state import (
+    forget_folders,
+    forget_history,
+    load_history,
+    remember,
+    remembered_geometry,
+    save_geometry,
+    settings,
+)
 from .tokens import COMPACT_BELOW, COMPACT_SLACK, MIN_WINDOW, Tokens
 from .widgets import Sidebar
 
@@ -109,6 +117,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(tr("window.title", version=version_string()))
         self.setMinimumSize(*MIN_WINDOW)
         self.resize(*opening_size(self.screen() or QApplication.primaryScreen()))
+        self._restore_where_it_was()
         self.setAcceptDrops(True)
 
         self.history = load_history()
@@ -156,9 +165,7 @@ class MainWindow(QMainWindow):
         self.history_page.cleared.connect(self._forget_history)
         self.settings_page.language_changed.connect(self._change_language)
         self.settings_page.theme_changed.connect(self._change_theme)
-        self.settings_page.remember_changed.connect(
-            lambda state: settings().setValue("remember-folder", state)
-        )
+        self.settings_page.remember_changed.connect(self._remember_changed)
         self.settings_page.about_requested.connect(self._show_about)
 
         self.rebuild.stage_changed.connect(self._stage_changed)
@@ -166,6 +173,25 @@ class MainWindow(QMainWindow):
         self.navigate("home")
         if initial_files:
             self._start_rebuild(list(initial_files))
+
+    def _restore_where_it_was(self) -> None:
+        """Put the window back, if back is still somewhere a person can see.
+
+        Monitors get unplugged and resolutions change. A remembered rectangle
+        is only used when it still lands on a screen this machine has — the
+        alternative is a window that opens where the second monitor was, which
+        looks exactly like a program that will not start.
+        """
+        where = remembered_geometry()
+        if where is None:
+            return
+        from PySide6.QtCore import QRect
+
+        rect = QRect(*where)
+        if not fits_on_a_screen(rect):
+            return
+        self.move(rect.topLeft())
+        self.resize(max(MIN_WINDOW[0], rect.width()), max(MIN_WINDOW[1], rect.height()))
 
     # -- routing ------------------------------------------------------------
     def navigate(self, route: str) -> None:
@@ -206,6 +232,17 @@ class MainWindow(QMainWindow):
     def _record(self, outcome) -> None:
         import datetime
 
+        if not outcome.books:
+            # A run that was stopped before it opened anything is not a job
+            # somebody will want to find again; it is a line saying nothing.
+            return
+        # Where the files really are, not where they were asked to go. With no
+        # folder chosen the books land beside their sources, and the old record
+        # wrote "" — so the one case where a person most needs to be told where
+        # to look was the one case history could not answer.
+        folders = outcome.folders or (
+            (str(outcome.destination),) if outcome.destination else ()
+        )
         record = JobRecord(
             when=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
             count=len(outcome.books),
@@ -213,7 +250,8 @@ class MainWindow(QMainWindow):
             attention=outcome.attention,
             failed=outcome.failed,
             preset=tr(f"shell.preset.{self.rebuild.preset.name.lower()}"),
-            destination=str(outcome.destination or ""),
+            destination=folders[0] if folders else "",
+            destinations=folders,
             titles=tuple(book.title for book in outcome.books[:3]),
             cancelled=outcome.cancelled,
         )
@@ -299,6 +337,17 @@ class MainWindow(QMainWindow):
         self.restart_requested = True
         self.close()
 
+    def _remember_changed(self, state: bool) -> None:
+        """The setting that did nothing at all until now.
+
+        It was written here and read by nobody: every dialog opened wherever
+        the system last left it. Switching it off is an instruction rather than
+        a pause, so what was remembered is forgotten at the same time.
+        """
+        settings().setValue("remember-folder", state)
+        if not state:
+            forget_folders()
+
     def _change_theme(self, name: str) -> None:
         if name == str(settings().value("theme", "system")):
             return
@@ -342,6 +391,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):  # noqa: N802
         """Never leave a thread running behind a closed window."""
+        geometry = self.frameGeometry() if self.isVisible() else self.geometry()
+        save_geometry(geometry.x(), geometry.y(), self.width(), self.height())
         self.rebuild.runner.cancel()
         self.rebuild.runner.stop()
         super().closeEvent(event)

@@ -30,7 +30,6 @@ from .. import icons
 from ..models import (
     BatchOutcome,
     BookItem,
-    BookStatus,
     Preset,
     Progress,
     RebuildPlan,
@@ -50,6 +49,7 @@ from ..widgets import (
     label,
     page_body,
 )
+from ..state import last_folder, remember_folder
 from ..workers import AnalysisJob, RebuildJob, Runner
 from .drawer import SettingsDrawer
 from .home import DropZone
@@ -161,10 +161,11 @@ class RebuildPage(Responsive, QWidget):
 
     def add_files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
-            self, tr("dialog.selectfiles"), "", tr("dialog.filter")
+            self, tr("dialog.selectfiles"), last_folder("input"), tr("dialog.filter")
         )
         if not paths:
             return
+        remember_folder("input", paths[0])
         known = {str(book.source) for book in self.books}
         fresh = [path for path in paths if path not in known]
         if fresh:
@@ -424,8 +425,11 @@ class RebuildPage(Responsive, QWidget):
         return str(self.destination) if self.destination else tr("shell.plan.destination.beside")
 
     def _choose_destination(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, tr("dialog.selectfolder"))
+        folder = QFileDialog.getExistingDirectory(
+            self, tr("dialog.selectfolder"), last_folder("output")
+        )
         if folder:
+            remember_folder("output", folder)
             self.destination = pathlib.Path(folder)
             self.show_plan()
 
@@ -757,10 +761,12 @@ class RebuildPage(Responsive, QWidget):
         if book is None:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("dialog.savereport"), f"{book.source.stem}.json",
+            self, tr("dialog.savereport"),
+            _in_folder("report", f"{book.source.stem}.json"),
             "JSON (*.json);;Tekst (*.txt)",
         )
         if path:
+            remember_folder("report", path)
             self.backend.export_report(book, pathlib.Path(path))
 
     def save_batch_report(self) -> None:
@@ -769,7 +775,15 @@ class RebuildPage(Responsive, QWidget):
         if not books:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("dialog.savereport.batch"), "raport-zbiorczy.json", "JSON (*.json)"
+            self, tr("dialog.savereport.batch"),
+            _in_folder("report", "raport-zbiorczy.json"), "JSON (*.json)"
         )
         if path:
+            remember_folder("report", path)
             self.backend.export_batch(books, pathlib.Path(path))
+
+
+def _in_folder(kind: str, name: str) -> str:
+    """A suggested file name, in the folder that kind of file last went to."""
+    folder = last_folder(kind)
+    return str(pathlib.Path(folder) / name) if folder else name

@@ -245,13 +245,14 @@ class HomePage(Responsive, QWidget):
 
 
 def last_folder(kind: str) -> str:
-    """Where a dialog of this kind should open. Package D fills this in."""
+    """Where a dialog of this kind should open, when the setting allows it."""
     from ..state import last_folder as remembered
 
     return remembered(kind)
 
 
 def remember_folder(kind: str, path: str) -> None:
+    """Note the folder somebody just used, for the next dialog of this kind."""
     from ..state import remember_folder as store
 
     store(kind, path)
