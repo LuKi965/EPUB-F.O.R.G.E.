@@ -734,12 +734,23 @@ class TestTheKeyboardReachesEverything:
         assert tile.accessibleDescription()
 
     def test_the_page_scrolls_rather_than_squeezing_at_the_smallest_window(self, qt_app, page):
-        """1100×700 is the floor; below the content's own height the page has to
-        scroll, because Qt's answer to "not enough room" is to squeeze widgets
-        past their minimum and print them over each other."""
-        from PySide6.QtWidgets import QScrollArea
+        """Measured, not assumed.
 
-        assert page.findChild(QScrollArea) is not None
+        This test used to be `findChild(QScrollArea) is not None`, which is
+        true of a page whose cards are squeezed to nothing inside a scroll area
+        as well — the design package said so, and it was right. So it asks the
+        page the same four questions `tests/test_shell_layout.py` asks it at
+        five sizes: real sizes, nothing past what can be reached, nothing
+        overlapping, main action present.
+        """
+        from tests.geometry import problems_with
+
+        page.start(["a.epub", "b.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.setGeometry(0, 0, 736, 560)  # 800x560 window, compact sidebar
+        for _ in range(6):
+            qt_app.processEvents()
+        assert not problems_with(page, main_action=page.run_button)
 
 
 class TestHistoryRemembersLittleAndNothingPrivate:
@@ -876,6 +887,22 @@ class TestTheThreadEndsBeforeAnythingIsDestroyed:
         second = QCloseEvent()
         window.closeEvent(second)
         assert second.isAccepted()
+
+    def test_closing_during_a_rebuild_is_refused_and_stops_the_run(self, qt_app, window):
+        """The other half of the same promise: analysis is the short job, the
+        rebuild is the one somebody actually walks away from."""
+        from PySide6.QtGui import QCloseEvent
+
+        window.rebuild.start(["a.epub", "b.epub", "c.epub"])
+        settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.PLAN)
+        window.rebuild.run()
+        assert window.rebuild.runner.busy
+        event = QCloseEvent()
+        window.closeEvent(event)
+        assert not event.isAccepted()
+        settle(qt_app, window.rebuild, lambda: not window.rebuild.runner.busy)
+        qt_app.processEvents()
+        assert window.rebuild.runner.cancelled
 
     def test_a_window_with_nothing_running_closes_at_once(self, qt_app, window):
         from PySide6.QtGui import QCloseEvent

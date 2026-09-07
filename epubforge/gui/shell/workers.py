@@ -197,7 +197,10 @@ class Runner(QObject):
             if signal is not None:
                 signal.connect(self._work_over, Qt.QueuedConnection)
         self.thread, self.job, self._on_done = thread, job, on_done
-        self._cancelled = False
+        # A job queued while the last thread was ending may already have been
+        # cancelled — by the window closing, say — and starting it must not
+        # forget that. It is the job that carries the flag; this only reports.
+        self._cancelled = job.cancelled
         self._over = False
         thread.start()
 
