@@ -689,6 +689,36 @@ class TestTheReader:
         assert report.stats["pdf_characters_unplaced"] == 0
         assert report.stats["pdf_layout"]["labelled_drawings"] == 4
 
+    def test_a_block_set_in_from_the_margin_is_not_a_paragraph_a_line(self, tmp_path):
+        """An indent is a line set in from the ones *around* it, not a whole
+        block set in from the page. A manual's list of teas stands forty points
+        inside the body's edge, every line of it, so every line looked indented
+        and eight lines came out as eight paragraphs.
+
+        Measured when this was fixed: torn paragraphs fell on every book of the
+        Gutenberg corpus at once — 35 to 23, 51 to 39, 22 to 10, 18 to 4, 16 to
+        4, 32 to 20 — because prose set in a narrower measure had the same
+        thing happen to it.
+        """
+        lines = column(["A paragraph of ordinary prose at the body's own left", "edge, running to a second line."], top=700)
+        # The block: set in forty points, two lines to a pair, a wider gap
+        # between pairs than inside one.
+        inset = []
+        for index, (name, note) in enumerate([("Herbata Biala", "czas parzenia 1-3 minuty"),
+                                              ("Herbata Zielona", "czas parzenia 1-2 minuty")]):
+            top = 640.0 - index * 60
+            inset += [(112.0, top, 10.0, name), (112.0, top - 12, 10.0, note)]
+        source = make_pdf(tmp_path / "inset.pdf", [lines + inset])
+        book = pdf.read_pdf(str(source), Report())
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<p>Herbata Biala czas parzenia 1-3 minuty</p>" in markup
+        assert "<p>Herbata Zielona czas parzenia 1-2 minuty</p>" in markup
+        # And a real indent still opens a paragraph: the second of
+        # THREE_PARAGRAPHS is marked by one and nothing else.
+        prose = pdf.read_pdf(str(make_pdf(tmp_path / "prose.pdf", [column(THREE_PARAGRAPHS)])), Report())
+        text = next(r.data.decode() for r in prose.resources.values() if r.path.endswith(".xhtml"))
+        assert text.count("<p>") == 3
+
     def test_a_marker_beside_its_entry_is_one_line_of_the_page(self, tmp_path):
         """A legend that sets `A6.` at the left edge and `Tacka na skropliny`
         a word's width away has written one entry, not two paragraphs. Far

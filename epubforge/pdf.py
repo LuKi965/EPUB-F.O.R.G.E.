@@ -1535,7 +1535,16 @@ def _starts_a_paragraph(line: Line, flow: "_Flow", area: "_Area") -> bool:
     line before it that ended short of its own area's edge."""
     # An indent starts a paragraph in prose and continues one in a list; in a
     # list the *marker* is what starts it.
-    if not area.hanging and line.x0 - area.left > INDENT_POINTS:
+    #
+    # And an indent is a line set in from the ones *around* it, not a whole
+    # block set in from the page. A manual's list of teas stands forty points
+    # inside the body's edge, every line of it, so every line looked indented
+    # and eight lines came out as eight paragraphs — "Herbata Biała", then
+    # "czas parzenia 1-3 minuty" under it as another. The line above has to be
+    # at the block's own edge for the one below it to be indented from
+    # anything.
+    if (not area.hanging and line.x0 - area.left > INDENT_POINTS
+            and flow.previous.x0 - flow.left <= INDENT_POINTS):
         return True
     if area.hanging and abs(line.x0 - area.left) <= INDENT_POINTS and _marker(line.text):
         return True
