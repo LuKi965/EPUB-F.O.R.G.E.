@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -27,7 +28,7 @@ from PySide6.QtWidgets import (
 from ...strings import tr
 from .. import icons
 from ..options import CATEGORIES, OPTIONS, Option, in_category
-from ..responsive import LayoutMode
+from ..responsive import LayoutMode, Panels, spread
 from ..tokens import DRAWER_WIDTH, Tokens
 from ..widgets import StatusBadge, button, clear_layout, label
 
@@ -41,15 +42,20 @@ class SettingRow(QFrame):
         super().__init__()
         self.option = option
         self.setObjectName("settingRow")
-        row = QHBoxLayout(self)
-        row.setContentsMargins(14, 12, 14, 12)
-        row.setSpacing(14)
-
-        words = QVBoxLayout()
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(14, 12, 14, 12)
+        # Side by side when the drawer is wide enough for both, and stacked
+        # when it is not: a combo box with a 150-pixel minimum beside a wrapped
+        # Polish sentence leaves the sentence its longest word and the row
+        # pushes the list sideways.
+        row = Panels(14)
+        words_side = QWidget()
+        words = QVBoxLayout(words_side)
+        words.setContentsMargins(0, 0, 0, 0)
         words.setSpacing(4)
         heading = QHBoxLayout()
         heading.setSpacing(8)
-        title = label(tr(option.label_key), "cardTitle")
+        title = label(tr(option.label_key), "cardTitle", flexible=True)
         # The name takes the row and the badge follows it: without the stretch
         # factor Qt hands the wrapped label its minimum width — the width of
         # its longest word — and a four-word setting name becomes a column.
@@ -65,14 +71,20 @@ class SettingRow(QFrame):
         # stays one hover away — nothing is lost, and the list is readable.
         whole = tr(option.help_key)
         first = whole.split("\n\n", 1)[0]
-        sentence = label(first, "cardSubtitle")
+        sentence = label(first, "cardSubtitle", flexible=True)
         sentence.setToolTip(whole)
         words.addWidget(sentence)
-        row.addLayout(words, 1)
+        row.add(words_side, 3)
         self.setToolTip(whole)
 
         self.control = self._control(value, tokens)
-        row.addWidget(self.control, 0, Qt.AlignTop)
+        holder = QWidget()
+        holding = QHBoxLayout(holder)
+        holding.setContentsMargins(0, 0, 0, 0)
+        holding.addStretch(1)
+        holding.addWidget(self.control, 0, Qt.AlignTop)
+        row.add(holder, 1)
+        outer.addWidget(row)
         self.setAccessibleName(tr(option.label_key))
         self.setAccessibleDescription(tr(option.help_key))
 
@@ -96,7 +108,7 @@ class SettingRow(QFrame):
             if value in option.choices:
                 combo.setCurrentIndex(option.choices.index(value))
             combo.setAccessibleName(tr(option.label_key))
-            combo.setMinimumWidth(190)
+            combo.setMinimumWidth(150)
             combo.currentIndexChanged.connect(
                 lambda _index: self.changed.emit(option.key, combo.currentData())
             )
@@ -108,14 +120,14 @@ class SettingRow(QFrame):
             spin.setValue(int(value or option.minimum))
             spin.setSuffix(" s")
             spin.setAccessibleName(tr(option.label_key))
-            spin.setMinimumWidth(140)
+            spin.setMinimumWidth(110)
             spin.valueChanged.connect(lambda number: self.changed.emit(option.key, number))
             return spin
         edit = QLineEdit(str(value or ""))
         if option.placeholder_key:
             edit.setPlaceholderText(tr(option.placeholder_key))
         edit.setAccessibleName(tr(option.label_key))
-        edit.setMinimumWidth(190)
+        edit.setMinimumWidth(150)
         edit.textChanged.connect(lambda text: self.changed.emit(option.key, text))
         return edit
 
@@ -211,17 +223,33 @@ class SettingsDrawer(QWidget):
             item.setChecked(name == self._category)
             item.setIcon(icons.icon(glyph, tokens.muted))
             item.setMinimumHeight(40)
+            # Allowed to be narrower than its own label: a `QPushButton` elides
+            # what does not fit, and without this the widest category name sets
+            # the column's minimum width and pushes its scroll area sideways by
+            # exactly the width of a scrollbar.
+            item.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             item.setAccessibleName(tr(key))
+            item.setToolTip(tr(key))
             item.clicked.connect(lambda _checked=False, target=name: self._show_category(target))
             self._category_buttons.addButton(item)
             self.categories.addWidget(item)
         self.categories.addStretch(1)
         column = QWidget()
         column.setLayout(self.categories)
-        column.setMinimumWidth(150)
-        column.setMaximumWidth(212)
-        self.category_column = column
-        body.addWidget(column)
+        # In a scroll area of its own, because a drawer on a 600-pixel screen
+        # is shorter than seven buttons: Qt's answer to "not enough room" is to
+        # squeeze them past their minimum and print them over each other, which
+        # is what a larger font showed. The horizontal bar is off here and only
+        # here — a `QPushButton` elides its own label, so nothing is hidden by
+        # a narrow column, and a nav column that scrolls sideways is absurd.
+        self.category_column = QScrollArea()
+        self.category_column.setWidgetResizable(True)
+        self.category_column.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.category_column.setFrameShape(QFrame.NoFrame)
+        self.category_column.setWidget(column)
+        self.category_column.setMinimumWidth(150)
+        self.category_column.setMaximumWidth(212)
+        body.addWidget(self.category_column)
 
         self.list_area = QScrollArea()
         self.list_area.setWidgetResizable(True)
@@ -278,6 +306,20 @@ class SettingsDrawer(QWidget):
         narrow = mode is LayoutMode.COMPACT
         self.category_column.setVisible(not narrow)
         self.category_combo.setVisible(narrow)
+        self._settle_rows()
+
+    #: A setting row narrower than this puts its control under the sentence.
+    #: The drawer's own width decides it: the drawer is a panel on a page, so
+    #: the page's mode says nothing about how much room a row in it has.
+    ROWS_STACK_BELOW = 520
+
+    def _settle_rows(self) -> None:
+        room = self.panel.width() - (self.category_column.width() if
+                                     self.category_column.isVisible() else 0)
+        spread(
+            self.panel,
+            LayoutMode.WIDE if room >= self.ROWS_STACK_BELOW else LayoutMode.COMPACT,
+        )
 
     # -- opening and closing ------------------------------------------------
     def open_with(self, defaults: dict, overrides: dict, books: int, opener: QWidget | None = None
@@ -363,8 +405,8 @@ class SettingsDrawer(QWidget):
         clear_layout(self.rows)
         if not self._search:
             name = dict((entry[0], entry[2]) for entry in CATEGORIES)[self._category]
-            self.rows.addWidget(label(tr(name), "sectionTitle"))
-            self.rows.addWidget(label(tr(f"{name}.body"), "cardSubtitle"))
+            self.rows.addWidget(label(tr(name), "sectionTitle", flexible=True))
+            self.rows.addWidget(label(tr(f"{name}.body"), "cardSubtitle", flexible=True))
 
         options = self._matching()
         if not options:
@@ -386,6 +428,7 @@ class SettingsDrawer(QWidget):
             toggle.clicked.connect(self._toggle_expert)
             self.rows.addWidget(toggle)
         self.rows.addStretch(1)
+        self._settle_rows()
         self._update_count()
 
     def _toggle_expert(self) -> None:

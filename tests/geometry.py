@@ -97,12 +97,15 @@ def needs_sideways_scrolling(page: QWidget) -> bool:
     """Whether anything forces the page to scroll horizontally.
 
     The old shell simply switched the horizontal bar off, which does not make
-    content fit — it makes the part that does not fit unreachable.
+    content fit — it makes the part that does not fit unreachable. Every
+    scroll area on the page is asked, not just the outermost: the settings
+    drawer has three, and the one that overflowed was not the first.
     """
-    area = scrollable_area(page)
-    if area is None:
-        return False
-    return area.horizontalScrollBar().maximum() > 0
+    return any(
+        area.horizontalScrollBar().maximum() > 0
+        for area in page.findChildren(QScrollArea)
+        if area.isVisibleTo(page)
+    )
 
 
 def problems_with(page: QWidget, *, main_action=None) -> "list[str]":

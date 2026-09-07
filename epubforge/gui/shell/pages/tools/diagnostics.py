@@ -41,8 +41,11 @@ class DiagnosticsToolPage(ToolPage):
         )
         self.folder.textChanged.connect(lambda _text: self.invalidate())
 
-        # Two columns of questions when there is room, one when there is not.
-        grid = Cards({LayoutMode.WIDE: 2, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1}, 8)
+        # Two columns of questions only where two really fit. A radio button
+        # cannot wrap its label, so a column too narrow for the longest question
+        # does not squeeze — it pushes the page sideways, which is what the
+        # Windows build reported and Linux font metrics hid.
+        grid = Cards({LayoutMode.WIDE: 2, LayoutMode.MEDIUM: 1, LayoutMode.COMPACT: 1}, 8)
         self.choices = {}
         for name, key in QUESTIONS:
             choice = QRadioButton(tr(key))

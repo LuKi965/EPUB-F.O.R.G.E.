@@ -58,6 +58,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: the window: the sidebar takes 244 px, or 64 when it is compact.
 SIZES = ((1440, 900), (1180, 700), (1000, 650), (900, 600), (800, 560))
 
+#: The same stylesheet with a larger type size — the stand-in for a wider font
+#: face, built once because generating it writes icon files to disk.
+WIDER_TYPE = tokens_module.stylesheet(tokens_module.DARK).replace(
+    "font-size: 10pt", "font-size: 13pt"
+)
+
 
 @pytest.fixture(autouse=True)
 def own_settings(tmp_path, monkeypatch):
@@ -346,6 +352,72 @@ class TestTheCompositionChangesAndNotJustTheSize:
             assert not problems_with(page)
         finally:
             finish(page)
+
+
+class TestALargerFontDoesNotPushThePageSideways:
+    """The Windows half of the same question, asked where Linux can answer it.
+
+    Build 66 failed on Windows and nowhere else: Segoe UI is wider than the
+    fonts on a test machine, and two pages that fitted here needed horizontal
+    scrolling there — the drawer's setting rows and the diagnostics questions.
+    Nothing was wrong with the measurement; it was the measurement done in the
+    one place where the text is widest.
+
+    Fonts cannot be installed here, but the effect can: the same stylesheet
+    with a larger type size squeezes the same layouts the same way. A page that
+    survives 13pt has room for a wider 10pt face.
+    """
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def wide_type(cls, qt_app):
+        """Set once for the whole class.
+
+        Re-polishing every live widget against a freshly generated stylesheet
+        is not free — done per test it cost more than the measurements did.
+        """
+        before = qt_app.styleSheet()
+        qt_app.setStyleSheet(WIDER_TYPE)
+        yield
+        qt_app.setStyleSheet(before)
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_the_drawer_survives_it(self, qt_app, host, wide_type, size):
+        page = rebuild_page(qt_app)
+        try:
+            page.start(["a.epub"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, size)
+            page._open_drawer()
+            for _ in range(8):
+                qt_app.processEvents()
+            assert not problems_with(page.drawer), size
+            page.drawer.close_drawer()
+        finally:
+            finish(page)
+
+    @pytest.mark.parametrize("size", SIZES)
+    @pytest.mark.parametrize("name", ["library", "diagnostics", "corpus"])
+    def test_and_so_does_every_tool(self, qt_app, host, wide_type, name, size):
+        tools = ToolsPage(tokens_module.DARK)
+        try:
+            tools.open_tool(name)
+            page = tools.router.currentWidget()
+            laid_out(qt_app, tools, host, size)
+            for _ in range(4):
+                qt_app.processEvents()
+            assert not problems_with(page), (name, size)
+        finally:
+            finish(tools)
+
+    @pytest.mark.parametrize("size", [(1440, 900), (900, 600), (800, 560)])
+    def test_and_the_pages_a_person_starts_on(self, qt_app, host, wide_type, size):
+        for name, page in every_screen(qt_app):
+            try:
+                laid_out(qt_app, page, host, size)
+                assert not problems_with(page), (name, size)
+            finally:
+                finish(page)
 
 
 class TestTheSameAtEveryDisplayScale:

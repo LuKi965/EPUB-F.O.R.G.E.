@@ -27,11 +27,23 @@ from .models import STATUS_LOOK, BookItem, BookStatus, Preset, Stage
 from .tokens import SIDEBAR_COMPACT_WIDTH, SIDEBAR_WIDTH, Tokens
 
 
-def label(text: str, object_name: str = "", *, wrap: bool = True) -> QLabel:
+def label(text: str, object_name: str = "", *, wrap: bool = True,
+          flexible: bool = False) -> QLabel:
+    """A label. `flexible` lets it be narrower than its longest word.
+
+    A word-wrapped `QLabel` reports the width of its longest word as its
+    minimum, and a sentence with `calibre_bookmarks.txt` in it therefore stops
+    the column it is in from ever being narrow. Where that matters — a list of
+    forty settings in a drawer — the label is told to take whatever width it is
+    given; the full text is a tooltip away either way.
+    """
     item = QLabel(text)
     if object_name:
         item.setObjectName(object_name)
     item.setWordWrap(wrap)
+    if flexible:
+        item.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        item.setMinimumWidth(0)
     return item
 
 
