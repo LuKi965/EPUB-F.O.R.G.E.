@@ -392,3 +392,76 @@ class TestTheTypesetterSLineEndIsEvidenceOfItsOwn:
         )
         confirmed = [c for c in found if c.confidence == CONFIRMED]
         assert [(c.word, c.joined) for c in confirmed] == [("bedroom-win-dow", "bedroom-window")]
+
+
+@pytest.mark.skipif(
+    not hyphens.dictionaries.available("en_US"),
+    reason="ten test mierzy, co słownik dokłada — bez słownika nie ma czego mierzyć",
+)
+class TestTheAuthorsOwnHyphenAtALineEnd:
+    """DROGA 6.12. `to-day`, `to-morrow`, `good-bye` — the author's spelling
+    in a book from 1890, and the typesetter happening to break a line at that
+    hyphen does not make it a converter's. The dictionary knows `today`, so
+    the line-end branch called every one of them confirmed and joined them:
+    the acceptance measurement lost the same three words in every run since
+    2026-09-04.
+
+    The signal that tells the two apart is one the reader already had and
+    nothing used — **how many times the word was broken there**. A word
+    joined across a break appears in the text once per break, so a
+    hyphenated form the book carries more often than it was broken stands
+    somewhere nobody broke.
+    """
+
+    LINE = "He said good-bye and left."
+
+    def test_a_spelling_the_book_uses_mid_line_is_not_a_converters_hyphen(self):
+        text = "He came to-day, and to-day he left, and to-day it rained."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            # Broken there once; the book writes it three times.
+            line_end={"to-day": 1},
+        )
+        assert found == [], [(c.word, c.confidence, c.reason) for c in found]
+
+    def test_a_word_only_ever_seen_broken_is_still_confirmed(self):
+        """The half this must not cost: `prze-konaniem` never stands
+        mid-line, so the count matches the breaks and the line end still
+        settles it."""
+        text = "The win-dow was open."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            line_end={"win-dow": 1},
+        )
+        assert [c.confidence for c in found] == [CONFIRMED]
+        assert "końcu wiersza" in found[0].reason
+
+    def test_broken_twice_and_seen_twice_is_still_the_converters(self):
+        text = "The win-dow was open. The win-dow was shut."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            line_end={"win-dow": 2},
+        )
+        assert [c.confidence for c in found] == [CONFIRMED, CONFIRMED]
+
+    def test_a_record_that_did_not_count_answers_one(self):
+        """An older run stored a plain list. A list knows „this was broken
+        here" and nothing more, so it answers one — which is what such a
+        record actually knows, and leaves the book's own count to decide."""
+        text = "He came to-day, and to-day he left."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            line_end={"to-day"},
+        )
+        assert found == [], [(c.word, c.confidence) for c in found]
+
+    def test_the_spelling_still_counts_when_the_line_end_names_the_whole_word(self):
+        """The reader records the last token before the break with the first
+        word after it, so a word with something in front of it — `wide-open`
+        broken after `wide-` — is named whole."""
+        text = "A wide-open door, and a wide-open window."
+        found = find(
+            text, where="r.xhtml", words=vocabulary([text]), language="en_US",
+            line_end={"wide-open": 1},
+        )
+        assert found == [], [(c.word, c.confidence) for c in found]

@@ -287,6 +287,36 @@ class TestTheReader:
         assert "nieprawdopodobne" in prose and "nie-prawdopodobne" not in prose
         assert "hyphens.joined" in rules_of(result)
 
+    @pytest.mark.skipif(not __import__("epubforge.dictionaries", fromlist=["available"]).available("en_US"),
+                        reason="needs the en_US dictionary (dictionaries/ is not in git)")
+    def test_the_authors_own_hyphen_survives_a_line_break_at_it(self, tmp_path):
+        """DROGA 6.12. `to-day` is how a book from 1890 spells it, and the
+        typesetter breaking a line there does not make the hyphen a
+        converter's — but the dictionary knows `today`, so it was joined,
+        and the acceptance measurement lost the same word in every run.
+
+        The reader now counts the breaks: this page breaks `to-day` once and
+        writes it twice more mid-line, so the book itself says the hyphen is
+        the author's. `remem-brance` on the same page, broken once and never
+        written whole, is still joined — the count is what separates them,
+        not the shape."""
+        lines = column([
+            "He came to-day and said that to-",
+            "day was the day of it all, and remem-",
+            "brance of it stayed with him to-day.",
+        ])
+        source = make_pdf(tmp_path / "today.pdf", [lines], language="en")
+        report = Report()
+        pdf.read_pdf(str(source), report)
+        breaks = report.stats["pdf_line_end_words"]
+        assert breaks["to-day"] == 1 and breaks["remem-brance"] == 1
+        result = rebuilt(source, tmp_path, asker=Recommending())
+        assert result.output_path
+        prose = prose_of(result.output_path)
+        assert prose.count("to-day") == 3, prose
+        assert "today" not in prose.replace("to-day", "")
+        assert "remembrance" in prose and "remem-brance" not in prose
+
     def test_a_line_set_larger_than_the_body_is_a_heading(self, tmp_path):
         lines = [(72, 720, 12 * pdf.BODY_RATIO_H1 + 1, "Chapter One")]
         lines += column(["Body text that is the most common size on the page.",

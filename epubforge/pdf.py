@@ -251,23 +251,32 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
     report.stats["pdf_characters_unplaced"] = sum(unplaced.values())
     report.stats["pdf_layout"] = layout.__dict__.copy()
     # The words the typesetter broke at a line end, joined as the hyphen
-    # stage will meet them (`prze-konaniem`): evidence that stage can use —
-    # a hyphen the reader put at a line end is a converter's, not a
-    # writer's, and on typeset material a third of them were otherwise
-    # left because their first half happened to be a word (`nie-`, `po-`).
-    report.stats["pdf_line_end_words"] = sorted(_line_end_words(pages))
+    # stage will meet them (`prze-konaniem`), and **how many times each was
+    # broken there**: evidence that stage can use — a hyphen the reader put
+    # at a line end is a converter's, not a writer's, and on typeset
+    # material a third of them were otherwise left because their first half
+    # happened to be a word (`nie-`, `po-`).
+    #
+    # The count is what tells the two apart the other way round (DROGA 6.12).
+    # `to-day` is the author's spelling in a book from 1890; the typesetter
+    # happening to break a line there does not make it a converter's hyphen.
+    # A word this reader joined at a break appears in the text once per
+    # break, so a hyphenated form the book carries **more often than it was
+    # broken** stands somewhere nobody broke — and that is the author
+    # writing it.
+    report.stats["pdf_line_end_words"] = dict(sorted(_line_end_words(pages).items()))
     return book
 
 
-def _line_end_words(pages: list[Page]) -> set[str]:
-    words: set[str] = set()
+def _line_end_words(pages: list[Page]) -> "Counter[str]":
+    words: "Counter[str]" = Counter()
     lines = [line.text.strip() for page in pages for line in page.lines if not line.running_head]
     for a, b in zip(lines, lines[1:]):
         if a.endswith("-") and len(a) > 1 and a[-2].isalnum() and b[:1].isalpha():
             left = re.split(r"[^\w-]", a)[-1] if re.split(r"[^\w-]", a) else ""
             right = re.match(r"\w+", b)
             if left and right and left != "-":
-                words.add(f"{left}{right.group(0)}".casefold())
+                words[f"{left}{right.group(0)}".casefold()] += 1
     return words
 
 

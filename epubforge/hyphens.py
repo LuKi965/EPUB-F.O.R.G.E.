@@ -283,7 +283,7 @@ BLOCKS = frozenset({
 
 def find(
     text: str, *, where: str, words: Counter, language: str = "pl_PL",
-    line_end: "set[str] | None" = None,
+    line_end: "dict[str, int] | set[str] | None" = None,
 ) -> "list[Candidate]":
     """Candidates in one text node's worth of text.
 
@@ -360,9 +360,24 @@ def find(
     return found
 
 
+def _broken_at_a_line_end(near: str, far: str, up_to_break: str, line_end) -> int:
+    """How many times the typesetter broke a line at *this* hyphen.
+
+    Zero where nothing was recorded, and zero for a source that is not a PDF.
+    A record that did not count (an older run stored a plain list) answers
+    one for a word it names, which is what such a record actually knows.
+    """
+    if not isinstance(line_end, dict):
+        return 1 if line_end else 0
+    return max(
+        line_end.get(_fold(f"{near}-{far}"), 0),
+        line_end.get(_fold(up_to_break), 0),
+    )
+
+
 def _classify(
     near: str, far: str, left: str, right: str, up_to_break: str,
-    words: Counter, language: str, line_end: "set[str] | None",
+    words: Counter, language: str, line_end: "dict[str, int] | set[str] | None",
     run: bool = False,
 ) -> "tuple[str, str, int] | None":
     """What the evidence says about one hyphen: `(confidence, reason, how
@@ -393,6 +408,26 @@ def _classify(
     at_line_end = bool(line_end) and (
         _fold(f"{near}-{far}") in line_end or _fold(up_to_break) in line_end
     )
+    if at_line_end and hyphenated > _broken_at_a_line_end(near, far, up_to_break, line_end):
+        # DROGA 6.12: the typesetter broke a line at a hyphen the **author**
+        # wrote. `to-day`, `to-morrow`, `good-bye` in a book from 1890 — the
+        # dictionary knows `today`, so the line-end branch below called every
+        # one of them a converter's hyphen and joined them, and the
+        # acceptance measurement showed the same three words leaving the
+        # book in every run since 048.
+        #
+        # The signal that tells the two apart is one the reader already has
+        # and nothing used: how many times this word was broken there. A word
+        # joined across a break appears in the text once per break, so a
+        # hyphenated form the book carries **more often than it was broken**
+        # stands somewhere nobody broke — mid-line, in the author's own
+        # spelling. `prze-konaniem` is never there; `to-day` is, in every
+        # paragraph that mentions the day.
+        #
+        # Nobody's candidate, like the four-times-hyphenated spelling below:
+        # this is what the book writes, and the line end says nothing about
+        # it either way.
+        return None
 
     compound_shape = _reads_as_a_compound(near) is not None
     # One occurrence is thin evidence where both spellings are legitimate

@@ -110,7 +110,23 @@ def _across_candidates(documents: list, words, tongue: str) -> list:
     ]
 
 
-def _collect_candidates(documents: list, words, tongue: str, line_end: "set[str]" = frozenset()) -> tuple[dict, list, list, dict]:
+def _line_ends(ctx: Context) -> "dict[str, int]":
+    """How many times each word stood at a line end of the typeset page.
+
+    Older runs stored a list rather than a mapping; a list still answers
+    "was this broken here" and answers one for "how many times", which is
+    the honest reading of a record that did not count.
+    """
+    recorded = ctx.report.stats.get("pdf_line_end_words") or {}
+    counts: dict[str, int] = {}
+    for word in recorded:
+        many = recorded[word] if isinstance(recorded, dict) else 1
+        folded = hyphens._fold(word)
+        counts[folded] = counts.get(folded, 0) + int(many)
+    return counts
+
+
+def _collect_candidates(documents: list, words, tongue: str, line_end: "dict[str, int] | None" = None) -> tuple[dict, list, list, dict]:
     """Every hyphen worth asking about, over every text node of every
     document: counts by confidence, the confirmed ones, the ones split
     across two text nodes, and the weaker ones by confidence."""
@@ -188,8 +204,10 @@ class HyphenStage(Stage):
         found, confirmed, across, weaker = _collect_candidates(
             documents, words, tongue,
             # What the PDF reader knows and an EPUB never says: which hyphens
-            # stood at a line end of the typeset page. Empty for any other source.
-            {hyphens._fold(w) for w in ctx.report.stats.get("pdf_line_end_words", [])},
+            # stood at a line end of the typeset page, and how many times each.
+            # Empty for any other source; folded the way the detector counts
+            # words, so two spellings that fold together add up.
+            _line_ends(ctx),
         )
 
         # Said whether or not anything was found, and before the counts: a run
