@@ -141,7 +141,7 @@ class RebuildPage(Responsive, QWidget):
 
     @property
     def busy(self) -> bool:
-        return self.runner.busy
+        return self.runner.working
 
     # -- 1. files -----------------------------------------------------------
     def show_files(self) -> None:
@@ -293,8 +293,21 @@ class RebuildPage(Responsive, QWidget):
         else:
             self.show_files()
 
+    def stop_asking(self) -> None:
+        """Stop putting questions to somebody who has asked for this to end.
+
+        A question is a blocking call into the window's thread: the worker
+        emits and waits for an answer. Cancelling without this leaves the run
+        holding the question — and anything waiting for the run.
+        """
+        resolver = getattr(self, "_resolver", None)
+        stop = getattr(resolver, "stop", None)
+        if callable(stop):
+            stop()
+
     def _cancel(self) -> None:
         self.runner.cancel()
+        self.stop_asking()
         if hasattr(self, "cancel_button"):
             self.cancel_button.setEnabled(False)
             self.cancel_button.setText(tr("shell.cancelling"))
@@ -514,7 +527,7 @@ class RebuildPage(Responsive, QWidget):
         )
 
     def run(self, *, plan_only: bool = False) -> None:
-        if self.runner.busy:
+        if self.runner.working:
             return
         chosen = [book for book in self.books if book.chosen]
         if not chosen:
@@ -557,6 +570,7 @@ class RebuildPage(Responsive, QWidget):
         resolver = None
         if self._resolver_factory is not None and self.plan(plan_only=plan_only).ask:
             resolver = self._resolver_factory()
+        self._resolver = resolver
         job = RebuildJob(self.backend, self.plan(plan_only=plan_only), chosen, resolver)
         job.progress.connect(self._on_progress, Qt.QueuedConnection)
         job.failed.connect(self._on_failed, Qt.QueuedConnection)

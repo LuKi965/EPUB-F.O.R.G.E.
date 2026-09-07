@@ -1138,6 +1138,7 @@ PL: dict[str, str] = {
     "shell.analysis.body": "Analiza niczego nie zmienia — czyta pliki i mówi, co w nich jest.",
     "shell.cancel": "Anuluj",
     "shell.cancel.tip": "Zatrzymuje pracę na najbliższej bezpiecznej granicy. To, co już zapisano, zostaje.",
+    "shell.closing": "Kończenie bieżącej operacji…",
     "shell.cancelling": "Przerywam…",
     "shell.progress.of": "{done} z {total}",
 
@@ -2415,6 +2416,7 @@ EN: dict[str, str] = {
     "shell.analysis.body": "Analysis changes nothing — it reads the files and says what is in them.",
     "shell.cancel": "Cancel",
     "shell.cancel.tip": "Stops at the next safe boundary. Whatever was already written stays.",
+    "shell.closing": "Finishing the current operation…",
     "shell.cancelling": "Cancelling…",
     "shell.progress.of": "{done} of {total}",
 

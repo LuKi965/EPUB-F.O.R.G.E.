@@ -279,10 +279,31 @@ class Ask(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._stopped = False
+        self._open: QDialog | None = None
         self.asked.connect(self._show, Qt.BlockingQueuedConnection)
         self.decided.connect(self._show_decision, Qt.BlockingQueuedConnection)
 
+    def stop(self) -> None:
+        """Ask no more questions, and take back the one on screen.
+
+        Called when somebody cancels the run or closes the window. A question
+        is a *blocking* call from the worker into this thread: without this,
+        cancelling a batch that is waiting for an answer cancels nothing until
+        the answer comes, and closing the window waits for the same thing.
+
+        What every unanswered question then gets is what a closed dialog has
+        always meant here — leave it alone — so nothing is decided by the fact
+        that somebody stopped.
+        """
+        self._stopped = True
+        dialog, self._open = self._open, None
+        if dialog is not None:
+            dialog.reject()
+
     def resolve(self, question: Unresolved) -> Decision | None:
+        if self._stopped:
+            return Decision()
         if QThread.currentThread() is self.thread():
             # Already on the GUI thread — a blocking queued connection to
             # oneself is a deadlock, and a direct call is what it would have
@@ -298,6 +319,8 @@ class Ask(QObject):
 
     def ask(self, question):
         """The generic half — `decisions.Asker`, same threading, same rules."""
+        if self._stopped:
+            return None
         if QThread.currentThread() is self.thread():
             return self._decide(question)
         mailbox: list = []
@@ -308,8 +331,15 @@ class Ask(QObject):
         mailbox.append(self._decide(question))
 
     def _decide(self, question):
+        if self._stopped:
+            return None
         dialog = DecideDialog(question, self.parent())
-        if dialog.exec() != QDialog.Accepted:
+        self._open = dialog
+        try:
+            answered = dialog.exec()
+        finally:
+            self._open = None
+        if answered != QDialog.Accepted:
             # Closed rather than answered, and that is not the recommendation
             # being accepted by default. A question this program recommends
             # joining stays unjoined until somebody says so.
@@ -317,8 +347,15 @@ class Ask(QObject):
         return dialog.answer()
 
     def _answer(self, question: Unresolved) -> Decision:
+        if self._stopped:
+            return Decision()
         dialog = AskDialog(question, self.parent())
-        if dialog.exec() != QDialog.Accepted:
+        self._open = dialog
+        try:
+            answered = dialog.exec()
+        finally:
+            self._open = None
+        if answered != QDialog.Accepted:
             # Closed rather than answered. Not an answer, and not a licence to
             # invent one: the reference stays as the publisher wrote it, and if
             # the mode is strict the book will be refused and say why.

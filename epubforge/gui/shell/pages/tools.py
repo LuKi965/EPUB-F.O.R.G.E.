@@ -113,6 +113,13 @@ class ToolsPage(Responsive, QWidget):
             self.router.addWidget(panel)
         self.router.setCurrentWidget(panel)
 
+    def runners(self) -> "list":
+        """Every runner the open tools own, for the window's shutdown."""
+        return [
+            page.runner for page in self._panels.values()
+            if getattr(page, "runner", None) is not None
+        ]
+
     def show_index(self) -> None:
         self.router.setCurrentWidget(self._index)
 

@@ -90,7 +90,7 @@ class RebuildJob(_Job):
 
 
 class Runner(QObject):
-    """Owns one job and the thread it runs on.
+    """Owns one job and the thread it runs on, and ends both without waiting.
 
     A `QObject` living in the window's thread, and that is not a detail. A job
     signal connected to a plain function is delivered **directly**, in the
@@ -100,41 +100,137 @@ class Runner(QObject):
     Everything a job reports is connected to a bound method of a `QObject`
     with an explicit queued connection, which is what puts it back on the
     window's thread where Qt requires it.
+
+    **Ending is a state machine, not a wait.** The version this replaces did
+    `thread.quit(); thread.wait(5000)` on the window's thread — five seconds
+    during which the interface was frozen and, if the job was blocked on a
+    question, five seconds that ended with the thread abandoned rather than
+    finished. Now the job's end only *asks* the thread to stop, and everything
+    else — deleting the job and the thread, clearing the references, saying the
+    runner is idle — happens when `QThread.finished` says it really has:
+
+        job.finished/failed → thread.quit()
+        thread.finished     → deleteLater, forget, on_done, idle
+
+    so nothing waits and nothing is destroyed while it is still running.
     """
+
+    #: The thread has ended and this runner owns nothing. The window closes on
+    #: this rather than on a timer.
+    idle = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.thread: QThread | None = None
         self.job: _Job | None = None
         self._on_done = None
+        self._cancelled = False
+        self._over = False
+        self._pending: tuple | None = None
 
     @property
     def busy(self) -> bool:
-        return self.thread is not None
+        """A thread of ours exists. It may be running or winding down."""
+        return self.thread is not None or self._pending is not None
+
+    @property
+    def working(self) -> bool:
+        """A job is actually running.
+
+        Not the same as `busy`: between a job saying its last word and its
+        thread finishing there is a short stretch where the runner still owns a
+        thread and no work is happening. The interface asks *this* — refusing
+        the next run for those few milliseconds would be a button that ignores
+        a click for no reason a person could see.
+        """
+        return self.job is not None and not self._over
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancelled
 
     def start(self, job: _Job, *, on_done=None) -> None:
+        """Run *job*. If the last thread is still winding down, run it next.
+
+        Queued rather than refused: the wind-down is invisible and lasts a few
+        milliseconds, so "the button did nothing" is the only way a person
+        could ever experience a refusal here.
+        """
+        if self.busy:
+            self._pending = (job, on_done)
+            return
         thread = QThread()
         job.moveToThread(thread)
         thread.started.connect(job.run)
-        self.thread, self.job, self._on_done = thread, job, on_done
+        thread.finished.connect(self._thread_ended, Qt.QueuedConnection)
         for signal in (getattr(job, "finished", None), getattr(job, "failed", None)):
             if signal is not None:
-                signal.connect(self._finished, Qt.QueuedConnection)
+                signal.connect(self._work_over, Qt.QueuedConnection)
+        self.thread, self.job, self._on_done = thread, job, on_done
+        self._cancelled = False
+        self._over = False
         thread.start()
 
-    def _finished(self, *_args) -> None:
-        self.stop()
-        if self._on_done is not None:
-            done, self._on_done = self._on_done, None
+    def _work_over(self, *_args) -> None:
+        """The job has said its last word. Ask the thread to leave its loop.
+
+        Nothing is cleared here: the page's own handler for the same signal may
+        still be running, and the thread has not finished yet.
+        """
+        self._over = True
+        if self.thread is not None:
+            self.thread.quit()
+
+    def _thread_ended(self) -> None:
+        """The thread really has stopped. Now everything can go."""
+        thread, job = self.thread, self.job
+        self.thread = self.job = None
+        # The job first: it lives on the thread, and deleting a thread that
+        # still owns a live object is the crash this order avoids.
+        if job is not None:
+            job.deleteLater()
+        if thread is not None:
+            thread.deleteLater()
+        done, self._on_done = self._on_done, None
+        if done is not None:
             done()
+        waiting, self._pending = self._pending, None
+        if waiting is not None:
+            self.start(waiting[0], on_done=waiting[1])
+            return
+        self.idle.emit()
 
     def cancel(self) -> None:
+        """Ask the work to stop. Idempotent, and safe when nothing is running."""
+        self._cancelled = True
+        if self._pending is not None:
+            # Cancelled before it started, and still started: the job checks
+            # its own flag, reports that it stopped, and the page gets the
+            # signal it is waiting for. Dropping it here would leave the flow
+            # on a progress screen that nothing will ever finish.
+            self._pending[0].cancel()
         if self.job is not None:
             self.job.cancel()
 
     def stop(self) -> None:
-        """Bring the thread down and forget it. Safe to call twice."""
-        thread, self.thread, self.job = self.thread, None, None
-        if thread is not None:
-            thread.quit()
-            thread.wait(5000)
+        """Cancel and ask the thread to end. Returns at once; see `idle`."""
+        self.cancel()
+        if self.thread is not None:
+            self.thread.quit()
+
+    def wait_for_idle(self, milliseconds: int = 5000) -> bool:
+        """Block until the thread has ended. **Tests and teardown only.**
+
+        Never call this from the interface: it is the wait this class exists to
+        get rid of. It is here because a test that ends while a thread is still
+        running takes the next test down with it.
+        """
+        from PySide6.QtCore import QCoreApplication, QDeadlineTimer
+
+        deadline = QDeadlineTimer(milliseconds)
+        while self.busy and not deadline.hasExpired():
+            thread = self.thread
+            if thread is not None:
+                thread.wait(20)
+            QCoreApplication.processEvents()
+        return not self.busy

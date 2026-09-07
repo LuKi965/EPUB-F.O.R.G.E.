@@ -70,6 +70,9 @@ def page(qt_app):
     widget = RebuildPage(tokens_module.DARK, DemoBackend())
     yield widget
     widget.runner.stop()
+    # Asking is not the same as having stopped, and a thread that outlives its
+    # test takes the next one down with it.
+    widget.runner.wait_for_idle()
     widget.close()
 
 
@@ -784,6 +787,137 @@ class TestHistoryRemembersLittleAndNothingPrivate:
         broken.write_text("{ this is not json", encoding="utf-8")
         monkeypatch.setattr(state, "history_path", lambda: broken)
         assert state.load_history() == []
+
+
+class TestTheThreadEndsBeforeAnythingIsDestroyed:
+    """The runner as a state machine, because the alternative was a wait.
+
+    `thread.quit(); thread.wait(5000)` on the window's thread froze the
+    interface for as long as the job took to notice — and if the job was
+    blocked on a question, until the wait gave up and abandoned a thread that
+    was still running.
+    """
+
+    def test_nothing_in_the_shell_waits_on_a_thread_or_kills_one(self):
+        import ast
+
+        offenders = []
+        for path in (ROOT / "epubforge" / "gui" / "shell").rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    if node.func.attr == "terminate":
+                        offenders.append(f"{path.name}:{node.lineno} terminate")
+                    if node.func.attr == "wait" and path.name != "workers.py":
+                        offenders.append(f"{path.name}:{node.lineno} wait")
+        assert not offenders, offenders
+
+    def test_the_only_wait_left_says_it_is_for_tests(self):
+        source = (ROOT / "epubforge" / "gui" / "shell" / "workers.py").read_text(encoding="utf-8")
+        import ast
+
+        tree = ast.parse(source)
+        waits = [
+            node.lineno for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "wait"
+        ]
+        assert len(waits) == 1, waits
+        assert "def wait_for_idle" in source
+        assert "**Tests and teardown only.**" in source
+
+    def test_the_runner_owns_nothing_once_the_thread_has_ended(self, qt_app, page):
+        page.start(["a.epub"])
+        assert page.runner.busy
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        assert page.runner.wait_for_idle(3000)
+        assert page.runner.thread is None and page.runner.job is None
+
+    def test_the_idle_signal_arrives_once_per_job(self, qt_app, page):
+        seen = []
+        page.runner.idle.connect(lambda: seen.append(1))
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.runner.wait_for_idle(3000)
+        qt_app.processEvents()
+        assert seen == [1]
+
+    def test_cancelling_twice_is_the_same_as_cancelling_once(self, qt_app, page):
+        page.start(["a.epub", "b.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        page._cancel()
+        page._cancel()
+        page.runner.cancel()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        assert page.outcome.cancelled
+
+    def test_a_run_asked_for_while_the_last_thread_winds_down_still_happens(self, qt_app, page):
+        """The wind-down is a few invisible milliseconds; a button that ignores
+        a click during them is a button that did nothing for no reason."""
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()  # the analysis thread may not have finished ending yet
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        assert page.outcome.written == 1
+
+    def test_closing_during_a_job_is_refused_until_the_work_has_stopped(self, qt_app, window):
+        from PySide6.QtGui import QCloseEvent
+
+        window.rebuild.start(["a.epub", "b.epub", "c.epub"])
+        assert window.rebuild.runner.busy
+        event = QCloseEvent()
+        window.closeEvent(event)
+        assert not event.isAccepted(), "the first close asks; it does not close"
+        assert window._closing
+        assert window.rebuild.runner.cancelled
+        settle(qt_app, window.rebuild, lambda: not window.rebuild.runner.busy)
+        qt_app.processEvents()
+        # And now the same event is accepted, because there is nothing running.
+        second = QCloseEvent()
+        window.closeEvent(second)
+        assert second.isAccepted()
+
+    def test_a_window_with_nothing_running_closes_at_once(self, qt_app, window):
+        from PySide6.QtGui import QCloseEvent
+
+        event = QCloseEvent()
+        window.closeEvent(event)
+        assert event.isAccepted()
+
+
+class TestAStoppedResolverStopsAsking:
+    """A question is a blocking call from the worker into the window's thread.
+    Cancelling without stopping it cancels nothing until somebody answers."""
+
+    def test_it_answers_leave_it_alone_without_showing_anything(self, qt_app):
+        from epubforge.gui.ask import Ask
+        from epubforge.references import KEEP, Unresolved
+
+        ask = Ask()
+        ask.stop()
+        answer = ask.resolve(
+            Unresolved(document="a.xhtml", target="b.xhtml", fragment="x", text="1")
+        )
+        assert answer is not None and answer.action == KEEP
+
+    def test_and_the_generic_half_answers_nothing(self, qt_app):
+        from epubforge.gui.ask import Ask
+
+        ask = Ask()
+        ask.stop()
+        assert ask.ask(object()) is None
+
+    def test_cancelling_a_run_stops_the_questions(self, qt_app, page):
+        stopped = []
+
+        class Resolver:
+            def stop(self):
+                stopped.append(True)
+
+        page._resolver = Resolver()
+        page._cancel()
+        assert stopped == [True]
 
 
 @pytest.fixture

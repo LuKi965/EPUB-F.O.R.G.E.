@@ -114,6 +114,8 @@ class MainWindow(QMainWindow):
         self.backend = backend or EngineBackend(language())
         self.restart_requested = False
         self.busy = False
+        #: True from the first close request until the threads have stopped.
+        self._closing = False
         self.setWindowTitle(tr("window.title", version=version_string()))
         self.setMinimumSize(*MIN_WINDOW)
         self.resize(*opening_size(self.screen() or QApplication.primaryScreen()))
@@ -389,13 +391,47 @@ class MainWindow(QMainWindow):
         edge = COMPACT_BELOW + (COMPACT_SLACK if compact else 0)
         self.sidebar.set_compact(self.width() < edge)
 
+    def runners(self) -> "list":
+        """Every page that owns a worker thread. One list, one shutdown."""
+        return [
+            page.runner for page in self.pages.values()
+            if getattr(page, "runner", None) is not None
+        ] + list(self.tools.runners())
+
     def closeEvent(self, event):  # noqa: N802
-        """Never leave a thread running behind a closed window."""
+        """Close when the work has stopped — not five seconds after asking.
+
+        The old version cancelled and then waited on the thread from the
+        window's own thread. That froze the interface for as long as the job
+        took to notice, and if the job was waiting for an answer to a question
+        it froze until the wait timed out and the thread was abandoned mid-run.
+
+        So closing is now in two parts: the first close asks everything to
+        stop and is refused, and the window closes for real when the last
+        runner says it is idle.
+        """
         geometry = self.frameGeometry() if self.isVisible() else self.geometry()
         save_geometry(geometry.x(), geometry.y(), self.width(), self.height())
-        self.rebuild.runner.cancel()
-        self.rebuild.runner.stop()
+
+        working = [runner for runner in self.runners() if runner.busy]
+        if working:
+            if not self._closing:
+                self._closing = True
+                self.setWindowTitle(tr("shell.closing"))
+                for runner in working:
+                    runner.idle.connect(self._close_when_idle, Qt.QueuedConnection)
+                    runner.stop()
+                # And the questions stop being asked: a rebuild blocked on a
+                # dialog would otherwise hold the thread — and the close — for
+                # as long as nobody answers it.
+                self.rebuild.stop_asking()
+            event.ignore()
+            return
         super().closeEvent(event)
+
+    def _close_when_idle(self) -> None:
+        if self._closing and not any(runner.busy for runner in self.runners()):
+            self.close()
 
 
 def run(argv: "list[str] | None" = None) -> int:
