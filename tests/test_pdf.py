@@ -423,12 +423,16 @@ class TestTheReader:
         assert [child.label for child in book.toc[0].children] == ["1.1 Its first section", "1.2 Its second section"]
         assert [deep.label for deep in book.toc[0].children[1].children] == ["1.2.1 A subsection"]
         assert report.stats["pdf_layout"]["navigation_entries"] == 6
-        # Every entry points at the page it named, and the anchor is there.
+        # Every entry lands on an element, not on the top of a document.
+        assert all("#" in point.target for root in book.toc for point in root.walk())
         deepest = book.toc[0].children[1].children[0]
-        assert deepest.target == "text/section-0001.xhtml#pdf-page-0003"
         document = book.resources[deepest.target_path].data.decode()
-        assert 'id="pdf-page-0003"' in document
-        assert document.index('id="pdf-page-0003"') < document.index("Page 3 of prose")
+        assert deepest.target.split("#", 1)[1] in document
+        # These six pages of prose run into one paragraph each side of the
+        # section break, so the entries for pages 2 and 3 point at the
+        # paragraph their page begins in. That is what is true of them.
+        assert deepest.target == "text/section-0001.xhtml#pdf-page-0001"
+        assert book.toc[1].target == "text/section-0002.xhtml#pdf-page-0004"
 
     def test_a_line_of_figures_set_large_is_not_a_heading(self, tmp_path):
         """Measured on the owner's manual: "set larger than the body" promoted

@@ -418,8 +418,8 @@ def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layou
     layout.lists += counts["lists"]
     layout.table_cells += sum(len(row) for block in blocks
                               if block.kind == "table" for row in block.rows)
-    for page in counts["anchored"]:
-        placed.setdefault(page, f"{path}#{_anchor(page)}")
+    for page, name in counts["anchored"]:
+        placed.setdefault(page, f"{path}#{name}")
     for block in blocks:
         if block.kind == "image" and block.picture.name not in book.resources:
             picture = block.picture
@@ -431,7 +431,7 @@ def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layou
     # whose blocks all began earlier — still has to be reachable: the document
     # it falls in is the truthful answer.
     for page in {p for p in anchored if p not in placed}:
-        if any(_block_page(block) >= page for block in blocks):
+        if any(page in _block_pages(block) for block in blocks):
             placed.setdefault(page, path)
 
 
@@ -443,6 +443,18 @@ def _block_page(block: "Block") -> int:
     if block.picture is not None:
         return block.picture.page
     return block.lines[0].page if block.lines else 0
+
+
+def _block_pages(block: "Block") -> list:
+    """Every page this block has text on, in order. A paragraph that runs over
+    the fold is on two."""
+    if block.picture is not None:
+        return [block.picture.page]
+    seen: list = []
+    for line in block.lines:
+        if not seen or seen[-1] != line.page:
+            seen.append(line.page)
+    return seen
 
 
 def _navigation(outline: "list[Outline]", placed: dict) -> "list[NavPoint]":
@@ -1070,7 +1082,7 @@ def _widest_gap(spans: "list[tuple[float, float]]") -> "tuple[float, float] | No
 
 
 def _regions(lines: "list[Line]", width: float, height: float,
-             columns: bool = False, depth: int = 0) -> "list[list[Line]]":
+             split: "float | None" = None, depth: int = 0) -> "list[list[Line]]":
     """The page cut into the areas a person reads one after another.
 
     The recursive XY cut, in the order that is safe for reading: a band across
@@ -1091,10 +1103,12 @@ def _regions(lines: "list[Line]", width: float, height: float,
     misprint, correction — as three lists, every page number before every
     misprint, and K1 refused the rebuild. The gate was right; the cut was
     wrong. A page genuinely set in columns is the exception, and it is the one
-    thing `_two_columns` is careful about.
+    thing `_two_columns` is careful about — which is why *split* is that
+    measurement itself and not a flag: where the cut cannot be made, the lines
+    are still ordered by it (`_in_order`).
     """
     if len(lines) <= 1 or depth >= REGION_DEPTH:
-        return [_in_order(lines)] if lines else []
+        return [_in_order(lines, split)] if lines else []
     # A band, when the gap is wider than any ordinary space between
     # paragraphs. Taken before a column split because top-to-bottom is always
     # the reading order and left-to-right is only ever true inside a band.
@@ -1104,21 +1118,34 @@ def _regions(lines: "list[Line]", width: float, height: float,
         upper = [line for line in lines if (line.y0 + line.y1) / 2 > cut]
         lower = [line for line in lines if (line.y0 + line.y1) / 2 <= cut]
         if upper and lower:
-            return (_regions(upper, width, height, columns, depth + 1)
-                    + _regions(lower, width, height, columns, depth + 1))
-    down = _widest_gap([(line.x0, line.x1) for line in lines]) if columns else None
+            return (_regions(upper, width, height, split, depth + 1)
+                    + _regions(lower, width, height, split, depth + 1))
+    down = _widest_gap([(line.x0, line.x1) for line in lines]) if split is not None else None
     if down and down[0] >= GUTTER_SHARE * width:
         cut = down[1]
         left = [line for line in lines if (line.x0 + line.x1) / 2 < cut]
         right = [line for line in lines if (line.x0 + line.x1) / 2 >= cut]
         if left and right:
-            return (_regions(left, width, height, columns, depth + 1)
-                    + _regions(right, width, height, columns, depth + 1))
-    return [_in_order(lines)]
+            return (_regions(left, width, height, split, depth + 1)
+                    + _regions(right, width, height, split, depth + 1))
+    return [_in_order(lines, split)]
 
 
-def _in_order(lines: "list[Line]") -> "list[Line]":
-    return sorted(lines, key=lambda line: (-round(line.y1), line.x0))
+def _in_order(lines: "list[Line]", split: "float | None" = None) -> "list[Line]":
+    """The lines in the order a person takes them: down, then across.
+
+    *split* is the x that divides a page set in two columns, and it is the
+    answer of last resort. Normally the columns are areas of their own and each
+    is sorted inside itself, so the split changes nothing. But a column whose
+    longest line reaches past the gutter — a URL on a Gutenberg title page —
+    leaves no gap for `_regions` to cut on, and then the whole page is one area
+    and sorting it down-then-across reads the two columns line about. The page
+    was measured to be in columns; that measurement is not thrown away because
+    the cut could not be made.
+    """
+    if split is None:
+        return sorted(lines, key=lambda line: (-round(line.y1), line.x0))
+    return sorted(lines, key=lambda line: (0 if line.x0 < split else 1, -round(line.y1), line.x0))
 
 
 def _lift_labels(page: Page) -> None:
@@ -1247,7 +1274,7 @@ def _lay_out(page: Page, names: "set | None" = None) -> None:
     _lift_callouts(page, names or set())
     body = [line for line in page.lines if not line.running_head]
     heads = [line for line in page.lines if line.running_head]
-    regions = _regions(body, page.width, page.height, page.columns)
+    regions = _regions(body, page.width, page.height, page.split)
     for index, region in enumerate(regions):
         for line in region:
             line.region = index
@@ -1258,9 +1285,9 @@ def _lay_out(page: Page, names: "set | None" = None) -> None:
             else (len(regions) - 1 if regions else 0)
         )
     page.regions = [
-        _in_order(list(region) + [h for h in heads if h.region == index])
+        _in_order(list(region) + [h for h in heads if h.region == index], page.split)
         for index, region in enumerate(regions)
-    ] or ([_in_order(heads)] if heads else [])
+    ] or ([_in_order(heads, page.split)] if heads else [])
     page.lines = [line for region in page.regions for line in region]
 
 
@@ -1524,16 +1551,22 @@ def _starts_a_block(line: Line, kind: str, flow: "_Flow", area: "_Area",
     """Whether *line* begins a block rather than continuing the one before it."""
     if flow.current is None or flow.current.kind != kind:
         return True
-    # Two areas of a page are two things read one after the other — except on a
-    # page set in two columns of one body, where the paragraph at the foot of
-    # the left column is the one at the head of the right. That page is
-    # recognised by `_two_columns`, which is measured; everywhere else a new
-    # area starts a new block.
-    if area.first and not area.page.columns:
-        return True
     previous = flow.previous
     if previous is None:
         return False
+    # Two areas **of one page** are two things read one after the other —
+    # except on a page set in two columns of one body, where the paragraph at
+    # the foot of the left column is the one at the head of the right. That
+    # page is recognised by `_two_columns`, which is measured.
+    #
+    # Of one page, and the words matter: the first area of a *new* page is not
+    # a new area, it is the same reading carried over the fold. Cutting there
+    # split every paragraph that runs from the foot of one page to the head of
+    # the next — and with it every word the typesetter broke across that fold,
+    # which came out as two words. Measured on the substitute corpus: it put
+    # 78 paragraphs into *Pan Tadeusz* that the book does not have.
+    if area.first and not area.page.columns and previous.page == line.page:
+        return True
     # Text carrying on along one line of the page is one paragraph: "A6." at
     # the left edge and "Tacka na skropliny" a word's width away are a legend
     # entry, and read as two paragraphs the entry loses its name. Far apart on
@@ -1953,14 +1986,15 @@ def _element(block: Block, mark: str, counts: dict, item: bool = False) -> str:
         return f'    <p{mark} class="{LABEL_CLASS}">{escape(block.text)}</p>'
     if block.kind == "head":
         return f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>'
+    inner = escape(block.text)
     if block.kind in ("h1", "h2"):
         counts["headings"] += 1
-        return f"    <{block.kind}{mark}>{escape(block.text)}</{block.kind}>"
+        return f"    <{block.kind}{mark}>{inner}</{block.kind}>"
     if block.continued:
-        return f'    <p{mark} class="{CONTINUED_CLASS}">{escape(block.text)}</p>'
+        return f'    <p{mark} class="{CONTINUED_CLASS}">{inner}</p>'
     counts["paragraphs"] += 1
     tag = "li" if item else "p"
-    return f"    <{tag}{mark}>{escape(block.text)}</{tag}>"
+    return f"    <{tag}{mark}>{inner}</{tag}>"
 
 
 def _render(blocks: list[Block], title: str,
@@ -1980,12 +2014,26 @@ def _render(blocks: list[Block], title: str,
     listed = {index for first, last in runs for index in range(first, last + 1)}
     body: list[str] = []
     for index, block in enumerate(blocks):
-        page = _block_page(block)
+        # The anchor goes on the first block that *reaches* the page, not on
+        # one that starts there: a paragraph running over the fold means no
+        # block begins on the page below it, and the entry pointing at that
+        # page would have nowhere to land.
+        # Every named page this block reaches is answered by this one element.
+        # A paragraph that runs over the fold carries two pages, and the entry
+        # for the second points at the paragraph its page begins in — which is
+        # true, and is as precise as an anchor can be without cutting the text
+        # in half. It was cut, once: an empty `span` between the two halves of
+        # a word broken at the fold made the hyphen stage's bookkeeping
+        # disagree with the document, and it reverted **every** join in the
+        # book rather than write a text it could not account for. It was right
+        # to; the anchor was not worth it.
+        covered = [p for p in _block_pages(block) if p in wanted]
         mark = ""
-        if page in wanted:
-            wanted.discard(page)
-            counts["anchored"].append(page)
-            mark = f' id="{_anchor(page)}"'
+        if covered:
+            mark = f' id="{_anchor(covered[0])}"'
+            for page in covered:
+                wanted.discard(page)
+                counts["anchored"].append((page, _anchor(covered[0])))
         if index in opens:
             counts["lists"] += 1
             body.append(f'    <ul class="{LIST_CLASS}">')
