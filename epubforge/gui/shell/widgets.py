@@ -85,6 +85,33 @@ def clear_layout(layout) -> None:
             inner.deleteLater()
 
 
+def page_body(spacing: int = 14):
+    """The whole page in one scroll area — heading included.
+
+    The earlier arrangement scrolled the *body* and kept the page heading and
+    the stepper outside it, which is fine at 960 px of height and a trap at
+    520: the fixed part eats a third of the window and the part that scrolls
+    gets what is left. Everything scrolls now, so nothing is unreachable at any
+    height; the horizontal bar is left to Qt, because a page that needs one is
+    telling us something we should hear rather than hide.
+
+    Returns `(scroll_area, layout)`.
+    """
+    from PySide6.QtWidgets import QScrollArea
+
+    from .tokens import CONTENT_MARGIN
+
+    holder = QWidget()
+    body = QVBoxLayout(holder)
+    body.setContentsMargins(CONTENT_MARGIN, 24, CONTENT_MARGIN, 22)
+    body.setSpacing(spacing)
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.NoFrame)
+    area.setWidget(holder)
+    return area, body
+
+
 def scrolling_body(spacing: int = 14):
     """A vertical layout that scrolls when the window is shorter than it.
 
@@ -222,6 +249,10 @@ class Sidebar(QWidget):
         if item is not None:
             item.setChecked(True)
 
+    @property
+    def compact(self) -> bool:
+        return self._compact
+
     def set_compact(self, compact: bool) -> None:
         """Icons only, for windows too narrow to spend 244 px on names."""
         if compact == self._compact:
@@ -249,6 +280,8 @@ class Stepper(QWidget):
         super().__init__()
         self.tokens = tokens
         self._labels: list[QLabel] = []
+        self._compact = False
+        self._stage = Stage.FILES
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 2, 0, 2)
         row.setSpacing(8)
@@ -261,12 +294,26 @@ class Stepper(QWidget):
             row.addWidget(item, 1)
         self.set_stage(Stage.FILES)
 
+    def set_compact(self, compact: bool) -> None:
+        """Four names do not fit a narrow page; four numbers do.
+
+        The step a person is *on* keeps its name either way — that is the one
+        thing the stepper is for — and every step keeps its accessible name, so
+        a screen reader reads the same four steps at every width.
+        """
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.set_stage(self._stage)
+
     def set_stage(self, stage: Stage) -> None:
+        self._stage = stage
         current = stage.step
         for index, item in enumerate(self._labels):
             name = tr(self.KEYS[index])
             done = index < current
-            item.setText(("✓   " if done else f"{index + 1}   ") + name)
+            shown = name if not self._compact or index == current else ""
+            item.setText(("✓" if done else f"{index + 1}") + ("   " + shown if shown else ""))
             if done:
                 item.setStyleSheet(f"color:{self.tokens.success}; font-weight:700;")
                 state = tr("shell.step.done")
@@ -424,6 +471,53 @@ class PresetCard(Clickable):
         self.activated.connect(lambda: self.chosen.emit(self.preset))
 
 
+class Eliding(QLabel):
+    """A label that shortens its text instead of widening its parent.
+
+    A book's title, its author and above all the path it was written to are
+    values a layout must not be sized by: one long path used to push the whole
+    results column past the window and take the scrollbar with it. What is cut
+    is never lost — the full text is the tooltip and the accessible name, both
+    of which a person and a screen reader can reach.
+    """
+
+    def __init__(self, text: str, object_name: str = "", mode=Qt.ElideRight) -> None:
+        super().__init__()
+        if object_name:
+            self.setObjectName(object_name)
+        self._mode = mode
+        self._full = ""
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt casing
+        self._full = text or ""
+        self.setToolTip(self._full)
+        self.setAccessibleName(self._full)
+        self._shorten()
+
+    def full_text(self) -> str:
+        return self._full
+
+    def _shorten(self) -> None:
+        room = max(0, self.width() - 2)
+        shown = (
+            self.fontMetrics().elidedText(self._full, self._mode, room)
+            if room else self._full
+        )
+        QLabel.setText(self, shown)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._shorten()
+
+
+#: A book row narrower than this puts its one-line summary under the title
+#: rather than beside it. It is the row's own width, not the page's: a row in a
+#: card in a column is narrower than the page it is on.
+ROW_STACKS_BELOW = 620
+
+
 class BookRow(Clickable):
     """One book in the plan, or one book in the results.
 
@@ -438,33 +532,47 @@ class BookRow(Clickable):
     def __init__(self, book: BookItem, tokens: Tokens, *, results: bool = False) -> None:
         super().__init__("bookRow")
         self.book = book
+        self._narrow: bool | None = None
         row = QHBoxLayout(self)
         row.setContentsMargins(14, 10, 14, 10)
         row.setSpacing(14)
+        self._row = row
 
         if not results:
             self.choose = QCheckBox()
             self.choose.setChecked(book.chosen)
+            self.choose.setEnabled(book.rebuildable)
             self.choose.setAccessibleName(tr("shell.plan.include", title=book.title))
             self.choose.toggled.connect(lambda state: self.toggled.emit(self.book, state))
+            if not book.rebuildable:
+                # The reason it cannot be rebuilt is beside it; the checkbox
+                # says the same thing by being unavailable rather than by
+                # letting somebody tick a book that will fail again.
+                self.choose.setToolTip(book.error or tr("shell.plan.unavailable"))
             row.addWidget(self.choose)
 
-        mark = QLabel()
-        mark.setPixmap(icons.icon("book", tokens.muted).pixmap(22, 22))
-        mark.setFixedWidth(26)
-        row.addWidget(mark)
+        self.mark = QLabel()
+        self.mark.setPixmap(icons.icon("book", tokens.muted).pixmap(22, 22))
+        self.mark.setFixedWidth(26)
+        row.addWidget(self.mark)
 
-        names = QVBoxLayout()
-        names.setSpacing(2)
-        names.addWidget(label(book.title, "cardTitle"))
+        self.names = QVBoxLayout()
+        self.names.setSpacing(2)
+        self.names.addWidget(Eliding(book.title, "cardTitle"))
         meta = "  ·  ".join(part for part in (book.author, book.kind, book.size_text) if part)
-        names.addWidget(label(meta, "muted"))
+        self.names.addWidget(Eliding(meta, "muted"))
         if results and book.output:
-            names.addWidget(label(str(book.output), "muted"))
-        row.addLayout(names, 3)
+            self.names.addWidget(Eliding(str(book.output), "muted", Qt.ElideMiddle))
+        row.addLayout(self.names, 3)
 
+        self.summary = None
         if book.summary or book.error:
-            row.addWidget(label(book.error or book.summary, "muted"), 2)
+            self.summary = Eliding(book.error or book.summary, "muted")
+            # Remembered rather than looked up later: a layout cannot be asked
+            # for the index of a nested layout, and this is where the summary
+            # goes back to when the row is wide again.
+            self._summary_at = row.count()
+            row.addWidget(self.summary, 2)
 
         row.addWidget(status_badge(book.status, tokens))
 
@@ -493,6 +601,23 @@ class BookRow(Clickable):
             f"{meta}. {tr(f'shell.status.{book.status.value}')}. {book.summary or book.error}"
         )
         self.activated.connect(lambda: self.opened.emit(self.book))
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().resizeEvent(event)
+        narrow = self.width() < ROW_STACKS_BELOW
+        if narrow is self._narrow:
+            return
+        self._narrow = narrow
+        if self.summary is None:
+            return
+        # Moved, not rebuilt: the same label, one layout over.
+        if narrow:
+            self._row.removeWidget(self.summary)
+            self.names.addWidget(self.summary)
+        else:
+            self.names.removeWidget(self.summary)
+            self._row.insertWidget(self._summary_at, self.summary, 2)
+        self.mark.setVisible(not narrow)
 
 
 class Tile(Clickable):

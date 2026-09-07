@@ -104,11 +104,22 @@ LIGHT = Tokens(
 #: never spells a number the specification owns.
 SIDEBAR_WIDTH = 244
 SIDEBAR_COMPACT_WIDTH = 64
-#: Below this the sidebar collapses to icons (DESIGN_SPEC: "consider a compact
-#: icon-only mode below 1180 px").
-COMPACT_BELOW = 1180
+#: Below this *window* width the sidebar collapses to icons. It is the one
+#: measurement still taken from the window rather than from a page's viewport,
+#: and deliberately: the sidebar is what makes the viewport narrow, so deciding
+#: it from the viewport would be a loop. Everything else asks `responsive`.
+COMPACT_BELOW = 1024
+#: How much slack before the sidebar changes its mind. Same reason as
+#: `responsive.HYSTERESIS`: an edge dragged to exactly the threshold.
+COMPACT_SLACK = 16
+#: The drawer's widest. It is a maximum now, not a width: on a narrow page it
+#: takes the whole viewport instead of hanging off the side of it.
 DRAWER_WIDTH = 650
-MIN_WINDOW = (1100, 700)
+#: The smallest window this interface promises to be usable in. It was
+#: 1100x700 — which is to say the window refused to be the size of a netbook,
+#: an old laptop, or half of a 1920 screen. Everything reflows now, so the
+#: floor is what Qt needs for a window with a sidebar and one card in it.
+MIN_WINDOW = (800, 520)
 REFERENCE_WINDOW = (1536, 960)
 CONTENT_MARGIN = 28
 CARD_GAP = 14

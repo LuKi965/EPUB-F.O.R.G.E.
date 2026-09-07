@@ -12,32 +12,48 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
 from ...strings import LANGUAGES, tr
-from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
-from ..widgets import Card, PageHeader, button, label
+from ..responsive import LayoutMode, Panels, Responsive, spread
+from ..tokens import CARD_GAP, Tokens
+from ..widgets import Card, PageHeader, button, label, page_body
 
 THEMES = ("system", "light", "dark")
 
 
 class Row(QFrame):
-    """One preference: name, sentence, control."""
+    """One preference: name, sentence, control.
+
+    The control sits to the right of the sentence when the page is wide and
+    under it when it is not. A combo box beside a two-line description on a
+    narrow page leaves both of them about forty pixels.
+    """
 
     def __init__(self, title: str, description: str, control: QWidget) -> None:
         super().__init__()
         self.setObjectName("settingRow")
-        row = QHBoxLayout(self)
-        row.setContentsMargins(14, 12, 14, 12)
-        row.setSpacing(14)
-        words = QVBoxLayout()
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(14, 12, 14, 12)
+        split = Panels(14)
+
+        words_side = QWidget()
+        words = QVBoxLayout(words_side)
+        words.setContentsMargins(0, 0, 0, 0)
         words.setSpacing(3)
         words.addWidget(label(title, "cardTitle"))
         words.addWidget(label(description, "cardSubtitle"))
-        row.addLayout(words, 1)
-        row.addWidget(control, 0, Qt.AlignTop)
+        split.add(words_side, 3)
+
+        holder = QWidget()
+        holding = QHBoxLayout(holder)
+        holding.setContentsMargins(0, 0, 0, 0)
+        holding.addStretch(1)
+        holding.addWidget(control, 0, Qt.AlignTop)
+        split.add(holder, 1)
+        outer.addWidget(split)
         self.setAccessibleName(title)
         self.setAccessibleDescription(description)
 
 
-class SettingsPage(QWidget):
+class SettingsPage(Responsive, QWidget):
     language_changed = Signal(str)
     theme_changed = Signal(str)
     remember_changed = Signal(bool)
@@ -46,9 +62,10 @@ class SettingsPage(QWidget):
     def __init__(self, tokens: Tokens, *, language: str = "pl", theme: str = "system",
                  remember: bool = True) -> None:
         super().__init__()
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(CONTENT_MARGIN, 24, CONTENT_MARGIN, 22)
-        layout.setSpacing(CARD_GAP)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroller, layout = page_body(CARD_GAP)
+        outer.addWidget(scroller)
         layout.addWidget(
             PageHeader(tr("shell.settings.eyebrow"), tr("shell.settings.title"),
                        tr("shell.settings.subtitle"))
@@ -96,3 +113,7 @@ class SettingsPage(QWidget):
         card.body.addWidget(label(tr("shell.settings.restart"), "muted"))
         card.body.addStretch(1)
         layout.addWidget(card, 1)
+        self.begin_tracking()
+
+    def reflow(self, mode: LayoutMode) -> None:
+        spread(self, mode)

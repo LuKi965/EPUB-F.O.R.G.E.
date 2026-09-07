@@ -18,8 +18,9 @@ from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from ... import theme as legacy_theme
 from ...strings import tr
+from ..responsive import Cards, LayoutMode, Responsive, spread
 from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
-from ..widgets import PageHeader, StatusBadge, Tile, button, label
+from ..widgets import PageHeader, StatusBadge, Tile, button, label, page_body
 
 
 def palette_for(tokens: Tokens) -> legacy_theme.Palette:
@@ -47,7 +48,7 @@ def palette_for(tokens: Tokens) -> legacy_theme.Palette:
     )
 
 
-class ToolsPage(QWidget):
+class ToolsPage(Responsive, QWidget):
     """Four tiles, and behind each of them the panel that does the work."""
 
     TOOLS = (
@@ -73,14 +74,16 @@ class ToolsPage(QWidget):
         outer.addWidget(self.router)
 
         index_page = QWidget()
-        layout = QVBoxLayout(index_page)
-        layout.setContentsMargins(CONTENT_MARGIN, 24, CONTENT_MARGIN, 22)
-        layout.setSpacing(CARD_GAP)
+        holder = QVBoxLayout(index_page)
+        holder.setContentsMargins(0, 0, 0, 0)
+        scroller, layout = page_body(CARD_GAP)
+        holder.addWidget(scroller)
         layout.addWidget(
             PageHeader(tr("shell.tools.eyebrow"), tr("shell.tools.title"), tr("shell.tools.subtitle"))
         )
-        grid = QHBoxLayout()
-        grid.setSpacing(CARD_GAP)
+        grid = Cards(
+            {LayoutMode.WIDE: 4, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1}, CARD_GAP
+        )
         for name, glyph, key, expert in self.TOOLS:
             tile = Tile(glyph, tr(f"{key}.title"), tr(f"{key}.body"), tr("shell.tools.open"), tokens)
             if expert:
@@ -88,10 +91,15 @@ class ToolsPage(QWidget):
                     2, StatusBadge(tr("shell.tools.corpus.badge"), "warning", tokens, "expert")
                 )
             tile.activated.connect(lambda target=name: self.open_tool(target))
-            grid.addWidget(tile, 1)
-        layout.addLayout(grid, 1)
+            grid.add(tile)
+        layout.addWidget(grid, 1)
+        layout.addStretch(1)
         self.router.addWidget(index_page)
         self._index = index_page
+        self.begin_tracking()
+
+    def reflow(self, mode: LayoutMode) -> None:
+        spread(self, mode)
 
     def open_tool(self, name: str) -> None:
         """Show one tool. `merge` is a dialog, not a page — it produces a file."""

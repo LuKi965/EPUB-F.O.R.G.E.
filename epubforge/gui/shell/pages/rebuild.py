@@ -36,7 +36,8 @@ from ..models import (
     RebuildPlan,
     Stage,
 )
-from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
+from ..responsive import Cards, LayoutMode, Panels, Responsive, spread
+from ..tokens import CARD_GAP, Tokens
 from ..widgets import (
     BookRow,
     Card,
@@ -47,7 +48,7 @@ from ..widgets import (
     button,
     clear_layout,
     label,
-    scrolling_body,
+    page_body,
 )
 from ..workers import AnalysisJob, RebuildJob, Runner
 from .drawer import SettingsDrawer
@@ -61,7 +62,7 @@ PRESET_CARDS = (
 )
 
 
-class RebuildPage(QWidget):
+class RebuildPage(Responsive, QWidget):
     """The four-step flow, and the only page that writes anything."""
 
     finished = Signal(object)  # BatchOutcome — the window records it in history
@@ -84,29 +85,48 @@ class RebuildPage(QWidget):
         self.runner = Runner(self)
         self._selected: BookItem | None = None
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(CONTENT_MARGIN, 24, CONTENT_MARGIN, 22)
-        layout.setSpacing(CARD_GAP)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroller, page = page_body(CARD_GAP)
+        outer.addWidget(scroller)
         self.header = PageHeader(
             tr("shell.rebuild.eyebrow"),
             tr("shell.rebuild.title.files"),
             tr("shell.rebuild.subtitle.files"),
         )
-        layout.addWidget(self.header)
+        page.addWidget(self.header)
         self.stepper = Stepper(tokens)
-        layout.addWidget(self.stepper)
-        scroller, self.body = scrolling_body(CARD_GAP)
-        layout.addWidget(scroller, 1)
+        page.addWidget(self.stepper)
+        # The flow's four states draw into this; everything above is the frame
+        # they share, and all of it scrolls together.
+        self.body = QVBoxLayout()
+        self.body.setSpacing(CARD_GAP)
+        page.addLayout(self.body, 1)
 
         self.drawer = SettingsDrawer(self, tokens)
         self.drawer.applied.connect(self._apply_overrides)
         self.show_files()
+        self.begin_tracking()
 
     # -- housekeeping -------------------------------------------------------
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
         super().resizeEvent(event)
         if self.drawer.isVisible():
             self.drawer.setGeometry(self.rect())
+
+    def reflow(self, mode: LayoutMode) -> None:
+        spread(self, mode)
+        self.stepper.set_compact(mode is LayoutMode.COMPACT)
+        if self.drawer.isVisible():
+            self.drawer.set_mode(mode)
+
+    def _settle(self) -> None:
+        """Hand the current mode to whatever the last state just built.
+
+        Each state draws itself from scratch, so the containers it makes are
+        new and have never been told how much room they have.
+        """
+        spread(self, self.layout_mode)
 
     def _go(self, stage: Stage) -> None:
         self.stage = stage
@@ -225,10 +245,11 @@ class RebuildPage(QWidget):
     # -- 3. plan ------------------------------------------------------------
     def show_plan(self) -> None:
         self._go(Stage.PLAN)
-        columns = QHBoxLayout()
-        columns.setSpacing(CARD_GAP)
+        columns = Panels(CARD_GAP)
 
-        left = QVBoxLayout()
+        left_side = QWidget()
+        left = QVBoxLayout(left_side)
+        left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(CARD_GAP)
         ready = sum(1 for book in self.books if book.chosen and book.status is not BookStatus.FAILED)
         books_card = Card(tr("shell.plan.count", count=ready), tr("shell.plan.subtitle"),
@@ -259,8 +280,9 @@ class RebuildPage(QWidget):
 
         plan_card = Card(tr("shell.plan.title"), tr("shell.plan.body"), glyph="sliders",
                          tokens=self.tokens)
-        presets = QHBoxLayout()
-        presets.setSpacing(10)
+        presets = Cards(
+            {LayoutMode.WIDE: 3, LayoutMode.MEDIUM: 1, LayoutMode.COMPACT: 1}, 10
+        )
         self._preset_cards = []
         from ..widgets import PresetCard
 
@@ -278,8 +300,8 @@ class RebuildPage(QWidget):
             )
             card.chosen.connect(self._choose_preset)
             self._preset_cards.append(card)
-            presets.addWidget(card, 1)
-        plan_card.body.addLayout(presets)
+            presets.add(card)
+        plan_card.body.addWidget(presets)
         details_row = QHBoxLayout()
         self.details_button = button(tr("shell.plan.details"), glyph="sliders", tokens=self.tokens)
         self.details_button.clicked.connect(self._open_drawer)
@@ -291,10 +313,10 @@ class RebuildPage(QWidget):
         details_row.addStretch(1)
         plan_card.body.addLayout(details_row)
         left.addWidget(plan_card, 2)
-        columns.addLayout(left, 2)
-
-        columns.addWidget(self._summary_card(), 1)
-        self.body.addLayout(columns, 1)
+        columns.add(left_side, 2)
+        columns.add(self._summary_card(), 1)
+        self.body.addWidget(columns, 1)
+        self._settle()
 
     def _summary_card(self) -> Card:
         card = Card(tr("shell.summary.title"), tr("shell.summary.body"), glyph="check",
@@ -465,8 +487,7 @@ class RebuildPage(QWidget):
         )
         self.body.addWidget(self._banner(outcome))
 
-        columns = QHBoxLayout()
-        columns.setSpacing(CARD_GAP)
+        columns = Panels(CARD_GAP)
         results = Card(tr("shell.results.list"), tr("shell.results.list.body"), glyph="book",
                        tokens=self.tokens)
         for book in outcome.books:
@@ -484,9 +505,10 @@ class RebuildPage(QWidget):
         report_button.clicked.connect(self._show_report)
         self._changes_card.body.addWidget(report_button)
         results.body.addWidget(self._changes_card)
-        columns.addWidget(results, 2)
-        columns.addWidget(self._next_card(outcome), 1)
-        self.body.addLayout(columns, 1)
+        columns.add(results, 2)
+        columns.add(self._next_card(outcome), 1)
+        self.body.addWidget(columns, 1)
+        self._settle()
 
         first = next((book for book in outcome.books if book.status.wrote_a_file), None)
         self._select_book(first or (outcome.books[0] if outcome.books else None))
@@ -506,8 +528,16 @@ class RebuildPage(QWidget):
 
         banner = QFrame()
         banner.setObjectName(role)
-        row = QHBoxLayout(banner)
-        row.setContentsMargins(18, 14, 18, 14)
+        holder = QVBoxLayout(banner)
+        holder.setContentsMargins(18, 14, 18, 14)
+        # The sentence and the numbers are one row when there is width for
+        # both, and two blocks when there is not — four metric cards squeezed
+        # in beside a paragraph are four numbers nobody can read.
+        split = Panels(14)
+
+        said = QWidget()
+        row = QHBoxLayout(said)
+        row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(14)
         mark = QLabel()
         mark.setPixmap(icons.icon(glyph, colour).pixmap(26, 26))
@@ -516,19 +546,25 @@ class RebuildPage(QWidget):
         words.setSpacing(3)
         words.addWidget(label(tr(f"shell.results.banner.{name}"), "cardTitle"))
         words.addWidget(label(tr(f"shell.results.banner.{name}.body"), "cardSubtitle"))
-        row.addLayout(words, 2)
-        for value, caption, role_name, mark_name in (
+        row.addLayout(words, 1)
+        split.add(said, 2)
+
+        numbers = [
             (outcome.written, tr("shell.results.metric.done"), "success", "check"),
             (outcome.fixed, tr("shell.results.metric.fixed"), "accent", "rebuild"),
             (outcome.attention, tr("shell.results.metric.attention"), "warning", "warning"),
-        ):
-            row.addWidget(MetricCard(str(value), caption, self.tokens, role_name, mark_name), 1)
+        ]
         if outcome.failed:
-            row.addWidget(
-                MetricCard(str(outcome.failed), tr("shell.results.metric.failed"),
-                           self.tokens, "danger", "error"),
-                1,
+            numbers.append(
+                (outcome.failed, tr("shell.results.metric.failed"), "danger", "error")
             )
+        metrics = Cards(
+            {LayoutMode.WIDE: len(numbers), LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1}, 10
+        )
+        for value, caption, role_name, mark_name in numbers:
+            metrics.add(MetricCard(str(value), caption, self.tokens, role_name, mark_name))
+        split.add(metrics, 2)
+        holder.addWidget(split)
         banner.setAccessibleName(tr(f"shell.results.banner.{name}"))
         return banner
 
@@ -573,14 +609,14 @@ class RebuildPage(QWidget):
         if not book.categories:
             self._changes_body.addWidget(label(tr("shell.changes.none"), "muted"))
             return
-        row = QHBoxLayout()
-        row.setSpacing(10)
+        grid = Cards({LayoutMode.WIDE: 3, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1}, 10)
         for category in book.categories[:3]:
             small = Card(category.title, glyph=category.icon, tokens=self.tokens)
             for line in category.lines:
                 small.body.addWidget(label(f"✓  {line}", "cardSubtitle"))
-            row.addWidget(small, 1)
-        self._changes_body.addLayout(row)
+            grid.add(small)
+        self._changes_body.addWidget(grid)
+        grid.set_mode(self.layout_mode)
 
     def _show_report(self) -> None:
         book = self._selected

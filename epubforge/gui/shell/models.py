@@ -115,6 +115,17 @@ class BookItem:
     chosen: bool = True
 
     @property
+    def rebuildable(self) -> bool:
+        """Whether this book can be part of a run at all.
+
+        A file the analysis could not read will not become readable by being
+        ticked, and a book a gate refused is a decision rather than a mishap.
+        Both used to sit in the plan with a tick beside them, be sent to the
+        engine, and come back failed a second time.
+        """
+        return self.status not in (BookStatus.FAILED, BookStatus.BLOCKED)
+
+    @property
     def size_text(self) -> str:
         if not self.size:
             return "—"
@@ -207,9 +218,25 @@ class JobRecord:
     failed: int
     preset: str
     destination: str = ""
+    #: Every folder the run actually wrote into. A batch left to write beside
+    #: its sources lands in as many folders as the books came from, and the old
+    #: single `destination` was empty in exactly that case — the common one.
+    #: `destination` is kept as the first of these so a history file written by
+    #: an older version still reads, and one written by this version still
+    #: opens in an older one.
+    destinations: tuple[str, ...] = ()
     #: The first few titles, for a line a person recognises.
     titles: tuple[str, ...] = ()
     cancelled: bool = False
+
+    @property
+    def folders(self) -> "tuple[str, ...]":
+        """The places to offer, from either field, without repeats."""
+        seen = []
+        for place in (*self.destinations, self.destination):
+            if place and place not in seen:
+                seen.append(place)
+        return tuple(seen)
 
     @property
     def status(self) -> BookStatus:
@@ -230,6 +257,7 @@ class JobRecord:
             "failed": self.failed,
             "preset": self.preset,
             "destination": self.destination,
+            "destinations": list(self.destinations),
             "titles": list(self.titles),
             "cancelled": self.cancelled,
         }
@@ -244,6 +272,7 @@ class JobRecord:
             failed=int(data.get("failed", 0)),
             preset=str(data.get("preset", "")),
             destination=str(data.get("destination", "")),
+            destinations=tuple(str(place) for place in data.get("destinations", ())),
             titles=tuple(str(title) for title in data.get("titles", ())),
             cancelled=bool(data.get("cancelled", False)),
         )

@@ -35,7 +35,7 @@ from .backend import EngineBackend
 from .models import JobRecord
 from .pages import HistoryPage, HomePage, RebuildPage, SettingsPage, ToolsPage
 from .state import forget_history, load_history, remember, settings
-from .tokens import COMPACT_BELOW, MIN_WINDOW, Tokens
+from .tokens import COMPACT_BELOW, COMPACT_SLACK, MIN_WINDOW, Tokens
 from .widgets import Sidebar
 
 #: Files this window accepts by drag, drop or command line.
@@ -51,6 +51,40 @@ SHORTCUTS = {
     "settings": "Ctrl+,",
     "quit": "Ctrl+Q",
 }
+
+
+def opening_size(screen) -> "tuple[int, int]":
+    """How big the window opens: comfortable, and never larger than the screen.
+
+    A window that opens 1440 px wide on a 1366 px laptop has its right edge —
+    and half of every side-by-side layout — off the desktop, where nothing can
+    drag it back. So the preferred size is a *ceiling*, the screen's working
+    area is the real limit, and the floor is the minimum this window promises.
+    """
+    if screen is None:  # pragma: no cover - only when Qt reports no screen
+        return MIN_WINDOW
+    available = screen.availableGeometry()
+    return (
+        max(MIN_WINDOW[0], min(1440, int(available.width() * 0.86))),
+        max(MIN_WINDOW[1], min(920, int(available.height() * 0.88))),
+    )
+
+
+def fits_on_a_screen(rect) -> bool:
+    """Whether a remembered window rectangle still lands on a screen we have.
+
+    Monitors are unplugged, resolutions change, a laptop comes back from a
+    docking station with one screen instead of three. A geometry restored into
+    where the second monitor used to be is a window nobody can see.
+    """
+    for screen in QApplication.screens():
+        if screen.availableGeometry().intersects(rect):
+            visible = screen.availableGeometry().intersected(rect)
+            # A sliver on the edge is not "on the screen": the title bar has to
+            # be grabbable, so ask for most of the window to be there.
+            if visible.width() >= min(rect.width(), 240) and visible.height() >= 120:
+                return True
+    return False
 
 
 def chosen_tokens(app) -> Tokens:
@@ -74,15 +108,7 @@ class MainWindow(QMainWindow):
         self.busy = False
         self.setWindowTitle(tr("window.title", version=version_string()))
         self.setMinimumSize(*MIN_WINDOW)
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            available = screen.availableGeometry()
-            self.resize(
-                min(1440, int(available.width() * 0.85)),
-                min(920, int(available.height() * 0.88)),
-            )
-        else:  # pragma: no cover - only when Qt reports no screen at all
-            self.resize(*MIN_WINDOW)
+        self.resize(*opening_size(self.screen() or QApplication.primaryScreen()))
         self.setAcceptDrops(True)
 
         self.history = load_history()
@@ -306,7 +332,13 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
-        self.sidebar.set_compact(self.width() < COMPACT_BELOW)
+        # The one thing still decided from the window's own width, and it has
+        # to be: the sidebar is what makes the pages' viewport narrow, so
+        # deciding it from that viewport would be a circle. The pages ask
+        # themselves (`responsive.Responsive`), which is one way round.
+        compact = self.sidebar.compact
+        edge = COMPACT_BELOW + (COMPACT_SLACK if compact else 0)
+        self.sidebar.set_compact(self.width() < edge)
 
     def closeEvent(self, event):  # noqa: N802
         """Never leave a thread running behind a closed window."""

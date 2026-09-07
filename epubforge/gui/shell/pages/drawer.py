@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from ...strings import tr
 from .. import icons
 from ..options import CATEGORIES, OPTIONS, Option, in_category
+from ..responsive import LayoutMode
 from ..tokens import DRAWER_WIDTH, Tokens
 from ..widgets import StatusBadge, button, clear_layout, label
 
@@ -152,7 +153,6 @@ class SettingsDrawer(QWidget):
 
         panel = QFrame()
         panel.setObjectName("drawer")
-        panel.setFixedWidth(DRAWER_WIDTH)
         stack = QVBoxLayout(panel)
         stack.setContentsMargins(22, 20, 22, 18)
         stack.setSpacing(12)
@@ -183,6 +183,21 @@ class SettingsDrawer(QWidget):
         tools.addWidget(reset)
         stack.addLayout(tools)
 
+        # The category chooser has two shapes. A column of buttons is the right
+        # thing when there is room for it beside the list; on a narrow drawer
+        # that column is a third of the width, so the same choice becomes a
+        # combo box above the list — one that reaches the same seven places and
+        # is reachable from the keyboard.
+        self.category_combo = QComboBox()
+        for name, _glyph, key in CATEGORIES:
+            self.category_combo.addItem(tr(key), name)
+        self.category_combo.setAccessibleName(tr("shell.drawer.category"))
+        self.category_combo.currentIndexChanged.connect(
+            lambda _index: self._show_category(self.category_combo.currentData())
+        )
+        self.category_combo.hide()
+        stack.addWidget(self.category_combo)
+
         body = QHBoxLayout()
         body.setSpacing(14)
         self.categories = QVBoxLayout()
@@ -203,7 +218,9 @@ class SettingsDrawer(QWidget):
         self.categories.addStretch(1)
         column = QWidget()
         column.setLayout(self.categories)
-        column.setFixedWidth(212)
+        column.setMinimumWidth(150)
+        column.setMaximumWidth(212)
+        self.category_column = column
         body.addWidget(column)
 
         self.list_area = QScrollArea()
@@ -230,9 +247,37 @@ class SettingsDrawer(QWidget):
         note = label(tr("shell.drawer.footer"), "muted")
         stack.addWidget(note)
 
-        outer.addWidget(panel)
+        outer.addWidget(panel, 0)
+        self.outer = outer
         self.panel = panel
+        self._mode = LayoutMode.WIDE
         self.hide()
+
+    # -- how much of the page it takes --------------------------------------
+    def set_mode(self, mode: LayoutMode) -> None:
+        """A panel on the right of a wide page; the whole of a narrow one.
+
+        650 px was a fixed width, so on an 800-pixel window the drawer hung
+        over the edge and took the Apply button with it. It is a maximum now,
+        and the narrow modes give it everything: a settings list is what the
+        page is *for* while it is open.
+        """
+        self._mode = mode
+        viewport = self.parentWidget().width() if self.parentWidget() else DRAWER_WIDTH
+        if mode is LayoutMode.WIDE:
+            width = max(360, min(DRAWER_WIDTH, int(viewport * 0.55)))
+            self.panel.setMinimumWidth(width)
+            self.panel.setMaximumWidth(width)
+            self.outer.setStretch(0, 1)
+            self.outer.setStretch(1, 0)
+        else:
+            self.panel.setMinimumWidth(0)
+            self.panel.setMaximumWidth(16777215)
+            self.outer.setStretch(0, 0)
+            self.outer.setStretch(1, 1)
+        narrow = mode is LayoutMode.COMPACT
+        self.category_column.setVisible(not narrow)
+        self.category_combo.setVisible(narrow)
 
     # -- opening and closing ------------------------------------------------
     def open_with(self, defaults: dict, overrides: dict, books: int, opener: QWidget | None = None
@@ -242,6 +287,7 @@ class SettingsDrawer(QWidget):
         self._opener = opener
         self.subtitle.setText(tr("shell.drawer.subtitle", count=books))
         self.setGeometry(self.parentWidget().rect())
+        self.set_mode(getattr(self.parentWidget(), "layout_mode", LayoutMode.WIDE))
         self.show()
         self.raise_()
         self._draw()
@@ -266,7 +312,15 @@ class SettingsDrawer(QWidget):
         self._draw()
 
     def _show_category(self, name: str) -> None:
+        if name == self._category:
+            return
         self._category = name
+        index = self.category_combo.findData(name)
+        if index >= 0 and index != self.category_combo.currentIndex():
+            self.category_combo.setCurrentIndex(index)
+        for item in self._category_buttons.buttons():
+            if item.text() == dict((n, tr(k)) for n, _g, k in CATEGORIES)[name]:
+                item.setChecked(True)
         self._draw()
 
     def _reset(self) -> None:

@@ -114,16 +114,95 @@ class TestTheShellIsTheArchitectureThatWasApproved:
 
     def test_the_window_fits_the_smallest_supported_screen(self, window):
         assert (window.minimumWidth(), window.minimumHeight()) == tokens_module.MIN_WINDOW
+        assert tokens_module.MIN_WINDOW <= (800, 520), (
+            "the minimum is a promise about the smallest usable window, not a "
+            "refusal to be that size"
+        )
 
     def test_the_sidebar_collapses_when_the_window_is_narrow(self, window):
-        """244 px of names is a lot to spend on a 1100-pixel window."""
+        """244 px of names is a lot to spend on a 900-pixel window."""
         window.show()
-        window.resize(1120, 700)
+        window.resize(900, 600)
         QApplication.processEvents()
         assert window.sidebar.width() == tokens_module.SIDEBAR_COMPACT_WIDTH
         window.resize(1400, 900)
         QApplication.processEvents()
         assert window.sidebar.width() == tokens_module.SIDEBAR_WIDTH
+
+
+class TestTheOneLayoutMechanism:
+    """Three modes, two thresholds, and every page reading the same ruler."""
+
+    @pytest.mark.parametrize(
+        ("width", "expected"),
+        [(1600, "WIDE"), (1180, "WIDE"), (1179, "MEDIUM"), (900, "MEDIUM"),
+         (820, "MEDIUM"), (819, "COMPACT"), (640, "COMPACT")],
+    )
+    def test_the_mode_follows_the_width_of_the_content(self, width, expected):
+        from epubforge.gui.shell.responsive import LayoutMode, mode_for
+
+        assert mode_for(width) is getattr(LayoutMode, expected)
+
+    def test_a_window_dragged_across_a_threshold_does_not_flap(self):
+        """The slack is the point: without it, one pixel of mouse jitter
+        rebuilds the composition twice a frame."""
+        from epubforge.gui.shell.responsive import LayoutMode, mode_for
+
+        assert mode_for(1170, LayoutMode.WIDE) is LayoutMode.WIDE
+        assert mode_for(1155, LayoutMode.WIDE) is LayoutMode.MEDIUM
+        assert mode_for(1180, LayoutMode.MEDIUM) is LayoutMode.WIDE
+
+    def test_blocks_sit_side_by_side_when_wide_and_stack_when_not(self, qt_app):
+        from PySide6.QtWidgets import QLabel
+
+        from epubforge.gui.shell.responsive import LayoutMode, Panels
+
+        panels = Panels()
+        left, right = QLabel("A"), QLabel("B")
+        panels.add(left, 2)
+        panels.add(right, 1)
+        grid = panels.layout()
+        assert (grid.getItemPosition(grid.indexOf(right))[:2]) == (0, 1)
+        panels.set_mode(LayoutMode.COMPACT)
+        assert (grid.getItemPosition(grid.indexOf(right))[:2]) == (1, 0)
+
+    def test_a_grid_of_cards_changes_its_column_count(self, qt_app):
+        from PySide6.QtWidgets import QLabel
+
+        from epubforge.gui.shell.responsive import Cards, LayoutMode
+
+        cards = Cards({LayoutMode.WIDE: 4, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1})
+        for name in "ABCD":
+            cards.add(QLabel(name))
+        assert cards.columns == 4
+        cards.set_mode(LayoutMode.MEDIUM)
+        assert cards.columns == 2
+        grid = cards.layout()
+        assert grid.getItemPosition(grid.indexOf(cards._items[2]))[:2] == (1, 0)
+        cards.set_mode(LayoutMode.COMPACT)
+        assert cards.columns == 1
+
+    def test_the_same_widget_survives_a_reflow(self, qt_app):
+        """Re-placed, never rebuilt: a card that is recreated on every resize
+        loses its state, its focus and whatever somebody had typed in it."""
+        from PySide6.QtWidgets import QLineEdit
+
+        from epubforge.gui.shell.responsive import LayoutMode, Panels
+
+        panels = Panels()
+        edit = QLineEdit()
+        edit.setText("nie zgub tego")
+        panels.add(edit)
+        panels.set_mode(LayoutMode.COMPACT)
+        panels.set_mode(LayoutMode.WIDE)
+        assert edit.text() == "nie zgub tego"
+        assert edit.parent() is panels
+
+    @pytest.mark.parametrize("route", ["home", "rebuild", "tools", "history", "settings"])
+    def test_every_page_answers_the_ruler(self, window, route):
+        from epubforge.gui.shell.responsive import Responsive
+
+        assert isinstance(window.pages[route], Responsive), route
 
 
 class TestTheKeyboardWithoutAMenu:
@@ -556,8 +635,28 @@ class TestHistoryRemembersLittleAndNothingPrivate:
         fields = set(JobRecord.__dataclass_fields__)
         assert fields == {
             "when", "count", "written", "attention", "failed", "preset",
-            "destination", "titles", "cancelled",
+            "destination", "destinations", "titles", "cancelled",
         }
+
+    def test_a_history_file_from_an_older_version_still_reads(self):
+        """`destinations` is new; a file written before it exists must open,
+        and its one destination must still be offered."""
+        old = {
+            "when": "2026-09-01 10:00", "count": 2, "written": 2, "attention": 0,
+            "failed": 0, "preset": "Zachowaj wygląd", "destination": "/tmp/out",
+            "titles": ["A"], "cancelled": False,
+        }
+        record = JobRecord.from_dict(old)
+        assert record.destinations == ()
+        assert record.folders == ("/tmp/out",)
+
+    def test_and_one_written_now_still_carries_the_old_field(self):
+        record = JobRecord(
+            when="", count=1, written=1, attention=0, failed=0, preset="",
+            destination="/a", destinations=("/a", "/b"),
+        )
+        assert record.as_dict()["destination"] == "/a"
+        assert record.folders == ("/a", "/b")
 
     def test_a_history_file_that_will_not_parse_is_an_empty_list(self, tmp_path, monkeypatch):
         from epubforge.gui.shell import state

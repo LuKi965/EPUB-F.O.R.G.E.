@@ -80,3 +80,51 @@ def remember(record: JobRecord) -> list[JobRecord]:
 
 def forget_history() -> None:
     save_history([])
+
+
+# --------------------------------------------------------------------------
+# where the dialogs open
+# --------------------------------------------------------------------------
+
+#: The folders worth remembering, each under its own key. Three, because they
+#: are three different places: the shelf books come from, where rebuilt books
+#: go, and where somebody keeps reports.
+FOLDER_KINDS = ("input", "output", "report", "tool")
+
+
+def remembering_folders() -> bool:
+    """The setting, read where it is used rather than only shown in Settings.
+
+    It has been in the window since the first version and did nothing at all:
+    written to `QSettings` by the checkbox and never read by anybody.
+    """
+    return bool(settings().value("remember-folder", True, type=bool))
+
+
+def last_folder(kind: str) -> str:
+    """Where a dialog of this kind should open, or "" for the system default."""
+    if kind not in FOLDER_KINDS or not remembering_folders():
+        return ""
+    return str(settings().value(f"folders/{kind}", "") or "")
+
+
+def remember_folder(kind: str, path: str) -> None:
+    """Remember the folder of *path* — the folder, never the file name."""
+    if kind not in FOLDER_KINDS or not remembering_folders() or not path:
+        return
+    folder = pathlib.Path(path)
+    if folder.is_file() or folder.suffix:
+        folder = folder.parent
+    settings().setValue(f"folders/{kind}", str(folder))
+
+
+def forget_folders() -> None:
+    """Switching the setting off is an instruction, not a pause.
+
+    Somebody who unticks "remember the last folder" is saying they do not want
+    the program keeping a note of where their books are. Leaving the values in
+    place until the next run would honour the letter of that and none of it.
+    """
+    store = settings()
+    for kind in FOLDER_KINDS:
+        store.remove(f"folders/{kind}")
