@@ -1045,7 +1045,7 @@ def command_compat(args: argparse.Namespace) -> int:
 
 def command_gui(args: argparse.Namespace) -> int:
     try:
-        from .gui.app import run
+        from .gui import run
     except ImportError as exc:
         Console().print(
             f"[red]The GUI needs PySide6:[/] pip install 'epub-forge[gui]'\n[dim]{exc}[/dim]"
