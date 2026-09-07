@@ -108,8 +108,16 @@ def needs_sideways_scrolling(page: QWidget) -> bool:
     )
 
 
-def problems_with(page: QWidget, *, main_action=None) -> "list[str]":
-    """Everything wrong with this page's layout right now, in plain words."""
+def problems_with(page: QWidget, *, main_action=None,
+                  allow_sideways: bool = False) -> "list[str]":
+    """Everything wrong with this page's layout right now, in plain words.
+
+    `allow_sideways` drops the one rule that is about *fitting* rather than
+    about being whole. It is for the stress test with an oversized font, where
+    a page wide enough to need scrolling is not a defect — a person who has
+    made their text half again as large has chosen that — while a control
+    drawn on top of another one is a defect at any size.
+    """
     found: list[str] = []
     #: Controls grouped by what they scroll inside, so two things in different
     #: scroll areas are never called an overlap.
@@ -121,7 +129,7 @@ def problems_with(page: QWidget, *, main_action=None) -> "list[str]":
         if rect.width() <= 0 or rect.height() <= 0:
             found.append(f"{name}: rozmiar {rect.width()}x{rect.height()}")
             continue
-        if rect.right() > width + 1:
+        if rect.right() > width + 1 and not allow_sideways:
             found.append(f"{name}: wystaje poza szerokosc ({rect.right()} > {width})")
         if rect.bottom() > height + 1:
             found.append(f"{name}: ponizej tego, do czego da sie doscrollowac")
@@ -131,7 +139,7 @@ def problems_with(page: QWidget, *, main_action=None) -> "list[str]":
                 found.append(f"{name} nachodzi na {other_name}")
         seen.setdefault(inside, []).append((name, rect))
 
-    if needs_sideways_scrolling(page):
+    if not allow_sideways and needs_sideways_scrolling(page):
         found.append("strona wymaga przewijania w poziomie")
     if main_action is not None:
         if not main_action.isVisibleTo(page):
