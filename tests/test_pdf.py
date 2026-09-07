@@ -27,7 +27,7 @@ from epubforge.cli import EXIT_OK, main
 from epubforge.decisions import Answer
 from epubforge.pipeline import Status, rebuild
 from epubforge.policy import PDF_RUNNING_HEADS, Policy
-from epubforge.report import Report
+from epubforge.report import Level, Report
 from epubforge.typography import canonical
 
 # --------------------------------------------------------------------------
@@ -482,6 +482,99 @@ def book_with_heads(tmp_path: pathlib.Path) -> pathlib.Path:
         lines += [(300, 30, 10.0, str(number))]
         pages.append(lines)
     return make_pdf(tmp_path / "heads.pdf", pages, title="The Book of Pages", author="A. Writer")
+
+
+class TestTheReaderSaysHowWellItWent:
+    """The reader has always reported what it *did* and never how it went.
+
+    On prose those are the same question. On a document laid out in blocks
+    they are not: the owner's first real PDF — a 105-page appliance manual —
+    came out as 1 857 paragraphs, which is a fine number, and 489 of them were
+    one sentence cut in half, which is the whole story. Nothing in the report
+    said so, so he had to read the book to find out.
+    """
+
+    def test_a_sentence_split_across_two_paragraphs_is_counted(self):
+        blocks = [
+            pdf.Block(kind="p", lines=[pdf.Line("Wskaźnik poziomu wody w tacce", 0, 1, 0, 1, 10, 1)]),
+            pdf.Block(kind="p", lines=[pdf.Line("na skropliny", 0, 1, 0, 1, 10, 1)]),
+        ]
+        quality = pdf.measure_quality(blocks)
+        assert quality.paragraphs == 2
+        assert quality.torn == 1
+        assert quality.torn_share == 0.5
+
+    def test_a_finished_sentence_followed_by_a_new_one_is_not(self):
+        blocks = [
+            pdf.Block(kind="p", lines=[pdf.Line("Woda jest gorąca.", 0, 1, 0, 1, 10, 1)]),
+            pdf.Block(kind="p", lines=[pdf.Line("Ekspres jest gotowy.", 0, 1, 0, 1, 10, 1)]),
+        ]
+        assert pdf.measure_quality(blocks).torn == 0
+
+    def test_a_label_torn_off_a_diagram_counts_as_a_fragment(self):
+        blocks = [
+            pdf.Block(kind="p", lines=[pdf.Line("Americano", 0, 1, 0, 1, 10, 1)]),
+            pdf.Block(kind="p", lines=[pdf.Line("Kawa mielona", 0, 1, 0, 1, 10, 1)]),
+            pdf.Block(kind="p", lines=[pdf.Line("Uwaga!", 0, 1, 0, 1, 10, 1)]),
+        ]
+        quality = pdf.measure_quality(blocks)
+        # "Uwaga!" is a sentence of one word; the other two are labels.
+        assert quality.fragments == 2
+
+    def test_prose_is_reported_and_not_warned_about(self, tmp_path):
+        report = Report(source="x")
+        pdf.read_pdf(str(book_with_heads(tmp_path)), report)
+        said = [f for f in report.findings if (f.rule or "").startswith("pdf.reading")]
+        assert [f.rule for f in said] == ["pdf.reading-quality"]
+        assert said[0].level is not Level.WARN
+        assert said[0].values["torn"] == 0
+
+    def test_labels_on_a_diagram_torn_into_the_legend_are_warned_about(self, tmp_path):
+        """The shape the manual is full of, reproduced from its own geometry.
+
+        A legend stands in a column at a fixed x; the same labels are also
+        printed *on the drawing* beside it, at whatever x the artwork puts
+        them. Read top to bottom across the whole page, the drawing's labels
+        fall between the legend's lines — so a legend entry that wraps is cut
+        in half by a label that belongs to a picture:
+
+            A16. Wskaznik poziomu wody w tacce   (legend, x242)
+            A15                                  (on the drawing, x149)
+            na skropliny                         (the legend line, continued)
+
+        which is where a quarter of that book's paragraphs came from.
+        """
+        pages = []
+        for _ in range(4):
+            lines = [
+                (242.0, 260.0, 12.0, "A12. Pojemnik na fusy"),
+                (100.0, 260.0, 9.0, "A12"),
+                (242.0, 247.0, 12.0, "A13. Wspornik pojemnika na fusy"),
+                (168.0, 224.0, 9.0, "A13"),
+                (242.0, 233.0, 12.0, "A14. Podstawka na filizanki"),
+                (63.0, 225.0, 9.0, "A14"),
+                (242.0, 220.0, 12.0, "A15. Kratka tacki"),
+                (242.0, 206.0, 12.0, "A16. Wskaznik poziomu wody w tacce"),
+                (149.0, 198.0, 9.0, "A15"),
+                (270.0, 193.0, 10.0, "na skropliny"),
+                (65.0, 189.0, 9.0, "A16"),
+                (242.0, 181.0, 12.0, "A17. Drzwiczki dostepu do zespolu"),
+            ]
+            pages.append(lines)
+        source = make_pdf(tmp_path / "legenda.pdf", pages, title="Opis", language="pl")
+        report = Report(source=str(source))
+        pdf.read_pdf(str(source), report)
+        said = next(f for f in report.findings if (f.rule or "").startswith("pdf.reading"))
+        assert said.rule == "pdf.reading-quality-poor", said.values
+        assert said.level is Level.WARN
+        assert said.values["share"] >= 10
+
+    def test_the_share_that_raises_it_is_a_measured_number_with_its_evidence(self):
+        """`D-012`: a threshold in this program says where it came from."""
+        source = pathlib.Path("epubforge/pdf.py").read_text(encoding="utf-8")
+        where = source.index("TORN_SHARE_WARN")
+        preamble = source[max(0, where - 700):where]
+        assert "24 %" in preamble and "measured" in preamble.lower()
 
 
 class TestThePipeline:

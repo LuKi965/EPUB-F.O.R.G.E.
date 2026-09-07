@@ -111,6 +111,78 @@ class Outline:
     page: int
 
 
+#: Above this share of paragraphs running into the next one mid-sentence, the
+#: page was not read the way its layout intended. Measured rather than picked:
+#: a 105-page appliance manual set in InDesign — the owner's first real PDF,
+#: 2026-09-07 — came out at 24 %, while prose PDFs (the ones this suite writes,
+#: and the Gutenberg books printed by Chromium) sit at nought to two. Ten per
+#: cent stands between the two with room on either side.
+TORN_SHARE_WARN = 0.10
+#: A paragraph of this many words or fewer, ending without any sentence
+#: punctuation, is a fragment rather than a paragraph: a caption torn from its
+#: picture, a label lifted off a diagram, one cell of a table.
+FRAGMENT_WORDS = 2
+
+
+@dataclass
+class Quality:
+    """How much of the page's meaning survived being read as a line of text.
+
+    The reader has always reported what it *did* — so many paragraphs, so many
+    headings — and never how well it went. On prose the two are the same
+    question. On a document laid out in blocks they are not: 1 964 paragraphs
+    is a fine number and a bad sign when 481 of them are one sentence cut in
+    half.
+    """
+
+    paragraphs: int = 0
+    #: Paragraphs that end mid-sentence and are followed by one starting in
+    #: lower case: two halves of one sentence, put in two paragraphs.
+    torn: int = 0
+    #: Paragraphs of a word or two with no sentence in them.
+    fragments: int = 0
+    median_characters: int = 0
+
+    @property
+    def torn_share(self) -> float:
+        return self.torn / self.paragraphs if self.paragraphs else 0.0
+
+    @property
+    def fragment_share(self) -> float:
+        return self.fragments / self.paragraphs if self.paragraphs else 0.0
+
+    @property
+    def poor(self) -> bool:
+        return self.torn_share >= TORN_SHARE_WARN
+
+
+def measure_quality(blocks: "list[Block]") -> Quality:
+    """Read the blocks the way a person would and count what does not read.
+
+    Deliberately about *text*, not about geometry: whatever the reader thought
+    the page looked like, this is what came out of it.
+    """
+    paragraphs = [block.text.strip() for block in blocks if block.kind == "p"]
+    paragraphs = [text for text in paragraphs if text]
+    quality = Quality(paragraphs=len(paragraphs))
+    if not paragraphs:
+        return quality
+    lengths = sorted(len(text) for text in paragraphs)
+    quality.median_characters = lengths[len(lengths) // 2]
+    for text, following in zip(paragraphs, paragraphs[1:]):
+        if text[-1] not in SENTENCE_ENDS and following[:1].islower():
+            quality.torn += 1
+    quality.fragments = sum(
+        1 for text in paragraphs
+        if len(text.split()) <= FRAGMENT_WORDS and text[-1] not in SENTENCE_ENDS
+    )
+    return quality
+
+
+#: What the end of a sentence looks like, closing quotes and brackets included.
+SENTENCE_ENDS = ".!?:;…»”\"'’)]"
+
+
 @dataclass
 class Layout:
     """What the reader saw and decided — the numbers the report carries."""
@@ -127,6 +199,9 @@ class Layout:
     outline_unresolved: int = 0
     column_pages: int = 0
     body_size: float = 0.0
+    torn_paragraphs: int = 0
+    fragment_paragraphs: int = 0
+    median_paragraph: int = 0
 
 
 # ----------------------------------------------------------------- reading
@@ -161,6 +236,10 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
     _read_metadata(book, source, info)
 
     sections = _sections(pages, outline, body_size)
+    quality = measure_quality([block for _, blocks in sections for block in blocks])
+    layout.torn_paragraphs = quality.torn
+    layout.fragment_paragraphs = quality.fragments
+    layout.median_paragraph = quality.median_characters
     layout.outline_entries = len(outline)
     for index, (title, blocks) in enumerate(sections, 1):
         path = f"text/section-{index:04d}.xhtml"
@@ -196,6 +275,24 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
         },
         location=source,
     )
+    # How well it went, not only what was done. Always said, because a number
+    # nobody can see is a number nobody can act on; raised to a warning when
+    # the share says the layout was not read the way it was set.
+    how_it_went = {
+        "paragraphs": quality.paragraphs,
+        "torn": quality.torn,
+        "share": round(quality.torn_share * 100),
+        "fragments": quality.fragments,
+        "median": quality.median_characters,
+    }
+    # Two calls rather than one with a chosen identifier: a rule that cannot be
+    # found by grepping for its name is a rule nobody can follow to its source.
+    if quality.poor:
+        report.add("pdf", Level.WARN, "pdf.reading-quality-poor",
+                   values=how_it_went, location=source)
+    else:
+        report.add("pdf", Level.INFO, "pdf.reading-quality",
+                   values=how_it_went, location=source)
     if layout.outline_entries:
         report.add(
             "pdf",
