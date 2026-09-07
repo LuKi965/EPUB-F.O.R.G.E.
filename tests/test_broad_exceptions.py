@@ -38,7 +38,11 @@ BROAD = ("Exception", "BaseException")
 
 
 def _handlers():
-    """Każdy szeroki handler pakietu jako `(plik, wiersz, wiersze bloku)`."""
+    """Każdy szeroki handler pakietu jako `(plik, węzeł, wiersze bloku)`.
+
+    Każdy plik parsowany raz: te trzy testy pytają o to samo drzewo, a
+    czytanie pakietu po razie na handler to sto parsowań na jeden test.
+    """
     for path in sorted(SOURCE.rglob("*.py")):
         text = path.read_text(encoding="utf-8")
         lines = text.splitlines()
@@ -52,7 +56,45 @@ def _handlers():
                 ):
                     continue
                 last = max(getattr(one, "end_lineno", one.lineno) for one in handler.body)
-                yield path, handler.lineno, lines[handler.lineno - 1:last]
+                yield path, handler, lines[handler.lineno - 1:last]
+
+
+def _catches(handler, name: str) -> bool:
+    return isinstance(handler.type, ast.Name) and handler.type.id == name
+
+
+class TestNobodySwallowsCtrlC:
+    """`except BaseException` łapie także `KeyboardInterrupt` i `SystemExit`.
+
+    Wolno go użyć, żeby po sobie posprzątać — `writer.py` kasuje tak plik
+    tymczasowy, żeby połowa książki nie przeżyła Ctrl-C — ale wtedy **musi
+    rzucić dalej**. Handler, który łapie `BaseException` i wraca, zamienia
+    „człowiek zatrzymał program" w wynik pomiaru: `repair.py` odpowiadał tak
+    „ten wpis jest uszkodzony" i skanował dalej cudzą bibliotekę (poprawione
+    2026-09-07).
+    """
+
+    def test_a_base_exception_handler_re_raises(self):
+        offenders = [
+            f"{path.relative_to(SOURCE.parent)}:{handler.lineno}"
+            for path, handler, _ in _handlers()
+            if _catches(handler, "BaseException")
+            and not any(isinstance(one, ast.Raise) for one in ast.walk(handler))
+        ]
+        assert not offenders, (
+            "`except BaseException` bez `raise` połyka Ctrl-C: albo złap "
+            "`Exception`, albo posprzątaj i rzuć dalej — " + "; ".join(offenders)
+        )
+
+    def test_the_one_that_may_is_the_one_that_cleans_up(self):
+        """Nie zakaz, tylko granica: `writer.py` kasuje plik tymczasowy
+        i rzuca dalej, więc Ctrl-C nadal zatrzymuje program — a połowa
+        książki nie zostaje na dysku."""
+        keeping = [
+            path.name for path, handler, _ in _handlers()
+            if _catches(handler, "BaseException")
+        ]
+        assert keeping == ["writer.py"], keeping
 
 
 class TestEveryBroadHandlerSaysWhy:
@@ -61,8 +103,8 @@ class TestEveryBroadHandlerSaysWhy:
 
     def test_none_of_them_is_silent(self):
         silent = [
-            f"{path.relative_to(SOURCE.parent)}:{line}"
-            for path, line, block in _handlers()
+            f"{path.relative_to(SOURCE.parent)}:{handler.lineno}"
+            for path, handler, block in _handlers()
             if not any("#" in one for one in block)
         ]
         assert not silent, (

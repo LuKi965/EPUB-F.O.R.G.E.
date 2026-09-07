@@ -252,3 +252,27 @@ class TestItIsReachableFromBothFrontEnds:
         ).read_text(encoding="utf-8")
         assert "self.write_button.setEnabled(False)" in source
         assert "self.write_button.setEnabled(plan.usable" in source
+
+
+class TestStoppingAScanIsNotAFindingAboutTheBook:
+    """`_read_one` łapało `BaseException`, czyli także `KeyboardInterrupt`:
+    Ctrl-C w środku skanowania cudzej biblioteki był odpowiadany „ten wpis
+    jest uszkodzony" i skan szedł do następnego pliku. Człowiek zatrzymujący
+    program nie jest ustaleniem o jego książce (2026-09-07)."""
+
+    class Interrupted:
+        def open(self, info):
+            raise KeyboardInterrupt
+
+    class Damaged:
+        def open(self, info):
+            raise zipfile.BadZipFile("Bad CRC-32 for file 'a.xhtml'")
+
+    def test_ctrl_c_stops_the_scan(self):
+        with pytest.raises(KeyboardInterrupt):
+            repair._read_one(self.Interrupted(), zipfile.ZipInfo("a.xhtml"))
+
+    def test_a_damaged_entry_is_still_answered(self):
+        health = repair._read_one(self.Damaged(), zipfile.ZipInfo("a.xhtml"))
+        assert not health.ok
+        assert "BadZipFile" in health.reason

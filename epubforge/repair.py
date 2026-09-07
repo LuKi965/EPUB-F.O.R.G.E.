@@ -127,11 +127,17 @@ def _read_one(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> EntryHealth:
                     break
                 digest.update(chunk)
                 running += len(chunk)
-    except BaseException as exc:  # noqa: BLE001
-        # Everything, including the `BadZipFile` that a wrong CRC raises at the
-        # end of the stream and the `zlib.error` a corrupt one raises in the
-        # middle. This function exists to answer "can this be had", and any way
-        # of not having it is the same answer.
+    except Exception as exc:  # noqa: BLE001 — any way of not having the entry
+        # Everything a damaged archive can raise, including the `BadZipFile`
+        # that a wrong CRC raises at the end of the stream and the `zlib.error`
+        # a corrupt one raises in the middle. This function exists to answer
+        # "can this be had", and any way of not having it is the same answer.
+        #
+        # `Exception` and not `BaseException`, which is what stood here until
+        # 2026-09-07: `BaseException` also catches `KeyboardInterrupt`, so
+        # Ctrl-C during a scan of somebody's library was answered with "this
+        # entry is damaged" and the scan carried on to the next one. A person
+        # stopping a program is not a finding about their book.
         return EntryHealth(
             name=info.filename,
             declared_size=info.file_size,
