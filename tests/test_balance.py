@@ -467,3 +467,101 @@ class TestTheRealOrphanPathLeavesAnEntry:
         result = self._swept(tmp_path)
         assert result.report.balance.closes, result.report.balance.as_dict()
         assert "package.balance-unexplained" not in rules_of(result)
+
+
+class TestADocumentNobodyCouldCountComesOffBothSides:
+    """DROGA 6.14. The character counter never raises — a number in a report may
+    not decide whether a book rebuilds — so a document it cannot read is skipped.
+    Skipped **silently**, it made the total lean: counted on the source side and
+    skipped on the output side reads as text lost, and the other way round as
+    text appearing. Neither is true; what is true is that the number does not
+    cover that document.
+    """
+
+    def test_the_counter_names_what_it_could_not_count(self):
+        """Every other test here shows the counter counting. This one shows it
+        failing, which is the half that used to be invisible."""
+        class Angry:
+            is_content_doc = True
+
+            @property
+            def data(self):
+                raise MemoryError("a document larger than this machine")
+
+        class Fine:
+            is_content_doc = True
+            data = b"<html><body><p>Tekst</p></body></html>"
+
+        class Item:
+            def __init__(self, path):
+                self.path = path
+
+        class Book:
+            spine = [Item("ok.xhtml"), Item("zly.xhtml")]
+
+            def get(self, path):
+                return Fine() if path == "ok.xhtml" else Angry()
+
+        counted, uncounted = balance._characters_by_document(Book())
+        assert counted == {"ok.xhtml": len("Tekst")}
+        assert uncounted == ("zly.xhtml",)
+
+    def _sides(self):
+        before, after = balance.Side(), balance.Side()
+        before.text_characters_by_document = {"a.xhtml": 100, "b.xhtml": 40}
+        before.text_characters = 140
+        after.text_characters_by_document = {"a.xhtml": 100}
+        after.text_characters = 100
+        after.text_uncounted = ("b.xhtml",)
+        return before, after
+
+    def test_a_document_one_side_could_not_count_leaves_both(self):
+        reconciled = balance.reconcile(*self._sides(), [])
+        assert reconciled.text_uncounted == ["b.xhtml"]
+        assert reconciled.text_characters_compared == (100, 100)
+
+    def test_and_that_is_not_a_reason_to_refuse_the_book(self):
+        """Failing to count a document is not evidence that anything was lost.
+        It is evidence that this number does not know — so it is said, not
+        enforced."""
+        assert balance.reconcile(*self._sides(), []).closes
+
+    def test_the_raw_totals_still_say_what_each_side_actually_counted(self):
+        """Both numbers stay in the report: the comparable pair is what the two
+        sides can be held to, the raw pair is what each side read."""
+        reconciled = balance.reconcile(*self._sides(), [])
+        written = reconciled.as_dict()
+        assert written["before"]["text_characters"] == 140
+        assert written["after"]["text_characters"] == 100
+        assert written["after"]["text_uncounted"] == 1
+        assert written["text_characters_compared"] == {"before": 100, "after": 100}
+
+    def test_the_report_says_which_documents_the_number_does_not_cover(self, tmp_path, monkeypatch):
+        """End to end: the output side loses one document's count, and the
+        rebuild says so instead of reporting the difference as text."""
+        source = make_legacy_epub(str(tmp_path / "in.epub"))
+        real = balance._characters_by_document
+        sides = []
+
+        def counting(book):
+            counted, uncounted = real(book)
+            sides.append(counted)
+            if len(sides) == 2 and counted:
+                skipped = sorted(counted)[0]
+                counted.pop(skipped)
+                uncounted = (*uncounted, skipped)
+            return counted, uncounted
+
+        monkeypatch.setattr(balance, "_characters_by_document", counting)
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy())
+
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "package.text-uncounted" in rules_of(result)
+        reconciled = result.report.balance
+        assert len(reconciled.text_uncounted) == 1
+        lean = reconciled.before.text_characters - reconciled.after.text_characters
+        before_net, after_net = reconciled.text_characters_compared
+        assert before_net - after_net < lean
+        assert before_net == reconciled.before.text_characters - reconciled.before.text_characters_by_document[
+            reconciled.text_uncounted[0]
+        ]

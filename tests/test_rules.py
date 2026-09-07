@@ -37,7 +37,7 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # identity; two duplicates of one did. 397 with `render.checked-whole`,
 # 398 with `nav.body-type-carried`; 402 with the four `paragraphs.empty-runs-*`
 # call sites of the paragraph stage (D-054, R-4).
-TAGGED_TODAY = 402
+TAGGED_TODAY = 403
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -149,7 +149,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 305
+TEMPLATED_TODAY = 306
 
 
 class TestTheTranslationCannotStall:

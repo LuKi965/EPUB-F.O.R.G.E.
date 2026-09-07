@@ -166,6 +166,14 @@ class Side:
     spine_items: int = 0
     metadata_entries: int = 0
     text_characters: int = 0
+    #: Characters per content document, keyed by the name the document had in
+    #: the source. Not serialised, for the same reason as the maps below: the
+    #: totals are the balance, a map per document is a log.
+    text_characters_by_document: dict = field(default_factory=dict)
+    #: Documents of the reading order this side could not count at all (6.14).
+    #: Named rather than skipped: a document counted on one side and not on the
+    #: other moves `text_characters` in a direction nobody put there.
+    text_uncounted: tuple = ()
     #: Per attribute name — see `SEMANTIC_ATTRIBUTES`.
     semantic_attributes: dict = field(default_factory=dict)
     #: The same, per content document, so that a document the ledger says was
@@ -198,7 +206,8 @@ class Side:
             side.paths.add(path)
         side.spine_items = len(book.spine)
         side.metadata_entries = _metadata_entries(book)
-        side.text_characters = _characters_of(book)
+        side.text_characters_by_document, side.text_uncounted = _characters_by_document(book)
+        side.text_characters = sum(side.text_characters_by_document.values())
         side.semantic_attributes_by_document = _semantic_attributes_by_document(book)
         side.semantic_attributes = _summed(side.semantic_attributes_by_document.values())
         side.semantic_triples_by_document = _semantic_triples_by_document(book)
@@ -210,6 +219,7 @@ class Side:
             "spine_items": self.spine_items,
             "metadata_entries": self.metadata_entries,
             "text_characters": self.text_characters,
+            "text_uncounted": len(self.text_uncounted),
             "semantic_attributes": dict(self.semantic_attributes),
         }
 
@@ -286,7 +296,24 @@ _NOT_TEXT_RE = None
 
 
 def _characters_of(book) -> int:
-    """Every character of the book's reading order, normalised.
+    """Every character of the book's reading order, normalised — as one number.
+
+    The one-number form of `_characters_by_document`, which is what the balance
+    itself uses: a total cannot say which document it failed to read, and that
+    is exactly what the two sides have to agree on.
+    """
+    counted, _ = _characters_by_document(book)
+    return sum(counted.values())
+
+
+def _characters_by_document(book) -> "tuple[dict, tuple]":
+    """Characters per content document of the reading order, and the documents
+    that could not be counted at all.
+
+    Keyed by the name the document had in the **source** (`original_path`),
+    the same identity the resource counts use, so the two sides of the balance
+    can be compared document by document even when the rebuild renamed
+    everything.
 
     Only the spine, and in spine order: a document nothing points at carries no
     text a reader will meet, and K1 is a statement about the reading order.
@@ -324,11 +351,14 @@ def _characters_of(book) -> int:
             rb"<(style|script)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
         )
 
-    total = 0
+    counted: dict = {}
+    uncounted: list = []
     for item in getattr(book, "spine", ()) or ():
-        resource = book.get(getattr(item, "path", "")) if hasattr(book, "get") else None
+        path = getattr(item, "path", "")
+        resource = book.get(path) if hasattr(book, "get") else None
         if resource is None or not getattr(resource, "is_content_doc", False):
             continue
+        origin = getattr(resource, "original_path", None) or path
         try:
             readable = _NOT_TEXT_RE.sub(b" ", resource.data)
             stripped = _TAG_RE.sub(b" ", readable).decode("utf-8", "replace")
@@ -348,7 +378,7 @@ def _characters_of(book) -> int:
             # After stripping tags rather than before: `&lt;p&gt;` in somebody's
             # text is text, and unescaping first would turn it into a tag for
             # the stripper to eat.
-            total += characters_in(html.unescape(stripped))
+            counted[origin] = counted.get(origin, 0) + characters_in(html.unescape(stripped))
         except Exception:  # noqa: BLE001 — a count is not worth a lost book
             # Nothing above raises in the ordinary way: the substitutions work
             # on bytes, the decode replaces what it cannot read, `html.unescape`
@@ -356,15 +386,15 @@ def _characters_of(book) -> int:
             # `MemoryError` on a document larger than this machine — and a
             # resource whose `data` is not what it claims.
             #
-            # Kept broad and silent **for one side only**, which is the honest
-            # risk to write down: this function counts one side of the balance,
-            # so a document counted before and skipped after would look like
-            # lost text, and the other way round like text appearing. It has
-            # not happened on the shelf (160 books, every balance explained),
-            # and the day it does the number is wrong in a direction nobody
-            # sees. `DROGA-DO-1.0` 6.14.
-            continue
-    return total
+            # Broad, but no longer silent (6.14): the document is named, and
+            # `reconcile` takes it off **both** sides. This function counts one
+            # side of the balance, so a document counted before and skipped
+            # after used to look like lost text, and the other way round like
+            # text appearing — a number wrong in a direction nobody sees. It
+            # has not happened on the shelf (160 books, every balance
+            # explained); now, if it does, it says so instead of leaning.
+            uncounted.append(origin)
+    return counted, tuple(uncounted)
 
 
 def _metadata_entries(book) -> int:
@@ -417,6 +447,23 @@ class Balance:
     #: balance that refused a book over it would refuse on a regular
     #: expression. It is reported, and the report is where a person looks.
     attributes_fell: list = field(default_factory=list)
+    #: Documents either side could not count the characters of (6.14). Not part
+    #: of `closes`: failing to count a document is not evidence that anything
+    #: was lost — it is evidence that this number does not know. What it must
+    #: not do is lean, so the documents come off both sides and are named.
+    text_uncounted: list = field(default_factory=list)
+
+    @property
+    def text_characters_compared(self) -> tuple:
+        """The two character totals with every uncounted document taken off
+        **both** sides, so they are numbers about the same documents."""
+        def without(side: Side) -> int:
+            return sum(
+                count for path, count in side.text_characters_by_document.items()
+                if path not in set(self.text_uncounted)
+            )
+
+        return without(self.before), without(self.after)
 
     @property
     def closes(self) -> bool:
@@ -442,6 +489,13 @@ class Balance:
                 {"attribute": name, "before": was, "after": now}
                 for name, was, now in self.attributes_fell
             ],
+            "text_uncounted": list(self.text_uncounted),
+            # The comparable pair, always: on the ordinary book it is the two
+            # totals unchanged, and the reader of the report never has to know
+            # which case this was.
+            "text_characters_compared": dict(
+                zip(("before", "after"), self.text_characters_compared)
+            ),
         }
 
     def __str__(self) -> str:
@@ -525,12 +579,17 @@ def reconcile(before: Side, after: Side, changes, rewrites: "dict | None" = None
             unexplained.append((category, lost, covered))
 
     fell = _attributes_that_fell(before, after, changes, rewrites or {})
+    # 6.14: a document one side could not count is taken off both. Either side
+    # is enough to disqualify it — the point is that the two numbers are about
+    # the same documents, whichever side failed to read one.
+    uncounted = sorted(set(before.text_uncounted) | set(after.text_uncounted))
     return Balance(
         before=before,
         after=after,
         unexplained=unexplained,
         unexplained_paths=unexplained_paths,
         attributes_fell=fell,
+        text_uncounted=uncounted,
     )
 
 

@@ -1964,6 +1964,25 @@ def _publish(source, destination, ctx, before_side, queue, report) -> "Result | 
                     ),
                 },
             )
+        # 6.14. The character balance is a number in a report and may not stop
+        # a book, so a document it cannot read is skipped — but silently it
+        # made the total lean: counted on one side and skipped on the other
+        # reads as text lost, or as text appearing. The documents are off both
+        # sides now, and this line is where the report says which.
+        if reconciled.text_uncounted:
+            before_characters, after_characters = reconciled.text_characters_compared
+            report.add(
+                "package",
+                Level.WARN,
+                "package.text-uncounted",
+                values={
+                    "count": len(reconciled.text_uncounted),
+                    "documents": ", ".join(reconciled.text_uncounted[:3])
+                    + (f" (+{len(reconciled.text_uncounted) - 3})" if len(reconciled.text_uncounted) > 3 else ""),
+                    "before": before_characters,
+                    "after": after_characters,
+                },
+            )
         write_epub(
             book,
             destination,
