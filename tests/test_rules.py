@@ -39,8 +39,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # call sites of the paragraph stage (D-054, R-4). 405 → 407 on 2026-09-07 with
 # the two `pdf.reading-quality*` sites: the reader now says how well the page
 # was read, not only what it did with it. 408 with `pdf.tables-rebuilt`: a grid
-# of cells is a table, and the report says how many were found.
-TAGGED_TODAY = 408
+# of cells is a table, and the report says how many were found. 409 with
+# `pdf.drawing-not-carried`: a diagram drawn in curves is not in the book, and
+# a book quietly missing every diagram its source had is not honest.
+TAGGED_TODAY = 409
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -152,7 +154,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 309
+TEMPLATED_TODAY = 310
 
 
 class TestTheTranslationCannotStall:

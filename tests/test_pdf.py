@@ -14,6 +14,7 @@ No PDF is kept in the repository; everything is made in `tmp_path`.
 
 from __future__ import annotations
 
+import math
 import os
 import pathlib
 import re
@@ -47,11 +48,14 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
              *, title: str = "", author: str = "", language: str = "",
              images: dict[int, list[tuple]] | None = None,
              outline: list[tuple[str, int]] | None = None,
-             forms: dict[int, list[list[tuple[float, float, float, str]]]] | None = None) -> pathlib.Path:
+             forms: dict[int, list[list[tuple[float, float, float, str]]]] | None = None,
+             strokes: dict[int, list[tuple[float, float, float, str]]] | None = None) -> pathlib.Path:
     """Write *pages*, each a list of ``(x, y, size, text)`` lines, y from the
     page bottom as PDF counts it. *images* puts Flate-compressed RGB pictures
     on a page (by index): ``(x, y, width, height, pixel_width, pixel_height,
-    rgb_bytes)``. *outline* is the PDF's bookmarks: ``(title, page_index)``."""
+    rgb_bytes)``. *outline* is the PDF's bookmarks: ``(title, page_index)``.
+    *strokes* draws lines on a page: ``(x0, y0, x1, y1)`` each — vector artwork,
+    which the reader sees as a drawing and cannot carry."""
     objects: list[bytes] = []
 
     def add(body: bytes) -> int:
@@ -87,7 +91,10 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
             )
             xobjects.append(f"/Fm{number} {form} 0 R")
             drawn.append(f"q /Fm{number} Do Q\n")
-        stream = ("".join(drawn) + "".join(
+        painted = "".join(
+            f"{x0} {y0} m {x1} {y1} l S\n" for x0, y0, x1, y1 in (strokes or {}).get(index, ())
+        )
+        stream = ("".join(drawn) + painted + "".join(
             f"BT /F1 {size} Tf {x} {y} Td ({_escape(text)}) Tj ET\n" for x, y, size, text in lines
         )).encode("cp1252")
         content = add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
@@ -177,6 +184,17 @@ def column(lines: list[str], *, top: float = 700.0, size: float = 12.0, pitch: f
             text = text[1:]
         out.append((x, y, size, text))
         y -= pitch
+    return out
+
+
+def _spiral(x: float, y: float, size: float) -> list:
+    """Strokes enough to be a drawing: many short ones, piled on one another,
+    which is what artwork lays down and a rule under a heading does not."""
+    out = []
+    for step in range(200):
+        angle = step / 8.0
+        radius = size * step / 200.0
+        out.append((x, y, x + radius * math.cos(angle), y + radius * math.sin(angle)))
     return out
 
 
@@ -634,6 +652,74 @@ class TestTheReader:
         assert report.stats["pdf_characters_unplaced"] == 0
         # The prose below is a paragraph, not a second caption.
         assert "A paragraph of prose that has nothing to do with the picture at all." in markup
+
+    def test_a_callout_on_a_drawing_leaves_the_legend_alone(self, tmp_path):
+        """The manual's other drawing shape, and the one a picture cannot fix:
+        the artwork is *drawn*, in curves, so there is no picture to put the
+        callouts on and they stayed in the prose. A single `A15` standing
+        between the two lines of an entry was read into it —
+
+            A16. Wskaznik poziomu wody w tacce A15 na skropliny
+
+        — the very damage the area model exists to undo, done by one stray
+        word. What says `A15` is a callout is the document itself: a legend
+        entry elsewhere opens with that marker and names a part.
+        """
+        legend = [
+            (242.0, 260.0, 10.0, "A12. Pojemnik na fusy"),
+            (242.0, 247.0, 10.0, "A13. Wspornik pojemnika na fusy"),
+            (242.0, 233.0, 10.0, "A14. Podstawka na filizanki"),
+            (242.0, 220.0, 10.0, "A15. Kratka tacki"),
+            (242.0, 206.0, 10.0, "A16. Wskaznik poziomu wody w tacce"),
+            (270.0, 193.0, 10.0, "na skropliny"),
+            (242.0, 181.0, 10.0, "A17. Drzwiczki dostepu do zespolu"),
+        ]
+        # The callouts, on the artwork to the *left* of the legend.
+        drawing = [(63.0, 258.0, 9.0, "A12"), (149.0, 224.0, 9.0, "A13"),
+                   (63.0, 225.0, 9.0, "A14"), (149.0, 198.0, 9.0, "A15"),
+                   (65.0, 189.0, 9.0, "A16")]
+        source = make_pdf(tmp_path / "callouts.pdf", [legend + drawing] * 4, title="Opis", language="pl")
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<p>A16. Wskaznik poziomu wody w tacce na skropliny</p>" in markup
+        assert "<p>A15. Kratka tacki</p>" in markup
+        # Gathered, not dropped: every callout is in the book, in one place.
+        assert f'<p class="{pdf.LABEL_CLASS}">A12 A14 A13 A15 A16</p>' in markup
+        assert report.stats["pdf_characters_unplaced"] == 0
+        assert report.stats["pdf_layout"]["labelled_drawings"] == 4
+
+    def test_a_marker_beside_its_entry_is_one_line_of_the_page(self, tmp_path):
+        """A legend that sets `A6.` at the left edge and `Tacka na skropliny`
+        a word's width away has written one entry, not two paragraphs. Far
+        apart on the same baseline it would be two columns instead — which is
+        what the gap measures."""
+        lines = [(56.7, 300.0, 10.0, "A6."), (84.7, 300.0, 10.0, "Tacka na skropliny")]
+        lines += [(56.7, 286.0, 10.0, "A7."), (84.7, 286.0, 10.0, "Kabel zasilajacy")]
+        lines += column(["Prose under the legend, which is a paragraph of its own", "and stays one."], top=250)
+        book = pdf.read_pdf(str(make_pdf(tmp_path / "legend.pdf", [lines])), Report())
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<p>A6. Tacka na skropliny</p>" in markup
+        assert "<p>A7. Kabel zasilajacy</p>" in markup
+        assert "<p>A6.</p>" not in markup
+
+    def test_a_drawing_this_reader_cannot_carry_is_reported(self, tmp_path):
+        """A book that quietly lacks every diagram its source had is not an
+        honest rebuild. This reader carries pictures and cannot draw, so it
+        says which pages had a drawing on them."""
+        lines = column(["A page of prose with a diagram drawn on it in curves,",
+                        "which this reader has no way to carry."], top=700)
+        source = make_pdf(tmp_path / "drawn.pdf", [lines], strokes={0: _spiral(120, 420, 60)})
+        report = Report(source=str(source))
+        pdf.read_pdf(str(source), report)
+        said = next(f for f in report.findings if f.rule == "pdf.drawing-not-carried")
+        assert said.level is Level.WARN
+        assert said.values["pages"] == 1
+        # And a page with nothing but a rule under its heading has no drawing.
+        plain = make_pdf(tmp_path / "plain.pdf", [lines], strokes={0: [(72, 690, 340, 690)]})
+        quiet = Report(source=str(plain))
+        pdf.read_pdf(str(plain), quiet)
+        assert "pdf.drawing-not-carried" not in {f.rule for f in quiet.findings}
 
     def test_the_left_side_of_k1_reads_the_page_the_way_the_reader_does(self, tmp_path):
         """`text_of` is the source side of K1 and `read_pdf` is the output

@@ -161,6 +161,12 @@ class Page:
     #: The page cut into the areas a person reads one after another, in that
     #: order. One region is an ordinary page of prose.
     regions: list = field(default_factory=list)
+    #: Boxes of the vector drawings on the page. Not carried into the book —
+    #: this reader has no way to draw them — but the text standing on them is.
+    drawings: list = field(default_factory=list)
+    #: The callouts printed on those drawings, taken out of the prose and
+    #: printed together where the first of them stood.
+    callouts: list = field(default_factory=list)
 
 
 @dataclass
@@ -257,6 +263,10 @@ class Layout:
     #: one-or-two-word paragraphs.
     tables: int = 0
     table_cells: int = 0
+    #: Pages carrying a vector drawing, and the drawings whose callouts were
+    #: gathered out of the prose.
+    drawing_pages: int = 0
+    labelled_drawings: int = 0
     images: int = 0
     images_skipped: int = 0
     running_heads: int = 0
@@ -329,12 +339,16 @@ def _lay_out_all(pages: list[Page], layout: "Layout") -> float:
     are cut into areas that is no longer the order of the lines down the page.
     """
     _mark_running_heads(pages, layout)
+    # The legend of one page names the callouts of another, so the whole
+    # document is read for them before any page is laid out.
+    names = callout_names(pages)
     # After the running heads, because a head at the top of the page is a band
     # of its own and would cut every page in two before anything else could.
     for page in pages:
-        _lay_out(page)
+        _lay_out(page, names)
     layout.column_pages = sum(1 for page in pages if page.columns)
     layout.regions = sum(len(page.regions) for page in pages)
+    layout.drawing_pages = sum(1 for page in pages if page.drawings)
     layout.body_size = _body_size(pages)
     return layout.body_size
 
@@ -383,6 +397,7 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout",
         layout.paragraphs += counts["paragraphs"]
         layout.headings += counts["headings"]
         layout.tables += counts["tables"]
+        layout.labelled_drawings += counts["labelled_drawings"]
         layout.table_cells += sum(len(row) for block in blocks
                                   if block.kind == "table" for row in block.rows)
         for page in counts["anchored"]:
@@ -492,6 +507,17 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             values={"count": layout.tables, "cells": layout.table_cells},
             location=source,
         )
+    if layout.drawing_pages:
+        # Said because the alternative is a book that quietly lacks every
+        # diagram its source had. This reader carries pictures; it cannot draw,
+        # and a diagram made of curves is not a picture to carry.
+        report.add(
+            "pdf",
+            Level.WARN,
+            "pdf.drawing-not-carried",
+            values={"pages": layout.drawing_pages, "labelled": layout.labelled_drawings},
+            location=source,
+        )
     if layout.images_skipped:
         report.add(
             "pdf",
@@ -529,6 +555,7 @@ def _say_what_was_not_placed(report: Report, source: str, pages: list[Page]) -> 
         # left `page.lines` and is printed with the picture instead. It is
         # placed; counting only the lines would call it lost.
         texts = [line.text for line in page.lines]
+        texts += [line.text for line in page.callouts]
         for picture in page.pictures:
             texts += picture.labels
             texts.append(picture.caption)
@@ -683,7 +710,8 @@ def join_lines(lines) -> str:
 def _read(source: str):
     """Pages with their lines and pictures, the document info, and the outline."""
     from pdfminer.high_level import extract_pages
-    from pdfminer.layout import LAParams, LTChar, LTFigure, LTImage, LTTextContainer, LTTextLine
+    from pdfminer.layout import (LAParams, LTChar, LTCurve, LTFigure, LTImage,
+                                 LTTextContainer, LTTextLine)
     from pdfminer.pdfdocument import PDFDocument
     from pdfminer.pdfpage import PDFPage
     from pdfminer.pdfparser import PDFParser
@@ -703,10 +731,15 @@ def _read(source: str):
     for number, lt_page in enumerate(extract_pages(source, laparams=LAParams(all_texts=True)), 1):
         _walk_characters(lt_page, drawn)
         page = Page(number=number, width=lt_page.width, height=lt_page.height)
+        strokes: list = []
         stack = list(lt_page)
         while stack:
             element = stack.pop(0)
-            if isinstance(element, LTTextContainer):
+            if isinstance(element, LTCurve):
+                # `LTLine` and `LTRect` are curves too. Kept as boxes only: what
+                # this reader wants from them is where the drawing *is*.
+                strokes.append((element.x0, element.y0, element.x1, element.y1))
+            elif isinstance(element, LTTextContainer):
                 for line in element:
                     if isinstance(line, LTTextLine):
                         chars = [c for c in line if isinstance(c, LTChar)]
@@ -729,6 +762,7 @@ def _read(source: str):
                     skipped += 1
                 else:
                     page.pictures.append(picture)
+        page.drawings = _drawings(strokes, page.width, page.height)
         page.lines.sort(key=lambda line: (-round(line.y1), line.x0))
         split = _two_columns(page)
         page.columns = split is not None
@@ -874,6 +908,81 @@ def _png_via_pillow(handle) -> bytes | None:
         return out.getvalue()
     except Exception:  # noqa: BLE001
         return None
+
+
+#: A drawing is where the page's vector strokes cluster, and the grid they are
+#: counted on is coarse on purpose: a diagram is drawn as thousands of separate
+#: curves, and what makes them one picture is that they touch.
+DRAWING_CELL = 12.0
+#: A stroke covering more than this share of the page is a background or a
+#: border round the whole page, not part of a drawing.
+DRAWING_STROKE_MAX = 0.5
+#: A cluster smaller than this many cells, or thinner than this many cells
+#: either way, is a rule under a heading or a box round a note. Measured on the
+#: owner's manual: the band across the head of every page is 27 cells by 2, and
+#: the drawing on page 6 — the one with eleven callouts on it — is 23 by 17.
+CELLS_FOR_A_DRAWING = 20
+CELLS_ACROSS_A_DRAWING = 3
+#: And a drawing lays down more strokes than it covers cells: artwork piles
+#: curve on curve, while the run of leader dots between a contents entry and
+#: its page number lays exactly one stroke in each cell it crosses. Swept over
+#: the manual, that difference is a cliff: at one stroke per cell 93 pages of
+#: 105 hold a "drawing", at one and a half 43, at two 39, at three 33. The
+#: leaders and the rules drop out at the cliff and nothing else moves.
+DRAWING_DENSITY = 2.0
+
+
+def _drawings(strokes: list, width: float, height: float) -> list:
+    """The boxes of the page's vector drawings, as `(x0, y0, x1, y1)`.
+
+    This reader carries pictures and does not draw, so a diagram made of curves
+    is not in the rebuilt book at all — but the text printed *on* it is, and
+    without knowing where the drawing stands that text is a heap of one-word
+    paragraphs. On the owner's manual page 6 the diagram of the machine is
+    vector: no picture on the page, eleven callouts round it, `A1` to `A11`.
+    """
+    touched: Counter = Counter()
+    for x0, y0, x1, y1 in strokes:
+        if (x1 - x0) * (y1 - y0) > DRAWING_STROKE_MAX * width * height:
+            continue
+        for cx in range(int(x0 // DRAWING_CELL), int(x1 // DRAWING_CELL) + 1):
+            for cy in range(int(y0 // DRAWING_CELL), int(y1 // DRAWING_CELL) + 1):
+                touched[(cx, cy)] += 1
+    found = []
+    for group in _clusters(set(touched)):
+        xs = [cell[0] for cell in group]
+        ys = [cell[1] for cell in group]
+        across, down = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+        if (len(group) < CELLS_FOR_A_DRAWING
+                or across < CELLS_ACROSS_A_DRAWING or down < CELLS_ACROSS_A_DRAWING
+                or sum(touched[cell] for cell in group) < DRAWING_DENSITY * len(group)):
+            continue
+        found.append((min(xs) * DRAWING_CELL, min(ys) * DRAWING_CELL,
+                      (max(xs) + 1) * DRAWING_CELL, (max(ys) + 1) * DRAWING_CELL))
+    return found
+
+
+def _clusters(cells: set) -> list:
+    """Cells that touch, gathered — corners count, so a diagonal stroke does
+    not split the drawing it is part of."""
+    seen: set = set()
+    groups = []
+    for start in cells:
+        if start in seen:
+            continue
+        seen.add(start)
+        stack, group = [start], []
+        while stack:
+            cx, cy = stack.pop()
+            group.append((cx, cy))
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    neighbour = (cx + dx, cy + dy)
+                    if neighbour in cells and neighbour not in seen:
+                        seen.add(neighbour)
+                        stack.append(neighbour)
+        groups.append(group)
+    return groups
 
 
 def _two_columns(page: Page) -> "float | None":
@@ -1033,7 +1142,76 @@ def _is_a_fragment(text: str) -> bool:
     return bool(text) and len(text.split()) <= FRAGMENT_WORDS and text[-1:] not in tuple(SENTENCE_ENDS)
 
 
-def _lay_out(page: Page) -> None:
+#: What a callout looks like: the marker of a legend entry with its letter and
+#: its number together — `A16`, `B1`, `E7`. Deliberately not a bare number:
+#: `1.` and `2.` open the steps of a procedure, and a step is not a callout.
+CALLOUT = re.compile(r"^[A-Z]{1,2}\d{1,3}$")
+
+
+def callout_names(pages: list) -> set:
+    """The markers that open a legend entry somewhere in this document.
+
+    Evidence from the file rather than from its geometry. A legend reads
+    "A16. Wskaźnik poziomu wody w tacce", so `A16` names a part of the machine;
+    the same `A16` printed alone beside an arrow on the drawing is a *callout*,
+    pointing back at that entry. Nothing else in a book looks like that, and no
+    threshold is needed to say so.
+    """
+    names = set()
+    for page in pages:
+        # By the row, not by the line: a legend that sets its marker and its
+        # entry as two lines on one baseline — "A6." and "Tacka na skropliny"
+        # beside it — names `A6` just as plainly as one that sets them as one
+        # line, and reading only whole lines missed exactly those.
+        for row in _rows(_in_order(page.lines)):
+            for run in _reading_runs(row):
+                text = " ".join(line.text.strip() for line in run).strip()
+                marker = _marker(text)
+                if marker and text[len(marker):].strip() and CALLOUT.match(marker.strip(".)( ")):
+                    names.add(marker.strip(".)( "))
+    return names
+
+
+def _is_a_callout(text: str, names: set) -> bool:
+    """Whether this whole line is nothing but callouts — `A16`, or `B1 B4`."""
+    tokens = text.split()
+    return bool(tokens) and all(token.strip(".,)(") in names for token in tokens)
+
+
+def _lift_callouts(page: Page, names: set) -> None:
+    """Take the callouts printed on a drawing out of the prose.
+
+    Where the drawing is a picture, `_lift_labels` puts the callout on it.
+    Where the drawing is drawn — curves, which this reader cannot carry — there
+    is no picture to put it on, and the callouts stayed in the flow: on the
+    owner's manual, two hundred one-word paragraphs, and worse than that. A
+    single `A15` standing between the two lines of a legend entry was read
+    *into* it, so the entry came out "A16. Wskaźnik poziomu wody w tacce A15 na
+    skropliny" — the exact damage the area model was built to undo, done by one
+    stray word instead of by the reading order.
+
+    So they leave the flow together and are printed where the first of them
+    stood, which is where the drawing is.
+    """
+    if not names:
+        return
+    kept: list[Line] = []
+    for row in _rows(_in_order(page.lines)):
+        # By the *run*, not the baseline: a legend often sets its marker and
+        # its entry as two lines on one line of the page — "B1." at the left
+        # edge, "Zbiornik na wodę" a word's width away — and that run is the
+        # entry, name and all. A callout is a run of its own, with a column of
+        # white on either side of it.
+        for run in _reading_runs(row):
+            if all(not line.running_head and _is_a_callout(line.text.strip(), names)
+                   for line in run):
+                page.callouts.extend(run)
+            else:
+                kept.extend(run)
+    page.lines = _in_order(kept)
+
+
+def _lay_out(page: Page, names: "set | None" = None) -> None:
     """Give the page its regions, and its lines in the order they are read.
 
     Running heads take no part in the cutting. A head at the top of a page is
@@ -1043,6 +1221,9 @@ def _lay_out(page: Page) -> None:
     head then joins the area it stands over.
     """
     _lift_labels(page)
+    # After the pictures: a callout inside a picture's box has a home to go to,
+    # and going there is better than being gathered with the loose ones.
+    _lift_callouts(page, names or set())
     body = [line for line in page.lines if not line.running_head]
     heads = [line for line in page.lines if line.running_head]
     regions = _regions(body, page.width, page.height, page.columns)
@@ -1151,6 +1332,8 @@ class Block:
             # Cells are not one paragraph broken across lines: a hyphen at the
             # end of a cell is the cell's own word, so they join with a space.
             return " ".join(cell.text.strip() for row in self.rows for cell in row)
+        if self.kind == "labels":
+            return " ".join(line.text.strip() for line in self.lines)
         return join_lines(line.text for line in self.lines)
 
 
@@ -1249,26 +1432,31 @@ class _Area:
 
 
 def _page_blocks(page: Page, flow: "_Flow", body_size: float, breaks: set[int]) -> None:
-    """One page's areas, in reading order, with its pictures among them."""
+    """One page's areas, in reading order, with what stands beside them."""
     pitch = _pitch(page)
     regions = page.regions or ([page.lines] if page.lines else [])
-    pictures = sorted(page.pictures, key=lambda picture: -picture.y1)
+    standing = [Block(kind="image", picture=picture) for picture in page.pictures]
+    heights = {id(block): block.picture.y1 for block in standing}
+    if page.callouts:
+        block = Block(kind="labels", lines=list(page.callouts))
+        heights[id(block)] = max(line.y1 for line in page.callouts)
+        standing.append(block)
+    standing.sort(key=lambda block: -heights[id(block)])
     placed = 0
     for region in regions:
         if not region:
             continue
-        # A picture stands where it stands: before the first area whose top is
-        # below it.
+        # A picture, or the callouts of a drawing, stand where they stand:
+        # before the first area whose top is below them.
         top = max(line.y1 for line in region)
-        while placed < len(pictures) and pictures[placed].y1 > top:
-            flow.blocks.append(Block(kind="image", picture=pictures[placed]))
+        while placed < len(standing) and heights[id(standing[placed])] > top:
+            flow.blocks.append(standing[placed])
             placed += 1
         left, width = _region_geometry(region, page)
         area = _Area(page=page, left=left, width=width,
                      hanging=_hanging_indent(region, left), pitch=pitch)
         _area_blocks(region, area, flow, body_size, breaks)
-    for picture in pictures[placed:]:
-        flow.blocks.append(Block(kind="image", picture=picture))
+    flow.blocks.extend(standing[placed:])
 
 
 def _area_blocks(region: "list[Line]", area: "_Area", flow: "_Flow",
@@ -1324,6 +1512,14 @@ def _starts_a_block(line: Line, kind: str, flow: "_Flow", area: "_Area",
         return True
     previous = flow.previous
     if previous is None:
+        return False
+    # Text carrying on along one line of the page is one paragraph: "A6." at
+    # the left edge and "Tacka na skropliny" a word's width away are a legend
+    # entry, and read as two paragraphs the entry loses its name. Far apart on
+    # the same baseline they are two columns instead — a table's row, which
+    # `_tables` has already taken, or a callout beside a legend, which
+    # `_lift_callouts` has.
+    if _reads_on(previous, line):
         return False
     # A paragraph does not run into a new chapter.
     if line.page != previous.page and line.page in breaks:
@@ -1403,12 +1599,51 @@ def _tables(region: "list[Line]") -> "list[list[list[Line]]]":
     return found
 
 
+#: How wide the white between two pieces of text on one baseline may be for
+#: them to still be one line of the page, in type sizes. Measured over the 964
+#: such pairs in the owner's manual: a marker and the entry it names sit at
+#: 0.8 to 1.4 ("8." and "Podnieś wieczko", "•" and "Nie wsypuj kawy"), and by
+#: the middle of the distribution the pairs are 2.4 apart and are two columns
+#: ("Nederlands" beside "4. Ustaw godzinę"). Two type sizes is the gap between
+#: those two populations.
+ONE_LINE_GAP = 2.0
+
+
+def _same_row(one: Line, other: Line) -> bool:
+    """Whether two lines stand on one baseline — the same line of the page."""
+    return (one.page == other.page
+            and abs(one.y1 - other.y1) <= ROW_SLACK * max(one.size, other.size))
+
+
+def _reads_on(one: Line, other: Line) -> bool:
+    """Whether *other* carries on from *one*: same baseline, and near enough
+    that the white between them is a word space and not a column."""
+    return (_same_row(one, other) and one.x1 <= other.x0
+            and other.x0 - one.x1 <= ONE_LINE_GAP * max(one.size, other.size))
+
+
+def _reading_runs(row: "list[Line]") -> "list[list[Line]]":
+    """One baseline split into the pieces that read on from one another.
+
+    A marker and the entry it names are one piece; two columns standing on the
+    same baseline are two. Without this a callout that happens to sit level
+    with a legend entry is read as part of it, and the entry loses its name to
+    a word that belongs to the drawing.
+    """
+    runs: list = []
+    for line in row:
+        if runs and _reads_on(runs[-1][-1], line):
+            runs[-1].append(line)
+        else:
+            runs.append([line])
+    return runs
+
+
 def _rows(lines: "list[Line]") -> "list[list[Line]]":
     """The area's lines grouped by the baseline they stand on."""
     rows: list = []
     for line in lines:
-        here = rows[-1][0] if rows else None
-        if here is not None and abs(here.y1 - line.y1) <= ROW_SLACK * max(here.size, line.size):
+        if rows and _same_row(rows[-1][0], line):
             rows[-1].append(line)
         else:
             rows.append([line])
@@ -1608,7 +1843,8 @@ def _render(blocks: list[Block], title: str,
     page carries the anchor, and `counts["anchored"]` says which pages actually
     got one — a nav entry is only allowed to point where something is.
     """
-    counts: dict = {"paragraphs": 0, "headings": 0, "tables": 0, "anchored": []}
+    counts: dict = {"paragraphs": 0, "headings": 0, "tables": 0,
+                    "labelled_drawings": 0, "anchored": []}
     wanted = set(anchored or ())
     body: list[str] = []
     for block in blocks:
@@ -1623,6 +1859,9 @@ def _render(blocks: list[Block], title: str,
         elif block.kind == "table":
             counts["tables"] += 1
             body.append(_grid(block.rows, mark))
+        elif block.kind == "labels":
+            counts["labelled_drawings"] += 1
+            body.append(f'    <p{mark} class="{LABEL_CLASS}">{escape(block.text)}</p>')
         elif block.kind == "head":
             body.append(f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>')
         elif block.kind in ("h1", "h2"):
