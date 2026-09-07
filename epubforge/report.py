@@ -244,6 +244,30 @@ class Finding:
     values: dict = field(default_factory=dict)
 
 
+#: How many entries of one statistic the **text** report prints before it
+#: prints their number instead. The JSON keeps everything, always.
+#:
+#: DROGA 6.13. Statistics carry machinery as well as measurements: a PDF
+#: rebuild records every word the typesetter broke at a line end (1 074 of
+#: them in one book of the acceptance material), and `text_changes` records
+#: a prose digest per changed document. Printed whole, one of those is a
+#: single line a thousand words long in a report a person is meant to read —
+#: and the thing that line is evidence *for* is already said in the findings
+#: above it. Eight is "a few": `pdf_layout` and the counts stay as they were.
+STAT_ENTRIES_SHOWN = 8
+
+
+def _as_read(value, language: str) -> str:
+    """One statistic as a reader meets it in the text report."""
+    from . import rules
+
+    if isinstance(value, (dict, list, tuple, set)) and len(value) > STAT_ENTRIES_SHOWN:
+        if language == "pl":
+            return rules.fill("{count} {count:pozycja|pozycje|pozycji}", {"count": len(value)})
+        return f"{len(value)} entries"
+    return str(value)
+
+
 @dataclass
 class Report:
     source: str = ""
@@ -553,7 +577,7 @@ class Report:
         lines = [header, ""] + self.summary(language)
         lines += ["", f"  source: {self.source}", f"  output: {self.output}", ""]
         for key, value in self.stats.items():
-            lines.append(f"  {key}: {value}")
+            lines.append(f"  {key}: {_as_read(value, language)}")
         lines.append("")
         current_level = None
         for finding in self.sorted_findings():

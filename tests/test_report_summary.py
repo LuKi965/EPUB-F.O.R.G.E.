@@ -216,3 +216,44 @@ class TestTheWholeShelfGetsTheSameTreatment:
 
         data = batch_to_dict(self.shelf(), "pl")
         assert data["in_short"] == batch_summary(self.shelf(), "pl")[1:]
+
+
+class TestAStatisticNobodyCanRead:
+    """DROGA 6.13. Statistics carry machinery as well as measurements, and the
+    text report printed every one of them whole: a PDF rebuild records every
+    word the typesetter broke at a line end — 1 074 of them in one book of the
+    acceptance material — and that came out as a single line a thousand words
+    long, in a report a person is meant to read. The JSON keeps everything;
+    the page a person reads says how many.
+    """
+
+    @staticmethod
+    def _report(entries: int):
+        from epubforge.report import Report
+
+        report = Report(source="a.epub", output="b.epub")
+        report.stats["pdf_line_end_words"] = {f"slowo-{n}": 1 for n in range(entries)}
+        report.stats["output_resources"] = 12
+        return report
+
+    def test_a_long_statistic_is_shown_as_its_number(self):
+        text = self._report(1074).to_text("pl")
+        assert "pdf_line_end_words: 1074 pozycje" in text
+        assert "slowo-500" not in text
+        # The plural agrees, which is the whole reason there is a helper.
+        assert "1074 pozycji" not in text
+
+    def test_english_says_it_too(self):
+        assert "pdf_line_end_words: 1074 entries" in self._report(1074).to_text("en")
+
+    def test_a_few_entries_are_still_shown(self):
+        """`pdf_layout` and the counts are what these lines are for."""
+        text = self._report(3).to_text("pl")
+        assert "slowo-2" in text
+        assert "output_resources: 12" in text
+
+    def test_the_json_keeps_everything(self):
+        import json
+
+        carried = json.loads(self._report(1074).to_json("pl"))
+        assert len(carried["stats"]["pdf_line_end_words"]) == 1074
