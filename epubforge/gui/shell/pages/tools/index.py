@@ -59,7 +59,7 @@ def palette_for(tokens: Tokens) -> legacy_theme.Palette:
 
 
 class ToolsPage(Responsive, QWidget):
-    """Four tiles, and behind each of them the panel that does the work."""
+    """Four tiles, and behind each of them the page that does the work."""
 
     TOOLS = (
         ("library", "library", "shell.tools.library", False),
@@ -73,8 +73,9 @@ class ToolsPage(Responsive, QWidget):
     def __init__(self, tokens: Tokens) -> None:
         super().__init__()
         self.tokens = tokens
-        self.palette_colors = palette_for(tokens)
-        self._panels: dict[str, QWidget] = {}
+        #: Built when somebody first opens one, and kept afterwards: a tool
+        #: with a folder typed into it should still have it on the way back.
+        self._pages: dict[str, QWidget] = {}
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -114,17 +115,17 @@ class ToolsPage(Responsive, QWidget):
         if name == "merge":
             self.merge_requested.emit()
             return
-        panel = self._panels.get(name)
-        if panel is None:
-            panel = self._build(name)
-            self._panels[name] = panel
-            self.router.addWidget(panel)
-        self.router.setCurrentWidget(panel)
+        page = self._pages.get(name)
+        if page is None:
+            page = self._build(name)
+            self._pages[name] = page
+            self.router.addWidget(page)
+        self.router.setCurrentWidget(page)
 
     def runners(self) -> "list":
         """Every runner the open tools own, for the window's shutdown."""
         return [
-            page.runner for page in self._panels.values()
+            page.runner for page in self._pages.values()
             if getattr(page, "runner", None) is not None
         ]
 
