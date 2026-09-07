@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import subprocess
 import zipfile
 import zlib
@@ -104,13 +105,36 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
     lang = f" /Lang ({language})" if language else ""
     outlines = ""
     if outline:
+        # An entry is ``(title, page_index)`` at the top level, or
+        # ``(title, page_index, level)`` — the levels build the real tree of
+        # `/First`, `/Last` and `/Parent` that a publisher's outline has.
+        items = [(entry[0], entry[1], entry[2] if len(entry) > 2 else 1) for entry in outline]
         root_id = len(objects) + 1
-        item_ids = [root_id + 1 + i for i in range(len(outline))]
-        add(f"<< /Type /Outlines /First {item_ids[0]} 0 R /Last {item_ids[-1]} 0 R /Count {len(outline)} >>".encode())
-        for i, (label, page_index) in enumerate(outline):
-            links = f" /Prev {item_ids[i - 1]} 0 R" if i else ""
-            links += f" /Next {item_ids[i + 1]} 0 R" if i + 1 < len(outline) else ""
-            add((f"<< /Title ({_escape(label)}) /Parent {root_id} 0 R{links} "
+        item_ids = [root_id + 1 + i for i in range(len(items))]
+        parents: list[int | None] = []
+        open_at: list[int] = []
+        for index, (_, _, level) in enumerate(items):
+            while open_at and items[open_at[-1]][2] >= level:
+                open_at.pop()
+            parents.append(open_at[-1] if open_at else None)
+            open_at.append(index)
+        family: dict = {}
+        for index, parent in enumerate(parents):
+            family.setdefault(parent, []).append(index)
+        roots = family[None]
+        add(f"<< /Type /Outlines /First {item_ids[roots[0]]} 0 R "
+            f"/Last {item_ids[roots[-1]]} 0 R /Count {len(items)} >>".encode())
+        for index, (label, page_index, _) in enumerate(items):
+            siblings = family[parents[index]]
+            at = siblings.index(index)
+            links = f" /Prev {item_ids[siblings[at - 1]]} 0 R" if at else ""
+            links += f" /Next {item_ids[siblings[at + 1]]} 0 R" if at + 1 < len(siblings) else ""
+            mine = family.get(index, [])
+            if mine:
+                links += (f" /First {item_ids[mine[0]]} 0 R /Last {item_ids[mine[-1]]} 0 R "
+                          f"/Count {len(mine)}")
+            parent_id = root_id if parents[index] is None else item_ids[parents[index]]
+            add((f"<< /Title ({_escape(label)}) /Parent {parent_id} 0 R{links} "
                  f"/Dest [{page_ids[page_index]} 0 R /XYZ 0 {PAGE[1]} 0] >>").encode("cp1252"))
         outlines = f" /Outlines {root_id} 0 R"
     catalog = add(f"<< /Type /Catalog /Pages {pages_id} 0 R{lang}{outlines} >>".encode())
@@ -357,6 +381,54 @@ class TestTheReader:
         assert used.values == {"count": 2, "unresolved": 0}
         assert report.stats["pdf_layout"]["headings"] == 0
 
+    def test_the_whole_outline_becomes_the_table_of_contents(self, tmp_path):
+        """The documents come from the outline's top level, because a document
+        is what a reading system loads whole. The table of contents does not:
+        the owner's manual has 125 outline entries, all of them resolving to a
+        page, and used to arrive with **ten** nav points — the other 115 were
+        the ones a person uses to find "6.6.4 Odkamienianie" without reading
+        the chapter.
+        """
+        pages = [column([f"Page {n} of prose, at the body size only,", "so no heading opens anything."], top=600)
+                 for n in range(1, 7)]
+        source = make_pdf(tmp_path / "deep.pdf", pages, title="Deep", outline=[
+            ("1 First part", 0, 1),
+            ("1.1 Its first section", 0, 2),
+            ("1.2 Its second section", 1, 2),
+            ("1.2.1 A subsection", 2, 3),
+            ("2 Second part", 3, 1),
+            ("2.1 One section of it", 4, 2),
+        ])
+        report = Report()
+        book = pdf.read_pdf(str(source), report)
+        assert [point.label for point in book.toc] == ["1 First part", "2 Second part"]
+        assert [child.label for child in book.toc[0].children] == ["1.1 Its first section", "1.2 Its second section"]
+        assert [deep.label for deep in book.toc[0].children[1].children] == ["1.2.1 A subsection"]
+        assert report.stats["pdf_layout"]["navigation_entries"] == 6
+        # Every entry points at the page it named, and the anchor is there.
+        deepest = book.toc[0].children[1].children[0]
+        assert deepest.target == "text/section-0001.xhtml#pdf-page-0003"
+        document = book.resources[deepest.target_path].data.decode()
+        assert 'id="pdf-page-0003"' in document
+        assert document.index('id="pdf-page-0003"') < document.index("Page 3 of prose")
+
+    def test_a_line_of_figures_set_large_is_not_a_heading(self, tmp_path):
+        """Measured on the owner's manual: "set larger than the body" promoted
+        74 lines there and not one was a heading — a legend's markers, a
+        table's ticks and figures, a quantity. A title is mostly letters; those
+        are not, and a roman numeral standing alone still is."""
+        lines = [(72, 740, 20.0, "I."), (72, 715, 20.0, "Rozdzial pierwszy")]
+        lines += [(72, 690, 14.0, "A6."), (200, 690, 14.0, "B1."),
+                  (72, 665, 14.0, "0,5 L"), (200, 665, 14.0, "3 1 4"), (330, 665, 14.0, "+")]
+        lines += column(["Prose of the chapter at the body size, which is", "ten points here."], top=630, size=10)
+        book = pdf.read_pdf(str(make_pdf(tmp_path / "shapes.pdf", [lines])), Report())
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert re.findall(r"<h[12][^>]*>(.*?)</h[12]>", markup) == ["I. Rozdzial pierwszy"]
+        # Demoted, not dropped: every one of them is still in the text.
+        text = fidelity.document_text(markup.encode("utf-8"))
+        for furniture in ("A6.", "B1.", "0,5 L", "3 1 4", "+"):
+            assert furniture in text
+
     def test_running_heads_are_marked_and_kept_not_removed(self, tmp_path):
         pages = []
         for number in range(1, 7):
@@ -489,6 +561,27 @@ class TestTheReader:
         assert "<p>A16</p>" not in text
         assert "pdf.characters-unplaced" not in {f.rule for f in report.findings}
         assert report.stats["pdf_characters_unplaced"] == 0
+
+    def test_a_name_written_under_a_picture_becomes_its_caption(self, tmp_path):
+        """"Americano" under the icon of it is the picture's name, not a
+        one-word paragraph between two others. Seven of them in the owner's
+        manual. A bullet also stands under a figure and is not its name, so a
+        caption has to read as words."""
+        pytest.importorskip("PIL.Image")
+        blue = bytes([30, 60, 200]) * (40 * 30)
+        # The picture's box is x 72..132, y 600..640; the name sits under it.
+        lines = [(84.0, 592.0, 9.0, "Americano")]
+        lines += column(["A paragraph of prose that has nothing to do with", "the picture at all."], top=560)
+        source = make_pdf(tmp_path / "caption.pdf", [lines] * 2,
+                          images={index: [(72, 600, 60, 40, 40, 30, blue)] for index in range(2)})
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<figcaption>Americano</figcaption>" in markup
+        assert "<p>Americano</p>" not in markup
+        assert report.stats["pdf_characters_unplaced"] == 0
+        # The prose below is a paragraph, not a second caption.
+        assert "A paragraph of prose that has nothing to do with the picture at all." in markup
 
     def test_the_left_side_of_k1_reads_the_page_the_way_the_reader_does(self, tmp_path):
         """`text_of` is the source side of K1 and `read_pdf` is the output

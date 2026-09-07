@@ -101,6 +101,12 @@ class Line:
     region: int = 0
 
 
+#: How far past a picture's own edges its name may reach and still be its name.
+#: A caption is usually centred under the picture and narrower than it; a couple
+#: of points of slack allow for the one that is set flush and rounds outwards.
+CAPTION_SLACK = 4.0
+
+
 @dataclass
 class Picture:
     name: str
@@ -117,6 +123,8 @@ class Picture:
     #: Short lines that stand inside this picture: callout labels, the "A16"
     #: beside an arrow. They are not paragraphs and they are not lost.
     labels: list = field(default_factory=list)
+    #: The name written under the picture — "Americano" under the icon of it.
+    caption: str = ""
 
     def holds(self, line: "Line") -> bool:
         """Whether *line* stands inside this picture's box."""
@@ -125,6 +133,19 @@ class Picture:
         middle_x = (line.x0 + line.x1) / 2
         middle_y = (line.y0 + line.y1) / 2
         return self.x0 <= middle_x <= self.x1 and self.y0 <= middle_y <= self.y1
+
+    def is_named_by(self, line: "Line", pitch: float) -> bool:
+        """Whether *line* stands under this picture as its name.
+
+        Under it: the line's top is below the picture's foot by no more than
+        one line of type, so the two are set as one thing. Within it: the line
+        does not reach past either side of the picture.
+        """
+        if self.x1 <= self.x0 or self.y1 <= self.y0:
+            return False
+        return (self.y0 - pitch <= line.y1 <= self.y0
+                and line.x0 >= self.x0 - CAPTION_SLACK
+                and line.x1 <= self.x1 + CAPTION_SLACK)
 
 
 @dataclass
@@ -237,6 +258,9 @@ class Layout:
     running_heads: int = 0
     outline_entries: int = 0
     outline_unresolved: int = 0
+    #: Entries in the table of contents the reader built. With an outline this
+    #: is the whole of it, not only the entries that became documents.
+    navigation_entries: int = 0
     column_pages: int = 0
     body_size: float = 0.0
     torn_paragraphs: int = 0
@@ -267,7 +291,7 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
     layout.fragment_paragraphs = quality.fragments
     layout.median_paragraph = quality.median_characters
     layout.outline_entries = len(outline)
-    _fill_the_book(book, sections, layout)
+    _fill_the_book(book, sections, layout, outline)
     layout.running_heads = sum(1 for page in pages for line in page.lines if line.running_head)
 
     _say_what_was_read(report, source, layout, len(sections), quality)
@@ -331,18 +355,31 @@ def _refuse_a_book_of_pictures(pages: list[Page], layout: "Layout", source: str,
     raise EpubReadError("the PDF has no text layer to read; scanning it would need OCR")
 
 
-def _fill_the_book(book: Book, sections: list, layout: "Layout") -> None:
-    """One document, one spine entry and one nav point per section, and the
-    pictures those sections stand on."""
+def _fill_the_book(book: Book, sections: list, layout: "Layout",
+                   outline: "list[Outline]") -> None:
+    """One document and one spine entry per section, the pictures they stand
+    on, and a table of contents made of the **whole** outline.
+
+    The documents come from the outline's top level, because a document is a
+    unit a reading system loads whole. The table of contents does not: an
+    outline of 125 entries that gives 10 nav points has thrown away 115 of
+    them, and they are the ones a person uses to find "6.6.4 Odkamienianie"
+    without reading the chapter. Each entry points at an anchor on the page it
+    named, which is the position the PDF itself recorded.
+    """
+    anchored = {entry.page for entry in outline}
+    placed: dict[int, str] = {}
     for index, (title, blocks) in enumerate(sections, 1):
         path = f"text/section-{index:04d}.xhtml"
         # A section the outline did not name and no heading opened: the first
         # is the book's own front matter and takes the title; a later one is
         # named by its number, which is the one thing that is true of it.
         label = title or (book.metadata.title if index == 1 else f"{index}")
-        markup, counts = _render(blocks, label, book.metadata.language or "")
+        markup, counts = _render(blocks, label, anchored)
         layout.paragraphs += counts["paragraphs"]
         layout.headings += counts["headings"]
+        for page in counts["anchored"]:
+            placed.setdefault(page, f"{path}#{_anchor(page)}")
         for block in blocks:
             if block.kind == "image" and block.picture.name not in book.resources:
                 picture = block.picture
@@ -350,7 +387,46 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout") -> None:
                 layout.images += 1
         book.add(Resource(path=path, media_type="application/xhtml+xml", data=markup.encode("utf-8")))
         book.spine.append(SpineItem(path=path))
-        book.toc.append(NavPoint(label=label, target=path))
+        if not outline:
+            book.toc.append(NavPoint(label=label, target=path))
+        # A page the outline names and no block starts on — an empty page, or
+        # one whose blocks all began earlier — still has to be reachable: the
+        # document it falls in is the truthful answer.
+        for page in {p for p in anchored if p not in placed}:
+            if any(_block_page(block) >= page for block in blocks):
+                placed.setdefault(page, path)
+    if outline:
+        book.toc.extend(_navigation(outline, placed))
+    layout.navigation_entries = sum(len(list(node.walk())) for node in book.toc)
+
+
+def _anchor(page: int) -> str:
+    return f"pdf-page-{page:04d}"
+
+
+def _block_page(block: "Block") -> int:
+    if block.picture is not None:
+        return block.picture.page
+    return block.lines[0].page if block.lines else 0
+
+
+def _navigation(outline: "list[Outline]", placed: dict) -> "list[NavPoint]":
+    """The outline as the tree it already is: an entry's level says whose child
+    it is, and the entry after it at the same level is its sibling.
+
+    An outline that skips a level — 1 then 3, which real files do — hangs the
+    deeper entry off the nearest shallower one rather than inventing a parent
+    nobody wrote.
+    """
+    roots: list[NavPoint] = []
+    stack: list[tuple[int, NavPoint]] = []
+    for entry in outline:
+        node = NavPoint(label=entry.title or "—", target=placed.get(entry.page))
+        while stack and stack[-1][0] >= entry.level:
+            stack.pop()
+        (stack[-1][1].children if stack else roots).append(node)
+        stack.append((entry.level, node))
+    return roots
 
 
 def _say_what_was_read(report: Report, source: str, layout: "Layout",
@@ -434,11 +510,13 @@ def _say_what_was_not_placed(report: Report, source: str, pages: list[Page]) -> 
     has its reason on record; the refusal itself is the gate's."""
     placed: Counter = Counter()
     for page in pages:
-        # A label lifted onto its picture has left `page.lines` and is printed
-        # under the picture instead. It is placed; counting only the lines
-        # would call it lost.
+        # A label lifted onto its picture, or the name written under it, has
+        # left `page.lines` and is printed with the picture instead. It is
+        # placed; counting only the lines would call it lost.
         texts = [line.text for line in page.lines]
-        texts += [label for picture in page.pictures for label in picture.labels]
+        for picture in page.pictures:
+            texts += picture.labels
+            texts.append(picture.caption)
         for text in texts:
             for character in text:
                 if not character.isspace():
@@ -552,7 +630,8 @@ def text_of(source: str) -> str:
     pages, _, _, layout = _read(source)
     body_size = _lay_out_all(pages, layout)
     parts = [
-        " ".join(block.picture.labels) if block.kind == "image" else block.text
+        " ".join([block.picture.caption, *block.picture.labels]) if block.kind == "image"
+        else block.text
         for block in _blocks(pages, body_size)
     ]
     return re.sub(r"\s+", " ", " ".join(part for part in parts if part)).strip()
@@ -908,16 +987,35 @@ def _lift_labels(page: Page) -> None:
     """
     if not page.pictures:
         return
+    pitch = _pitch(page)
     kept: list[Line] = []
     for line in page.lines:
         text = line.text.strip()
-        label = len(text.split()) <= FRAGMENT_WORDS and text[-1:] not in tuple(SENTENCE_ENDS)
-        home = next((p for p in page.pictures if p.holds(line)), None) if label else None
-        if home is not None:
-            home.labels.append(text)
+        if line.running_head or not _is_a_fragment(text):
+            kept.append(line)
+            continue
+        inside = next((p for p in page.pictures if p.holds(line)), None)
+        if inside is not None:
+            inside.labels.append(text)
+            continue
+        # A name written under the picture — "Americano" under the icon of it.
+        # Only one, and only if it reads as words: the bullet that opens a list
+        # under a figure also stands under the figure, and is not its name.
+        named = next(
+            (p for p in page.pictures
+             if not p.caption and p.is_named_by(line, pitch) and _reads_like_a_heading(text)),
+            None,
+        )
+        if named is not None:
+            named.caption = text
         else:
             kept.append(line)
     page.lines = kept
+
+
+def _is_a_fragment(text: str) -> bool:
+    """A word or two with no sentence in them: a label, not a paragraph."""
+    return bool(text) and len(text.split()) <= FRAGMENT_WORDS and text[-1:] not in tuple(SENTENCE_ENDS)
 
 
 def _lay_out(page: Page) -> None:
@@ -1035,13 +1133,40 @@ class Block:
 
 
 def _heading_level(line: Line, body_size: float) -> str | None:
-    if body_size <= 0:
+    if body_size <= 0 or not _reads_like_a_heading(line.text):
         return None
     if line.size >= body_size * BODY_RATIO_H1:
         return "h1"
     if line.size >= body_size * BODY_RATIO_H2:
         return "h2"
     return None
+
+
+def _reads_like_a_heading(text: str) -> bool:
+    """Whether a line set larger than the body is a *title*.
+
+    Size alone is not enough, and the owner's manual said so with numbers: on
+    its 105 pages, "larger than the body" promoted **74 lines and not one of
+    them was a heading** — tick marks from a table (`✓ ✕`), the figures in its
+    cells (`3 1 4`), quantities (`0,5 L`, `2,0L`), arrows, and the markers of
+    a legend (`A6.`, `B1.`, `E7.`). Body text there is 9 pt, so a great deal
+    of small furniture clears 1.25 times it.
+
+    What those have in common is what a title never does: **a title is mostly
+    letters.** `A6` is half letters, `0,5 L` a quarter, `✓ ✕` none; `I`, `II`
+    and `Primadonna Aromatic` are all of them. Punctuation at the ends is not
+    counted, or the roman numeral `I.` that opens a chapter would fail on its
+    own full stop — eleven of those across the Gutenberg corpus, every one a
+    real heading.
+
+    Measured: the manual goes from 74 headings to 10 — and those ten are all
+    the product's name standing over a page, which is at least a name — while
+    the Gutenberg corpus keeps all 127 of the headings it had.
+    """
+    core = text.strip().strip(".,)(:;-–—[]")
+    letters = sum(1 for character in core if character.isalpha())
+    written = sum(1 for character in core if not character.isspace())
+    return written > 0 and letters * 2 > written
 
 
 def _blocks(pages: list[Page], body_size: float, breaks: set[int] = frozenset()) -> list[Block]:
@@ -1314,7 +1439,7 @@ def _sections(pages: list[Page], outline: list[Outline], body_size: float) -> li
     return [("", blocks)]
 
 
-def _figure(picture: Picture) -> str:
+def _figure(picture: Picture, mark: str = "") -> str:
     """The picture, with the labels printed on it gathered underneath.
 
     `_lift_labels` takes a callout — the "A16" beside an arrow — out of the
@@ -1327,34 +1452,61 @@ def _figure(picture: Picture) -> str:
     reader looking at the drawing will look for them.
     """
     image = f'<img src="../{escape(picture.name)}" alt=""/>'
-    if not picture.labels:
-        return f"    <p>{image}</p>"
-    labels = " ".join(escape(label) for label in picture.labels)
-    return (f"    <figure>\n      <p>{image}</p>\n"
-            f'      <p class="{LABEL_CLASS}">{labels}</p>\n    </figure>')
+    if not picture.labels and not picture.caption:
+        return f"    <p{mark}>{image}</p>"
+    inside = [f"      <p>{image}</p>"]
+    if picture.caption:
+        inside.append(f"      <figcaption>{escape(picture.caption)}</figcaption>")
+    if picture.labels:
+        labels = " ".join(escape(label) for label in picture.labels)
+        inside.append(f'      <p class="{LABEL_CLASS}">{labels}</p>')
+    return f"    <figure{mark}>\n" + "\n".join(inside) + "\n    </figure>"
 
 
-def _render(blocks: list[Block], title: str, language: str) -> tuple[str, dict]:
-    counts = {"paragraphs": 0, "headings": 0}
+def _render(blocks: list[Block], title: str,
+            anchored: "set[int] | None" = None) -> tuple[str, dict]:
+    """The section's markup, and what went into it.
+
+    *anchored* names the pages the outline points at. The first block of such a
+    page carries the anchor, and `counts["anchored"]` says which pages actually
+    got one — a nav entry is only allowed to point where something is.
+    """
+    counts: dict = {"paragraphs": 0, "headings": 0, "anchored": []}
+    wanted = set(anchored or ())
     body: list[str] = []
     for block in blocks:
+        page = _block_page(block)
+        mark = ""
+        if page in wanted:
+            wanted.discard(page)
+            counts["anchored"].append(page)
+            mark = f' id="{_anchor(page)}"'
         if block.kind == "image":
-            body.append(_figure(block.picture))
+            body.append(_figure(block.picture, mark))
         elif block.kind == "head":
-            body.append(f'    <p class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>')
+            body.append(f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>')
         elif block.kind in ("h1", "h2"):
             counts["headings"] += 1
-            body.append(f"    <{block.kind}>{escape(block.text)}</{block.kind}>")
+            body.append(f"    <{block.kind}{mark}>{escape(block.text)}</{block.kind}>")
         elif block.continued:
-            body.append(f'    <p class="{CONTINUED_CLASS}">{escape(block.text)}</p>')
+            body.append(f'    <p{mark} class="{CONTINUED_CLASS}">{escape(block.text)}</p>')
         else:
             counts["paragraphs"] += 1
-            body.append(f"    <p>{escape(block.text)}</p>")
-    lang = f' xml:lang="{escape(language)}" lang="{escape(language)}"' if language else ""
+            body.append(f"    <p{mark}>{escape(block.text)}</p>")
+    # No `xml:lang` on the document, deliberately. The PDF states one language,
+    # in its catalogue, about the whole file; stamping that on all ten documents
+    # turns one claim into ten that later look independent. They are not, and
+    # the difference shows: the owner's manual declares `en-GB` and is Polish
+    # throughout, so the content stage corrected the publication and the eight
+    # documents whose text proved it — and *kept* `en-GB` on the two too short
+    # to prove anything, because a document stating its own language is stating
+    # a fact about itself. It was not stating anything; this reader was. With
+    # no declaration on the document, the publication's applies, which is what
+    # one claim about one file means.
     markup = (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         "<!DOCTYPE html>\n"
-        f'<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"{lang}>\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
         "  <head>\n"
         '    <meta charset="utf-8"/>\n'
         f"    <title>{escape(title or ' ')}</title>\n"
