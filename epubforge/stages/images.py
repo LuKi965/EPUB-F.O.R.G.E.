@@ -79,7 +79,12 @@ class ImageStage(Stage):
             with Image.open(io.BytesIO(resource.data)) as image:
                 actual_format = image.format
                 image.verify()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — Pillow on somebody's picture
+            # Pillow decoding a file this program did not make: a truncated
+            # JPEG, a PNG with a broken chunk, a format built from a plugin
+            # that is not here. Named and reported rather than guessed at —
+            # and the picture stays as it came, because a picture nobody
+            # could read is not a picture this program may rewrite.
             self.note(
                 ctx,
                 Level.ERROR,
@@ -174,7 +179,10 @@ class ImageStage(Stage):
                 converted = image.convert(target_mode)
                 buffer = io.BytesIO()
                 converted.save(buffer, format="PNG", optimize=True)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — Pillow on somebody's picture
+            # The same boundary one step further in: decoding succeeded and
+            # the conversion did not. The original bytes stay and the report
+            # says which picture and what was raised.
             self.note(
                 ctx,
                 Level.ERROR,

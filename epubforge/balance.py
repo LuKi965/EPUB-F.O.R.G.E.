@@ -349,7 +349,20 @@ def _characters_of(book) -> int:
             # text is text, and unescaping first would turn it into a tag for
             # the stripper to eat.
             total += characters_in(html.unescape(stripped))
-        except Exception:
+        except Exception:  # noqa: BLE001 — a count is not worth a lost book
+            # Nothing above raises in the ordinary way: the substitutions work
+            # on bytes, the decode replaces what it cannot read, `html.unescape`
+            # takes any string. What is left is the exhaustion kind —
+            # `MemoryError` on a document larger than this machine — and a
+            # resource whose `data` is not what it claims.
+            #
+            # Kept broad and silent **for one side only**, which is the honest
+            # risk to write down: this function counts one side of the balance,
+            # so a document counted before and skipped after would look like
+            # lost text, and the other way round like text appearing. It has
+            # not happened on the shelf (160 books, every balance explained),
+            # and the day it does the number is wrong in a direction nobody
+            # sees. `DROGA-DO-1.0` 6.14.
             continue
     return total
 

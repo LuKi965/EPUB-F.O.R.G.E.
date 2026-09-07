@@ -64,7 +64,10 @@ class Cascade:
                 continue
             try:
                 sheet = cssutils.parseString(text, validate=False)
-            except Exception:
+            except Exception:  # noqa: BLE001 — the style stage reports `css.unparseable`
+                # This is the cascade model, not the report: a sheet that
+                # will not parse contributes nothing to it, and the stage
+                # that owns the stylesheet has already said so.
                 continue
             for rule in sheet:
                 if rule.type != rule.STYLE_RULE:

@@ -151,7 +151,7 @@ class TableStage(Stage):
         for resource in ctx.book.content_docs():
             try:
                 root = ctx.parsed(resource).root
-            except Exception:
+            except Exception:  # noqa: BLE001 — the content stage reports an unreadable document
                 continue
             for index, table in enumerate(_tables(root)):
                 if declared_layout(table) or not is_layout(table):

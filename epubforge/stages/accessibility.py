@@ -197,7 +197,7 @@ class AccessibilityStage(Stage):
             survey["documents"] += 1
             try:
                 root = ctx.parsed(resource).root
-            except Exception:
+            except Exception:  # noqa: BLE001 — the content stage reports an unreadable document
                 continue
             self._survey_document(resource, root, survey)
         return survey

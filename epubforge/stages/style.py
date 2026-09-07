@@ -3667,7 +3667,11 @@ class StyleStage(Stage):
         parser = cssutils.CSSParser(raiseExceptions=False, validate=False)
         try:
             sheet = parser.parseString(resource.text(), href=resource.path)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — cssutils on somebody's stylesheet
+            # Same boundary as the XHTML parse: a third-party parser reading
+            # a file this program did not write. Reported rather than
+            # swallowed, and a WARN rather than an ERROR because a stylesheet
+            # that will not parse costs appearance, not text.
             self.note(
                 ctx,
                 Level.WARN,

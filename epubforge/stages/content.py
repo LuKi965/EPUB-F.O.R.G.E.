@@ -928,7 +928,14 @@ class ContentStage(Stage):
                     expanded_entities[resource.path] = parsed.entities_expanded
                 if parsed.entities_refused:
                     refused_entities[resource.path] = parsed.entities_refused
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — a parser on somebody's file
+                # The widest boundary this program has: lxml on a document
+                # nobody vouched for, in a container that may be damaged in
+                # any way at all. What may come out of it is not a list this
+                # program can write down — so the answer is not to guess the
+                # list, but to name the document, say what was raised, and
+                # let the gates decide whether a book missing this document
+                # may be published.
                 self.note(
                     ctx,
                     Level.ERROR,

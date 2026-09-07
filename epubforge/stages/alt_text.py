@@ -269,7 +269,7 @@ class AltTextStage(Stage):
         for resource in ctx.book.content_docs():
             try:
                 root = ctx.parsed(resource).root
-            except Exception:
+            except Exception:  # noqa: BLE001 — the content stage reports an unreadable document
                 continue
             for element in xhtml.iter_elements(root):
                 if xhtml.local_name(element).lower() != "img":
