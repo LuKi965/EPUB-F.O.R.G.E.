@@ -1176,10 +1176,10 @@ def _reads_like_a_heading(text: str) -> bool:
 
     What those have in common is what a title never does: **a title is mostly
     letters.** `A6` is half letters, `0,5 L` a quarter, `✓ ✕` none; `I`, `II`
-    and `Primadonna Aromatic` are all of them. Punctuation at the ends is not
-    counted, or the roman numeral `I.` that opens a chapter would fail on its
-    own full stop — eleven of those across the Gutenberg corpus, every one a
-    real heading.
+    and the product's name over the page are all of them. Punctuation at the
+    ends is not counted, or the roman numeral `I.` that opens a chapter would
+    fail on its own full stop — eleven of those across the Gutenberg corpus,
+    every one a real heading.
 
     Measured: the manual goes from 74 headings to 10 — and those ten are all
     the product's name standing over a page, which is at least a name — while
