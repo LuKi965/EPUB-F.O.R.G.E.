@@ -1,8 +1,16 @@
 """The window: a sidebar, five pages, and the plumbing between them.
 
-It owns what is shared — the palette, the backend, the history file, the menu
-— and nothing else. Pages do not talk to each other; they emit intent and this
-routes it, which is what keeps the rebuild flow testable on its own.
+It owns what is shared — the palette, the backend, the history file, the
+keyboard — and nothing else. Pages do not talk to each other; they emit intent
+and this routes it, which is what keeps the rebuild flow testable on its own.
+
+**No menu bar and no status bar.** Both were the old window's furniture, kept
+through the first revamp out of habit: every destination in `Plik / Ustawienia
+/ Pomoc` is a click away in the sidebar or on a page, and a status bar spends a
+row of the window on a sentence that is already on the page it describes. The
+shortcuts stay — they are how somebody works fast, and they cost nothing —
+so they hang on the window as actions instead, each one enabled only where it
+means something.
 """
 
 from __future__ import annotations
@@ -10,8 +18,8 @@ from __future__ import annotations
 import os
 import sys
 
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QIcon
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -21,7 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from ... import resources, version_string
-from ..strings import LANGUAGES, language, set_language, tr
+from ..strings import language, set_language, tr
 from . import tokens as tokens_module
 from .backend import EngineBackend
 from .models import JobRecord
@@ -32,6 +40,17 @@ from .widgets import Sidebar
 
 #: Files this window accepts by drag, drop or command line.
 SUFFIXES = (".epub", ".pdf")
+
+#: The keyboard, in one place. Every one of these was in the old menu; they
+#: outlive it because a shortcut is not furniture.
+SHORTCUTS = {
+    "open": "Ctrl+O",
+    "save": "Ctrl+S",
+    "save-batch": "Ctrl+Shift+S",
+    "merge": "Ctrl+M",
+    "settings": "Ctrl+,",
+    "quit": "Ctrl+Q",
+}
 
 
 def chosen_tokens(app) -> Tokens:
@@ -52,6 +71,7 @@ class MainWindow(QMainWindow):
         self.tokens = tokens
         self.backend = backend or EngineBackend(language())
         self.restart_requested = False
+        self.busy = False
         self.setWindowTitle(tr("window.title", version=version_string()))
         self.setMinimumSize(*MIN_WINDOW)
         screen = QApplication.primaryScreen()
@@ -115,8 +135,8 @@ class MainWindow(QMainWindow):
         )
         self.settings_page.about_requested.connect(self._show_about)
 
-        self._build_menu()
-        self.statusBar().showMessage(tr("shell.local.title"))
+        self.rebuild.stage_changed.connect(self._stage_changed)
+        self._build_actions()
         self.navigate("home")
         if initial_files:
             self._start_rebuild(list(initial_files))
@@ -140,9 +160,21 @@ class MainWindow(QMainWindow):
         self.rebuild.start(paths)
 
     def _busy_changed(self, busy: bool) -> None:
-        self.statusBar().showMessage(
-            tr("shell.rebuild.title.running") if busy else tr("shell.local.title")
-        )
+        self.busy = busy
+
+    def say(self, message: str) -> None:
+        """Where a page's one-line news goes now that there is no status bar.
+
+        The page that is showing gets it if it knows what to do with it, and
+        nothing happens if it does not. This exists because a panel deep inside
+        a page cannot know which window it is in — and because the alternative,
+        `self.window().statusBar()`, *creates* a status bar on a window that
+        deliberately has none.
+        """
+        page = self.router.currentWidget()
+        sink = getattr(page, "say", None)
+        if callable(sink):
+            sink(message)
 
     # -- history ------------------------------------------------------------
     def _record(self, outcome) -> None:
@@ -186,37 +218,52 @@ class MainWindow(QMainWindow):
         self._ask = Ask(self)
         return self._ask
 
-    # -- menu, drops, dialogs -----------------------------------------------
-    def _build_menu(self) -> None:
-        file_menu = self.menuBar().addMenu(tr("menu.file"))
-        for text, slot, shortcut in (
-            (tr("toolbar.add"), self.rebuild.add_files, "Ctrl+O"),
-            (tr("action.save"), self.rebuild._save_report, "Ctrl+S"),
-            (tr("action.save.batch"), self.rebuild._save_batch_report, "Ctrl+Shift+S"),
-            (tr("menu.merge"), self._merge_copies, "Ctrl+M"),
-            (tr("menu.quit"), self.close, "Ctrl+Q"),
+    # -- keyboard, drops, dialogs -------------------------------------------
+    def _build_actions(self) -> None:
+        """The shortcuts, without a menu to hang them in.
+
+        Each one calls a page's own public slot. `_save_report` was reachable
+        from the menu as a private method, which made the menu a second, worse
+        API for the page — so the flow now says what it offers and this only
+        binds keys to it.
+        """
+        self.actions_by_key = {}
+        for key, text, slot in (
+            ("open", tr("toolbar.add"), self._open_files),
+            ("save", tr("action.save"), lambda: self.rebuild.save_report()),
+            ("save-batch", tr("action.save.batch"), lambda: self.rebuild.save_batch_report()),
+            ("merge", tr("menu.merge"), self._merge_copies),
+            ("settings", tr("shell.nav.settings"), lambda: self.navigate("settings")),
+            ("quit", tr("menu.quit"), self.close),
         ):
             action = QAction(text, self)
+            action.setShortcut(SHORTCUTS[key])
+            # Window-wide, so a shortcut works with the focus anywhere inside —
+            # including in a page's text field, which is where somebody who has
+            # just typed a folder name has left it.
+            action.setShortcutContext(Qt.WindowShortcut)
             action.triggered.connect(slot)
-            action.setShortcut(shortcut)
-            file_menu.addAction(action)
+            self.addAction(action)
+            self.actions_by_key[key] = action
+        self._stage_changed(self.rebuild.stage)
 
-        settings_menu = self.menuBar().addMenu(tr("menu.settings"))
-        language_menu = settings_menu.addMenu(tr("menu.language"))
-        group = QActionGroup(self)
-        group.setExclusive(True)
-        current = settings().value("language", "pl")
-        for code in LANGUAGES:
-            action = QAction(tr(f"language.{code}"), self, checkable=True)
-            action.setChecked(code == current)
-            action.triggered.connect(lambda _checked=False, c=code: self._change_language(c))
-            group.addAction(action)
-            language_menu.addAction(action)
+    def _stage_changed(self, stage) -> None:
+        """Saving a report means nothing until there is a report.
 
-        help_menu = self.menuBar().addMenu(tr("menu.help"))
-        about = QAction(tr("menu.about"), self)
-        about.triggered.connect(self._show_about)
-        help_menu.addAction(about)
+        The acceptance list asks for the two save shortcuts to be inactive
+        outside the results, and this is the whole of it: the flow says where
+        it stands, and the keys follow.
+        """
+        from .models import Stage
+
+        for key in ("save", "save-batch"):
+            action = self.actions_by_key.get(key)
+            if action is not None:
+                action.setEnabled(stage is Stage.RESULTS)
+
+    def _open_files(self) -> None:
+        self.navigate("rebuild")
+        self.rebuild.add_files()
 
     def _change_language(self, code: str) -> None:
         if code == settings().value("language", "pl"):

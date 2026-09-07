@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 from ... import theme as legacy_theme
 from ...strings import tr
 from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
-from ..widgets import PageHeader, StatusBadge, Tile, button
+from ..widgets import PageHeader, StatusBadge, Tile, button, label
 
 
 def palette_for(tokens: Tokens) -> legacy_theme.Palette:
@@ -64,6 +64,8 @@ class ToolsPage(QWidget):
         self.tokens = tokens
         self.palette_colors = palette_for(tokens)
         self._panels: dict[str, QWidget] = {}
+        #: Tool page → the label its panel's one-line news goes into.
+        self._news: dict = {}
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -106,6 +108,16 @@ class ToolsPage(QWidget):
     def show_index(self) -> None:
         self.router.setCurrentWidget(self._index)
 
+    def say(self, message: str) -> None:
+        """The one line a panel used to put in the status bar.
+
+        It goes under the tool's own heading, where the person running the tool
+        is already looking, rather than at the far bottom edge of the window.
+        """
+        news = self._news.get(self.router.currentWidget())
+        if news is not None:
+            news.setText(message)
+
     def _build(self, name: str) -> QWidget:
         from ...tabs import CorpusPanel, DiagnosticsPanel, LibraryPanel
 
@@ -128,5 +140,8 @@ class ToolsPage(QWidget):
         back.clicked.connect(self.show_index)
         top.addWidget(back, 0, Qt.AlignTop)
         layout.addLayout(top)
+        news = label("", "muted")
+        layout.addWidget(news)
+        self._news[page] = news
         layout.addWidget(panels[name](self.palette_colors), 1)
         return page

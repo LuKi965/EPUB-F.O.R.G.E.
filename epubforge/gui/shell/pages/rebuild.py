@@ -66,6 +66,9 @@ class RebuildPage(QWidget):
 
     finished = Signal(object)  # BatchOutcome — the window records it in history
     busy_changed = Signal(bool)
+    #: Which of the four states is showing. The window binds keys to it: saving
+    #: a report is not an action that exists before there is one.
+    stage_changed = Signal(object)  # Stage
 
     def __init__(self, tokens: Tokens, backend, resolver_factory=None) -> None:
         super().__init__()
@@ -107,6 +110,7 @@ class RebuildPage(QWidget):
 
     def _go(self, stage: Stage) -> None:
         self.stage = stage
+        self.stage_changed.emit(stage)
         self.stepper.set_stage(stage)
         name = stage.name.lower()
         self.header.retitle(
@@ -540,10 +544,10 @@ class RebuildPage(QWidget):
         )
         card.body.addWidget(open_folder)
         save = button(tr("shell.results.save"), glyph="save", tokens=self.tokens)
-        save.clicked.connect(self._save_report)
+        save.clicked.connect(self.save_report)
         card.body.addWidget(save)
         save_all = button(tr("shell.results.save.batch"), glyph="save", tokens=self.tokens)
-        save_all.clicked.connect(self._save_batch_report)
+        save_all.clicked.connect(self.save_batch_report)
         card.body.addWidget(save_all)
         again = button(tr("shell.results.again"), glyph="plus", tokens=self.tokens)
         again.clicked.connect(self.show_files)
@@ -596,7 +600,7 @@ class RebuildPage(QWidget):
         stack.addWidget(close, alignment=Qt.AlignRight)
         dialog.exec()
 
-    def _save_report(self) -> None:
+    def save_report(self) -> None:
         """One book's report, in the same JSON the old window wrote."""
         book = self._selected or next(
             (item for item in self.books if item.report_text), None
@@ -610,7 +614,7 @@ class RebuildPage(QWidget):
         if path:
             self.backend.export_report(book, pathlib.Path(path))
 
-    def _save_batch_report(self) -> None:
+    def save_batch_report(self) -> None:
         """Every book of the run in one file (the old Ctrl+Shift+S)."""
         books = list(self.outcome.books) if self.outcome else []
         if not books:

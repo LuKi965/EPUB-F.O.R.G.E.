@@ -173,7 +173,7 @@ class Panel(QWidget):
         if total:
             self.progress.setRange(0, total)
             self.progress.setValue(done)
-        self.window().statusBar().showMessage(tr("common.working", name=name))
+        self.say(tr("common.working", name=name))
 
     def _on_finished(self, result, error: str) -> None:
         if self._thread:
@@ -186,9 +186,28 @@ class Panel(QWidget):
             button.setEnabled(True)
         if error:
             self.output.setPlainText(error)
-            self.window().statusBar().showMessage(error)
+            self.say(error)
             return
         self.handle(result)
+
+    def say(self, message: str) -> None:
+        """One line of news, to whatever window is holding this panel.
+
+        It used to reach for the window's status bar directly, which is a
+        panel deciding what furniture its window has. The new shell has no
+        status bar — and `QMainWindow.statusBar()` *creates* one on demand, so
+        the old call would have grown a bar back at the bottom of a window that
+        deliberately does without. A window that wants these says so with a
+        `say` method; the old window keeps its status bar.
+        """
+        window = self.window()
+        sink = getattr(window, "say", None)
+        if callable(sink):
+            sink(message)
+            return
+        bar = getattr(window, "statusBar", None)
+        if callable(bar):
+            bar().showMessage(message)
 
     def handle(self, result) -> None:  # pragma: no cover - overridden
         raise NotImplementedError
@@ -212,7 +231,7 @@ class Panel(QWidget):
         if path:
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(self._payload)
-            self.window().statusBar().showMessage(tr("common.saved", path=path))
+            self.say(tr("common.saved", path=path))
 
 
 class LibraryPanel(Panel):
@@ -319,12 +338,12 @@ class LibraryPanel(Panel):
             _, survey, payload = result
             self._payload = payload
             self.output.setPlainText(self._render_survey(survey))
-            self.window().statusBar().showMessage(tr("common.done", count=survey.books))
+            self.say(tr("common.done", count=survey.books))
         else:
             _, measured, payload, summary = result
             self._payload = payload
             self.output.setPlainText(summary)
-            self.window().statusBar().showMessage(tr("common.done", count=len(measured)))
+            self.say(tr("common.done", count=len(measured)))
         self.save_button.setEnabled(True)
 
     def _render_survey(self, survey) -> str:
@@ -790,7 +809,7 @@ class CorpusPanel(Panel):
             lines.append("")
         self.output.setPlainText("\n".join(lines))
         absent = sum(1 for match in matches if not match.found)
-        self.window().statusBar().showMessage(
+        self.say(
             f"{len(matches) - absent}/{len(matches)} {tr('corpus.fixtures.present')}"
         )
 
@@ -826,7 +845,7 @@ class CorpusPanel(Panel):
         self.output.setPlainText(summary + ("\n\n" + "\n".join(lines) if lines else ""))
         # The status bar is one line high, so it gets the first one; the pane
         # below has room for the sentence that says which errors were whose.
-        self.window().statusBar().showMessage(summary.splitlines()[0])
+        self.say(summary.splitlines()[0])
 
     def _streak(self) -> str:
         """How many releases in a row came out clean, read from the ledger.
@@ -877,4 +896,4 @@ class CorpusPanel(Panel):
             f"    {path.name:26} {what.get(path.stem, '')}" for path in written
         ]
         self.output.setPlainText(headline + "\n" + "\n".join(lines))
-        self.window().statusBar().showMessage(headline)
+        self.say(headline)

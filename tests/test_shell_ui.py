@@ -126,6 +126,94 @@ class TestTheShellIsTheArchitectureThatWasApproved:
         assert window.sidebar.width() == tokens_module.SIDEBAR_WIDTH
 
 
+class TestTheKeyboardWithoutAMenu:
+    """The old furniture is gone and the shortcuts are not.
+
+    Both bars were the old window's, kept out of habit: every destination in
+    `Plik / Ustawienia / Pomoc` is in the sidebar or on a page, and the status
+    bar spent a row on a sentence the page already carries.
+    """
+
+    def test_there_is_no_menu_bar_and_no_status_bar(self, window):
+        from PySide6.QtWidgets import QMenuBar, QStatusBar
+
+        assert window.findChild(QMenuBar) is None
+        assert window.findChild(QStatusBar) is None
+
+    def test_and_nothing_in_the_shell_asks_for_one(self):
+        """`QMainWindow.statusBar()` *creates* the bar it is asked for, so one
+        call anywhere in here grows the furniture back.
+
+        Read as code rather than as text: the prose in this package explains
+        that trap in several places, and a test a comment can fail is a test
+        somebody will delete.
+        """
+        import ast
+
+        offenders = []
+        for path in (ROOT / "epubforge" / "gui" / "shell").rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in ("statusBar", "menuBar")
+                ):
+                    offenders.append(f"{path.name}:{node.lineno}")
+        assert not offenders, offenders
+
+    @pytest.mark.parametrize(
+        ("key", "sequence"),
+        [("open", "Ctrl+O"), ("save", "Ctrl+S"), ("save-batch", "Ctrl+Shift+S"),
+         ("merge", "Ctrl+M"), ("settings", "Ctrl+,"), ("quit", "Ctrl+Q")],
+    )
+    def test_every_shortcut_the_menu_carried_still_works(self, window, key, sequence):
+        action = window.actions_by_key[key]
+        assert action.shortcut().toString() == sequence
+        assert action in window.actions()
+
+    def test_saving_a_report_is_not_an_action_before_there_is_one(self, qt_app, window):
+        assert window.rebuild.stage is Stage.FILES
+        assert not window.actions_by_key["save"].isEnabled()
+        assert not window.actions_by_key["save-batch"].isEnabled()
+
+    def test_and_is_one_in_the_results(self, qt_app, window):
+        window.rebuild.start(["A.epub", "B.epub"])
+        settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.PLAN)
+        window.rebuild.run()
+        settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.RESULTS)
+        assert window.actions_by_key["save"].isEnabled()
+        assert window.actions_by_key["save-batch"].isEnabled()
+
+    def test_the_window_takes_a_panel_s_news_instead_of_a_status_bar(self, window):
+        """A panel deep in a page cannot know what furniture its window has, so
+        it says its line and the window decides. Without this the old call
+        would have built a status bar on the window that refuses to have one."""
+        window.navigate("tools")
+        window.tools.open_tool("library")
+        window.say("gotowe: 12")
+        from PySide6.QtWidgets import QStatusBar
+
+        assert window.findChild(QStatusBar) is None
+        news = window.tools._news[window.tools.router.currentWidget()]
+        assert news.text() == "gotowe: 12"
+
+    def test_a_panel_in_the_old_window_still_reaches_its_status_bar(self, qt_app):
+        """The seam works both ways, or the old window loses its progress line
+        while it is still the one shipped behind the flag."""
+        from PySide6.QtWidgets import QMainWindow
+
+        from epubforge.gui import theme
+        from epubforge.gui.tabs import LibraryPanel
+
+        holder = QMainWindow()
+        panel = LibraryPanel(theme.active_palette(qt_app))
+        holder.setCentralWidget(panel)
+        panel.say("skończone")
+        assert holder.statusBar().currentMessage() == "skończone"
+        holder.close()
+
+
 class TestTheRebuildFlow:
     def test_it_walks_files_analysis_plan_results(self, qt_app, page):
         assert page.stage is Stage.FILES
