@@ -60,7 +60,7 @@ def main() -> int:
     dist_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else PROJECT_ROOT / "dist" / "EPUB-Forge"
     dist_dir = dist_dir.resolve()
     cli = executable(dist_dir, "epubforge")
-    executable(dist_dir, "EPUB-Forge")  # presence check only; it is windowed
+    gui = executable(dist_dir, "EPUB-Forge")
 
     env = clean_environment()
 
@@ -119,9 +119,43 @@ def main() -> int:
                 + build.stdout[-2000:]
             )
 
+        check_the_window(gui, env, work)
+
     print(
-        "smoke test passed: rebuild, EPUBCheck and the renderer all ran from the bundle"
+        "smoke test passed: rebuild, EPUBCheck and the renderer all ran from the "
+        "bundle, and the windowed executable opens the new interface"
     )
+    return 0
+
+
+def check_the_window(gui: Path, env: dict, work: Path) -> None:
+    """Prove *which* window the packaged program opens.
+
+    This existed as a presence check — "the file is there, and it is windowed"
+    — and that is precisely how 0.4.0 shipped an installer that opened the old
+    interface: the entry script imported it directly, so the new one was not
+    even in the build, and nothing here could tell. A windowed executable has
+    no console to answer on, so it is asked to write the answer to a file.
+    """
+    answer = work / "which-ui.txt"
+    probe = dict(env)
+    probe["EPUBFORGE_UI_SELFTEST"] = str(answer)
+    probe["QT_QPA_PLATFORM"] = "offscreen"
+    result = run([str(gui)], probe)
+    if result.returncode != 0 or not answer.is_file():
+        raise SystemExit(
+            "the windowed executable could not build its own window:\n"
+            + (result.stdout or "")[-2000:] + (result.stderr or "")[-2000:]
+        )
+    said = answer.read_text(encoding="utf-8").strip()
+    print(f"windowed executable reports: {said}")
+    if not said.startswith("shell "):
+        raise SystemExit(
+            f"the frozen build opens the wrong interface: {said!r}. The entry "
+            "script must import `epubforge.gui.run`, not a window module."
+        )
+    if "epubforge.gui.shell" not in said:
+        raise SystemExit(f"unexpected window class in the frozen build: {said!r}")
     return 0
 
 

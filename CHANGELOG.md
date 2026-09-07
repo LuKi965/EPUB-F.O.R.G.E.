@@ -40,7 +40,48 @@ written; only the current version was reset.
 
 ## Unreleased
 
-(Nic jeszcze nie czeka — 0.4.0 wyszło 2026-09-07.)
+(Nic jeszcze nie czeka — 0.4.1 wyszło 2026-09-07.)
+
+## 0.4.1 — alpha — 2026-09-07
+
+### Zainstalowany program otwierał stare okno
+
+`0.4.0` przyniosło nowe okno i **instalator, w którym go nie było**. Zgłosił to
+właściciel po pierwszym uruchomieniu — i miał rację co do słowa: zarówno
+instalator, jak i paczka przenośna otwierały interfejs sprzed revampu.
+
+Przyczyna jest jednym wierszem i nie leży w oknie. `packaging/entry_gui.py` —
+punkt wejścia zamrożonego builda — importował `epubforge.gui.app.run`, czyli
+**stare okno wprost**, zamiast `epubforge.gui.run`, które wybiera interfejs.
+PyInstaller idzie za importami *tego pliku*, więc nowego pakietu w buildzie nie
+było w ogóle; przełącznik `EPUBFORGE_LEGACY_UI` nie miał tam czego przełączać.
+
+Dlaczego przeszło przez wszystko: cała suita — 4 012 testów, w tym 89 o nowym
+oknie — wchodzi do programu **innymi drzwiami** niż zainstalowany plik. Kontrola
+samowystarczalności builda sprawdzała, że okienkowy plik wykonywalny *istnieje*
+(„presence check only; it is windowed"), bo okno bez konsoli nie ma jak
+odpowiedzieć na pytanie, czym jest.
+
+Naprawione i, co ważniejsze, **sprawdzalne**:
+
+- `packaging/entry_gui.py` importuje `epubforge.gui.run` — jedno miejsce, które
+  decyduje, który interfejs wstaje;
+- `packaging/epubforge.spec` wymienia `epubforge.gui.shell*` (i `gui.app`, bo
+  wyjście awaryjne ma działać w buildzie, dla którego jest wyjściem) w
+  `hiddenimports`: `run()` importuje okno wewnątrz funkcji, a analiza musi to
+  usłyszeć;
+- `epubforge.gui.run` odpowiada na `EPUBFORGE_UI_SELFTEST=<plik>`: buduje okno
+  bez pokazywania go i **wpisuje do pliku, które to okno**. Okno bez konsoli nie
+  ma innego sposobu, żeby powiedzieć o sobie prawdę;
+- `packaging/smoke_test.py` z tego korzysta i **odmawia buildowi**, który
+  otwiera nie to okno — kontrola biegnie w każdym buildzie Windows;
+- `tests/test_frozen_entry.py` (15 testów) trzyma drzwi w repozytorium: punkt
+  wejścia przez dyspozytora, spec wymieniający oba okna, dyspozytor wybierający
+  nowe domyślnie i stare tylko na flagę, oraz sam mechanizm odpowiedzi. Test
+  pada na kodzie sprzed tej poprawki — sprawdzone.
+
+Nic poza tym się nie zmieniło: silnik, polityka i raporty są takie same jak
+w `0.4.0`.
 
 ## 0.4.0 — alpha — 2026-09-07
 

@@ -69,6 +69,16 @@ hiddenimports = [
     # the button would fail in the installed build and nowhere else, which is
     # the one place nobody here can test.
     "epubforge.edge_cases",
+    # The window the program actually opens. `epubforge.gui.run` imports it
+    # inside the function, so the analysis has to be told: without these the
+    # frozen build has no new interface in it at all, which is exactly how
+    # 0.4.0 shipped the old one (fixed in 0.4.1).
+    "epubforge.gui.shell",
+    "epubforge.gui.shell.window",
+    "epubforge.gui.shell.pages",
+    # And the old one, because the escape hatch has to work in the build it
+    # is an escape hatch for.
+    "epubforge.gui.app",
 ]
 
 common = dict(
