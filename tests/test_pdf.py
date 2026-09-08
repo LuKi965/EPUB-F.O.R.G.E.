@@ -510,6 +510,30 @@ class TestTheReader:
         assert report.stats["pdf_layout"]["paragraphs"] == 1
         assert pdf.text_of(str(source)).index("Left 5") < pdf.text_of(str(source)).index("Right 1")
 
+    def test_two_things_side_by_side_are_read_one_after_the_other(self, tmp_path):
+        """Not every page with two stacks of text is *set* in two columns —
+        a manual puts a figure number in the margin, a note beside a step, a
+        message table's meaning beside its message. Read straight down, those
+        land in the middle of the sentence next to them.
+
+        The cut that separates them is the same one a table must never suffer,
+        so what decides is whether the lines it would separate are a grid's
+        cells. Here they are not: the right-hand block has one line where the
+        left has three.
+        """
+        lines = column(["A sentence of prose that runs along the left of the",
+                        "page and goes on for a second line, and a third."], top=700, left=60)
+        lines += [(360.0, 694.0, 10.0, "rys. 18")]
+        lines += column(["It carries on under the number and finishes here."], top=660, left=60)
+        source = make_pdf(tmp_path / "beside.pdf", [lines])
+        report = Report()
+        book = pdf.read_pdf(str(source), report)
+        text = fidelity.document_text(
+            next(r.data for r in book.resources.values() if r.path.endswith(".xhtml")))
+        # The number stands on its own and not inside the sentence.
+        assert "second line, and a third. It carries on" in " ".join(text.split())
+        assert "pdf.columns" not in {f.rule for f in report.findings}
+
     def test_a_centred_title_page_is_not_two_columns(self, tmp_path):
         """Many short lines at many left edges — a title page — passed the
         first column test and came back in the wrong order once columns

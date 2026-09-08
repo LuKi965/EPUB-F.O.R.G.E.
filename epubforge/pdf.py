@@ -1082,7 +1082,8 @@ def _widest_gap(spans: "list[tuple[float, float]]") -> "tuple[float, float] | No
 
 
 def _regions(lines: "list[Line]", width: float, height: float,
-             split: "float | None" = None, depth: int = 0) -> "list[list[Line]]":
+             split: "float | None" = None, grouped: "list | None" = None,
+             depth: int = 0) -> "list[list[Line]]":
     """The page cut into the areas a person reads one after another.
 
     The recursive XY cut, in the order that is safe for reading: a band across
@@ -1096,16 +1097,22 @@ def _regions(lines: "list[Line]", width: float, height: float,
     entry is cut in half by a label — 26 % of that book's paragraphs
     (`pdf.reading-quality-poor`), 2 % once the page is read by area.
 
-    **The vertical cut needs *columns* and takes it from `_two_columns`**,
-    which is measured on the whole page. Things standing side by side are
-    normally read *across*, not down: that is what a table is. Cutting on any
-    wide vertical gap read one Gutenberg book's errata table — page number,
-    misprint, correction — as three lists, every page number before every
-    misprint, and K1 refused the rebuild. The gate was right; the cut was
-    wrong. A page genuinely set in columns is the exception, and it is the one
-    thing `_two_columns` is careful about — which is why *split* is that
-    measurement itself and not a flag: where the cut cannot be made, the lines
-    are still ordered by it (`_in_order`).
+    **The vertical cut may not go through a table.** Things standing side by
+    side are sometimes read *across* — that is what a table is — and cutting on
+    any wide vertical gap read one Gutenberg book's errata table (page number,
+    misprint, correction) as three lists, every page number before every
+    misprint, until K1 refused the rebuild. The gate was right. The answer is
+    not to forbid the cut but to *know where the tables are*: `_grouped` holds
+    the cells of every grid `_tables` found on the page, and no cut separates
+    two cells of one grid. Everything else standing side by side is two areas
+    and is read one after the other.
+
+    *split* is what `_two_columns` measured on the whole page, and it overrules
+    the grid: two columns of prose stand on shared baselines and look exactly
+    like a table's rows, so on a page measured to be in columns the cut is what
+    was wanted all along. Where the cut cannot be made at all — a column whose
+    longest line reaches past the gutter leaves no gap to cut on — the lines are
+    still ordered by it (`_in_order`).
     """
     if len(lines) <= 1 or depth >= REGION_DEPTH:
         return [_in_order(lines, split)] if lines else []
@@ -1118,17 +1125,33 @@ def _regions(lines: "list[Line]", width: float, height: float,
         upper = [line for line in lines if (line.y0 + line.y1) / 2 > cut]
         lower = [line for line in lines if (line.y0 + line.y1) / 2 <= cut]
         if upper and lower:
-            return (_regions(upper, width, height, split, depth + 1)
-                    + _regions(lower, width, height, split, depth + 1))
-    down = _widest_gap([(line.x0, line.x1) for line in lines]) if split is not None else None
+            return (_regions(upper, width, height, split, grouped, depth + 1)
+                    + _regions(lower, width, height, split, grouped, depth + 1))
+    down = _widest_gap([(line.x0, line.x1) for line in lines])
     if down and down[0] >= GUTTER_SHARE * width:
         cut = down[1]
         left = [line for line in lines if (line.x0 + line.x1) / 2 < cut]
         right = [line for line in lines if (line.x0 + line.x1) / 2 >= cut]
-        if left and right:
-            return (_regions(left, width, height, split, depth + 1)
-                    + _regions(right, width, height, split, depth + 1))
+        if left and right and (split is not None
+                               or not _splits_a_grid(left, right, grouped)):
+            return (_regions(left, width, height, split, grouped, depth + 1)
+                    + _regions(right, width, height, split, grouped, depth + 1))
     return [_in_order(lines, split)]
+
+
+def _grouped(lines: "list[Line]") -> list:
+    """The cells of every grid on this page, one set of ids per grid.
+
+    Read before the page is cut, because what a cut must not do is separate two
+    cells of one row: a table is the one thing on a page that is read *across*.
+    """
+    return [{id(cell) for row in run for cell in row} for run in _tables(_in_order(lines))]
+
+
+def _splits_a_grid(left: "list[Line]", right: "list[Line]", grouped: "list | None") -> bool:
+    here = {id(line) for line in left}
+    there = {id(line) for line in right}
+    return any(cells & here and cells & there for cells in (grouped or ()))
 
 
 def _in_order(lines: "list[Line]", split: "float | None" = None) -> "list[Line]":
@@ -1274,7 +1297,7 @@ def _lay_out(page: Page, names: "set | None" = None) -> None:
     _lift_callouts(page, names or set())
     body = [line for line in page.lines if not line.running_head]
     heads = [line for line in page.lines if line.running_head]
-    regions = _regions(body, page.width, page.height, page.split)
+    regions = _regions(body, page.width, page.height, page.split, _grouped(body))
     for index, region in enumerate(regions):
         for line in region:
             line.region = index
