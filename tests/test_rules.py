@@ -46,7 +46,13 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # loose paragraphs is a list no reading system can see. 411 with
 # `pdf.contents-page-read`: a book without bookmarks still prints its own
 # table of contents, and that is the file saying where its parts begin.
-TAGGED_TODAY = 411
+# 411 -> 414 on 2026-09-08 with the fixed-layout mode: `pdf.fixed-layout`
+# says the pages were kept as pages, `pdf.fixed-layout-cost` says what that
+# costs (no reflow, no reader font size, no rebuilt structure) — a trade
+# nobody was told about is not one they made — and
+# `pdf.running-heads-kept-fixed` says why the one question this stage
+# usually asks is not asked of such a book.
+TAGGED_TODAY = 414
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -158,7 +164,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 312
+TEMPLATED_TODAY = 315
 
 
 class TestTheTranslationCannotStall:

@@ -26,7 +26,7 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 
-from .model import Book, Creator, Identifier, NavPoint, Resource, SpineItem
+from .model import Book, Creator, Identifier, NavPoint, PageTarget, Resource, SpineItem
 from .reader import EpubReadError
 from .report import Level, Report
 from .writer import escape
@@ -104,6 +104,12 @@ class Line:
     #: Which area of the page this line belongs to. Lines of one area are read
     #: one after another; a paragraph never runs from one area into the next.
     region: int = 0
+    #: The generic family the font's name claims — "serif", "sans-serif",
+    #: "monospace" — or "" when it claims nothing. Empty is the ordinary case
+    #: and is deliberately not a guess: a subset font called `UKJILE+ABCDEF`
+    #: says nothing about its shape, and naming a family for it would be this
+    #: reader inventing a face the file never named.
+    family: str = ""
 
 
 #: How far past a picture's own edges its name may reach and still be its name.
@@ -127,9 +133,14 @@ class Picture:
     y0: float = 0.0
     #: Short lines that stand inside this picture: callout labels, the "A16"
     #: beside an arrow. They are not paragraphs and they are not lost.
-    labels: list = field(default_factory=list)
+    #:
+    #: The **lines**, not their text, and that is what the fixed-layout mode
+    #: needs: a label whose position was thrown away can only be printed under
+    #: the picture, and the one thing a label is for is standing beside the
+    #: part of the drawing it names.
+    labels: "list[Line]" = field(default_factory=list)
     #: The name written under the picture — "Americano" under the icon of it.
-    caption: str = ""
+    caption: "Line | None" = None
 
     def holds(self, line: "Line") -> bool:
         """Whether *line* stands inside this picture's box."""
@@ -300,8 +311,14 @@ class Layout:
 # ----------------------------------------------------------------- reading
 
 
-def read_pdf(source: str, report: Report, budget=None) -> Book:
-    """Load *source* into a :class:`Book`, or refuse it with the reason said."""
+def read_pdf(source: str, report: Report, budget=None, page_layout: str = "reflowable") -> Book:
+    """Load *source* into a :class:`Book`, or refuse it with the reason said.
+
+    *page_layout* is `reflowable` (the default, and what every mode does unless
+    it is told otherwise) or `fixed` — see `PDF_LAYOUTS`. Everything up to the
+    writing is the same either way: the same pages, the same areas, the same
+    blocks in the same order. The two differ only in what is made of them.
+    """
     pages, info, outline, layout = _read(source)
     _refuse_a_book_of_pictures(pages, layout, source, report)
 
@@ -319,16 +336,29 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
         # other place it says so.
         outline = contents_entries(pages)
         layout.contents_entries = len(outline)
-    sections = _sections(pages, outline, body_size)
-    quality = measure_quality([block for _, blocks in sections for block in blocks])
+    layout.outline_entries = len(outline)
+    if page_layout == FIXED:
+        # The same blocks the reflowable book is made of, and read in the same
+        # order — `text_of` reads exactly these, with no chapter breaks, so
+        # both modes carry the source's text in the source's order. What
+        # differs is that here they are printed where they were drawn.
+        blocks = _blocks(pages, body_size)
+        sections = len(pages)
+        _fill_the_pages(book, pages, blocks, layout, outline)
+    else:
+        parts = _sections(pages, outline, body_size)
+        blocks = [block for _, blocks_of in parts for block in blocks_of]
+        sections = len(parts)
+        _fill_the_book(book, parts, layout, outline)
+    quality = measure_quality(blocks)
     layout.torn_paragraphs = quality.torn
     layout.fragment_paragraphs = quality.fragments
     layout.median_paragraph = quality.median_characters
-    layout.outline_entries = len(outline)
-    _fill_the_book(book, sections, layout, outline)
     layout.running_heads = sum(1 for page in pages for line in page.lines if line.running_head)
 
-    _say_what_was_read(report, source, layout, len(sections), quality)
+    _say_what_was_read(report, source, layout, sections, quality)
+    if page_layout == FIXED:
+        _say_the_page_was_kept(report, source, layout, pages)
     _say_what_was_noticed(report, source, layout)
     _say_what_was_not_placed(report, source, pages)
     report.stats["pdf_layout"] = layout.__dict__.copy()
@@ -617,8 +647,9 @@ def _say_what_was_not_placed(report: Report, source: str, pages: list[Page]) -> 
         texts = [line.text for line in page.lines]
         texts += [line.text for line in page.callouts]
         for picture in page.pictures:
-            texts += picture.labels
-            texts.append(picture.caption)
+            texts += [line.text for line in picture.labels]
+            if picture.caption is not None:
+                texts.append(picture.caption.text)
         for text in texts:
             for character in text:
                 if not character.isspace():
@@ -732,11 +763,21 @@ def text_of(source: str) -> str:
     pages, _, _, layout = _read(source)
     body_size = _lay_out_all(pages, layout)
     parts = [
-        " ".join([block.picture.caption, *block.picture.labels]) if block.kind == "image"
+        _picture_text(block.picture) if block.kind == "image"
         else block.text
         for block in _blocks(pages, body_size)
     ]
     return re.sub(r"\s+", " ", " ".join(part for part in parts if part)).strip()
+
+
+def _picture_text(picture: Picture) -> str:
+    """The words a picture carries: its name first, then the labels printed on
+    it, in the order `_figure` prints them. One place, because both sides of K1
+    read it — the source side here and the output side out of the markup."""
+    return " ".join(
+        line.text.strip()
+        for line in ([picture.caption] if picture.caption is not None else []) + list(picture.labels)
+    )
 
 
 def join_lines(lines) -> str:
@@ -806,13 +847,15 @@ def _read(source: str):
                         text = line.get_text().replace("\n", "")
                         if not chars or not text.strip():
                             continue
+                        common = Counter(c.fontname for c in chars).most_common(1)[0][0]
                         page.lines.append(Line(
                             text=text,
                             x0=line.x0, x1=line.x1, y0=line.y0, y1=line.y1,
                             size=round(sum(c.size for c in chars) / len(chars), 1),
                             page=number,
-                            bold="bold" in Counter(c.fontname for c in chars).most_common(1)[0][0].lower(),
+                            bold="bold" in common.lower(),
                             runs=_runs(line),
+                            family=_family(common),
                         ))
             elif isinstance(element, LTFigure):
                 stack[:0] = list(element)
@@ -869,6 +912,34 @@ def _face(fontname: str) -> str:
     name = (fontname or "").lower()
     style = "b" if any(mark in name for mark in BOLD_NAMES) else ""
     return style + ("i" if any(mark in name for mark in ITALIC_NAMES) else "")
+
+
+#: Font names that say which of the three generic families the face belongs to.
+#: The names of the base fourteen, the families every converter writes, and the
+#: word itself — nothing further. A font this reader cannot place is left
+#: unplaced (see `Line.family`); the fixed-layout mode then asks for no family
+#: at all and the reading system's own is used, which is a smaller lie than a
+#: guess. `sans` is looked for before `serif` because `DejaVuSans` is neither
+#: `serif` nor a serif.
+MONOSPACE_NAMES = ("mono", "courier", "consol")
+SANS_NAMES = ("sans", "helvetica", "arial", "verdana", "tahoma", "calibri",
+              "myriad", "futura", "frutiger", "gothic", "grotesk", "roboto",
+              "segoe", "lato", "opensans")
+SERIF_NAMES = ("serif", "times", "georgia", "garamond", "minion", "palatino",
+               "cambria", "constantia", "baskerville", "caslon", "roman",
+               "bookman", "century")
+
+
+def _family(fontname: str) -> str:
+    """"serif", "sans-serif", "monospace" — or "" when the name says nothing."""
+    name = (fontname or "").lower()
+    if any(mark in name for mark in MONOSPACE_NAMES):
+        return "monospace"
+    if any(mark in name for mark in SANS_NAMES):
+        return "sans-serif"
+    if any(mark in name for mark in SERIF_NAMES):
+        return "serif"
+    return ""
 
 
 def _runs(line) -> list:
@@ -1355,7 +1426,7 @@ def _lift_labels(page: Page) -> None:
             continue
         inside = next((p for p in page.pictures if p.holds(line)), None)
         if inside is not None:
-            inside.labels.append(text)
+            inside.labels.append(line)
             continue
         # A name written under the picture — "Americano" under the icon of it.
         # Only one, and only if it reads as words: the bullet that opens a list
@@ -1366,7 +1437,7 @@ def _lift_labels(page: Page) -> None:
             None,
         )
         if named is not None:
-            named.caption = text
+            named.caption = line
         else:
             kept.append(line)
     page.lines = kept
@@ -1699,13 +1770,31 @@ def _page_blocks(page: Page, flow: "_Flow", body_size: float, breaks: set[int]) 
         # before the first area whose top is below them.
         top = max(line.y1 for line in region)
         while placed < len(standing) and heights[id(standing[placed])] > top:
-            flow.blocks.append(standing[placed])
+            _stands_between(flow, standing[placed])
             placed += 1
         left, width = _region_geometry(region, page)
         area = _Area(page=page, left=left, width=width,
                      hanging=_hanging_indent(region, left), pitch=pitch)
         _area_blocks(region, area, flow, body_size, breaks)
-    flow.blocks.extend(standing[placed:])
+    for block in standing[placed:]:
+        _stands_between(flow, block)
+
+
+def _stands_between(flow: "_Flow", block: "Block") -> None:
+    """Put a picture, or the callouts of a drawing, into the flow — and end
+    whatever paragraph stood above it, as `_tables` does for a grid.
+
+    Nothing runs through a picture, and until this said so the order of the
+    blocks was not the order the page is read in. A paragraph running from the
+    foot of one page to the head of the next stays *open* while the picture
+    below it is appended, so reading the blocks in order gave the next page's
+    text before the picture that stands on this one. It cost nothing while one
+    renderer read the blocks in the same wrong order as the check did; the
+    fixed-layout mode cannot, because there each page is its own document, and
+    K1 found it at once.
+    """
+    flow.blocks.append(block)
+    flow.current = flow.previous = None
 
 
 def _area_blocks(region: "list[Line]", area: "_Area", flow: "_Flow",
@@ -2104,10 +2193,10 @@ def _figure(picture: Picture, mark: str = "") -> str:
     if not picture.labels and not picture.caption:
         return f"    <p{mark}>{image}</p>"
     inside = [f"      <p>{image}</p>"]
-    if picture.caption:
-        inside.append(f"      <figcaption>{escape(picture.caption)}</figcaption>")
+    if picture.caption is not None:
+        inside.append(f"      <figcaption>{escape(picture.caption.text.strip())}</figcaption>")
     if picture.labels:
-        labels = " ".join(escape(label) for label in picture.labels)
+        labels = " ".join(escape(label.text.strip()) for label in picture.labels)
         inside.append(f'      <p class="{LABEL_CLASS}">{labels}</p>')
     return f"    <figure{mark}>\n" + "\n".join(inside) + "\n    </figure>"
 
@@ -2217,8 +2306,14 @@ def _marked(block: Block, body_face: str = "") -> str:
             plain += " "
         pieces.extend(runs)
         plain += text
+    return _faced_runs(pieces, body_face)
+
+
+def _faced_runs(runs: list, body_face: str) -> str:
+    """Runs of `(text, style)` as markup, with what the body is already set in
+    left unmarked. Neighbours that mean the same thing are one element."""
     out: list = []
-    for run, style in pieces:
+    for run, style in runs:
         mark = "".join(letter for letter in style if letter not in body_face)
         if out and out[-1][1] == mark:
             out[-1][0] += run
@@ -2336,6 +2431,275 @@ def _render(blocks: list[Block], title: str, anchored: "set[int] | None" = None,
         + "\n  </body>\n</html>\n"
     )
     return markup, counts
+
+
+# ------------------------------------------------- the page where it stood
+
+
+#: The two things this reader can make of a PDF, and why there are two.
+#:
+#: `reflowable` is everything above: geometry read back into paragraphs,
+#: headings, tables and lists, so the text can be set at any size on any
+#: screen. It is the default in every mode and should be — a book that
+#: reflows is a book anybody can read.
+#:
+#: `fixed` keeps the page instead. Every line is set where the typesetter set
+#: it, at the size he set it, on a page of the source's own measurements, and
+#: the publication says `rendition:layout="pre-paginated"` so a reading system
+#: scales the whole page rather than reflowing what is on it. That is the
+#: right answer for a document whose layout *is* its content — a form, a
+#: score, a diagram with words in it, a manual whose numbers stand beside the
+#: parts they name — and the wrong one for a novel.
+#:
+#: What it costs is real and is said in the report: no reflow, no reader font
+#: size, a page that must be zoomed on a small screen, and the structure this
+#: reader worked out (tables, lists) not written as structure, because a
+#: `<table>` cannot be a table and stand where its cells stand at once. The
+#: text is still text — every character, in reading order — so it can still be
+#: searched, selected and read aloud, and K1 holds exactly as it does above.
+#:
+#: One cost is not obvious and was measured rather than reasoned: **the hyphen
+#: stage stops working.** A word the typesetter broke at a line end is two
+#: lines here, standing in two places, so nothing in the document reads as
+#: `prze-konaniem` and there is nothing for that stage to join — on one
+#: document of the substitute material, 1 202 candidates and 1 157 joins
+#: become 9 candidates and none. That is the right answer for this mode:
+#: joining the halves would take the second one out of the position it was
+#: drawn in. It is a cost all the same, and the report names it.
+#:
+#: The file is bigger, and by a knowable amount: one document per page and one
+#: element per line came to 2.4–2.9 times the reflowable book across the
+#: eighteen substitute documents (0.33 MB against 0.13 MB on the largest).
+#: Reading time is unchanged — the work above the writing is the same work.
+#:
+#: The two names are `policy.PDF_LAYOUTS`, which is what the window and the
+#: command line offer; a test holds the two lists against each other so neither
+#: can grow a mode the other does not know.
+REFLOWABLE = "reflowable"
+FIXED = "fixed"
+
+#: The page, one line of it, and one picture on it.
+FIXED_PAGE_CLASS = "ef-pdf-page"
+FIXED_LINE_CLASS = "ef-pdf-line"
+FIXED_ART_CLASS = "ef-pdf-art"
+FIXED_STYLESHEET_PATH = "styles/pdf-fixed.css"
+#: Everything here is either a position the source measured or a rule without
+#: which a position means nothing. There is no design in it, because there is
+#: no design of this program's to add.
+FIXED_STYLESHEET = """\
+/* A page of the source, kept as a page. Every number in this book's markup is
+   in the PDF's own points; each document says how large its page is, and the
+   reading system scales the page as a whole. */
+html, body { margin: 0; padding: 0; }
+div.ef-pdf-page { position: relative; overflow: hidden; margin: 0; padding: 0; }
+/* A line stands where it stood and does not wrap: it is a line, not a
+   paragraph, and the source already decided where it ends. */
+.ef-pdf-line { position: absolute; margin: 0; padding: 0; line-height: 1;
+               white-space: pre; }
+"""
+#: Written only into a book that has a picture in it. A rule no selector in the
+#: book can reach is what the style stage calls an unreachable rule, and it is
+#: right to: this program should not be writing the junk it removes elsewhere.
+FIXED_ART_STYLE = "img.ef-pdf-art { position: absolute; margin: 0; padding: 0; }\n"
+
+
+def _pt(value: float) -> str:
+    """A measurement as CSS writes it: a tenth of a point is as fine as any
+    page needs, and trailing zeros are noise in a file with a line per line."""
+    text = f"{value:.1f}".rstrip("0").rstrip(".")
+    return "0" if text in ("", "-0", "-") else text
+
+
+def _fixed_items(blocks: "list[Block]") -> "dict[int, list]":
+    """The blocks cut per page, in the order they are read.
+
+    Cut rather than re-derived, and that is the load-bearing part: the left
+    side of K1 (`text_of`) is the order of *these* blocks, so a fixed page that
+    prints the same blocks in the same order carries the source's text in the
+    source's order by construction. A paragraph that runs over the fold is two
+    entries — its lines on the page they were drawn on, which is the one thing
+    a fixed page can say about it.
+    """
+    items: dict[int, list] = {}
+    for block in blocks:
+        if block.kind == "image":
+            items.setdefault(block.picture.page, []).append((block, []))
+            continue
+        page = None
+        run: list = []
+        for line in block.lines:
+            if line.page != page:
+                if run:
+                    items.setdefault(page, []).append((block, run))
+                page, run = line.page, []
+            run.append(line)
+        if run:
+            items.setdefault(page, []).append((block, run))
+    return items
+
+
+def _fixed_line(line: Line, page: Page, tag: str, extra: str, body_face: str) -> str:
+    """One line of the page, where the page had it.
+
+    The y axis is turned over: a PDF measures from the foot of the page and CSS
+    from its head. The face the run was set in is marked as it is in a
+    reflowable book — what differs from the body face is a mark the typesetter
+    made — and it draws the same way, so the mark and the look agree.
+    """
+    style = (f"left: {_pt(line.x0)}px; top: {_pt(page.height - line.y1)}px; "
+             f"font-size: {_pt(line.size)}px;")
+    if line.family:
+        style += f" font-family: {line.family};"
+    runs = _trimmed(line.runs) if line.runs else _trimmed([(line.text, "")])
+    inner = _faced_runs(runs, body_face)
+    classes = f"{FIXED_LINE_CLASS} {extra}" if extra else FIXED_LINE_CLASS
+    return f'      <{tag} class="{classes}" style="{style}">{inner}</{tag}>'
+
+
+def _fixed_picture(picture: Picture, page: Page, body_face: str) -> str:
+    """The picture in its box, and the words that stand on it where they stand.
+
+    This is what the labels kept their lines for. In a reflowable book a
+    callout can only be printed under the drawing it names, because a
+    reflowable book has no "beside"; here it has one, and "A16" goes back
+    beside the arrow it was drawn beside.
+    """
+    style = f"left: {_pt(picture.x0)}px; top: {_pt(page.height - picture.y1)}px;"
+    width, height = picture.x1 - picture.x0, picture.y1 - picture.y0
+    if width > 0 and height > 0:
+        style += f" width: {_pt(width)}px; height: {_pt(height)}px;"
+    out = [f'      <img class="{FIXED_ART_CLASS}" style="{style}" '
+           f'src="../{escape(picture.name)}" alt=""/>']
+    # The name first and then the labels, which is the order `_figure` prints
+    # them in and therefore the order the left side of K1 reads them in.
+    for line in ([picture.caption] if picture.caption is not None else []) + list(picture.labels):
+        out.append(_fixed_line(line, page, "div", "", body_face))
+    return "\n".join(out)
+
+
+def _fixed_document(page: Page, items: list, title: str, body_face: str) -> "tuple[str, dict]":
+    """One PDF page as one document, and what went onto it."""
+    counts: dict = {"lines": 0, "headings": 0, "images": 0}
+    body: list[str] = []
+    for block, lines in items:
+        if block.kind == "image":
+            counts["images"] += 1
+            body.append(_fixed_picture(block.picture, page, body_face))
+            continue
+        # A heading is still a heading: a page laid out in absolute positions
+        # has no structure a reading system can follow, and the one or two
+        # elements that carry any are worth keeping. The tag goes on the first
+        # line of the heading only — two `h1`s are two headings, and a title
+        # set over two lines is one.
+        tag = block.kind if block.kind in ("h1", "h2") else "div"
+        extra = RUNNING_HEAD_CLASS if block.kind == "head" else ""
+        for index, line in enumerate(lines):
+            counts["lines"] += 1
+            if index == 0 and tag != "div":
+                counts["headings"] += 1
+            body.append(_fixed_line(line, page, tag if index == 0 else "div", extra, body_face))
+    # Whole numbers: `rendition:viewport` and the `meta` that stands for it are
+    # read as a page size in pixels, and half a pixel of page is not a thing.
+    width, height = round(page.width), round(page.height)
+    # The body face on the page rather than on every line of it — it is the
+    # document's, not the line's, and `_faced_runs` marks only what differs.
+    page_style = f"width: {width}px; height: {height}px;"
+    if "b" in body_face:
+        page_style += " font-weight: bold;"
+    if "i" in body_face:
+        page_style += " font-style: italic;"
+    markup = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        "<!DOCTYPE html>\n"
+        '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
+        "  <head>\n"
+        '    <meta charset="utf-8"/>\n'
+        f'    <meta name="viewport" content="width={width}, height={height}"/>\n'
+        f"    <title>{escape(title or ' ')}</title>\n"
+        f'    <link rel="stylesheet" type="text/css" href="../{FIXED_STYLESHEET_PATH}"/>\n'
+        "  </head>\n"
+        "  <body>\n"
+        f'    <div class="{FIXED_PAGE_CLASS}" style="{page_style}">\n'
+        + "\n".join(body)
+        + ("\n" if body else "")
+        + "    </div>\n  </body>\n</html>\n"
+    )
+    return markup, counts
+
+
+def _fill_the_pages(book: Book, pages: "list[Page]", blocks: "list[Block]",
+                    layout: "Layout", outline: "list[Outline]") -> None:
+    """One document per page of the source, and the book that is made of them.
+
+    The navigation is the outline the reader already has — the bookmarks, or
+    the contents page it read when there were none — and here it needs no
+    anchors at all: an entry names a page, and a page *is* a document. The page
+    list is free for the same reason and is the whole point of having one: in
+    this mode "page 47" of the EPUB is page 47 of the PDF.
+    """
+    placed: dict[int, str] = {}
+    titles = {entry.page: entry.title for entry in outline}
+    items = _fixed_items(blocks)
+    for page in pages:
+        path = f"text/page-{page.number:04d}.xhtml"
+        markup, counts = _fixed_document(
+            page, items.get(page.number, []),
+            titles.get(page.number) or book.metadata.title, layout.body_face,
+        )
+        layout.headings += counts["headings"]
+        book.add(Resource(path=path, media_type="application/xhtml+xml",
+                          data=markup.encode("utf-8")))
+        book.spine.append(SpineItem(path=path))
+        book.page_list.append(PageTarget(label=str(page.number), target=path))
+        placed[page.number] = path
+    for block in blocks:
+        if block.kind == "image" and block.picture.name not in book.resources:
+            picture = block.picture
+            book.add(Resource(path=picture.name, media_type=picture.media_type, data=picture.data))
+            layout.images += 1
+    layout.paragraphs = sum(1 for block in blocks if block.kind == "p")
+    sheet = FIXED_STYLESHEET + (FIXED_ART_STYLE if layout.images else "")
+    book.add(Resource(path=FIXED_STYLESHEET_PATH, media_type="text/css",
+                      data=sheet.encode("utf-8")))
+    book.rendition["layout"] = "pre-paginated"
+    if outline:
+        book.toc = _navigation(outline, placed)
+    elif book.spine:
+        # Nothing in the file said anything about its structure — no bookmarks
+        # and no contents page. The page list is already every page; a table of
+        # contents that repeated it would say nothing the reader does not
+        # already have, so it says the one thing that is true: here is the book.
+        book.toc = [NavPoint(label=book.metadata.title or "1", target=book.spine[0].path)]
+    layout.navigation_entries = sum(len(list(node.walk())) for node in book.toc)
+
+
+def _say_the_page_was_kept(report: Report, source: str, layout: "Layout",
+                           pages: "list[Page]") -> None:
+    """That the book came out pre-paginated, and what that costs.
+
+    Two rules, said every time: one for what was done and one for what it
+    means. A mode that keeps the look at the price of reflow is a trade, and a
+    trade nobody was told about is not one they made.
+    """
+    first = pages[0] if pages else None
+    report.add(
+        "pdf",
+        Level.FIX,
+        "pdf.fixed-layout",
+        values={
+            "pages": len(pages),
+            "width": round(first.width) if first else 0,
+            "height": round(first.height) if first else 0,
+        },
+        location=source,
+    )
+    report.add(
+        "pdf",
+        Level.WARN,
+        "pdf.fixed-layout-cost",
+        values={"tables": layout.tables, "lists": layout.lists},
+        location=source,
+    )
 
 
 def _read_metadata(book: Book, source: str, info: dict) -> None:

@@ -40,7 +40,52 @@ written; only the current version was reset.
 
 ## Unreleased
 
-(Nic jeszcze nie czeka — 0.4.2 wyszło 2026-09-07.)
+### Czytnik PDF: strona czytana obszarami, a od teraz także zachowywana
+
+Materiałem był 105-stronicowy manual urządzenia, którym właściciel się posłużył,
+i osiemnaście dokumentów zastępczych złożonych reportlabem z korpusu Gutenberga
+(sześć książek × `plain` / `heads` / `columns`). Każdy próg jest zmierzony na
+tym materiale i zapisany przy stałej, która go trzyma.
+
+**Strona czytana obszarami, a nie wierszami w dół.** Rekurencyjne cięcie XY
+(pasmo zawsze, rynna wszędzie poza siatką tabeli) zamiast jednego ciągu
+wierszy: legenda obok rysunku przestała być przecinana etykietami rysunku, a
+strona w dwóch kolumnach czytana jest kolumna po kolumnie. Na manualu: 1 857
+akapitów i 489 urwanych w połowie zdania (26%) → ok. 1 398 akapitów i 8
+urwanych (1%), mediana akapitu 57 → ok. 70 znaków.
+
+**Struktura, którą PDF sam o sobie mówi.** Cały konspekt zakładek idzie do spisu
+treści, a nie tylko jego pierwszy poziom (10 → 125 pozycji na manualu); książka
+bez zakładek dostaje nawigację z **własnego drukowanego spisu treści**, czytanego
+z wierszy kończących się numerem strony przy zgodnym przesunięciu numeracji.
+Siatka komórek wraca tabelą (`th` **nie** — tylko 2 z 38 tabel miały na to
+dowód, i to nie były nagłówki), ciąg akapitów ze znacznikiem wraca listą, a
+etykieta z rysunku wektorowego przestaje być akapitem: wychodzi z tekstu razem
+z legendą, która ją nazywa.
+
+**To, co zecer wyróżnił, wychodzi wyróżnione.** Wiersz jest cięty na przebiegi
+jednego kroju (per znak, nie per wiersz), a wyróżnieniem jest to, co różni się
+od kroju tekstu głównego — książka złożona w całości grubym krojem nie jest
+jednym długim krzykiem.
+
+**Nowy tryb: układ stały (`--pdf-layout fixed`).** Domyślnie nic się nie
+zmienia — PDF wchodzi jako książka z tekstem płynnym, bo taka jest do
+przeczytania przez każdego. Dokument, w którym układ *jest* treścią, można
+złożyć inaczej: jeden dokument na stronę, każdy wiersz w pozycji, w której go
+narysowano, strona o wymiarach oryginału, publikacja zadeklarowana jako
+`pre-paginated`, spis stron (`page-list`) dokładny z definicji. Raport mówi, ile
+to kosztuje (`pdf.fixed-layout-cost`): brak przepływu, brak wielkości pisma
+czytelnika, tabele i listy narysowane zamiast zapisane strukturą, a wyraz
+przeniesiony przez zecera zostaje przecięty. Sprawdzone na osiemnastu
+dokumentach: wszystkie wychodzą, EPUBCheck czysty, żadnego straconego znaku,
+plik 2,4–2,9× większy, czas czytania bez zmian.
+
+**Naprawa, którą ten tryb znalazł.** Kolejność bloków nie była kolejnością
+czytania: akapit biegnący przez złam zostawał otwarty, więc obraz stojący na
+tej stronie trafiał do tekstu *po* akapicie następnej strony. Przy jednym
+czytniku po obu stronach kontroli K1 nie kosztowało to nic i było niewidoczne;
+przy stronie jako dokumencie to jest stracony znak. Teraz nic nie biegnie przez
+obraz — jak od dawna nic nie biegnie przez tabelę.
 
 ## 0.4.2 — alpha — 2026-09-07
 

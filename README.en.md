@@ -225,11 +225,25 @@ ask|keep|remove`, a box in the window) and the language, which a PDF rarely
 declares (proposed from the text, set only on a person's word). A scan with
 no text layer is refused with the reason (`pdf.no-text-layer`) — OCR is a
 different program. Two columns are read column by column and reported, not
-re-flowed; tables come in as paragraphs; there is no cover.
+re-flowed; a grid of cells comes back a table and a run of paragraphs each
+opening with a marker comes back a list, both counted in the report; there
+is no cover.
+
+The pages become a book that **reflows** — that is the default and should be,
+because a book that reflows is a book anybody can read at any size. A document
+whose layout *is* its content — a form, a score, a diagram with words in it —
+can be built the other way: `--pdf-layout fixed` writes one document per page,
+every line where the typesetter set it, on a page of the source's own
+measurements, and declares the publication `pre-paginated`. The report says
+what that costs, because it is a trade: no reflow, no reader font size, tables
+and lists drawn where their cells and items stand rather than written as
+structure, and a word broken at a line end left broken. The text is still
+text — every character, in reading order.
 
 ```bash
 epubforge build book.pdf
 epubforge build scans/ --pdf-running-heads remove
+epubforge build form.pdf --pdf-layout fixed
 ```
 
 ## What it tells you about itself

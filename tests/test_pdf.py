@@ -709,6 +709,35 @@ class TestTheReader:
         assert "pdf.characters-unplaced" not in {f.rule for f in report.findings}
         assert report.stats["pdf_characters_unplaced"] == 0
 
+    def test_nothing_runs_through_a_picture(self, tmp_path):
+        """A paragraph that would otherwise carry over the fold ends at the
+        picture standing under it, and the blocks are then in the order the
+        pages are read in.
+
+        Found by the fixed-layout mode and true of both: while one renderer
+        read the blocks in the same order as the check that guards it, an
+        image on page one being read *after* a paragraph of page two cost
+        nothing and was invisible. Page by page it is a lost character.
+        """
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (40 * 30)
+        pages = [
+            column(["The prose at the head of the first page runs on",
+                    "and does not end with a full stop here"], top=700)
+            + [(100.0, 500.0, 9.0, "A16")],
+            column(["because it carries over the fold, or would."], top=700),
+        ]
+        source = make_pdf(tmp_path / "fold.pdf", pages,
+                          images={0: [(72, 450, 120, 90, 40, 30, red)]})
+        pages_read, _, _, layout = pdf._read(str(source))
+        body = pdf._lay_out_all(pages_read, layout)
+        kinds = [block.kind for block in pdf._blocks(pages_read, body)]
+        assert kinds == ["p", "image", "p"]
+        # And the text is read in that order: the label on page one before the
+        # prose of page two, not after it.
+        text = pdf.text_of(str(source))
+        assert text.index("A16") < text.index("because it carries")
+
     def test_a_grid_of_cells_comes_back_a_table(self, tmp_path):
         """A table read line by line is a heap: every cell a paragraph of a
         word or two. The owner's manual has 73 of them and 484 such cells —
@@ -1212,6 +1241,208 @@ class TestThePipeline:
         assert result.output_path is None
         assert "pdf.no-text-layer" in rules_of(result)
         assert not (tmp_path / "out.epub").exists()
+
+
+# --------------------------------------------------------------------------
+# The other mode: the page kept as a page (`pre-paginated`).
+# --------------------------------------------------------------------------
+
+
+def fixed(source: pathlib.Path, report: Report | None = None):
+    return pdf.read_pdf(str(source), report or Report(), page_layout=pdf.FIXED)
+
+
+def pages_of(book) -> list[str]:
+    return [book.resources[item.path].data.decode() for item in book.spine]
+
+
+def style_of(markup: str, needle: str) -> dict:
+    """The declarations of the first element whose text contains *needle*."""
+    element = re.search(rf'<[^>]*style="([^"]*)"[^>]*>[^<]*{re.escape(needle)}', markup)
+    assert element, f"{needle!r} is not in an element with a style: {markup}"
+    return dict(
+        (part.split(":", 1)[0].strip(), part.split(":", 1)[1].strip())
+        for part in element.group(1).split(";") if ":" in part
+    )
+
+
+class TestThePageKeptAsAPage:
+    """The fixed-layout mode. Its promise is narrower than the reflowable one
+    and has to be checked as narrowly: the page is a page, every line stands
+    where the typesetter put it, and the text is still the source's text in the
+    source's order — which is the one promise both modes make (K1)."""
+
+    def test_the_two_lists_of_modes_are_one_list(self):
+        """The reader branches on its own names and the interfaces offer the
+        policy's; two lists that drift are a mode nobody can reach."""
+        from epubforge.policy import PDF_LAYOUTS
+
+        assert PDF_LAYOUTS == (pdf.REFLOWABLE, pdf.FIXED)
+        assert Policy().pdf_layout == pdf.REFLOWABLE
+
+    def test_one_document_per_page_each_saying_how_big_its_page_is(self, tmp_path):
+        source = make_pdf(tmp_path / "three.pdf", [
+            column([f"Page {number} of the document, with prose enough on it",
+                    "to be a page of a book and not a scan."], top=700)
+            for number in (1, 2, 3)
+        ], title="Three Pages")
+        book = fixed(source)
+        assert [item.path for item in book.spine] == [
+            "text/page-0001.xhtml", "text/page-0002.xhtml", "text/page-0003.xhtml"
+        ]
+        assert book.rendition == {"layout": "pre-paginated"}
+        for markup in pages_of(book):
+            assert '<meta name="viewport" content="width=612, height=792"/>' in markup
+            assert 'class="ef-pdf-page" style="width: 612px; height: 792px;"' in markup
+        # The page list is exact and free here: page 2 of the book *is* page 2
+        # of the PDF, which is not true of a reflowable conversion.
+        assert [(p.label, p.target) for p in book.page_list] == [
+            ("1", "text/page-0001.xhtml"), ("2", "text/page-0002.xhtml"), ("3", "text/page-0003.xhtml")
+        ]
+
+    def test_a_line_stands_where_the_typesetter_put_it(self, tmp_path):
+        """The y axis is the whole of the arithmetic: a PDF measures up from
+        the foot of the page and CSS measures down from its head."""
+        source = make_pdf(tmp_path / "one.pdf", [[
+            (72.0, 700.0, 11.0, "A line of prose."),
+            (72.0, 685.0, 11.0, "And a second one under it, so the page has a text layer."),
+        ]])
+        page = pdf._read(str(source))[0][0]
+        line = page.lines[0]
+        markup = pages_of(fixed(source))[0]
+        style = style_of(markup, "A line of prose.")
+        assert style["left"] == "72px"
+        assert style["top"] == f"{round(page.height - line.y1, 1):g}px"
+        assert style["font-size"] == "11px"
+
+    def test_the_default_is_still_a_book_that_reflows(self, tmp_path):
+        source = make_pdf(tmp_path / "prose.pdf", [column(THREE_PARAGRAPHS)])
+        reflowed = next(r.data.decode() for r in pdf.read_pdf(str(source), Report()).resources.values()
+                        if r.path.endswith(".xhtml"))
+        assert "<p>" in reflowed and "ef-pdf-page" not in reflowed
+        assert "position: absolute" not in reflowed
+
+    def test_a_heading_is_still_a_heading_and_a_running_head_still_marked(self, tmp_path):
+        source = book_with_heads(tmp_path)
+        markup = pages_of(fixed(source))[2]
+        assert f'class="ef-pdf-line {pdf.RUNNING_HEAD_CLASS}"' in markup
+        assert "THE BOOK OF PAGES" in markup
+
+    def test_a_label_on_a_picture_goes_back_beside_it(self, tmp_path):
+        """What the labels kept their lines for. A reflowable book has no
+        "beside" and can only print a callout under the drawing; here the
+        drawing is where it was drawn and so is the "A16" that names a part
+        of it."""
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (40 * 30)
+        lines = column(["A line above the picture, and another line of prose", "to make a paragraph."], top=700)
+        lines += [(100.0, 500.0, 9.0, "A16")]
+        source = make_pdf(tmp_path / "callout.pdf", [lines], images={0: [(72, 450, 120, 90, 40, 30, red)]})
+        report = Report(source=str(source))
+        markup = pages_of(fixed(source, report))[0]
+        assert f'class="{pdf.LABEL_CLASS}"' not in markup
+        assert style_of(markup, "A16")["left"] == "100px"
+        image = re.search(r'<img class="ef-pdf-art" style="([^"]*)"', markup)
+        assert image and "left: 72px" in image.group(1) and "width: 120px" in image.group(1)
+        assert report.stats["pdf_characters_unplaced"] == 0
+
+    def test_the_stylesheet_says_only_what_the_book_needs(self, tmp_path):
+        """A rule no selector in the book can reach is what the style stage
+        calls junk, and this program should not write the junk it removes."""
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (40 * 30)
+        plain = make_pdf(tmp_path / "plain.pdf", [column(THREE_PARAGRAPHS)])
+        drawn = make_pdf(tmp_path / "drawn.pdf", [column(THREE_PARAGRAPHS)],
+                         images={0: [(72, 200, 120, 90, 40, 30, red)]})
+        without = fixed(plain).resources[pdf.FIXED_STYLESHEET_PATH].data.decode()
+        with_art = fixed(drawn).resources[pdf.FIXED_STYLESHEET_PATH].data.decode()
+        assert "ef-pdf-art" not in without
+        assert "ef-pdf-art" in with_art
+
+    def test_what_the_typesetter_set_apart_is_still_set_apart(self, tmp_path):
+        source = make_pdf(tmp_path / "faces.pdf", [[
+            (72.0, 700.0, 11.0, "A warning about the "),
+            (180.0, 700.0, 11.0, "button", "b"),
+            (72.0, 685.0, 11.0, "and a second line of it."),
+        ]])
+        markup = pages_of(fixed(source))[0]
+        assert "<strong>button</strong>" in markup
+
+    def test_the_outline_names_pages_and_needs_no_anchors(self, tmp_path):
+        source = make_pdf(tmp_path / "outlined.pdf", [
+            column([f"Page {number} of the document, with prose enough on it",
+                    "to be a page of a book and not a scan."], top=700)
+            for number in (1, 2, 3)
+        ], outline=[("Part One", 0, 1), ("A Section", 1, 2), ("Part Two", 2, 1)])
+        book = fixed(source)
+        assert [(node.label, node.target) for node in book.toc] == [
+            ("Part One", "text/page-0001.xhtml"), ("Part Two", "text/page-0003.xhtml")
+        ]
+        assert [(n.label, n.target) for n in book.toc[0].children] == [("A Section", "text/page-0002.xhtml")]
+        assert "#" not in "".join(pages_of(book))
+
+    def test_a_file_that_says_nothing_about_its_structure_gets_one_entry(self, tmp_path):
+        """No bookmarks and no printed contents. The page list is already every
+        page; a table of contents repeating it would say nothing new."""
+        source = make_pdf(tmp_path / "bare.pdf", [column(THREE_PARAGRAPHS)], title="Bare")
+        book = fixed(source)
+        assert [(node.label, node.target) for node in book.toc] == [("Bare", "text/page-0001.xhtml")]
+
+    def test_the_text_is_the_sources_text_in_the_sources_order(self, tmp_path):
+        """K1 on the reader alone, both modes against the one source side.
+        A fixed page prints the same blocks in the same order — that is why
+        `_fixed_items` cuts them rather than re-deriving them."""
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (40 * 30)
+        pages = [
+            column(["A first page of prose that runs on to a second", "line and then a third one here."], top=700)
+            + [(100.0, 500.0, 9.0, "A16")],
+            column(THREE_PARAGRAPHS),
+        ]
+        source = make_pdf(tmp_path / "both.pdf", pages, images={0: [(72, 450, 120, 90, 40, 30, red)]})
+        wanted = pdf.text_of(str(source))
+        for book in (fixed(source), pdf.read_pdf(str(source), Report())):
+            got = " ".join(fidelity.document_text(book.resources[item.path].data) or ""
+                           for item in book.spine)
+            assert fidelity.first_character_lost(wanted, got) == -1
+
+    def test_the_whole_pipeline_writes_a_fixed_layout_book(self, tmp_path):
+        source = book_with_heads(tmp_path)
+        result = rebuilt(source, tmp_path, pdf_layout="fixed")
+        assert result.status == Status.SUCCEEDED, [f for f in result.report.findings if f.level.name == "ERROR"]
+        rules = rules_of(result)
+        # Both said, every time: what was done and what it costs.
+        assert "pdf.fixed-layout" in rules and "pdf.fixed-layout-cost" in rules
+        assert result.book.rendition["layout"] == "pre-paginated"
+        assert fidelity.text_is_preserved(str(source), result.output_path).ok
+        assert fidelity.pdf_characters_survive(str(source), result.output_path).ok
+        with zipfile.ZipFile(result.output_path) as archive:
+            package = archive.read("EPUB/package.opf").decode()
+        assert '<meta property="rendition:layout">pre-paginated</meta>' in package
+
+    def test_a_running_head_is_not_taken_out_of_a_page_that_keeps_its_layout(self, tmp_path):
+        """Removing it would leave a hole exactly where it stood: nothing
+        closes up behind a line at an absolute position. So the question is
+        not asked — not even under the standing answer that removes them."""
+        recorder = Recorder()
+        result = rebuilt(book_with_heads(tmp_path), tmp_path, pdf_layout="fixed",
+                         pdf_running_heads="remove", asker=recorder)
+        assert "pdf.running-heads-kept-fixed" in rules_of(result)
+        assert "pdf.running-heads-removed" not in rules_of(result)
+        assert "pdf:running-heads" not in recorder.groups()
+        assert "THE BOOK OF PAGES" in prose_of(result.output_path)
+
+    def test_the_command_line_offers_the_mode(self, tmp_path, capsys):
+        out = tmp_path / "out"
+        code = main([
+            "build", str(book_with_heads(tmp_path)), "-o", str(out / "book.epub"),
+            "--gate", "off", "--render-gate", "off", "--pdf-layout", "fixed",
+        ])
+        assert code == EXIT_OK, capsys.readouterr()
+        written = list(out.glob("*.epub"))
+        assert len(written) == 1
+        with zipfile.ZipFile(written[0]) as archive:
+            assert "pre-paginated" in archive.read("EPUB/package.opf").decode()
 
 
 # --------------------------------------------------------------------------

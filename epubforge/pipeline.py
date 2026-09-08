@@ -1476,7 +1476,7 @@ def _rebuild_inside_budget(
     if refused:
         return refused
 
-    book, refused = _read_or_refuse(source, report, budget, rendition)
+    book, refused = _read_or_refuse(source, report, budget, rendition, policy)
     if refused:
         return refused
 
@@ -1595,13 +1595,13 @@ def _budget_refused(report: Report, area: str, exc: BudgetExceeded) -> None:
         report.add(area, Level.INFO, "package.time-budget-is-a-setting", values={})
 
 
-def _read_or_refuse(source, report, budget, rendition) -> "tuple[Book | None, Result | None]":
+def _read_or_refuse(source, report, budget, rendition, policy) -> "tuple[Book | None, Result | None]":
     """The book, or the refusal that stands in for it."""
     try:
         if pdf.is_pdf(source):
             # 0.5 (D-052): a PDF with a text layer, read into the same model and
             # sent through the same stages; nothing else in the run knows.
-            return pdf.read_pdf(source, report, budget), None
+            return pdf.read_pdf(source, report, budget, policy.pdf_layout), None
         return read_epub(source, report, budget, rendition=rendition), None
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose

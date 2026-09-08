@@ -98,6 +98,10 @@ OPTIONS: tuple[Option, ...] = (
         "policy.paragraphs.empty.tip", choices=("ask", "keep", "remove"),
     ),
     Option(
+        "pdf_layout", "words", "choice", "policy.pdf.layout", "policy.pdf.layout.tip",
+        choices=("reflowable", "fixed"),
+    ),
+    Option(
         "pdf_running_heads", "words", "choice", "policy.pdf.heads", "policy.pdf.heads.tip",
         choices=("ask", "keep", "remove"),
     ),

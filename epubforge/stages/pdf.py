@@ -28,6 +28,14 @@ class PdfStage(Stage):
         if ctx.book.source_version != "pdf":
             return
         self._ask_about_language(ctx)
+        if ctx.book.rendition.get("layout") == "pre-paginated":
+            # The fixed-layout mode drew every line where the source drew it,
+            # and a running head taken out of such a page does not close up
+            # behind itself: it leaves a hole exactly where it stood. The page
+            # is the thing that mode promised to keep, so the question is not
+            # asked and the answer is said instead.
+            self._keep_the_page_whole(ctx)
+            return
         found, examples = self._running_heads(ctx)
         count = sum(len(heads) for _, _, heads in found)
         if not count:
@@ -38,9 +46,23 @@ class PdfStage(Stage):
             return
         self._take_out(ctx, found, automation)
 
-    def _running_heads(self, ctx: Context) -> "tuple[list, list]":
-        """Every paragraph the reader marked as a running head, per document,
-        and up to five of them read as examples for the question."""
+    def _keep_the_page_whole(self, ctx: Context) -> None:
+        """Say how many lines of furniture the fixed pages carry, and that they
+        stay. Counted off the mark the reader put on them, which in this mode
+        sits on a positioned line — a `div` — rather than on a paragraph."""
+        found, _ = self._running_heads(ctx, tag="div")
+        count = sum(len(heads) for _, _, heads in found)
+        if count:
+            self.note(ctx, Level.PRESERVED, "pdf.running-heads-kept-fixed",
+                      values={"count": count})
+
+    def _running_heads(self, ctx: Context, tag: str = "p") -> "tuple[list, list]":
+        """Every element the reader marked as a running head, per document, and
+        up to five of them read as examples for the question.
+
+        *tag* is what such a line is in this book: a paragraph in a reflowable
+        one, a positioned `div` in a fixed-layout one.
+        """
         found: list[tuple[object, object, list]] = []
         examples: list[str] = []
         for resource in ctx.book.content_docs():
@@ -50,7 +72,7 @@ class PdfStage(Stage):
                 continue
             heads = [
                 element for element in xhtml.iter_elements(root)
-                if xhtml.local_name(element).lower() == "p"
+                if xhtml.local_name(element).lower() == tag
                 and pdf.RUNNING_HEAD_CLASS in (element.get("class") or "").split()
             ]
             if heads:

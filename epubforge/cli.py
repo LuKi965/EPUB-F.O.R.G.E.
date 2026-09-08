@@ -14,7 +14,8 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, ledger_lines, plan_batch
-from .policy import GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS, PDF_RUNNING_HEADS, RENDER_GATES, Policy
+from .policy import (GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS, PDF_LAYOUTS,
+                     PDF_RUNNING_HEADS, RENDER_GATES, Policy)
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -130,15 +131,28 @@ def build_policy(args: argparse.Namespace) -> Policy:
     return policy
 
 
+def _apply_pdf_flags(args: argparse.Namespace, policy: Policy) -> None:
+    """The two flags that mean nothing unless the source is a PDF: what its
+    pages become, and what becomes of the furniture they carry.
+
+    Their own function because they are their own subject — and kept above
+    `_apply_valued_flags`, where the command line's reachability test reads
+    for them (`test_cli_reaches_everything`).
+    """
+    if getattr(args, "pdf_layout", None):
+        policy.pdf_layout = args.pdf_layout
+    if getattr(args, "pdf_running_heads", None):
+        policy.pdf_running_heads = args.pdf_running_heads
+
+
 def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:
     """The flags that carry a value of their own, after the switches: the
     `--watermarks` mode overrides `--keep-watermark-markup`, as it always has."""
+    _apply_pdf_flags(args, policy)
     if getattr(args, "render_gate", None) is not None:
         policy.render_gate = args.render_gate
     if getattr(args, "hyphen_review", None):
         policy.hyphen_review = args.hyphen_review
-    if getattr(args, "pdf_running_heads", None):
-        policy.pdf_running_heads = args.pdf_running_heads
     if getattr(args, "empty_paragraph_runs", None):
         policy.empty_paragraph_runs = args.empty_paragraph_runs
     if getattr(args, "memory_limit", None):
@@ -1142,6 +1156,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--render-all",
         action="store_true",
         help="draw every page rather than a sample of twelve",
+    )
+    build.add_argument(
+        "--pdf-layout",
+        choices=PDF_LAYOUTS,
+        help=(
+            "what a PDF source becomes: 'reflowable' reads its geometry back "
+            "into paragraphs, headings, tables and lists so the text can be set "
+            "at any size (default), 'fixed' keeps the pages as pages — every "
+            "line where it was set, the publication declared pre-paginated, and "
+            "no reflow and no reader font size in exchange"
+        ),
     )
     build.add_argument(
         "--pdf-running-heads",

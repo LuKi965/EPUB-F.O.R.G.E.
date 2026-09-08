@@ -341,6 +341,21 @@ PL: dict[str, str] = {
     "policy.render.gate": "Gdy strona straci treść:",
     "policy.render.unverified": "Zapisuj bez sprawdzenia wyglądu",
     "policy.metadata.reconstructed": "Przyjmuj metadane z odzysku",
+    "policy.pdf.layout": "Co zrobić ze stronami PDF-a:",
+    "policy.pdf.layout.tip": (
+        "PDF to strony złożone przez zecera. Program domyślnie odczytuje z "
+        "geometrii akapity, nagłówki, tabele i listy, żeby tekst dał się "
+        "składać na każdym ekranie i w każdym stopniu pisma. Drugi tryb "
+        "zachowuje same strony: każdy wiersz tam, gdzie stał, na stronie o "
+        "wymiarach oryginału. Wygląd zostaje, przepływ i wielkość pisma "
+        "czytelnika — nie."
+    ),
+    "policy.pdf.layout.reflowable": "czytaj strukturę (tekst płynny)",
+    "policy.pdf.layout.reflowable.tip":
+        "akapity, nagłówki, tabele i listy; czytelnik sam dobiera wielkość pisma",
+    "policy.pdf.layout.fixed": "zachowaj strony (układ stały)",
+    "policy.pdf.layout.fixed.tip":
+        "jeden dokument na stronę, wiersz tam gdzie stał; bez przepływu i bez skalowania tekstu",
     "policy.pdf.heads": "Żywa pagina i numery stron z PDF-a:",
     "policy.pdf.heads.tip": (
         "PDF niesie w warstwie tekstowej nagłówki stron i numery stron. Program "
@@ -1681,6 +1696,21 @@ EN: dict[str, str] = {
     "policy.render.all": "Draw every page, not a sample",
     "policy.render.unverified": "Write without the appearance check",
     "policy.metadata.reconstructed": "Accept recovered metadata",
+    "policy.pdf.layout": "What to do with a PDF's pages:",
+    "policy.pdf.layout.tip": (
+        "A PDF is pages somebody typeset. By default the program reads "
+        "paragraphs, headings, tables and lists back out of the geometry, so "
+        "the text can be set on any screen at any size. The other mode keeps "
+        "the pages themselves: every line where it stood, on a page of the "
+        "original's measurements. The look stays; reflow and the reader's own "
+        "font size do not."
+    ),
+    "policy.pdf.layout.reflowable": "read the structure (text reflows)",
+    "policy.pdf.layout.reflowable.tip":
+        "paragraphs, headings, tables and lists; the reader chooses the font size",
+    "policy.pdf.layout.fixed": "keep the pages (fixed layout)",
+    "policy.pdf.layout.fixed.tip":
+        "one document per page, every line where it stood; no reflow and no text scaling",
     "policy.pdf.heads": "Running heads and page numbers from a PDF:",
     "policy.pdf.heads.tip": (
         "A PDF carries page headers and page numbers in its text layer. The "

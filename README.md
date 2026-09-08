@@ -219,11 +219,25 @@ ask|keep|remove`, w oknie kratka) oraz język, którego PDF zwykle nie
 deklaruje (propozycja z tekstu, ustawiana tylko na słowo człowieka). Skan bez
 warstwy tekstowej jest odmową z powodem (`pdf.no-text-layer`) — OCR to inny
 program. Dwie kolumny są czytane kolumna po kolumnie i zgłaszane, nie
-przekładane; tabele wchodzą jako akapity; okładki nie ma.
+przekładane; siatka komórek wraca tabelą, a ciąg akapitów zaczynających się od
+znacznika — listą, obie policzone w raporcie; okładki nie ma.
+
+Ze stron powstaje książka **z tekstem płynnym** — tak jest domyślnie i tak być
+powinno, bo książka, która się przelewa, jest książką do przeczytania przez
+każdego i w każdym stopniu pisma. Dokument, w którym układ *jest* treścią —
+formularz, nuty, rysunek z podpisami — można złożyć inaczej: `--pdf-layout
+fixed` zapisuje jeden dokument na stronę, każdy wiersz tam, gdzie postawił go
+zecer, na stronie o wymiarach oryginału, i deklaruje publikację jako
+`pre-paginated`. Raport mówi, ile to kosztuje, bo to wymiana: brak przepływu,
+brak wielkości pisma czytelnika, tabele i listy narysowane tam, gdzie stoją ich
+komórki i punkty, zamiast zapisane jako struktura, i wyraz przeniesiony na
+koniec wiersza zostawiony przecięty. Tekst nadal jest tekstem — każdy znak,
+w kolejności czytania.
 
 ```bash
 epubforge build ksiazka.pdf
 epubforge build skany/ --pdf-running-heads remove
+epubforge build formularz.pdf --pdf-layout fixed
 ```
 
 ## Co narzędzie o sobie mówi
