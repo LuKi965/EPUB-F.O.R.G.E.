@@ -63,6 +63,13 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
         return len(objects)
 
     font = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    # A line may carry a fifth item, the face: "" (roman), "b" or "i". The
+    # reader reads the face from the font's *name*, as it does in a real file.
+    faces = {
+        "": font,
+        "b": add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"),
+        "i": add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>"),
+    }
     page_ids: list[int] = []
     for index, lines in enumerate(pages):
         drawn = []
@@ -95,10 +102,12 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
             f"{x0} {y0} m {x1} {y1} l S\n" for x0, y0, x1, y1 in (strokes or {}).get(index, ())
         )
         stream = ("".join(drawn) + painted + "".join(
-            f"BT /F1 {size} Tf {x} {y} Td ({_escape(text)}) Tj ET\n" for x, y, size, text in lines
+            f"BT /F{'123'['bi'.find(line[4]) + 1] if len(line) > 4 else 1} {line[2]} Tf "
+            f"{line[0]} {line[1]} Td ({_escape(line[3])}) Tj ET\n" for line in lines
         )).encode("cp1252")
         content = add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
-        resources = f"/Font << /F1 {font} 0 R >>"
+        resources = (f"/Font << /F1 {font} 0 R /F2 {faces['b']} 0 R "
+                     f"/F3 {faces['i']} 0 R >>")
         if xobjects:
             resources += f" /XObject << {' '.join(xobjects)} >>"
         page_ids.append(add(
@@ -509,6 +518,42 @@ class TestTheReader:
         # line — the indent is measured against the column's edge, not the page's.
         assert report.stats["pdf_layout"]["paragraphs"] == 1
         assert pdf.text_of(str(source)).index("Left 5") < pdf.text_of(str(source)).index("Right 1")
+
+    def test_what_the_typesetter_set_apart_comes_through(self, tmp_path):
+        """A reflowable book cannot hold a page's layout and should not try.
+        What it can hold is the marks the typesetter *made*: the word set in
+        bold because it names a button, the phrase in italic because it is
+        quoted. This reader measured the face of every line and threw it away —
+        6 084 characters of it in the owner's manual, the legend's own numbers
+        among them.
+        """
+        lines = [(72.0, 700.0, 10.0, "Wcisnij "), (110.0, 700.0, 10.0, "Stop", "b"),
+                 (135.0, 700.0, 10.0, " i poczekaj, az ekspres "),
+                 (240.0, 700.0, 10.0, "zakonczy", "i"), (285.0, 700.0, 10.0, " wytwarzanie.")]
+        lines += column(["A second paragraph of ordinary prose, set in the same", "face as the body of the book."], top=670)
+        source = make_pdf(tmp_path / "faces.pdf", [lines])
+        book = pdf.read_pdf(str(source), Report())
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<strong>Stop</strong>" in markup
+        assert "<em>zakonczy</em>" in markup
+        # The spaces around a marked run stay outside it, not inside the tag.
+        assert "<strong> " not in markup and " </strong>" not in markup
+        assert "<em> " not in markup and " </em>" not in markup
+        # The body's own face is not a mark: the prose carries none.
+        assert "A second paragraph of ordinary prose, set in the same face as the body of the book." in markup
+        # And not one character moved: the text is what it was.
+        text = fidelity.document_text(markup.encode("utf-8"))
+        assert "Wcisnij Stop i poczekaj, az ekspres zakonczy wytwarzanie." in " ".join(text.split())
+        assert fidelity.first_character_lost(pdf.text_of(str(source)), text) == -1
+
+    def test_a_book_set_wholly_in_bold_is_not_one_long_shout(self, tmp_path):
+        """The mark is a face that differs from the document's own."""
+        lines = column(["Every line of this leaflet is set in the same bold face,",
+                        "which makes it the body face and not an emphasis."], top=700)
+        lines = [(x, y, size, text, "b") for x, y, size, text in lines]
+        book = pdf.read_pdf(str(make_pdf(tmp_path / "bold.pdf", [lines])), Report())
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        assert "<strong>" not in markup
 
     def test_two_things_side_by_side_are_read_one_after_the_other(self, tmp_path):
         """Not every page with two stacks of text is *set* in two columns —

@@ -95,6 +95,11 @@ class Line:
     size: float
     page: int
     bold: bool = False
+    #: The line cut into runs of one face: `(text, style)`, style being "b",
+    #: "i", "bi" or "". What the typesetter set apart is the only part of a
+    #: page's look this reader can carry into a reflowable book, and it used to
+    #: measure the line's face and then throw it away.
+    runs: list = field(default_factory=list)
     running_head: bool = False
     #: Which area of the page this line belongs to. Lines of one area are read
     #: one after another; a paragraph never runs from one area into the next.
@@ -265,6 +270,9 @@ class Layout:
     table_cells: int = 0
     #: Runs of marked paragraphs marked up as lists.
     lists: int = 0
+    #: The face the document is set in, and how much of it is set apart.
+    body_face: str = ""
+    emphasis: int = 0
     #: Pages carrying a vector drawing, and the drawings whose callouts were
     #: gathered out of the prose.
     drawing_pages: int = 0
@@ -352,6 +360,7 @@ def _lay_out_all(pages: list[Page], layout: "Layout") -> float:
     layout.regions = sum(len(page.regions) for page in pages)
     layout.drawing_pages = sum(1 for page in pages if page.drawings)
     layout.body_size = _body_size(pages)
+    layout.body_face = _body_face(pages)
     return layout.body_size
 
 
@@ -410,7 +419,7 @@ def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layou
                  anchored: set, placed: dict) -> None:
     """One section as a document, a spine entry and the pictures it stands on,
     with the anchors it turned out to carry written into *placed*."""
-    markup, counts = _render(blocks, label, anchored)
+    markup, counts = _render(blocks, label, anchored, layout.body_face)
     layout.paragraphs += counts["paragraphs"]
     layout.headings += counts["headings"]
     layout.tables += counts["tables"]
@@ -785,6 +794,7 @@ def _read(source: str):
                             size=round(sum(c.size for c in chars) / len(chars), 1),
                             page=number,
                             bold="bold" in Counter(c.fontname for c in chars).most_common(1)[0][0].lower(),
+                            runs=_runs(line),
                         ))
             elif isinstance(element, LTFigure):
                 stack[:0] = list(element)
@@ -828,6 +838,41 @@ def _read(source: str):
             pass
     layout = Layout(outline_unresolved=unresolved, images_skipped=skipped)
     return pages, info, outline, layout
+
+
+#: What the font's name says about the face it draws. A name like
+#: `UKJILE+MyriadPro-BoldCondIt` carries both marks; `MyriadPro-Cond` neither.
+BOLD_NAMES = ("bold", "black", "heavy", "semibold", "demi")
+ITALIC_NAMES = ("italic", "oblique", "-it", "it+")
+
+
+def _face(fontname: str) -> str:
+    """"b", "i", "bi" or "" — what the font's name claims about its face."""
+    name = (fontname or "").lower()
+    style = "b" if any(mark in name for mark in BOLD_NAMES) else ""
+    return style + ("i" if any(mark in name for mark in ITALIC_NAMES) else "")
+
+
+def _runs(line) -> list:
+    """One line cut into runs of a single face, in order.
+
+    Per character and not per line: a manual sets one word of a sentence in
+    bold — the name of a button, a warning — and a line measured as a whole
+    loses exactly that.
+    """
+    from pdfminer.layout import LTChar
+
+    runs: list = []
+    for char in line:
+        text = char.get_text()
+        if text == "\n":
+            continue
+        style = _face(char.fontname) if isinstance(char, LTChar) else (runs[-1][1] if runs else "")
+        if runs and runs[-1][1] == style:
+            runs[-1][0] += text
+        else:
+            runs.append([text, style])
+    return [(text, style) for text, style in runs if text]
 
 
 def _decode(value) -> str:
@@ -1375,6 +1420,20 @@ def _mark_running_heads(pages: list[Page], layout: Layout) -> None:
             odd = on_odd[key]
             if count >= threshold or (count >= one_side and odd in (0, count)):
                 line.running_head = True
+
+
+def _body_face(pages: list[Page]) -> str:
+    """The face the document is *set* in, by weight of characters.
+
+    A manual set throughout in a bold condensed face is not one long shout, so
+    what counts as a mark is a face that differs from this one.
+    """
+    weight: Counter = Counter()
+    for page in pages:
+        for line in page.lines:
+            for text, style in line.runs:
+                weight[style] += len(text)
+    return weight.most_common(1)[0][0] if weight else ""
 
 
 def _body_size(pages: list[Page]) -> float:
@@ -1997,7 +2056,75 @@ def _list_runs(blocks: list) -> "list[tuple[int, int]]":
     return runs
 
 
-def _element(block: Block, mark: str, counts: dict, item: bool = False) -> str:
+def _trimmed(runs: list) -> list:
+    """The line's runs with the whitespace `join_lines` would strip removed."""
+    runs = [[text, style] for text, style in runs]
+    while runs and not runs[0][0].lstrip():
+        runs.pop(0)
+    if runs:
+        runs[0][0] = runs[0][0].lstrip()
+    while runs and not runs[-1][0].rstrip():
+        runs.pop()
+    if runs:
+        runs[-1][0] = runs[-1][0].rstrip()
+    return [(text, style) for text, style in runs if text]
+
+
+def _marked(block: Block, body_face: str = "") -> str:
+    """The block's text as markup, keeping what the typesetter set apart.
+
+    A reflowable book cannot hold a page's layout, and should not try. What it
+    can hold is the marks the typesetter *made*: the word set in bold because
+    it names a button, the phrase in italic because it is quoted. This reader
+    measured the face of every line and threw it away — 6 084 characters of it
+    in the owner's manual, the legend's own numbers among them.
+
+    Only a face that differs from the document's own body face is a mark. A
+    manual set throughout in a bold condensed face is not one long shout.
+
+    The plain text this produces is exactly `block.text`, character for
+    character; `join_lines` is applied here to the runs instead of the lines.
+    """
+    pieces: list = []
+    plain = ""
+    for line in block.lines:
+        runs = _trimmed(line.runs) if line.runs else _trimmed([(line.text, "")])
+        text = "".join(run for run, _ in runs)
+        if not text:
+            continue
+        if plain and not (plain.endswith("-") and len(plain) > 1
+                          and plain[-2].isalnum() and text[:1].isalpha()):
+            pieces.append((" ", ""))
+            plain += " "
+        pieces.extend(runs)
+        plain += text
+    out: list = []
+    for run, style in pieces:
+        mark = "".join(letter for letter in style if letter not in body_face)
+        if out and out[-1][1] == mark:
+            out[-1][0] += run
+        else:
+            out.append([run, mark])
+    return "".join(_faced(escape(run), mark) for run, mark in out)
+
+
+def _faced(text: str, mark: str) -> str:
+    """*text* wrapped in what its face means, with the spaces left outside it:
+    a legend's "A1.  " is set in bold, and the two spaces after it are not."""
+    if not mark or not text.strip():
+        return text
+    body = text.strip()
+    before = text[:len(text) - len(text.lstrip())]
+    after = text[len(text.rstrip()):]
+    if "b" in mark:
+        body = f"<strong>{body}</strong>"
+    if "i" in mark:
+        body = f"<em>{body}</em>"
+    return before + body + after
+
+
+def _element(block: Block, mark: str, counts: dict, item: bool = False,
+             body_face: str = "") -> str:
     """One block as its markup. *item* makes a paragraph a list item."""
     if block.kind == "image":
         return _figure(block.picture, mark)
@@ -2009,7 +2136,7 @@ def _element(block: Block, mark: str, counts: dict, item: bool = False) -> str:
         return f'    <p{mark} class="{LABEL_CLASS}">{escape(block.text)}</p>'
     if block.kind == "head":
         return f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>'
-    inner = escape(block.text)
+    inner = _marked(block, body_face)
     if block.kind in ("h1", "h2"):
         counts["headings"] += 1
         return f"    <{block.kind}{mark}>{inner}</{block.kind}>"
@@ -2020,8 +2147,8 @@ def _element(block: Block, mark: str, counts: dict, item: bool = False) -> str:
     return f"    <{tag}{mark}>{inner}</{tag}>"
 
 
-def _render(blocks: list[Block], title: str,
-            anchored: "set[int] | None" = None) -> tuple[str, dict]:
+def _render(blocks: list[Block], title: str, anchored: "set[int] | None" = None,
+            body_face: str = "") -> tuple[str, dict]:
     """The section's markup, and what went into it.
 
     *anchored* names the pages the outline points at. The first block of such a
@@ -2060,7 +2187,7 @@ def _render(blocks: list[Block], title: str,
         if index in opens:
             counts["lists"] += 1
             body.append(f'    <ul class="{LIST_CLASS}">')
-        body.append(_element(block, mark, counts, item=index in listed))
+        body.append(_element(block, mark, counts, item=index in listed, body_face=body_face))
         if index in closes:
             body.append("    </ul>")
     # No `xml:lang` on the document, deliberately. The PDF states one language,
