@@ -443,6 +443,62 @@ class TestTheReader:
         assert deepest.target == "text/section-0001.xhtml#pdf-page-0001"
         assert book.toc[1].target == "text/section-0002.xhtml#pdf-page-0004"
 
+    def test_a_book_without_bookmarks_gets_its_navigation_from_its_own_contents(self, tmp_path):
+        """A PDF with bookmarks says where its parts begin and this reader
+        believes it. A PDF without them very often *prints* the same thing on
+        page two: a title at the left, a leader, and the page number at the
+        right margin. That is the file saying the same thing in the one other
+        place it says it.
+
+        Checked against a file that has both — the owner's manual, its
+        bookmarks hidden: the printed contents gives **113 entries and every
+        one names the page the bookmarks name**.
+        """
+        entries = [("1  Pierwsze uruchomienie", 3), ("1.1  Woda", 3),
+                   ("1.2  Kawa", 5), ("2  Czyszczenie", 6), ("3  Dane techniczne", 8)]
+        contents = [(72.0, 700.0, 12.0, "Spis tresci")]
+        for index, (title, number) in enumerate(entries):
+            y = 660.0 - index * 16
+            contents += [(72.0, y, 10.0, title), (520.0, y, 10.0, str(number))]
+        pages = [contents]
+        for number in range(2, 9):
+            body = column([f"Strona {number} niesie zwykla proze w swoim korpusie,",
+                           "dwa wiersze, zlozone stopniem tekstu glownego."], top=600)
+            pages.append(body)
+        # The page number at the foot of every page, which is what turns the
+        # number a contents entry names into a leaf of this file.
+        pages = [page + [(300.0, 40.0, 10.0, str(index))] for index, page in enumerate(pages, 1)]
+        source = make_pdf(tmp_path / "contents.pdf", pages, title="Bez zakladek")
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        said = next(f for f in report.findings if f.rule == "pdf.contents-page-read")
+        assert said.values == {"count": 5}
+        assert "pdf.outline-used" in {f.rule for f in report.findings}
+        points = [point for root in book.toc for point in root.walk()]
+        assert [point.label for point in points] == [title for title, _ in entries]
+        # The tree follows the numbering the contents itself prints.
+        assert [child.label for child in book.toc[0].children] == ["1.1  Woda", "1.2  Kawa"]
+        # And every entry lands on the page it named, not on the top of a file.
+        for point, (_, number) in zip(points, entries):
+            assert point.target.endswith(f"#{pdf._anchor(number)}"), point.target
+            assert f'id="{pdf._anchor(number)}"' in book.resources[point.target_path].data.decode()
+
+    def test_a_table_that_ends_in_a_number_is_not_a_contents(self, tmp_path):
+        """A price, a capacity, a brewing time — a table whose last column is
+        numeric is not the book saying where its parts begin. What tells them
+        apart is that a contents names *pages this file has*, one after
+        another, in a run."""
+        rows = [("Herbata Biala", 3), ("Herbata Zielona", 2), ("Herbata Oolong", 1)]
+        lines = []
+        for index, (name, minutes) in enumerate(rows):
+            y = 700.0 - index * 16
+            lines += [(72.0, y, 10.0, name), (300.0, y, 10.0, str(minutes))]
+        pages = [lines] + [column([f"Strona {n} zwyklej prozy, dwa wiersze,", "zlozone stopniem tekstu."], top=600) for n in range(2, 7)]
+        pages = [page + [(300.0, 40.0, 10.0, str(index))] for index, page in enumerate(pages, 1)]
+        report = Report()
+        pdf.read_pdf(str(make_pdf(tmp_path / "times.pdf", pages)), report)
+        assert "pdf.contents-page-read" not in {f.rule for f in report.findings}
+
     def test_a_line_of_figures_set_large_is_not_a_heading(self, tmp_path):
         """Measured on the owner's manual: "set larger than the body" promoted
         74 lines there and not one was a heading — a legend's markers, a

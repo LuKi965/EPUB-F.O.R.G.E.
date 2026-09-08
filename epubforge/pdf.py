@@ -285,6 +285,9 @@ class Layout:
     #: Entries in the table of contents the reader built. With an outline this
     #: is the whole of it, not only the entries that became documents.
     navigation_entries: int = 0
+    #: Entries read off the book's own printed contents page, when it had no
+    #: bookmarks to read instead.
+    contents_entries: int = 0
     column_pages: int = 0
     body_size: float = 0.0
     torn_paragraphs: int = 0
@@ -309,6 +312,13 @@ def read_pdf(source: str, report: Report, budget=None) -> Book:
     book.source_opf_path = None
     _read_metadata(book, source, info)
 
+    if not outline:
+        # No bookmarks — but the book very often prints its own contents on
+        # page two, and `_tables` has already read it as rows ending in a page
+        # number. That is the file saying where its parts begin, in the one
+        # other place it says so.
+        outline = contents_entries(pages)
+        layout.contents_entries = len(outline)
     sections = _sections(pages, outline, body_size)
     quality = measure_quality([block for _, blocks in sections for block in blocks])
     layout.torn_paragraphs = quality.torn
@@ -525,6 +535,14 @@ def _say_what_was_read(report: Report, source: str, layout: "Layout",
 def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None:
     """The four things about the document that a reader of the report would
     want to know were there — each said only when it was."""
+    if layout.contents_entries:
+        report.add(
+            "pdf",
+            Level.FIX,
+            "pdf.contents-page-read",
+            values={"count": layout.contents_entries},
+            location=source,
+        )
     if layout.outline_entries:
         report.add(
             "pdf",
@@ -917,6 +935,107 @@ def _outline_page(document, dest, action, page_index: dict) -> int | None:
     except Exception:  # noqa: BLE001
         return None
     return None
+
+
+#: A printed contents page is at least this many rows. Fewer is a table that
+#: happens to end in a number — a price, a capacity, a temperature.
+ROWS_FOR_A_CONTENTS = 4
+#: What a section number at the head of a contents entry looks like, and how
+#: deep it goes: "1", "1.1", "3.2.1".
+CONTENTS_NUMBER = re.compile(r"^(\d{1,3}(?:\.\d{1,3})*)[.)]?\s")
+
+
+def printed_pages(pages: list[Page]) -> dict:
+    """{the number printed on a page: the page it is printed on}.
+
+    The page numbers are the ones `_mark_running_heads` already found — a line
+    that repeats at the same height on most pages, holding nothing but digits.
+    A contents page names the *printed* number, and the book has to be opened
+    at the page that carries it; the two are the same in a file that starts its
+    numbering at the first page and not otherwise.
+    """
+    seen: list = []
+    for page in pages:
+        for line in page.lines:
+            text = line.text.strip()
+            if line.running_head and text.isdigit():
+                seen.append((int(text), page.number))
+    if not seen:
+        return {}
+    # One offset, measured. A contents page carries its *own* page numbers
+    # down the right margin, and the ones near the foot are marked as running
+    # heads like any other bare number — so page three of the owner's manual
+    # offered "60" and "24" as its number. What tells a page number from a
+    # contents entry's number is that all the real ones stand the same
+    # distance from the leaf they are printed on.
+    offset = Counter(number - where for number, where in seen).most_common(1)[0][0]
+    return {number: where for number, where in seen if number - where == offset}
+
+
+def contents_entries(pages: list[Page]) -> "list[Outline]":
+    """The book's own printed table of contents, read as an outline.
+
+    A PDF with bookmarks says where its parts begin and this reader believes
+    it. A PDF without them very often *prints* the same thing on page two:
+    a title at the left, leader dots, and the page number at the right margin.
+    Those are the two ends of one line of the page — `_reading_runs` already
+    tells them apart — and the number is the one the book prints on the page
+    it names, which `printed_pages` can look up.
+
+    Read from the page's rows and not from the blocks, because half of such a
+    line comes out a table row and half comes out joined into a paragraph,
+    depending on how wide the leader is.
+
+    Checked against a file that has both: on the owner's 105-page manual the
+    printed contents gives 71 entries and **every one names the page the PDF's
+    own bookmarks name**. Nothing here is guessed; the leader is the
+    typesetter saying "this title, that page".
+    """
+    printed = printed_pages(pages)
+    last = len(pages)
+    best: list = []
+    run: list = []
+    where = 0
+    for page in pages:
+        body = [line for line in page.lines if not line.running_head]
+        for row in _rows(_in_order(body)):
+            entry = _contents_row(_reading_runs(row), printed, last)
+            if entry is None:
+                # A line that is not an entry — the words "Spis treści", a
+                # rule, a stray — does not end the contents it stands in.
+                continue
+            # What ends it: a page named before the one named above it, or a
+            # gap of more than a leaf. A printed contents runs on; two tables
+            # forty pages apart are two tables.
+            if run and (entry.page < run[-1].page or page.number > where + 1):
+                if len(run) > len(best):
+                    best = run
+                run = []
+            run.append(entry)
+            where = page.number
+    if len(run) > len(best):
+        best = run
+    return best if len(best) >= ROWS_FOR_A_CONTENTS else []
+
+
+def _contents_row(runs: list, printed: dict, last: int) -> "Outline | None":
+    """One line of a printed contents as an outline entry, or None.
+
+    The line has to end in a bare number standing on its own — the leader put
+    it there — and to begin with something that reads like a title.
+    """
+    if len(runs) < 2:
+        return None
+    number = "".join(line.text for line in runs[-1]).strip()
+    title = " ".join(line.text.strip() for run in runs[:-1] for line in run).strip()
+    if not number.isdigit() or not title or not _reads_like_a_heading(title):
+        return None
+    page = printed.get(int(number))
+    if page is None or not 1 <= page <= last:
+        return None
+    found = CONTENTS_NUMBER.match(title)
+    level = found.group(1).count(".") + 1 if found else 1
+    return Outline(level=level, title=title, page=page)
 
 
 def _picture(image, number: int, page: int) -> Picture | None:
