@@ -29,7 +29,7 @@ from ...strings import tr
 from .. import icons
 from ..options import CATEGORIES, OPTIONS, Option, categories_for, in_category
 from ..responsive import LayoutMode, Panels, spread
-from ..tokens import DRAWER_WIDTH, Tokens
+from ..tokens import DRAWER_WIDTH, SCROLL_BAR_WIDTH, Tokens
 from ..widgets import StatusBadge, button, clear_layout, label
 
 
@@ -227,10 +227,10 @@ class SettingsDrawer(QWidget):
             item.setChecked(name == self._category)
             item.setIcon(icons.icon(glyph, tokens.muted))
             item.setMinimumHeight(40)
-            # Allowed to be narrower than its own label: a `QPushButton` elides
-            # what does not fit, and without this the widest category name sets
-            # the column's minimum width and pushes its scroll area sideways by
-            # exactly the width of a scrollbar.
+            # Allowed to be narrower than its own label, so that one long name
+            # cannot push the scroll area sideways by the width of a bar. The
+            # column is then widened to fit the longest of them anyway — see
+            # `_fit_the_rail`, and the screenshot that made it necessary.
             item.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             item.setAccessibleName(tr(key))
             item.setToolTip(tr(key))
@@ -245,16 +245,15 @@ class SettingsDrawer(QWidget):
         # is shorter than seven buttons: Qt's answer to "not enough room" is to
         # squeeze them past their minimum and print them over each other, which
         # is what a larger font showed. The horizontal bar is off here and only
-        # here — a `QPushButton` elides its own label, so nothing is hidden by
-        # a narrow column, and a nav column that scrolls sideways is absurd.
+        # here: a nav column that scrolls sideways is absurd, and the column is
+        # wide enough for its longest name instead.
         self.category_column = QScrollArea()
         self.category_column.setWidgetResizable(True)
         self.category_column.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.category_column.setFrameShape(QFrame.NoFrame)
         self.category_column.setWidget(column)
-        self.category_column.setMinimumWidth(150)
-        self.category_column.setMaximumWidth(212)
         body.addWidget(self.category_column)
+        self._fit_the_rail()
 
         self.list_area = QScrollArea()
         self.list_area.setWidgetResizable(True)
@@ -286,6 +285,33 @@ class SettingsDrawer(QWidget):
         self._mode = LayoutMode.WIDE
         self.hide()
 
+    def _fit_the_rail(self) -> None:
+        """Make the category column as wide as its longest name needs.
+
+        It used to be a written 150, and that is 27 px short of *Wygląd
+        i typografia* at the ordinary font — so that name lost its last four
+        letters. Not elided: **clipped**, mid-letter and with no ellipsis,
+        which reads as a broken widget rather than as a shortened label. The
+        tooltip and the accessible name carried the whole thing, so nothing
+        was unreachable, but a person looking at the drawer could not tell
+        that. Seen in a screenshot of the real window (etap 5); the widths
+        below are the buttons' own, so a larger font moves this with it
+        instead of clipping four letters further in.
+        """
+        buttons = list(self._buttons_by_category.values())
+        if not buttons:
+            return
+        # Plus what stands between the name and the column's edge: the bar,
+        # which this column keeps whenever seven categories are taller than the
+        # drawer, and the layout's own margins. Asked for rather than assumed —
+        # the first attempt at this added only the bar and left the widest name
+        # four letters short again, which is the same mistake in a smaller size.
+        margins = self.categories.contentsMargins()
+        room = (max(one.sizeHint().width() for one in buttons)
+                + margins.left() + margins.right() + SCROLL_BAR_WIDTH)
+        self.category_column.setMinimumWidth(room)
+        self.category_column.setMaximumWidth(room)
+
     # -- how much of the page it takes --------------------------------------
     def set_mode(self, mode: LayoutMode) -> None:
         """A panel on the right of a wide page; the whole of a narrow one.
@@ -309,6 +335,10 @@ class SettingsDrawer(QWidget):
             self.outer.setStretch(0, 0)
             self.outer.setStretch(1, 1)
         narrow = mode is LayoutMode.COMPACT
+        # The font can have changed since this was built — the accessibility
+        # setting changes it under a live window — and the names are as wide
+        # as the font makes them.
+        self._fit_the_rail()
         self.category_column.setVisible(not narrow)
         self.category_combo.setVisible(narrow)
         self._settle_rows()

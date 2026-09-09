@@ -655,6 +655,30 @@ class TestADryRunIsNotAPublication:
         )
         assert outcome.published == 0 and outcome.written == 0
 
+    def test_a_trial_offers_nothing_to_open(self, qt_app, page):
+        """R02's other half, in the words of the acceptance list: *„written=0,
+        brak aktywnego otwierania wyników"*.
+
+        The batch that wrote nothing because it *failed* has its own test. This
+        one wrote nothing because it was never going to: a trial publishes into
+        a directory that is deleted when the run ends, and offering to open a
+        folder that no longer exists is the same lie as counting its files.
+
+        Written after the trial was photographed and the button underneath it
+        had to be checked by hand.
+        """
+        from PySide6.QtWidgets import QPushButton
+
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run(plan_only=True)
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        assert page.outcome.operation.is_a_trial
+        assert page.outcome.published == 0
+        card = page._next_card(page.outcome)
+        opener = card.findChildren(QPushButton)[0]
+        assert not opener.isEnabled(), "próba oferuje otwarcie nieistniejącego folderu"
+
     def test_the_plan_carries_the_session_and_the_trial_flag(self, qt_app, page):
         page.start(["a.epub"])
         settle(qt_app, page, lambda: page.stage is Stage.PLAN)

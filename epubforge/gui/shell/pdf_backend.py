@@ -18,7 +18,8 @@ import pathlib
 from ...pdfconv import service
 from ...pdfconv.models import PdfConversionPlan
 from ...pdfconv.settings import PdfSettings
-from .models import BookItem, BookStatus, Operation, Progress, Severity
+from .models import (BookItem, BookStatus, ChangeCategory, Operation, Progress,
+                     Severity)
 
 #: What the converter reads. One tuple, so the routing and the drop zone
 #: cannot disagree about it.
@@ -114,6 +115,13 @@ class PdfBackend:
         item.output = outcome.published_outputs[0] if outcome.published_outputs else None
         item.issues = len(outcome.warnings)
         item.error = outcome.error
+        # Every remark, not only the first. The row has space for one line and
+        # elides it; the acceptance list asks for the layout and image warnings
+        # to be visible *in the result* rather than only in the full report,
+        # and "OCR is not something this program does" is the whole of what a
+        # refused scan has to say. Keeping one string threw the rest away
+        # before anything could show them.
+        item.categories = self._what_happened(outcome)
         if not outcome.published:
             item.status = BookStatus.BLOCKED if not outcome.error else BookStatus.FAILED
             item.severity = Severity.ERROR
@@ -122,6 +130,19 @@ class PdfBackend:
         item.status = BookStatus.ATTENTION if outcome.warnings else BookStatus.DONE
         if outcome.warnings:
             item.error = outcome.warnings[0]
+
+    @staticmethod
+    def _what_happened(outcome) -> tuple:
+        """The remarks of one conversion, in the order they matter."""
+        from ..strings import tr
+
+        said: list[str] = []
+        if outcome.error:
+            said.append(outcome.error)
+        said.extend(one for one in outcome.warnings if one not in said)
+        if not said:
+            return ()
+        return (ChangeCategory("warning", tr("pdf.results.notes"), tuple(said)),)
 
     # -- what the results screen offers -------------------------------------
     def export_report(self, item: BookItem, destination: pathlib.Path) -> None:
@@ -201,6 +222,9 @@ class DemoPdfBackend(PdfBackend):
                 item.status, item.severity = BookStatus.BLOCKED, Severity.ERROR
                 item.error = tr("pdf.needs.ocr")
                 item.published_outputs, item.output = (), None
+                item.categories = (
+                    ChangeCategory("warning", tr("pdf.results.notes"), (item.error,)),
+                )
             else:
                 folder = plan.destination or item.source.parent
                 item.published_outputs = (
@@ -210,8 +234,15 @@ class DemoPdfBackend(PdfBackend):
                 item.issues = 1 if index else 0
                 item.severity = Severity.WARNING if item.issues else Severity.CLEAN
                 item.status = BookStatus.ATTENTION if item.issues else BookStatus.DONE
+                item.categories = ()
                 if item.issues:
                     item.error = tr("pdf.warning.reading-order")
+                    # The same shape the service's own results take: the demo
+                    # holding a different contract is how a screen comes out
+                    # tested green and empty in front of somebody.
+                    item.categories = (
+                        ChangeCategory("warning", tr("pdf.results.notes"), (item.error,)),
+                    )
             item.report_text = f"{item.title}\n{'-' * len(item.title)}\n(demo)"
             if document_done is not None:
                 document_done(index, item)

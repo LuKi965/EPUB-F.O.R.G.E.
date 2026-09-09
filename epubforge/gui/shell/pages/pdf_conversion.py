@@ -600,6 +600,21 @@ class PdfConversionPage(Responsive, QWidget):
         self.result_list.finish()
         results.body.addWidget(self.result_list)
         results.body.addStretch(1)
+
+        # What actually happened to the document that is selected, spelled out
+        # rather than elided into a row. A refused scan says "OCR is not
+        # something this program does" here, and a converted document lists
+        # every remark it came with — the acceptance list asks for both to be
+        # in the result and not only in the full report.
+        self._notes_card = Card(tr("pdf.results.notes"), tr("pdf.results.notes.body"),
+                                glyph="warning", tokens=self.tokens)
+        self._notes_body = QVBoxLayout()
+        self._notes_card.body.addLayout(self._notes_body)
+        report_button = button(tr("pdf.results.report"), kind="ghost", glyph="inspect",
+                               tokens=self.tokens, tip=tr("pdf.results.report.body"))
+        report_button.clicked.connect(self._show_report)
+        self._notes_card.body.addWidget(report_button)
+        results.body.addWidget(self._notes_card)
         columns.add(results, 2)
         columns.add(self._next_card(outcome), 1)
         self.body.addWidget(columns, 1)
@@ -702,6 +717,36 @@ class PdfConversionPage(Responsive, QWidget):
         for row in getattr(self, "_result_rows", []):
             chosen = row.book is item
             row.set_selected(chosen)
+        if not hasattr(self, "_notes_body"):
+            return
+        clear_layout(self._notes_body)
+        said = [line for group in (item.categories if item else ()) for line in group.lines]
+        if not said:
+            self._notes_body.addWidget(label(tr("pdf.results.notes.none"), "muted"))
+            return
+        for line in said:
+            # Wrapped, not elided: a sentence whose last third is the part that
+            # says what to do about it is a sentence that has to be readable.
+            self._notes_body.addWidget(label(f"•  {line}", "cardSubtitle"))
+
+    def _show_report(self) -> None:
+        """The whole report, for the document in hand."""
+        item = self._selected
+        if item is None:
+            return
+        from PySide6.QtWidgets import QDialog, QPlainTextEdit
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr("pdf.results.report.title", title=item.title))
+        dialog.resize(880, 620)
+        stack = QVBoxLayout(dialog)
+        view = QPlainTextEdit(item.report_text or tr("report.placeholder"))
+        view.setReadOnly(True)
+        stack.addWidget(view)
+        close = button(tr("about.close"))
+        close.clicked.connect(dialog.accept)
+        stack.addWidget(close, alignment=Qt.AlignRight)
+        dialog.exec()
 
     def save_report(self) -> None:
         item = self._selected or next(

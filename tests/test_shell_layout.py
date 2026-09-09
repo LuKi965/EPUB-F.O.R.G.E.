@@ -147,12 +147,13 @@ HISTORY = [
 ]
 
 
-def every_screen(qt_app):
+def every_screen(qt_app, tokens=None):
     """One of each, freshly built, with the state that makes them worth looking at."""
-    yield "start", HomePage(tokens_module.DARK, HISTORY)
-    yield "narzedzia", ToolsPage(tokens_module.DARK)
-    yield "historia", HistoryPage(tokens_module.DARK, HISTORY)
-    yield "ustawienia", SettingsPage(tokens_module.DARK)
+    tokens = tokens or tokens_module.DARK
+    yield "start", HomePage(tokens, HISTORY)
+    yield "narzedzia", ToolsPage(tokens)
+    yield "historia", HistoryPage(tokens, HISTORY)
+    yield "ustawienia", SettingsPage(tokens)
 
 
 class TestEveryScreenAtEverySize:
@@ -216,6 +217,44 @@ class TestEveryScreenAtEverySize:
             finish(page)
 
     @pytest.mark.parametrize("size", SIZES)
+    def test_every_category_name_fits_the_column_it_is_written_in(
+        self, qt_app, host, size
+    ):
+        """The column used to be a written 150 px, which is 27 short of *Wygląd
+        i typografia*: the name lost its last four letters, **clipped** rather
+        than elided — no ellipsis, cut mid-letter. The tooltip and the
+        accessible name still carried the whole thing, so it was reachable, but
+        a person looking at the drawer had no way to know that.
+
+        The acceptance list says a check on buttons has to cover their whole
+        text, and this is why: `problems_with` sees a widget that is on screen
+        and the right size, because it is — with four letters missing.
+
+        Seen first in a screenshot of the real window, then written down here.
+        """
+        page = rebuild_page(qt_app)
+        try:
+            page.start(["Powiesc.epub"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, size)
+            page._open_drawer()
+            for _ in range(8):
+                qt_app.processEvents()
+            drawer = page.drawer
+            if not drawer.category_column.isVisibleTo(drawer):
+                # Compact swaps the column for a combo box, which is a
+                # different answer to the same question and has its own test.
+                return
+            cut = [
+                one.text() for one in drawer._buttons_by_category.values()
+                if one.width() < one.sizeHint().width()
+            ]
+            assert not cut, (size, cut, drawer.category_column.width())
+            drawer.close_drawer()
+        finally:
+            finish(page)
+
+    @pytest.mark.parametrize("size", SIZES)
     @pytest.mark.parametrize("name", ["library", "diagnostics", "corpus"])
     def test_every_tool_page_is_whole(self, qt_app, host, name, size):
         tools = ToolsPage(tokens_module.DARK)
@@ -251,6 +290,54 @@ class TestBothLanguages:
                 assert not problems_with(page), (code, name, size)
             finally:
                 finish(page)
+
+
+class TestBothThemes:
+    """The light theme shipped and nothing ever laid it out.
+
+    Every layout test in this file built its pages with `tokens_module.DARK`,
+    so the second theme — a whole stylesheet, its own metrics, its own
+    padding — was drawn only by the application. The acceptance list asks for
+    both, and it asks because a theme is not a palette swap here: the sheet
+    sets sizes as well as colours, and a control lost behind an edge is lost
+    in whichever theme did it.
+    """
+
+    @pytest.fixture
+    def _sheet(self, qt_app):
+        """Give the application the theme's own stylesheet, and put the dark
+        one back — this fixture's pages are not the only ones in the run."""
+        before = qt_app.styleSheet()
+        yield
+        qt_app.setStyleSheet(before)
+
+    @pytest.mark.parametrize("theme", ["DARK", "LIGHT"])
+    @pytest.mark.parametrize("size", [(1440, 900), (900, 600), (800, 560)])
+    def test_no_control_is_lost_in_either_theme(self, qt_app, host, _sheet, theme, size):
+        tokens = getattr(tokens_module, theme)
+        qt_app.setStyleSheet(tokens_module.stylesheet(tokens))
+        for name, page in every_screen(qt_app, tokens):
+            try:
+                laid_out(qt_app, page, host, size)
+                assert not problems_with(page), (theme, name, size)
+            finally:
+                finish(page)
+
+    @pytest.mark.parametrize("theme", ["DARK", "LIGHT"])
+    def test_the_plan_keeps_its_main_action_in_either_theme(
+        self, qt_app, host, _sheet, theme
+    ):
+        tokens = getattr(tokens_module, theme)
+        qt_app.setStyleSheet(tokens_module.stylesheet(tokens))
+        page = RebuildPage(tokens, DemoBackend())
+        try:
+            page.start(["Powiesc.epub", "Zbior.epub", "Poradnik.epub"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            for size in ((1440, 900), (900, 600)):
+                laid_out(qt_app, page, host, size)
+                assert not problems_with(page, main_action=page.run_button), (theme, size)
+        finally:
+            finish(page)
 
 
 class TestTheCompositionChangesAndNotJustTheSize:
@@ -529,6 +616,48 @@ class TestF08ALongBatchDoesNotBuryTheDecision:
                 if one.text() == tr("shell.run") and one.isVisibleTo(page)
             ]
             assert len(primaries) == 1, [one.text() for one in primaries]
+        finally:
+            finish(page)
+
+    def test_a_second_batch_does_not_leave_the_old_button_in_the_footer(
+        self, qt_app, host
+    ):
+        """The footer holds one action, not a place where buttons pile up.
+
+        Every state of this page builds its own widgets, so a second plan makes
+        a **new** `run_button` while the previous one is still parented to the
+        footer — where the body's own teardown cannot reach it. The result is
+        two live primary buttons side by side, which is exactly what moving the
+        one button instead of duplicating it was for.
+
+        Found in a screenshot of the real window on real books, not in a
+        mock-up and not by reading the code.
+        """
+        from PySide6.QtWidgets import QPushButton
+
+        page = rebuild_page(qt_app)
+        try:
+            page.start(self._books(4))
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (900, 600))
+            for _ in range(6):
+                qt_app.processEvents()
+            assert not page.footer.isHidden()
+
+            page.start(self._books(2))
+            settle(qt_app, lambda: page.stage is Stage.PLAN and len(page.books) == 2)
+            laid_out(qt_app, page, host, (900, 600))
+            for _ in range(6):
+                qt_app.processEvents()
+
+            inside = page.footer.findChildren(QPushButton)
+            assert len(inside) == 1, [one.text() for one in inside]
+            assert inside[0] is page.run_button, "w stopce został stary przycisk"
+            shown = [
+                one for one in page.findChildren(QPushButton)
+                if one.text() == tr("shell.run") and one.isVisibleTo(page)
+            ]
+            assert len(shown) == 1, [one.text() for one in shown]
         finally:
             finish(page)
 

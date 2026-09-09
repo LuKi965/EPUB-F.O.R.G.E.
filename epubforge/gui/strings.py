@@ -1393,6 +1393,12 @@ PL: dict[str, str] = {
     "pdf.results.again": "Konwertuj kolejne",
     "pdf.results.list": "Wyniki",
     "pdf.results.list.body": "Kliknij dokument, aby zobaczyć szczegóły.",
+    "pdf.results.notes": "Co się wydarzyło",
+    "pdf.results.notes.body": "Uwagi do wybranego dokumentu, w całości.",
+    "pdf.results.notes.none": "Bez uwag — konwersja przebiegła czysto.",
+    "pdf.results.report": "Pokaż pełny raport",
+    "pdf.results.report.body": "Cały raport konwersji tego dokumentu.",
+    "pdf.results.report.title": "Raport konwersji — {title}",
     "pdf.results.handover": "Przekaż utworzony EPUB do przebudowy",
     "pdf.results.handover.tip": (
         "Dodaje zapisane pliki do sesji Przebudowy EPUB. Nic nie startuje samo."
@@ -2851,6 +2857,12 @@ EN: dict[str, str] = {
     "pdf.results.again": "Convert more",
     "pdf.results.list": "Results",
     "pdf.results.list.body": "Click a document to see the details.",
+    "pdf.results.notes": "What happened",
+    "pdf.results.notes.body": "The remarks for the selected document, in full.",
+    "pdf.results.notes.none": "No remarks — the conversion ran clean.",
+    "pdf.results.report": "Show the full report",
+    "pdf.results.report.body": "The whole conversion report for this document.",
+    "pdf.results.report.title": "Conversion report — {title}",
     "pdf.results.handover": "Send the new EPUB to the rebuild",
     "pdf.results.handover.tip": (
         "Adds the written files to the EPUB rebuild session. Nothing starts by itself."

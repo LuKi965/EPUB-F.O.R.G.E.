@@ -704,13 +704,22 @@ class DemoBackend:
                 book_done=None, resolver=None) -> BatchOutcome:
         from ..strings import tr
 
+        # A trial here is a trial there. The engine writes into a directory it
+        # deletes at the end of the run and publishes nothing; a demo that
+        # answered the same request with four filenames would make the
+        # interface's own tests green about a claim the engine never makes,
+        # which is how F03 came to be tested green on one and broken on the
+        # other — and this is F04, one field over.
+        _policy, _check, trial = policy_for(plan)
         chosen = [book for book in books if book.chosen]
+        operation = Operation.EPUB_DRY_RUN if trial else Operation.EPUB_REBUILD
         for index, book in enumerate(chosen):
             if cancelled is not None and cancelled():
                 for rest in chosen[index:]:
                     rest.status = BookStatus.CANCELLED
                 return BatchOutcome(tuple(chosen), cancelled=True,
                                     destination=plan.destination,
+                                    operation=operation,
                                     session_id=plan.session_id)
             if progress is not None:
                 progress(Progress(index, len(chosen), book.title, "rebuild"))
@@ -723,8 +732,10 @@ class DemoBackend:
             # Both fields, and by the same rule the engine uses: the demo and
             # the engine disagreeing about what a result means is how F03 came
             # to be tested green on one and broken on the other.
-            book.published_outputs = (pathlib.Path(folder) / f"{book.source.stem}.forged.epub",)
-            book.output = book.published_outputs[0]
+            book.published_outputs = () if trial else (
+                pathlib.Path(folder) / f"{book.source.stem}.forged.epub",
+            )
+            book.output = book.published_outputs[0] if book.published_outputs else None
             book.report_text = f"{book.title}\n{'-' * len(book.title)}\n(demo)"
             book.categories = (
                 ChangeCategory("book", tr("shell.changes.navigation"), (tr("shell.changes.none"),)),
@@ -732,7 +743,7 @@ class DemoBackend:
             if book_done is not None:
                 book_done(index, book)
         return BatchOutcome(tuple(chosen), destination=plan.destination,
-                            session_id=plan.session_id)
+                            operation=operation, session_id=plan.session_id)
 
     @staticmethod
     def destination_for(source: pathlib.Path, folder: "pathlib.Path | None", kepub: bool) -> str:

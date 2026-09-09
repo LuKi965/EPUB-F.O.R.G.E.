@@ -160,6 +160,51 @@ class TestWhatAConversionResultMeans:
         assert scan.error == tr("pdf.needs.ocr")
         assert page.outcome.published == 1, "skan policzył się jako publikacja"
 
+    def test_the_reason_is_on_the_results_screen_and_not_only_in_the_report(
+        self, qt_app, page
+    ):
+        """P05 and P07: *„jawne «OCR nieobsługiwane»"* and *„widoczne
+        w wyniku, nie tylko w pełnym raporcie"*.
+
+        The row gives a remark one elided line, and the sentence that says what
+        was refused and why ends past the ellipsis. Every remark was thrown
+        away besides — the adapter kept `warnings[0]` in one string — so there
+        was nothing for a screen to show even if it had wanted to.
+
+        Seen in a screenshot of the real converter: the refused scan's row read
+        *„PDF nie ma warstw…"*, and the word OCR was nowhere on the screen.
+        """
+        from PySide6.QtWidgets import QLabel
+
+        page.start(["Instrukcja.pdf", "Skan bez tekstu.pdf"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        scan = next(one for one in page.outcome.books if one.title == "Skan bez tekstu")
+        page._select(scan)
+        said = " ".join(
+            one.text() for one in page._notes_card.findChildren(QLabel) if one.text()
+        )
+        assert tr("pdf.needs.ocr") in said, said
+        # And a document that converted cleanly does not borrow the scan's.
+        clean = next(one for one in page.outcome.books if one.published)
+        page._select(clean)
+        after = " ".join(
+            one.text() for one in page._notes_card.findChildren(QLabel) if one.text()
+        )
+        assert tr("pdf.needs.ocr") not in after
+
+    def test_every_remark_survives_and_not_only_the_first(self, qt_app, page):
+        """`warnings[0]` in a single string is one remark; the rest were lost
+        between the service and the row."""
+        page.start(["Katalog czesci.pdf"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        (item,) = page.outcome.books
+        kept = [line for group in item.categories for line in group.lines]
+        assert len(kept) >= item.issues, (item.issues, kept)
+
     def test_the_outcome_says_what_kind_of_job_it_was(self, qt_app, page):
         from epubforge.gui.shell.models import Operation
 

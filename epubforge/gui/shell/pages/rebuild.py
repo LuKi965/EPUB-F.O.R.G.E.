@@ -170,6 +170,13 @@ class RebuildPage(Responsive, QWidget):
         kilometrowego formularza").
         """
         action = getattr(self, "run_button", None)
+        # Every state builds its own widgets, so `run_button` can be a *new*
+        # object while the last one is still parented here — outside the body,
+        # where clearing the body cannot reach it. Left alone that is two live
+        # primary buttons side by side, which is the thing moving one button
+        # instead of duplicating it was for. The footer holds one action, so
+        # anything else in it is a leftover and goes.
+        self._empty_the_footer(keep=action)
         if action is None or self.stage is not Stage.PLAN:
             self.footer.setVisible(False)
             return
@@ -187,6 +194,17 @@ class RebuildPage(Responsive, QWidget):
                 home.insertWidget(home.indexOf(self.plan_button), action)
         self.footer_count.setText(tr("shell.plan.count", count=self.ready_count))
         self.footer.setVisible(wants_footer)
+
+    def _empty_the_footer(self, *, keep) -> None:
+        """Drop everything the footer holds except the count and *keep*."""
+        for index in reversed(range(self._footer_row.count())):
+            item = self._footer_row.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if widget is None or widget is keep or widget is self.footer_count:
+                continue
+            self._footer_row.takeAt(index)
+            widget.setParent(None)
+            widget.deleteLater()
 
     def _settle(self) -> None:
         """Hand the current mode to whatever the last state just built.
