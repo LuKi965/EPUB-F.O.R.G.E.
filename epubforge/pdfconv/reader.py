@@ -421,7 +421,11 @@ def _refuse_a_book_of_pictures(pages: list[Page], layout: "Layout", source: str,
         values={"pages": len(pages), "characters": layout.characters},
         location=source,
     )
-    raise EpubReadError("the PDF has no text layer to read; scanning it would need OCR")
+    # The finding above is the reason, with both numbers and in the reader's
+    # language. This only stops the run; it does not restate it (`reported`).
+    refusal = EpubReadError("the PDF has no text layer to read; scanning it would need OCR")
+    refusal.reported = True
+    raise refusal
 
 
 def _fill_the_book(book: Book, sections: list, layout: "Layout",

@@ -164,6 +164,22 @@ class TestP04AndP06TheConverterStillDoesWhatItDid:
         said = result.report_text
         assert "OCR" in said, said
 
+    def test_the_refusal_is_said_once_and_in_the_readers_own_words(self, scan, tmp_path):
+        """The reader reports the refusal as a rule — translated, with both
+        numbers — and then raises to stop the run. The pipeline's generic
+        wrapper used to interpolate the exception's own text on top of that, so
+        the reason arrived twice: once in the reader's language and once in
+        whatever the raiser had written. On a Polish screen that is an English
+        sentence standing under a Polish one, and the conversion results now
+        show every remark, so it was on screen rather than buried in a report.
+        """
+        (result,) = converted([scan], tmp_path)
+        assert not result.published
+        # One remark about the missing text layer, not two.
+        about = [one for one in result.warnings if "OCR" in one]
+        assert len(about) == 1, result.warnings
+        assert "no text layer" not in " ".join(result.warnings), result.warnings
+
 
 class TestP07TheWarningsAreInTheResultAndNotOnlyInTheReport:
     def test_a_quality_warning_reaches_the_result_object(self, tmp_path):

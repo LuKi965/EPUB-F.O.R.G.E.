@@ -1661,12 +1661,17 @@ def _read_or_refuse(source, report, budget, read, policy) -> "tuple[Book | None,
         _budget_refused(report, "reader", exc)
         return None, Result(report, None, None, Status.BLOCKED)
     except EpubReadError as exc:
-        report.add(
-            "reader",
-            Level.ERROR,
-            "package.unreadable-source",
-            values={"error": str(exc)},
-        )
+        # Unless the reader has already said why, in a rule of its own. This
+        # line interpolates the exception's text, so a reader that both
+        # reports and raises gets its reason printed twice — once translated
+        # and once in whatever language the exception was written in.
+        if not getattr(exc, "reported", False):
+            report.add(
+                "reader",
+                Level.ERROR,
+                "package.unreadable-source",
+                values={"error": str(exc)},
+            )
         return None, Result(report, None, None, Status.FAILED)
 
 

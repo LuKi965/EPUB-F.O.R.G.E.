@@ -144,8 +144,14 @@ class PdfConversionPage(Responsive, QWidget):
             tr("pdf.eyebrow"), tr("pdf.title.files"), tr("pdf.subtitle.files"),
         )
         page.addWidget(self.header)
+        # Four names for four slots, and the third one is the settings screen
+        # because that is where a person stands while they read it. It used to
+        # be "Konwersja", with "Ustawienia" one slot earlier and therefore
+        # ticked as *done* while the settings were still being chosen — the
+        # step someone is on, marked finished, with the next one highlighted.
+        # Seen on the screenshot of this page (etap 5).
         self.stepper = Stepper(tokens, (
-            "pdf.step.documents", "pdf.step.settings", "pdf.step.convert",
+            "pdf.step.documents", "pdf.step.reading", "pdf.step.settings",
             "pdf.step.results",
         ))
         page.addWidget(self.stepper)

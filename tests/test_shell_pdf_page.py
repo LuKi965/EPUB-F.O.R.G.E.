@@ -104,6 +104,25 @@ class TestItIsItsOwnPageAndNotALabelOnTheRebuild:
         assert set(vars(page.settings)) == {"layout", "running_heads"}
         assert "render_gate" in page.publication
 
+    def test_the_stepper_lights_the_step_a_person_is_standing_on(self, qt_app, page):
+        """Its own four steps, and the right one of them.
+
+        D-057 is why this module has a stepper of its own rather than *Plan
+        przebudowy* written over a conversion. But the names were one slot out:
+        `Ustawienia` sat where the flow never stops and `Konwersja` where it
+        does, so the settings screen showed the settings step **ticked as done**
+        with the next one highlighted — the one thing a stepper exists not to
+        do. Seen in a screenshot of this page, not in the code.
+        """
+        assert page.stepper.KEYS != page.stepper.__class__.KEYS, "kroki przebudowy"
+        page.start(["a.pdf"])
+        assert page.stage is Stage.PLAN
+        here = page.stepper.KEYS[page.stage.step]
+        assert here == "pdf.step.settings", here
+        assert tr(here) in page.stepper._labels[page.stage.step].text()
+        # And the step before it is behind, not the one being chosen.
+        assert page.stepper.KEYS.index("pdf.step.settings") == page.stage.step
+
 
 class TestTheDocumentsThatReachIt:
     def test_it_takes_pdfs_and_says_the_epub_belongs_next_door(self, qt_app, page):

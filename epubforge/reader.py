@@ -75,7 +75,16 @@ _STRICT_PARSER = etree.XMLParser(recover=False, resolve_entities=False, huge_tre
 
 
 class EpubReadError(Exception):
-    """Raised only when the archive cannot be opened at all."""
+    """Raised only when the archive cannot be opened at all.
+
+    `reported` says the report already carries the finding that explains this
+    refusal. The pipeline's own wrapper (`package.unreadable-source`) then
+    keeps quiet instead of saying it a second time in the raiser's words —
+    which are the raiser's language, not a rule's, and that is how an English
+    sentence came to stand under a Polish one on the conversion results.
+    """
+
+    reported = False
 
 
 def parse_xml(data: bytes | None, where: str = "", report: "Report | None" = None):
