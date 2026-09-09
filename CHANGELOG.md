@@ -230,28 +230,32 @@ dochodzi do asercji — test pilnuje więc własności, której zakleszczenie
 potrzebowało: `destroyed` przychodzi na wątku okna.
 
 **Szersza czcionka zmienia kształt, a nie pasek przewijania.** Znalezione
-przez pierwszą próbę wydania tej wersji: build padł na dwóch testach układu,
-**tylko na Windowsie**, który rysuje w Segoe UI — szerszym niż krój maszyny,
-na której to powstaje. Trzy przyczyny, jedna pod drugą, i wszystkie są tym
-samym błędem: **pytaniem o stan, którego jeszcze nie ma.**
+przez próby wydania tej wersji: build padał na testach układu **tylko na
+Windowsie**, który rysuje w Segoe UI — szerszym niż krój maszyny, na której to
+powstaje. Dwie awarie z przeciwnych stron interfejsu okazały się jednym
+widgetem.
 
-Szuflada pytała `isVisible()` **przed** `show()`, a dziecko ukrytego widgetu
-nie jest widoczne — więc szyna kategorii liczyła się jako zerowa i panel
-dostawał szerokość tak, jakby lista miała ją całą. Podłoga listy była mierzona
-na pustym pudełku: `_draw` buduje wiersze i mierzy natychmiast, a Qt nie
-pokazuje świeżo przepiętego widgetu do następnego obiegu pętli — **układ liczy
-ukryte dziecko jako puste**, więc suma mówiła 8 px dla listy, która
-potrzebowała 303. A kompozycja dwukolumnowa mierzyła **własną** szerokość:
-widget, którego treść nie chce się zwęzić, już jest tak szeroki, jak ona żąda,
-więc porównywał tę szerokość sam ze sobą i zawsze odpowiadał „mieści się",
-podczas gdy strona wokół przewijała się w bok. Ta sama pułapka, którą ten
-plik opisuje przy `WIDE_FROM` — wejście wzięte z wyjścia.
+**`StatusBadge`.** „Ma się nie rozciągać" zostało zapisane jako `Fixed`, co
+znaczy też **„ma się nie zwężać"**. Plakietka jest tak szeroka jak jej słowo
+w danym kroju, a widget, który nie umie się zwęzić, ustawia podłogę każdej
+kolumny, w której stoi. Jedna plakietka w wierszu wyników i druga w wierszu
+historii wygłodziły listę konwertera — 290 px na wiersze, których nie da się
+narysować w mniej niż 405 — i wypchnęły boczną kolumnę strony Start poza to,
+co daje jedna trzecia szerokości. Słowo skraca się teraz, gdy brakuje miejsca,
+zachowując glif i kolor, a całe zostaje w tooltipie i nazwie dostępnościowej:
+trzy sposoby podania statusu przeżywają, a żaden nie decyduje, jak szeroka
+musi być kolumna.
 
-Minimum kolumny liczy się teraz tak, jak liczy je Qt: wobec **udziału**
-kolumny, nie jako suma. Podsumowanie z podłogą 300 px w kolumnie jednej
-trzeciej nie potrzebuje 300 px strony, tylko 900. `BoundedList` podaje wreszcie
-swoją podłogę — wiersz to okładka, zdanie, które się skraca, plakietka i
-przycisk, i tylko zdanie ustępuje.
+**Szuflada ustawień, osobno.** Pytała `isVisible()` **przed** `show()`, a
+dziecko ukrytego widgetu nie jest widoczne — więc szyna kategorii liczyła się
+jako zerowa i panel dostawał szerokość tak, jakby lista miała ją całą. Podłoga
+listy była do tego mierzona na pustym pudełku: `_draw` buduje wiersze i mierzy
+natychmiast, a Qt nie pokazuje świeżo przepiętego widgetu do następnego obiegu
+pętli — **układ liczy ukryte dziecko jako puste**, więc suma mówiła 8 px dla
+listy, która potrzebowała 303. Panel liczy się teraz z tego, co ma w środku,
+i może przekroczyć `DRAWER_WIDTH`: próg napisany dla jednego kroju nie jest
+progiem dla innego. Gdy nawet cała strona nie wystarcza, szyna ustępuje miejsca
+liście i kategorie przechodzą w listę rozwijaną.
 
 **Asercja mówi teraz, co się nie mieści.** Brzmiała „strona wymaga przewijania
 w poziomie" — na stronie z trzema obszarami przewijania, czyli jedyne miejsce,
