@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from ..strings import tr
 from . import icons
 from .models import STATUS_LOOK, BookItem, BookStatus, Preset, Stage
+from .responsive import LayoutMode
 from .tokens import SIDEBAR_COMPACT_WIDTH, SIDEBAR_WIDTH, Tokens
 
 
@@ -581,6 +582,70 @@ class Eliding(QLabel):
 #: card in a column is narrower than the page it is on.
 ROW_STACKS_BELOW = 620
 
+#: And above this, the row has room for the larger cover the design allows —
+#: 56×84 rather than 48×72. One number, so a row cannot disagree with itself
+#: about how much room it has.
+ROW_IS_ROOMY_ABOVE = 900
+
+
+class Cover(QLabel):
+    """A book's own cover, at the size the list draws it — or a placeholder.
+
+    The row used to carry a 22 px generic book glyph for every title, which is
+    the same picture whatever the book is (F02). This draws the book's own,
+    from the bytes the adapter decoded off the GUI thread, and falls back to a
+    placeholder **of the same geometry** so a list of covers and a list without
+    them are the same shape and nothing jumps.
+    """
+
+    #: Logical pixels, from 02-UI-DESIGN: 48×72 in the list, 56×84 in a large
+    #: view, 40×60 when the row goes compact — and the cover stays visible in
+    #: all three, which the generic icon did not.
+    SIZES = {
+        LayoutMode.WIDE: (56, 84),
+        LayoutMode.MEDIUM: (48, 72),
+        LayoutMode.COMPACT: (40, 60),
+    }
+
+    def __init__(self, book: BookItem, tokens: Tokens,
+                 mode: LayoutMode = LayoutMode.MEDIUM) -> None:
+        super().__init__()
+        self.setObjectName("cover")
+        self.book = book
+        self.tokens = tokens
+        self.setAlignment(Qt.AlignCenter)
+        self.setScaledContents(False)
+        self.set_mode(mode)
+
+    def set_mode(self, mode: LayoutMode) -> None:
+        width, height = self.SIZES.get(mode, self.SIZES[LayoutMode.MEDIUM])
+        self.setFixedSize(width, height)
+        self._draw(width, height)
+
+    def _draw(self, width: int, height: int) -> None:
+        from PySide6.QtGui import QPixmap
+
+        book = self.book
+        if getattr(book, "has_a_cover", False):
+            picture = QPixmap()
+            # The only decoding that happens on this thread, and it is of a
+            # thumbnail at most 112×168 — the expensive half was done in
+            # `thumbnails.shrink` before this object existed.
+            if picture.loadFromData(book.cover):
+                # `contain`: the whole cover inside the box, proportions kept.
+                self.setPixmap(picture.scaled(
+                    width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                ))
+                self.setToolTip(book.title)
+                self.setAccessibleName(tr("shell.cover.of", title=book.title))
+                return
+        self.setPixmap(
+            icons.icon("book", self.tokens.muted).pixmap(min(width - 12, 28),
+                                                         min(width - 12, 28))
+        )
+        self.setToolTip(tr("shell.cover.none"))
+        self.setAccessibleName(tr("shell.cover.none"))
+
 
 class BookRow(Clickable):
     """One book in the plan, or one book in the results.
@@ -616,10 +681,8 @@ class BookRow(Clickable):
                 self.choose.setToolTip(book.error or tr("shell.plan.unavailable"))
             row.addWidget(self.choose)
 
-        self.mark = QLabel()
-        self.mark.setPixmap(icons.icon("book", tokens.muted).pixmap(22, 22))
-        self.mark.setFixedWidth(26)
-        row.addWidget(self.mark)
+        self.mark = Cover(book, tokens)
+        row.addWidget(self.mark, 0, Qt.AlignVCenter)
 
         self.names = QVBoxLayout()
         self.names.setSpacing(2)
@@ -672,12 +735,27 @@ class BookRow(Clickable):
         )
         self.activated.connect(lambda: self.opened.emit(self.book))
 
+    def _cover_mode(self) -> LayoutMode:
+        """Which of the three cover sizes this row has room for."""
+        if self.width() < ROW_STACKS_BELOW:
+            return LayoutMode.COMPACT
+        return LayoutMode.WIDE if self.width() >= ROW_IS_ROOMY_ABOVE else LayoutMode.MEDIUM
+
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
         super().resizeEvent(event)
+        # The cover follows the width every time, not only when the row
+        # crosses the stacking line: three sizes, two thresholds.
+        self.mark.set_mode(self._cover_mode())
         narrow = self.width() < ROW_STACKS_BELOW
         if narrow is self._narrow:
             return
         self._narrow = narrow
+        # Not hidden — resized. The design asks for the cover to stay visible
+        # in the compact row, at 40×60, precisely because the generic icon it
+        # replaces used to disappear there and take the only picture of the
+        # book with it (02-UI-DESIGN, „Komponent książki"). Before the summary,
+        # because a row with nothing to say about the book still has a cover.
+        self.mark.set_mode(self._cover_mode())
         if self.summary is None:
             return
         # Moved, not rebuilt: the same label, one layout over.
@@ -687,7 +765,6 @@ class BookRow(Clickable):
         else:
             self.names.removeWidget(self.summary)
             self._row.insertWidget(self._summary_at, self.summary, 2)
-        self.mark.setVisible(not narrow)
 
 
 class Tile(Clickable):

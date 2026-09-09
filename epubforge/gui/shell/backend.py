@@ -20,11 +20,13 @@ from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 from ...policy import Policy
+from . import thumbnails
 from .models import (
     BatchOutcome,
     BookItem,
     BookStatus,
     ChangeCategory,
+    CoverState,
     Operation,
     Preset,
     Progress,
@@ -125,10 +127,11 @@ def policy_for(plan: RebuildPlan) -> "tuple[Policy, bool, bool]":
 def _set_nested(policy: Policy, key: str, value) -> bool:
     """Set `policy.a.b` for a dotted key, `policy.a` for a plain one.
 
-    A module that reads a source this program does not repair keeps its
-    settings in one field of the policy (`Policy.pdf`, D-056), so the drawer
-    addresses them by path. Anything the policy does not have is left alone —
-    `test_shell_backend` proves the catalogue has no such key.
+    Dotted keys are how a setting that lives inside a group on the policy is
+    addressed from the drawer without the drawer knowing the shape of the
+    object. Anything the policy does not have is left alone — the catalogue is
+    held to having no such key by a test, and the converter's own settings are
+    not in it at all any more (D-057).
     """
     target = policy
     *path, last = key.split(".")
@@ -252,6 +255,10 @@ class EngineBackend:
         #: window saved — the same domain information, as the acceptance list
         #: puts it — and a rendered text is not that.
         self._reports: dict = {}
+        #: Covers already read, keyed on what each file *is* rather than where
+        #: it lives, so replacing a book under the same name shows the new
+        #: cover (C04) and a shelf of five hundred does not hold five hundred.
+        self._covers = thumbnails.Covers()
 
     # -- analysis ---------------------------------------------------------
     def analyse(self, paths, *, progress=None, cancelled=None) -> "list[BookItem]":
@@ -277,7 +284,8 @@ class EngineBackend:
 
         kind = "PDF" if source.suffix.lower() == ".pdf" else "EPUB"
         size = source.stat().st_size if source.exists() else 0
-        item = BookItem(source=source, title=source.stem, kind=kind, size=size)
+        item = BookItem(source=source, title=source.stem, kind=kind, size=size,
+                        book_id=thumbnails.fingerprint(source))
 
         if kind == "PDF":
             # Reading a PDF's text layer is the rebuild's own first stage and
@@ -318,7 +326,41 @@ class EngineBackend:
         if parsed.has_drm:
             item.status = BookStatus.ATTENTION
             item.summary = tr("shell.analysis.drm")
+        self._take_the_cover(item, parsed)
         return item
+
+    def _take_the_cover(self, item: BookItem, parsed) -> None:
+        """The book's own cover, shrunk to a thumbnail, from the bytes already
+        in hand.
+
+        The reader has decided which resource is the cover long before this —
+        `reader._detect_cover`, which asks the EPUB 3 manifest property first,
+        then the EPUB 2 `meta name="cover"`, then the landmark, and only then
+        a file *named* cover (C01, C02). Nothing here re-decides it, and the
+        first image in the archive is never it by default.
+
+        Nothing about a cover can fail a book. A picture this program cannot
+        decode leaves a row with a placeholder and a state that says which kind
+        of nothing it is (C03).
+        """
+        item.cover_state = CoverState.MISSING
+        path = getattr(parsed, "cover_path", None)
+        if not path:
+            return
+        resource = parsed.resources.get(path)
+        if resource is None or not getattr(resource, "data", b""):
+            return
+        # Kept, so a second look at the same unchanged file costs nothing, and
+        # so a cover that could not be read is not decoded again on every
+        # repaint — `None` is an answer here (`Covers.knows`).
+        key = item.book_id
+        made = (self._covers.get(key) if self._covers.knows(key)
+                else self._covers.put(key, thumbnails.shrink(resource.data, key=key)))
+        if made is None:
+            item.cover_state = CoverState.FAILED
+            return
+        item.cover, item.cover_size = made.data, (made.width, made.height)
+        item.cover_state = CoverState.READY
 
     # -- the rebuild ------------------------------------------------------
     def rebuild(self, plan: RebuildPlan, books, *, progress=None, cancelled=None,
@@ -596,6 +638,13 @@ class DemoBackend:
     def __init__(self, language: str = "pl") -> None:
         self.language = language
 
+    #: Three covers the demo draws itself, so a screenshot shows three
+    #: *different* books rather than three copies of one glyph — and so that a
+    #: repository which is public ships no cover art but its own (S-06). The
+    #: third is deliberately absent: a list where every book has a picture
+    #: never shows what the placeholder looks like beside one.
+    COVERS = ((36, 74, 140), (140, 52, 40), None)
+
     def analyse(self, paths, *, progress=None, cancelled=None) -> "list[BookItem]":
         from ..strings import tr
 
@@ -605,18 +654,48 @@ class DemoBackend:
             source = pathlib.Path(path)
             if progress is not None:
                 progress(Progress(index, len(chosen), source.stem, "analysis"))
-            books.append(
-                BookItem(
-                    source=source,
-                    title=source.stem.replace("_", " "),
-                    author="—",
-                    kind=source.suffix.lstrip(".").upper() or "EPUB",
-                    size=1_800_000 + index * 300_000,
-                    status=BookStatus.READY,
-                    summary=tr("shell.analysis.summary", version="2.0", resources=120, spine=18),
-                )
+            item = BookItem(
+                source=source,
+                title=source.stem.replace("_", " "),
+                author="—",
+                kind=source.suffix.lstrip(".").upper() or "EPUB",
+                size=1_800_000 + index * 300_000,
+                status=BookStatus.READY,
+                summary=tr("shell.analysis.summary", version="2.0", resources=120, spine=18),
+                book_id=f"demo-{index}",
             )
+            self._paint_a_cover(item, self.COVERS[(index - 1) % len(self.COVERS)])
+            books.append(item)
         return books
+
+    @staticmethod
+    def _paint_a_cover(item: BookItem, colour) -> None:
+        """A plain coloured cover, or none at all.
+
+        The demo holds to the same contract the engine does — bytes, a state,
+        a size — because a demo that filled these differently is exactly the
+        drift F03 was about, one field over.
+        """
+        if colour is None:
+            item.cover_state = CoverState.MISSING
+            return
+        try:
+            import io
+
+            from PIL import Image
+        except ImportError:
+            # The demo draws placeholders where the picture library is not
+            # installed, which is also what the engine does.
+            item.cover_state = CoverState.MISSING
+            return
+        out = io.BytesIO()
+        Image.new("RGB", (240, 360), colour).save(out, format="PNG")
+        made = thumbnails.shrink(out.getvalue(), key=item.book_id)
+        if made is None:
+            item.cover_state = CoverState.MISSING
+            return
+        item.cover, item.cover_size = made.data, (made.width, made.height)
+        item.cover_state = CoverState.READY
 
     def defaults_for(self, preset: Preset) -> dict:
         return defaults_from_policy(preset)

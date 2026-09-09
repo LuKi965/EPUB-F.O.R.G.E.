@@ -100,6 +100,25 @@ class Operation(Enum):
         return self is Operation.PDF_CONVERSION
 
 
+class CoverState(str, Enum):
+    """What is known about a book's cover picture.
+
+    Four answers and not two, because "we have not looked yet" and "we looked
+    and there is none" are different things to draw, and "we looked and could
+    not read it" is a third: a picture this program cannot decode is a book
+    with a placeholder, never a book marked broken (C03).
+    """
+
+    #: Nobody has asked the file yet.
+    UNKNOWN = "unknown"
+    #: The book names a cover and it was read.
+    READY = "ready"
+    #: The book names no cover, or names one that is not in it.
+    MISSING = "missing"
+    #: There is a cover and this program could not turn it into a picture.
+    FAILED = "failed"
+
+
 class Severity(Enum):
     """How clean a finished book is — the axis `DONE` used to swallow.
 
@@ -156,6 +175,26 @@ class BookItem:
     #: `output` again; a book with more than one rendition publishes one file
     #: per rendition and the adapter used to keep only the first (F06/R03).
     published_outputs: tuple[Path, ...] = ()
+
+    # -- the cover ---------------------------------------------------------
+    #: What identifies this file as it is now: path, length and modification
+    #: time, hashed. Not the title — two books can share one, and one book can
+    #: be replaced under the same name (C04). Empty until analysis has looked.
+    book_id: str = ""
+    #: Whether there is a cover to draw, and whether it could be read.
+    cover_state: CoverState = CoverState.UNKNOWN
+    #: The cover, decoded and shrunk, as PNG bytes. **Bytes and not a pixmap**:
+    #: this object crosses a thread boundary and is copied, and a `QPixmap` may
+    #: do neither (02-UI-DESIGN, „Kontrakt miniatur"). The GUI turns it into
+    #: one where it draws it.
+    cover: bytes = b""
+    #: What size those bytes decode to, so a row can reserve the space before
+    #: it draws and not jump when it does.
+    cover_size: tuple[int, int] = (0, 0)
+
+    @property
+    def has_a_cover(self) -> bool:
+        return self.cover_state is CoverState.READY and bool(self.cover)
 
     @property
     def publications(self) -> "tuple[Path, ...]":

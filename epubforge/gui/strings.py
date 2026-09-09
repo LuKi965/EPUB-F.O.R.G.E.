@@ -1415,6 +1415,8 @@ PL: dict[str, str] = {
         "{count} {count:plik to EPUB|pliki to EPUB-y|plików to EPUB-y}. Gotową książkę "
         "naprawia Przebudowa EPUB, nie konwerter."
     ),
+    "shell.cover.of": "Okładka: {title}",
+    "shell.cover.none": "Brak okładki",
     "shell.notice.dismiss": "Ukryj tę informację",
     "pdf.wrong.module.go": "Przejdź tam",
     "pdf.wrong.module.stay": "Zostaw",
@@ -2862,6 +2864,8 @@ EN: dict[str, str] = {
         "{count} of these are EPUBs. A finished book is repaired by the EPUB "
         "rebuild, not by the converter."
     ),
+    "shell.cover.of": "Cover: {title}",
+    "shell.cover.none": "No cover",
     "shell.notice.dismiss": "Hide this message",
     "pdf.wrong.module.go": "Go there",
     "pdf.wrong.module.stay": "Leave them",

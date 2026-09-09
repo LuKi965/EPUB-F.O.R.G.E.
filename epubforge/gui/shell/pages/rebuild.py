@@ -868,7 +868,10 @@ class RebuildPage(Responsive, QWidget):
         card.body.addWidget(label(tr("shell.results.files.at"), "muted"))
         shown = 0
         for place in places:
-            card.body.addWidget(label(place, "cardSubtitle"))
+            # A folder that is "." is a book written beside a source given by
+            # a bare name; printing a full stop as a location helps nobody.
+            if place not in (".", ""):
+                card.body.addWidget(label(place, "cardSubtitle"))
             here = [path for path in outcome.published_outputs if str(path.parent) == place]
             for path in here:
                 if shown >= 6:

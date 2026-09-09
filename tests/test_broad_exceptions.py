@@ -58,7 +58,15 @@ SOURCE = pathlib.Path(epubforge.__file__).parent
 #: `pages/pdf_conversion.ConversionJob.run` — bez niego awaria konwersji
 #: zabija wątek, a strona zostaje na pasku postępu do końca sesji; ten sam
 #: handler, który `RebuildJob.run` ma obok. 73 -> 74.
-BROAD_TODAY = 74
+#:
+#: **Podniesione 74 → 75 (2026-09-09, HANDOFF V3 etap 3).** Jedno miejsce:
+#: `thumbnails.shrink`, wokół dekodowania cudzego obrazka. PIL na uszkodzonym
+#: pliku rzuca kilkanaście różnych rzeczy — `UnidentifiedImageError`,
+#: `OSError`, `ValueError`, własny strażnik bomby dekompresyjnej — i wszystkie
+#: znaczą dla tego programu dokładnie to samo: nie ma czego narysować. Książka
+#: zostaje książką, wiersz dostaje placeholder (C03). Import Pillow obok jest
+#: złapany wąskim `ImportError`, bo to inne pytanie.
+BROAD_TODAY = 75
 
 #: Co liczy się jako szerokie: wszystko, co złapie błąd, którego nikt nie
 #: wymienił z nazwy.
