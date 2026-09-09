@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, fields
 
 from . import budget as _budget
 from . import watermark
+from .pdfconv import settings as _pdf
 
 #: What `Policy.validate_before_publish` may say. Ordered least to most
 #: refusing, which is the order they are offered in every interface.
@@ -17,12 +18,12 @@ RENDER_GATES = ("off", "report", "stop")
 #: What `Policy.hyphen_review` may say: how far down the confidence classes
 #: the questions go. Ordered least to most asking, like the gates above.
 HYPHEN_REVIEWS = ("confirmed", "grouped", "each")
-#: What becomes of the running heads and page numbers a PDF brought along:
-#: asked once per book, kept, or removed for all of them (0.5, D-052).
-PDF_RUNNING_HEADS = ("ask", "keep", "remove")
-#: What a PDF becomes: a book that reflows (the default everywhere) or the
-#: pages it had, kept as pages (`pre-paginated`). See `Policy.pdf_layout`.
-PDF_LAYOUTS = ("reflowable", "fixed")
+#: The converter's own choices, re-exported so the window and the command line
+#: reach every setting through one module. They are defined in
+#: `pdfconv.settings` and belong to it (D-056): the repair core carries the
+#: *slot*, not the meaning.
+PDF_RUNNING_HEADS = _pdf.RUNNING_HEADS
+PDF_LAYOUTS = _pdf.LAYOUTS
 #: What becomes of runs of empty paragraphs — two or more in a row, at the
 #: edge of a document, beside a heading (D-054): asked once per book, kept
 #: (the default: a single blank line between paragraphs is never touched
@@ -291,29 +292,14 @@ class Policy:
     #: * `each` — every candidate individually, for going through them properly.
     hyphen_review: str = "confirmed"
 
-    #: A PDF source carries running heads and page numbers in its text layer;
-    #: the reader keeps them as marked paragraphs and the PDF stage asks once
-    #: per book whether to remove them (`ask`), or does what a batch has
-    #: already decided (`keep`, `remove`). Nothing leaves without an answer.
-    pdf_running_heads: str = "ask"
-
-    #: What a PDF is turned into: a book that reflows, or the pages it had.
+    #: The PDF converter's own settings — see `pdfconv.settings.PdfSettings`.
     #:
-    #: `reflowable` — the default in every mode — reads the geometry back into
-    #: paragraphs, headings, tables and lists, so the text can be set at any
-    #: size on any screen. `fixed` keeps the page: every line where the
-    #: typesetter put it, on a page of the source's own measurements, and the
-    #: publication declared `pre-paginated`.
-    #:
-    #: A separate mode and never a default, decided with the owner 2026-09-08.
-    #: A fixed page keeps the look and takes the reader's font size away from
-    #: them, which is the one thing an EPUB gives that paper does not; for a
-    #: novel that is a bad trade and for a form, a score or a diagram with
-    #: words in it it is the only right one. Nobody but the person holding the
-    #: document can tell which of the two they have, so the program does not
-    #: decide it for them — it offers both and says in the report what the
-    #: chosen one costs.
-    pdf_layout: str = "reflowable"
+    #: One field and not two loose ones, and that is D-056 rather than tidiness:
+    #: this program repairs EPUBs, and a converter's choices sitting in the row
+    #: with `strict` and `remove_dead` said that reading a PDF was one of the
+    #: things it does to a book. It is not; it is how some books arrive. The
+    #: window shows this group only when there is a PDF to show it for.
+    pdf: "_pdf.PdfSettings" = field(default_factory=_pdf.PdfSettings)
 
     #: Runs of empty paragraphs (D-054): a single empty paragraph between two
     #: paragraphs of text is a break between scenes and is never touched; a

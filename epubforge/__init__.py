@@ -34,3 +34,12 @@ __all__ = [
     "__stage__",
     "version_string",
 ]
+
+
+# The one line in this package that names a converter, and the right place for
+# it: modules that read a source this program does not repair register
+# themselves here, at assembly, so that nothing in the repair core has to know
+# they exist (D-056, `epubforge/sources.py`).
+from . import pdfconv as _pdfconv  # noqa: E402
+
+_pdfconv.install()

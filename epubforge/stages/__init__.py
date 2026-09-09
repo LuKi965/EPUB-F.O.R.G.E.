@@ -44,7 +44,6 @@ from .kepub import KepubStage
 from .metadata import MetadataStage
 from .navigation import NavigationStage
 from .paragraphs import ParagraphStage
-from .pdf import PdfStage
 from .profile import ProfileStage
 from .style import StyleStage
 from .structure import StructureStage
@@ -53,10 +52,12 @@ from .hyphens import HyphenStage
 from .substitutions import SubstitutionStage
 from .typography import TypographyStage
 
+#: The stages every book goes through, whatever it was read from. A module
+#: that reads some other kind of source adds its own in front of these, for the
+#: books it read and for no others (`sources.Importer.stages`, D-056) — until
+#: then `PdfStage` stood here, on the list every EPUB went through, and guarded
+#: itself with `if source_version != "pdf": return`.
 DEFAULT_STAGES = (
-    # First, because it removes text on a person's word before any stage
-    # reads the prose; on a book that was not a PDF it does nothing.
-    PdfStage,
     FontStage,
     ImageStage,
     StructureStage,
@@ -107,7 +108,6 @@ __all__ = [
     "SubstitutionStage",
     "NavigationStage",
     "ParagraphStage",
-    "PdfStage",
     "AccessibilityStage",
     "KepubStage",
     "AltTextStage",

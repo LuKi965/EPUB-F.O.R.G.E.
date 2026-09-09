@@ -299,12 +299,12 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
         )
 
     def test_the_reader_sees_the_form_text(self, tmp_path):
-        from epubforge import pdf
+        from epubforge.pdfconv import reader as pdf
 
         assert "UNIQUE FORM TEXT MUST SURVIVE" in pdf.text_of(str(self._pdf(tmp_path)))
 
     def test_the_inventory_counts_it_whether_or_not_the_reader_does(self, tmp_path):
-        from epubforge import pdf
+        from epubforge.pdfconv import reader as pdf
 
         drawn = pdf.character_inventory(str(self._pdf(tmp_path)))
         assert drawn["U"] >= 2 and drawn["Q"] == 1, drawn
@@ -321,7 +321,9 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
     def test_the_second_reader_refuses_what_the_first_would_have_passed(self, tmp_path, monkeypatch):
         """Blind the line reader to the form again and the subsequence check
         holds vacuously — the character count does not."""
-        from epubforge import fidelity, pdf
+        from epubforge import fidelity
+        from epubforge.pdfconv import gate as pdfgate
+        from epubforge.pdfconv import reader as pdf
 
         source = self._pdf(tmp_path)
         real = pdf.text_of
@@ -330,7 +332,7 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
         )
         candidate = book(tmp_path / "candidate.epub", text=self.LONG + " " + self.LONG)
         assert fidelity.text_is_preserved(source, candidate).ok, "the blinded reader passes"
-        assert not fidelity.pdf_characters_survive(source, candidate).ok
+        assert not pdfgate.characters_survive(source, candidate).ok
         report = Report(source=str(source))
         refusal = pipeline._text_gate(str(source), Policy(), report)(candidate)
         assert refusal.startswith("K1-PDF")
@@ -342,7 +344,7 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
         import pdfminer.high_level
         from tests.test_pdf import make_pdf
 
-        from epubforge import pdf
+        from epubforge.pdfconv import reader as pdf
 
         parses = []
         real = pdfminer.high_level.extract_pages

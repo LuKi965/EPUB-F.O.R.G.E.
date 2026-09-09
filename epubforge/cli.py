@@ -140,9 +140,9 @@ def _apply_pdf_flags(args: argparse.Namespace, policy: Policy) -> None:
     for them (`test_cli_reaches_everything`).
     """
     if getattr(args, "pdf_layout", None):
-        policy.pdf_layout = args.pdf_layout
+        policy.pdf.layout = args.pdf_layout
     if getattr(args, "pdf_running_heads", None):
-        policy.pdf_running_heads = args.pdf_running_heads
+        policy.pdf.running_heads = args.pdf_running_heads
 
 
 def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:

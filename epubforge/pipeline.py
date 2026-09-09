@@ -9,7 +9,7 @@ import zipfile
 from dataclasses import dataclass, replace
 from enum import Enum
 
-from . import decisions, pdf
+from . import decisions, sources
 from . import invariants
 from . import memory
 from . import balance
@@ -357,8 +357,12 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         if render.find_renderer() is None:
             return _cannot_verify(policy, report, queue)
 
-        if pdf.is_pdf(source):
-            return _pdf_render_gate(candidate, policy, report, queue)
+        importer = sources.for_source(source)
+        if importer is not None and importer.render_gate is not None:
+            # A source with no *before* to draw: what the check means there is
+            # the importer's to say (D-056), and `_cannot_verify` goes with it
+            # because whether to publish unchecked is the core's decision.
+            return importer.render_gate(candidate, policy, report, queue, _cannot_verify)
 
         # The rebuild's own ledger of moved files, so the pairing knows which
         # output page is which source page — names alone stopped being enough
@@ -419,46 +423,6 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
         )
 
     return gate
-
-
-def _pdf_render_gate(candidate: str, policy: Policy, report: Report, queue) -> str:
-    """The appearance check for a book that came out of a PDF.
-
-    There is no *before* to compare against: the source is a PDF, and until
-    EF-086 this gate handed it to `zipfile` and the whole rebuild ended on
-    `BadZipFile` — in `preserve`, the preset the window uses, on every PDF the
-    owner would ever drop on it. Both PDF acceptance runs missed it because
-    both turned the render gate off; a gate nobody runs is a gate nobody
-    tests.
-
-    Turning it off for PDFs by default would have been the smaller change and
-    the wrong one. What can honestly be measured is measured — a document that
-    carries text and draws blank is the damage this gate exists for, and it
-    does not need a source page to be a defect — and the report says that is
-    what was done, rather than borrowing "checked" from a comparison that did
-    not happen.
-    """
-    from . import render_fidelity
-
-    measured = render_fidelity.drawn(candidate, sample=policy.render_sample)
-    if not measured.available:
-        return _cannot_verify(policy, report, queue)
-    if not measured.completed:
-        return _cannot_verify(policy, report, queue, why=measured.reason)
-    for page in measured.problems:
-        report.add(
-            "render", Level.ERROR, "render.page-blank",
-            values={"detail": str(page)}, location=page.document,
-        )
-    if measured.ok:
-        report.add(
-            "render", Level.INFO, "render.pdf-drawn",
-            values={"count": len(measured.pages), "engine": measured.engine},
-        )
-        return ""
-    if policy.render_gate == "report":
-        return ""
-    return f"{len(measured.problems)} page(s) came out blank"
 
 
 def _keep_evidence(source, candidate, destination, measured, report) -> str:
@@ -737,8 +701,17 @@ REMOVES_TEXT_ON_PURPOSE = frozenset({
     "substitutions.replaced",
     # A running head or a page number a PDF brought along, removed on a
     # person's word (0.5, D-052): text the source had and the book should not.
-    "pdf.running-heads-removed",
 })
+
+
+def _removes_text_on_purpose() -> frozenset:
+    """The core's set, plus every rule an importer declares as its own removal
+    somebody consented to (D-056). Read at the moment of the check rather than
+    frozen at import, because which importers exist is a fact about the
+    program's assembly, not about this module."""
+    return REMOVES_TEXT_ON_PURPOSE.union(
+        *(imp.removes_text_on_purpose for imp in sources.registered())
+    )
 
 #: **`xhtml.watermark-consolidated` is deliberately not in the set above**, and
 #: taking it out re-armed a gate that had been disarmed on most of a real shelf.
@@ -832,7 +805,7 @@ def _consent_by_document(divergences, report: Report, source: str, candidate: st
     """
     from . import fidelity
 
-    accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+    accounted = _removes_text_on_purpose() | CHANGES_TEXT_SHAPE_ON_PURPOSE
     recorded = report.stats.get("text_changes") or {}
     excused, unexcused = [], []
     with zipfile.ZipFile(source) as before, zipfile.ZipFile(candidate) as after:
@@ -877,7 +850,7 @@ def _chain_breaks(chain, accounted, was: str, now: str) -> "str | None":
 
 def _consented_rules(divergences, report: Report) -> "list[str]":
     """The consented rules whose entries excused *divergences*, for the report."""
-    accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+    accounted = _removes_text_on_purpose() | CHANGES_TEXT_SHAPE_ON_PURPOSE
     recorded = report.stats.get("text_changes") or {}
     rules = set()
     for divergence in divergences:
@@ -969,7 +942,8 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
                 values={"detail": f"{type(exc).__name__}: {exc}"},
             )
             return f"K1 could not be measured: {type(exc).__name__}: {exc}"
-        if check.ok and pdf.is_pdf(source):
+        importer = sources.for_source(source)
+        if check.ok and importer is not None and importer.second_opinion is not None:
             # The subsequence held, read through the conversion's own reader.
             # The second reader counts what the page draws (EF-087): a
             # character it saw and the output lacks is a loss, and it is
@@ -979,37 +953,28 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
             # the book's convention and three dots made an ellipsis are that;
             # a sentence in a Form XObject that nobody converted is not, and
             # nothing in the report will say otherwise.
-            second = fidelity.pdf_characters_survive(source, candidate)
+            second = importer.second_opinion(source, candidate)
             if not second.ok:
-                accounted = REMOVES_TEXT_ON_PURPOSE | CHANGES_TEXT_SHAPE_ON_PURPOSE
+                accounted = _removes_text_on_purpose() | CHANGES_TEXT_SHAPE_ON_PURPOSE
                 consented = sorted(
                     {finding.rule for finding in report.findings if finding.rule in accounted}
                 )
-                if consented:
-                    report.add(
-                        "package",
-                        Level.WARN,
-                        "package.pdf-characters-changed-on-request",
-                        values={"rules": ", ".join(consented), "detail": second.detail},
-                    )
-                else:
-                    report.add(
-                        "package",
-                        Level.ERROR,
-                        "package.pdf-characters-lost",
-                        values={"detail": second.detail},
-                    )
-                    return f"K1-PDF: {second.detail}"
+                # Which passes the person consented to is the core's sum; what
+                # a loss of *this* source's characters is called is the
+                # importer's word, said where its identifier is a literal.
+                refusal = importer.note_second_opinion(report, second, consented)
+                if refusal:
+                    return refusal
         if check.ok:
             return ""
-        if pdf.is_pdf(source):
-            # A PDF has no documents to pair the output's with, so the consent
-            # here is still by rule name over the whole report — said as such.
+        if importer is not None:
+            # An imported source has no documents to pair the output's with, so
+            # the consent here is still by rule name over the whole report.
             consented = sorted(
                 {
                     finding.rule
                     for finding in report.findings
-                    if finding.rule in REMOVES_TEXT_ON_PURPOSE
+                    if finding.rule in _removes_text_on_purpose()
                 }
             )
             if consented:
@@ -1068,11 +1033,12 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
         program fills an empty one in, saying so), and a character no
         conforming EPUB may carry is not text.
         """
-        if pdf.is_pdf(source):
-            # No source document to pair a carried one with: the whole text
-            # layer was compared by the rule above (K1-PDF), and this is said
-            # rather than left as a zip error.
-            report.add("package", Level.INFO, "package.prose-check-pdf")
+        importer = sources.for_source(source)
+        if importer is not None and importer.note_prose_check is not None:
+            # No source document to pair a carried one with: the importer's own
+            # whole-text check ran instead, and the importer says so — the rule
+            # identifier belongs where it is raised.
+            importer.note_prose_check(report)
             return ""
         try:
             if _more_than_one_rendition(source):
@@ -1508,7 +1474,7 @@ def _rebuild_inside_budget(
         resolver=resolver, decisions=queue,
     )
 
-    refused = _run_stages(ctx, stages, budget, report)
+    refused = _run_stages(ctx, stages, budget, report, source)
     if refused:
         return refused
 
@@ -1598,10 +1564,12 @@ def _budget_refused(report: Report, area: str, exc: BudgetExceeded) -> None:
 def _read_or_refuse(source, report, budget, rendition, policy) -> "tuple[Book | None, Result | None]":
     """The book, or the refusal that stands in for it."""
     try:
-        if pdf.is_pdf(source):
-            # 0.5 (D-052): a PDF with a text layer, read into the same model and
-            # sent through the same stages; nothing else in the run knows.
-            return pdf.read_pdf(source, report, budget, policy.pdf_layout), None
+        importer = sources.for_source(source)
+        if importer is not None:
+            # D-052/D-056: a source this program does not repair, read by the
+            # module that understands it into the same model. Nothing else in
+            # the run knows which module that was.
+            return importer.read(source, report, budget, policy), None
         return read_epub(source, report, budget, rendition=rendition), None
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose
@@ -1748,18 +1716,27 @@ def _state_the_version_change(book, report) -> None:
             "package.regenerated",
             values={"version": source_version},
         )
-    elif source_version == "pdf":
-        # `pdf.converted` is the statement, with its numbers; there was no
-        # package to have a version.
+    elif source_version in sources.imported_versions():
+        # A book that did not come from a package has no version to state; the
+        # importer's own line is the statement, with its numbers.
         return
     else:
         report.add("package", Level.WARN, "package.version-unusable")
 
 
-def _run_stages(ctx, stages, budget, report) -> "Result | None":
-    """Every stage in order, each held to the budget and to its own word."""
+def _run_stages(ctx, stages, budget, report, source: str = "") -> "Result | None":
+    """Every stage in order, each held to the budget and to its own word.
+
+    A book read by an importer gets that importer's stages first (D-056): they
+    exist for the source it read and run for no other book. A caller that names
+    the stages itself gets exactly those, as it always did — that is how the
+    tests pin one stage at a time.
+    """
     book = ctx.book
-    for stage_class in (DEFAULT_STAGES if stages is None else stages):
+    if stages is None:
+        importer = sources.for_source(source) if source else None
+        stages = (importer.stages if importer is not None else ()) + DEFAULT_STAGES
+    for stage_class in stages:
         stage = stage_class()
         # F-029, the checkable part. Making the model immutable is a refactor of
         # the whole program; making a stage's *claim* enforceable is this, and it

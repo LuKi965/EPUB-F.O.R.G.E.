@@ -40,6 +40,45 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Konwerter PDF jako osobny moduł (D-056)
+
+Właściciel, zobaczywszy ustawienia PDF w oknie przy przebudowie EPUB-a:
+*„program jest jeden i nazywa się EPUB FORGE. Ale osobny moduł to na pewno, bo
+główny moduł FORGE służy do naprawiania EPUB i nie należy w niego wmiksowywać
+konwerterów PDF."* Kształt „jeden potok" pochodził z `PLAN-0.5.md` §2 i był
+mój, nie jego — D-056 to prostuje.
+
+**Co było wmiksowane.** `PdfStage` pierwszy w `DEFAULT_STAGES`, czyli na liście,
+przez którą idzie każdy EPUB; sześć rozgałęzień `pdf.is_pdf(source)`
+w `pipeline.py` i dwa w `fidelity.py`; pola `pdf_running_heads` i `pdf_layout`
+w jednym `Policy` z ustawieniami EPUB, pokazywane w oknie także wtedy, gdy
+w planie nie ma ani jednego PDF-a; teksty reguł `pdf.*` w katalogu rdzenia.
+
+**Co jest teraz.** Pakiet `epubforge/pdfconv/` — czytnik, etap, obie bramy
+(`K1-PDF` i sprawdzenie wyglądu bez „przed"), ustawienia (`Policy.pdf`), własny
+katalog reguł — i wąski szew `epubforge/sources.py`, który zna **ideę** źródła
+nie-EPUB, a nie PDF-y. Rdzeń pyta rejestru; moduł się rejestruje. Jedyna linia
+rdzenia znająca nazwę modułu jest w punkcie montażu pakietu. Etapy modułu biegną
+tylko dla książek, które ten moduł przeczytał. W oknie ustawienia konwertera mają
+własną grupę „Z PDF-a" zamiast siedzieć wśród ustawień o tekście EPUB-a.
+
+**Czego nie rozdzielono i dlaczego.** Wynik jest EPUB-em niezależnie od źródła,
+więc walidator, K1, bilans, ledger zmian, bramy publikacji i zapis zostają
+wspólne — druga droga musiałaby mieć własną kopię tych bram albo nie mieć
+żadnych.
+
+**Dowód, że rdzeń nie drgnął** (`tools/odcisk-rdzenia.py` w notatkach): sześć
+książek korpusu × dwa presety = dwanaście przebudów, **suma SHA-256 pliku
+i zbiór reguł identyczne co do bajtu** przed refaktorem i po nim. Konwerter też
+nie drgnął: osiemnaście dokumentów zastępczych, **zero różnic pole po polu**.
+Suita 4 244 / 70, siedem testów korpusu z prawdziwym Chromium.
+
+Zachowana osobno kontrola, która przy okazji mogła zniknąć: „etap, który rzuca
+wyjątkiem, nie zostawia pliku" była sparametryzowana po `DEFAULT_STAGES`, więc
+`PdfStage` wypadłby z niej w dniu, w którym z tej listy zszedł. Te same cztery
+obietnice mają teraz własną klasę testów, na źródle, które do tego etapu
+dociera.
+
 ### Czytnik PDF: strona czytana obszarami, a od teraz także zachowywana
 
 Materiałem był 105-stronicowy manual urządzenia, którym właściciel się posłużył,

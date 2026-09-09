@@ -26,10 +26,10 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 
-from .model import Book, Creator, Identifier, NavPoint, PageTarget, Resource, SpineItem
-from .reader import EpubReadError
-from .report import Level, Report
-from .writer import escape
+from ..model import Book, Creator, Identifier, NavPoint, PageTarget, Resource, SpineItem
+from ..reader import EpubReadError
+from ..report import Level, Report
+from ..writer import escape
 
 EXTENSION = ".pdf"
 #: The class the PDF stage looks for: a line the reader took for a running

@@ -61,6 +61,11 @@ CATEGORIES = (
     ("assets", "image", "shell.cat.assets"),
     ("metadata", "tag", "shell.cat.metadata"),
     ("validation", "shield", "shell.cat.validation"),
+    # Its own group and not a few rows among the settings about words: these
+    # belong to a module that reads a source this program does not repair
+    # (D-056), and mixing them in said that reading a PDF was one of the things
+    # done to a book. It is not; it is how some books arrive.
+    ("import", "book", "shell.cat.import"),
 )
 
 
@@ -97,14 +102,6 @@ OPTIONS: tuple[Option, ...] = (
         "empty_paragraph_runs", "words", "choice", "policy.paragraphs.empty",
         "policy.paragraphs.empty.tip", choices=("ask", "keep", "remove"),
     ),
-    Option(
-        "pdf_layout", "words", "choice", "policy.pdf.layout", "policy.pdf.layout.tip",
-        choices=("reflowable", "fixed"),
-    ),
-    Option(
-        "pdf_running_heads", "words", "choice", "policy.pdf.heads", "policy.pdf.heads.tip",
-        choices=("ask", "keep", "remove"),
-    ),
     Option("repair_encoding", "words", "bool", "policy.repair.encoding", "policy.repair.encoding.tip"),
     Option("detect_undescribed_images", "words", "bool", "policy.detect.images", "policy.detect.images.tip"),
     Option("detect_layout_tables", "words", "bool", "policy.detect.tables", "policy.detect.tables.tip"),
@@ -137,6 +134,18 @@ OPTIONS: tuple[Option, ...] = (
         choices=("off", "report", "stop"),
     ),
     Option("render_all", "validation", "bool", "policy.render.all", "policy.render.all.tip"),
+    # --- a source this program does not repair ------------------------------
+    # The PDF converter's own settings, addressed through the field that holds
+    # them (`Policy.pdf`, D-056). A dotted key is how a module's settings reach
+    # the drawer without the drawer knowing whose they are.
+    Option(
+        "pdf.layout", "import", "choice", "policy.pdf.layout", "policy.pdf.layout.tip",
+        choices=("reflowable", "fixed"),
+    ),
+    Option(
+        "pdf.running_heads", "import", "choice", "policy.pdf.heads", "policy.pdf.heads.tip",
+        choices=("ask", "keep", "remove"),
+    ),
     Option("verify_text_survives", "validation", "bool", "policy.text.invariant", "policy.text.invariant.tip"),
     Option(
         "accept_unverified_render", "validation", "bool",

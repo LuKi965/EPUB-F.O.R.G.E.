@@ -24,11 +24,14 @@ import zlib
 
 import pytest
 
-from epubforge import fidelity, pdf, render
+from epubforge import fidelity, render
+from epubforge.pdfconv import gate as pdfgate
+from epubforge.pdfconv import reader as pdf
 from epubforge.cli import EXIT_OK, main
 from epubforge.decisions import Answer
 from epubforge.pipeline import Status, rebuild
-from epubforge.policy import PDF_RUNNING_HEADS, Policy
+from epubforge.pdfconv.settings import RUNNING_HEADS as PDF_RUNNING_HEADS
+from epubforge.policy import Policy
 from epubforge.report import Level, Report
 from epubforge.typography import canonical
 
@@ -242,9 +245,15 @@ class Recorder:
 
 def rebuilt(source: pathlib.Path, tmp_path: pathlib.Path, *, standing: dict | None = None,
             asker=None, **policy):
+    # The converter's settings live under `Policy.pdf` (D-056); spelled flat
+    # here because a test reads better saying what it turns on than saying
+    # which object holds it.
+    converter = {name[4:]: policy.pop(name) for name in list(policy) if name.startswith("pdf_")}
     settings = Policy.preset(
         "preserve", validate_before_publish="off", render_gate="off", render_sample=0, **policy
     )
+    for name, value in converter.items():
+        setattr(settings.pdf, name, value)
     return rebuild(str(source), str(tmp_path / "out.epub"), settings, standing=standing, asker=asker)
 
 
@@ -833,7 +842,7 @@ class TestTheReader:
     def test_the_grid_the_table_is_measured_on_is_recorded(self):
         """`D-012`: the numbers that decide what a table is say where they came
         from — a sweep over the manual and a count over the corpus."""
-        source = pathlib.Path("epubforge/pdf.py").read_text(encoding="utf-8")
+        source = pathlib.Path("epubforge/pdfconv/reader.py").read_text(encoding="utf-8")
         column_slack = source[source.index("#: How far a cell may sit from the one above"):]
         assert "6 pt finds 72" in column_slack and "24 pt finds 75" in column_slack
         rows = source[source.index("#: Two rows standing on one grid are a table."):]
@@ -1124,7 +1133,7 @@ class TestTheReaderSaysHowWellItWent:
 
     def test_the_share_that_raises_it_is_a_measured_number_with_its_evidence(self):
         """`D-012`: a threshold in this program says where it came from."""
-        source = pathlib.Path("epubforge/pdf.py").read_text(encoding="utf-8")
+        source = pathlib.Path("epubforge/pdfconv/reader.py").read_text(encoding="utf-8")
         where = source.index("TORN_SHARE_WARN")
         preamble = source[max(0, where - 700):where]
         assert "24 %" in preamble and "measured" in preamble.lower()
@@ -1275,10 +1284,10 @@ class TestThePageKeptAsAPage:
     def test_the_two_lists_of_modes_are_one_list(self):
         """The reader branches on its own names and the interfaces offer the
         policy's; two lists that drift are a mode nobody can reach."""
-        from epubforge.policy import PDF_LAYOUTS
+        from epubforge.pdfconv.settings import LAYOUTS
 
-        assert PDF_LAYOUTS == (pdf.REFLOWABLE, pdf.FIXED)
-        assert Policy().pdf_layout == pdf.REFLOWABLE
+        assert LAYOUTS == (pdf.REFLOWABLE, pdf.FIXED)
+        assert Policy().pdf.layout == pdf.REFLOWABLE
 
     def test_one_document_per_page_each_saying_how_big_its_page_is(self, tmp_path):
         source = make_pdf(tmp_path / "three.pdf", [
@@ -1415,7 +1424,7 @@ class TestThePageKeptAsAPage:
         assert "pdf.fixed-layout" in rules and "pdf.fixed-layout-cost" in rules
         assert result.book.rendition["layout"] == "pre-paginated"
         assert fidelity.text_is_preserved(str(source), result.output_path).ok
-        assert fidelity.pdf_characters_survive(str(source), result.output_path).ok
+        assert pdfgate.characters_survive(str(source), result.output_path).ok
         with zipfile.ZipFile(result.output_path) as archive:
             package = archive.read("EPUB/package.opf").decode()
         assert '<meta property="rendition:layout">pre-paginated</meta>' in package

@@ -1276,6 +1276,10 @@ PL: dict[str, str] = {
     "shell.cat.metadata.body": "Co pakiet mówi o książce.",
     "shell.cat.validation": "Walidacja",
     "shell.cat.validation.body": "Bramy, które decydują, czy plik w ogóle powstanie.",
+    "shell.cat.import": "Z PDF-a",
+    "shell.cat.import.body":
+        "Dotyczy wyłącznie plików PDF wrzuconych do przebudowy. Na książkę "
+        "EPUB nie wpływa nic z tej grupy.",
 
     "shell.tools.eyebrow": "Narzędzia",
     "shell.tools.title": "Analiza i diagnostyka",
@@ -2576,6 +2580,10 @@ EN: dict[str, str] = {
     "shell.cat.metadata.body": "What the package says about the book.",
     "shell.cat.validation": "Validation",
     "shell.cat.validation.body": "The gates that decide whether a file is written at all.",
+    "shell.cat.import": "From a PDF",
+    "shell.cat.import.body":
+        "Only for PDF files dropped in for rebuilding. Nothing in this group "
+        "affects an EPUB.",
 
     "shell.tools.eyebrow": "Tools",
     "shell.tools.title": "Analysis and diagnostics",

@@ -573,9 +573,15 @@ class TestPresetsAndOverrides:
 
         policy = Policy()
         for option in options_module.OPTIONS:
-            assert (
-                hasattr(policy, option.key) or option.key in backend_module.NOT_POLICY_FIELDS
-            ), f"{option.key} ustawia nic"
+            target, *rest = option.key.split(".")
+            reaches = hasattr(policy, target) and all(
+                # A dotted key walks into a module's settings object; every
+                # step of the path has to exist or the option sets nothing.
+                hasattr(getattr(policy, target), name) for name in rest[:1]
+            )
+            assert reaches or option.key in backend_module.NOT_POLICY_FIELDS, (
+                f"{option.key} ustawia nic"
+            )
 
     def test_the_switches_that_are_not_policy_fields_still_reach_the_run(self):
         plan = RebuildPlan(
@@ -632,7 +638,12 @@ class TestEveryChoiceIsStillReachable:
         }
         if field in NOT_IN_THE_WINDOW or field in exempt_here:
             return
-        assert field in options_module.BY_KEY, (
+        # A field holding a module's own settings (`Policy.pdf`, D-056) is
+        # reachable when its *parts* are: the drawer shows one control per
+        # setting, not one per object. The rule is unchanged — nothing may be
+        # settable and unreachable — only the address is now a path.
+        nested = [key for key in options_module.BY_KEY if key.startswith(f"{field}.")]
+        assert field in options_module.BY_KEY or nested, (
             f"Policy.{field} nie ma sterowania w nowym oknie. Dopisz opcję do "
             f"epubforge/gui/shell/options.py albo uzasadnij wyjątek."
         )

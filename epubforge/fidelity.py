@@ -25,7 +25,6 @@ the book. It reports what changed; the caller decides what that means.
 
 from __future__ import annotations
 
-from collections import Counter
 
 import hashlib
 import pathlib
@@ -35,7 +34,7 @@ from dataclasses import dataclass, field
 
 from . import xhtml
 from .reader import read_epub
-from . import pdf
+from . import sources
 from .report import Report
 
 #: Elements whose text is not the book's text — they are machinery.
@@ -332,7 +331,7 @@ def _styles(path: str) -> dict[tuple[str, str], dict[str, str]]:
             root = xhtml.parse_document(resource.data, resource.path).root
         except Exception:  # noqa: BLE001
             continue
-        sources: list[str] = []
+        sheets: list[str] = []
         for link in root.iter(xhtml.qname("link")):
             href = (link.get("href") or "").split("#")[0]
             target = None
@@ -342,11 +341,11 @@ def _styles(path: str) -> dict[tuple[str, str], dict[str, str]]:
                 target = _paths.resolve(resource.path, href)
             sheet = book.resources.get(target) if target else None
             if sheet is not None and sheet.is_style:
-                sources.append(_without_ancestors(sheet.data.decode("utf-8", "replace")))
+                sheets.append(_without_ancestors(sheet.data.decode("utf-8", "replace")))
         for style in root.iter(xhtml.qname("style")):
             if style.text:
-                sources.append(_without_ancestors(style.text))
-        cascade = css_cascade.Cascade.parse(sources)
+                sheets.append(_without_ancestors(style.text))
+        cascade = css_cascade.Cascade.parse(sheets)
         for element in root.iter():
             if not isinstance(element.tag, str):
                 continue
@@ -479,9 +478,11 @@ def spine_text_of(book: "str | pathlib.Path") -> str:
     from .typography import canonical
     from .xmlchars import legal
 
-    if pdf.is_pdf(str(book)):
-        # K1-PDF (0.5, D-052): the text layer, line after line, is the source.
-        return canonical(legal(pdf.text_of(str(book))))
+    importer = sources.for_source(str(book))
+    if importer is not None and importer.source_text is not None:
+        # D-052/D-056: a source this program does not repair states its own
+        # text, in its own reading order, through the module that reads it.
+        return canonical(legal(importer.source_text(str(book))))
     return canonical(legal(spine_text(book)))
 
 
@@ -512,48 +513,6 @@ def first_character_lost(source_text: str, output_text: str) -> int:
             return index
         position += 1
     return -1
-
-
-def pdf_characters_survive(source: "str | pathlib.Path", candidate: "str | pathlib.Path") -> Check:
-    """K1 for a PDF source, counted by a second walk of the page tree.
-
-    `text_is_preserved` reads the PDF through the same reader the conversion
-    uses, so a construct that reader does not handle is missing from *both*
-    sides and the subsequence holds vacuously (EF-087: a page's one visible
-    sentence, drawn inside a Form XObject, converted to nothing and passed).
-    This is the other side of the ledger: every character the page draws,
-    counted without any notion of lines or order, has to be in the output at
-    least as many times. Order is the subsequence check's business; existence
-    is this one's, and it does not depend on the reader being right — the
-    parse is pdfminer's either way, the walk over it is not the reader's
-    (`pdf.drawn_text`).
-    """
-    from . import pdf
-    from .typography import canonical
-    from .xmlchars import legal
-
-    # Both sides through the fold `spine_text_of` applies — the same one, for
-    # the same reason it gives: after it there is no quote style or dash
-    # length left to be wrong about, only characters that exist or do not.
-    wanted: Counter = Counter(
-        character
-        for character in canonical(legal(pdf.drawn_text(str(source))))
-        if not character.isspace()
-    )
-    present: Counter = Counter(
-        character for character in spine_text_of(candidate) if not character.isspace()
-    )
-    missing = wanted - present
-    if not missing:
-        return Check("K1-PDF", True, "", {"source_characters": sum(wanted.values())})
-    lost = sum(missing.values())
-    sample = "".join(sorted(missing)[:12])
-    return Check(
-        "K1-PDF",
-        False,
-        f"{lost} znak(ów) narysowanych w PDF-ie nie ma w wyniku (np. {sample!r})",
-        {"source_characters": sum(wanted.values()), "lost": lost},
-    )
 
 
 def text_is_preserved(source: "str | pathlib.Path", candidate: "str | pathlib.Path") -> Check:

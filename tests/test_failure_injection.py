@@ -20,6 +20,7 @@ import os
 
 import pytest
 
+from epubforge import sources
 from epubforge.pipeline import DEFAULT_STAGES, Result, Status, rebuild
 from epubforge.policy import Policy
 from epubforge.report import Level
@@ -86,6 +87,74 @@ class TestAStageThatRaises:
 
         details = " ".join(f.detail or "" for f in result.report.findings)
         assert "Nothing was written" in details
+
+
+#: The stages a module that reads some other kind of source adds for the books
+#: it read (`sources.Importer.stages`, D-056). They are not in `DEFAULT_STAGES`
+#: and would therefore have fallen out of the parametrisation above the day
+#: they left it — this is the same four promises, held for them, on a source
+#: that reaches them.
+IMPORTER_STAGES = [
+    (importer, stage)
+    for importer in sources.registered()
+    for stage in importer.stages
+]
+
+
+@pytest.mark.parametrize(
+    "importer,stage_class", IMPORTER_STAGES,
+    ids=lambda value: getattr(value, "name", str(value)),
+)
+class TestAnImporterStageThatRaises:
+    """The same contract as above, for a stage that runs only for the books its
+    own module read. A crash there must leave no file either."""
+
+    @pytest.fixture
+    def imported(self, importer, tmp_path) -> str:
+        from tests.test_pdf import make_pdf
+
+        assert importer.name == "pdf", f"no fixture for a {importer.name} source"
+        return str(make_pdf(
+            tmp_path / "source.pdf",
+            [[(72, 700, 12, "A page with enough prose on it to be read as a book"),
+              (72, 680, 12, "and not refused as a scan without a text layer.")]],
+            title="Injected",
+        ))
+
+    def test_no_file_is_written(self, importer, stage_class, imported, tmp_path, monkeypatch):
+        destination = tmp_path / "out.epub"
+        explode_in(monkeypatch, stage_class)
+
+        result = rebuild(imported, str(destination), Policy.preset("preserve"))
+
+        assert result.status is Status.FAILED
+        assert result.output_path is None
+        assert not destination.exists(), "a half-processed book was left on disk"
+
+    def test_the_failure_names_the_stage(self, importer, stage_class, imported, tmp_path, monkeypatch):
+        explode_in(monkeypatch, stage_class, "injected failure")
+
+        result = rebuild(imported, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+
+        errors = [f for f in result.report.findings if f.level is Level.ERROR]
+        assert any("injected failure" in f.message for f in errors)
+        assert any(f.stage == stage_class.name for f in errors)
+
+
+class TestTheImporterStagesRunOnlyForTheirOwnBooks:
+    """The point of D-056, as a test: a stage belonging to a module that reads
+    PDFs is not on the list an EPUB goes through."""
+
+    def test_no_importer_stage_is_in_the_default_list(self):
+        for importer in sources.registered():
+            for stage in importer.stages:
+                assert stage not in DEFAULT_STAGES, (
+                    f"{stage.name} biegnie dla kazdej ksiazki, a mial biec dla "
+                    f"tych, ktore przeczytal modul {importer.name}"
+                )
+
+    def test_an_importer_declares_at_least_one_of_them(self):
+        assert IMPORTER_STAGES, "zaden modul nie wnosi etapu — szew jest martwy"
 
 
 class TestStatusIsReportedNotInferred:

@@ -787,7 +787,7 @@ class MainWindow(QMainWindow):
             key = f"policy.pdf.layout.{value}"
             self.pdf_layout_combo.addItem(tr(key), value)
             self.pdf_layout_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
-        self.pdf_layout_combo.setCurrentIndex(PDF_LAYOUTS.index(Policy().pdf_layout))
+        self.pdf_layout_combo.setCurrentIndex(PDF_LAYOUTS.index(Policy().pdf.layout))
         layout.addWidget(self.pdf_layout_combo)
         # 0.5 (D-052): a PDF source brings running heads and page numbers in
         # its text layer. Asked once per book by default; a batch can settle it.
@@ -800,7 +800,7 @@ class MainWindow(QMainWindow):
             key = f"policy.pdf.heads.{value}"
             self.pdf_heads_combo.addItem(tr(key), value)
             self.pdf_heads_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
-        self.pdf_heads_combo.setCurrentIndex(PDF_RUNNING_HEADS.index(Policy().pdf_running_heads))
+        self.pdf_heads_combo.setCurrentIndex(PDF_RUNNING_HEADS.index(Policy().pdf.running_heads))
         layout.addWidget(self.pdf_heads_combo)
         # D-054: runs of empty paragraphs are a converter carrying somebody's
         # page pushing; a single blank line between paragraphs is a break and
@@ -1155,8 +1155,8 @@ class MainWindow(QMainWindow):
         policy.accept_unverified_render = self.unverified_check.isChecked()
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.hyphen_review = self.hyphen_review_combo.currentData()
-        policy.pdf_layout = self.pdf_layout_combo.currentData()
-        policy.pdf_running_heads = self.pdf_heads_combo.currentData()
+        policy.pdf.layout = self.pdf_layout_combo.currentData()
+        policy.pdf.running_heads = self.pdf_heads_combo.currentData()
         policy.empty_paragraph_runs = self.empty_runs_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.detect_substitutions = self.substitutions_check.isChecked()

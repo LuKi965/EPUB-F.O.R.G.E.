@@ -101,8 +101,8 @@ def policy_for(plan: RebuildPlan) -> "tuple[Policy, bool, bool]":
         if key == "time_budget_seconds":
             policy.time_budget_seconds = float(value)
             continue
-        if hasattr(policy, key):
-            setattr(policy, key, value)
+        if _set_nested(policy, key, value):
+            continue
 
     if overrides.get("render_all"):
         # "There has to be an option to check the whole book" — a sample is
@@ -118,6 +118,26 @@ def policy_for(plan: RebuildPlan) -> "tuple[Policy, bool, bool]":
                 policy.default_language = value
 
     return policy, bool(overrides.get("validate", True)), bool(overrides.get("plan_only", False))
+
+
+def _set_nested(policy: Policy, key: str, value) -> bool:
+    """Set `policy.a.b` for a dotted key, `policy.a` for a plain one.
+
+    A module that reads a source this program does not repair keeps its
+    settings in one field of the policy (`Policy.pdf`, D-056), so the drawer
+    addresses them by path. Anything the policy does not have is left alone —
+    `test_shell_backend` proves the catalogue has no such key.
+    """
+    target = policy
+    *path, last = key.split(".")
+    for step in path:
+        target = getattr(target, step, None)
+        if target is None:
+            return False
+    if not hasattr(target, last):
+        return False
+    setattr(target, last, value)
+    return True
 
 
 def _bytes_or_none(value) -> "int | None":

@@ -103,7 +103,7 @@ i zacząć budować to, co stoi od miesiąca.
 | odbudowa arkusza: format, scalanie, kolejność, martwe reguły — domknięta | `epubforge/stages/style.py`, `epubforge/stylesheet.py` |
 | koszyki śmieci generatorów (Word, Calibre, Sigil, InDesign) w obu trybach, każdy za kratką | `epubforge/stages/style.py`, `epubforge/stages/content.py` |
 | eksport KEPUB | `epubforge/kepub.py`, `epubforge/stages/kepub.py` |
-| PDF z warstwą tekstową → ten sam model | `epubforge/pdf.py`, `epubforge/stages/pdf.py` |
+| PDF z warstwą tekstową → ten sam model, jako osobny moduł (D-056) | `epubforge/pdfconv/`, szew `epubforge/sources.py` |
 | ciągi pustych akapitów (dwa i więcej, na brzegu, przy nagłówku) za polem polityki `empty_paragraph_runs` — domyślnie tylko liczone; pojedyncza przerwa między akapitami nietykana (D-054) | `epubforge/stages/paragraphs.py` |
 
 Co zostało z odbudowy zapisu — atrybuty `style="…"` do klas, `div`
@@ -219,7 +219,8 @@ na półce, nie na atrapie).
 
 | gdzie | co |
 |---|---|
-| `epubforge/reader.py`, `epubforge/pdf.py` | czytniki: EPUB (z odbudową uszkodzonego pakietu) i PDF (warstwa tekstowa → ten sam model) |
+| `epubforge/reader.py` | czytnik EPUB, z odbudową uszkodzonego pakietu |
+| `epubforge/pdfconv/` | konwerter PDF → EPUB jako osobny moduł: czytnik, etap, bramy, ustawienia, reguły; wpina się przez `epubforge/sources.py` i nie jest znany rdzeniowi (D-056) |
 | `epubforge/model.py` | model książki — kontrakt (K12) |
 | `epubforge/stages/` | potok etapów; `stages/__init__.py` podaje kolejność **z powodami** |
 | `epubforge/pipeline.py` | przebieg, budżety, bramy, publikacja |
