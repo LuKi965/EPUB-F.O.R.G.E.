@@ -75,6 +75,15 @@ nigdy nie wypełniał: raport mówił zero, a książka niosła **448** znacznik
 (333 pogrubienia, 115 kursyw). Liczba, która kłamie, jest gorsza niż liczba,
 której nie ma.
 
+**Dwa przeglądy, żeby to nie było szukaniem po omacku.** Pierwszy: wszystkie
+pięć bram transformacji w programie sprawdzone pod kątem wady z poprzedniego
+wpisu (brama licząca inaczej niż liczy to, czego pilnuje) — tylko łączniki ją
+miały, a moduł podstawień ma tę samą lekcję zapisaną wprost od dawna. Drugi:
+każde pole raportu PDF sprawdzone, czy cokolwiek je wypełnia — `emphasis` było
+jedyne. Oba przeglądy zostają jako **zapadki**: nowe pole raportu, którego nikt
+nie wypełnia, oblewa test, a drugi test trzyma liczby raportu przy tym, co
+naprawdę stoi w markupie.
+
 
 ### Etap łączników przestał czytać wyrazy w szwach między węzłami
 

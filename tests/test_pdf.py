@@ -42,6 +42,9 @@ from epubforge.typography import canonical
 
 PAGE = (612.0, 792.0)
 
+#: The reader's own source, read as text by the ratchet below.
+SOURCE = pathlib.Path(pdf.__file__)
+
 
 def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
@@ -1137,6 +1140,58 @@ class TestTheReaderSaysHowWellItWent:
         where = source.index("TORN_SHARE_WARN")
         preamble = source[max(0, where - 700):where]
         assert "24 %" in preamble and "measured" in preamble.lower()
+
+
+class TestTheReportSaysNothingItDoesNotKnow:
+    """A number in the report that is always zero is worse than one that is
+    missing: it answers a question nobody can then think to ask.
+
+    `Layout.emphasis` was declared, carried into `report.stats` and filled by
+    nothing, so every PDF report said the book had no marked-up words while
+    the owner's manual had 448. Found by reading the report beside the file it
+    describes; this is the ratchet so the next one is found by a test.
+    """
+
+    @staticmethod
+    def _fields(name: str) -> list:
+        import ast
+
+        source = SOURCE.read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.ClassDef) and node.name == name:
+                return [
+                    item.target.id for item in node.body
+                    if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
+                ]
+        raise AssertionError(f"nie ma klasy {name}")
+
+    @pytest.mark.parametrize("field", _fields.__func__("Layout"))
+    def test_every_field_of_the_report_is_filled_by_something(self, field):
+        source = SOURCE.read_text(encoding="utf-8")
+        written = re.findall(rf"\.{field}\s*(?:=|\+=)", source) + re.findall(rf"\b{field}=", source)
+        assert written, (
+            f"Layout.{field} jest w raporcie i nikt go nie wypełnia — liczba, "
+            f"która zawsze mówi to samo, jest gorsza niż jej brak."
+        )
+
+    def test_the_numbers_in_the_report_are_the_numbers_in_the_book(self, tmp_path):
+        """The other half: a field can be filled and still be wrong. Held
+        against what the markup actually carries, not against itself."""
+        source = make_pdf(tmp_path / "counted.pdf", [
+            column(THREE_PARAGRAPHS),
+            [(72.0, 700.0, 11.0, "A line with a "), (150.0, 700.0, 11.0, "word", "b"),
+             (72.0, 685.0, 11.0, "and a second line under it.")],
+        ])
+        report = Report()
+        book = pdf.read_pdf(str(source), report)
+        stats = report.stats["pdf_layout"]
+        markup = "".join(
+            r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml")
+        )
+        assert stats["emphasis"] == markup.count("<strong>") + markup.count("<em>")
+        assert stats["headings"] == sum(markup.count(f"<h{level}") for level in (1, 2))
+        assert stats["tables"] == markup.count("<table")
+        assert stats["lists"] == markup.count("<ul")
 
 
 class TestThePipeline:
