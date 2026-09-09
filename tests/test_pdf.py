@@ -1281,6 +1281,20 @@ class TestThePageKeptAsAPage:
     where the typesetter put it, and the text is still the source's text in the
     source's order — which is the one promise both modes make (K1)."""
 
+    def test_what_was_set_apart_is_counted_where_it_is_written(self, tmp_path):
+        """A number in the report that is always zero is worse than one that is
+        missing: `emphasis` existed and nothing filled it, so the report said
+        the owner's manual carried no marks while it carried 333."""
+        source = make_pdf(tmp_path / "faces.pdf", [[
+            (72.0, 700.0, 11.0, "A warning about the "),
+            (180.0, 700.0, 11.0, "button", "b"),
+            (72.0, 685.0, 11.0, "and a second line of it."),
+        ]])
+        for page_layout in (pdf.REFLOWABLE, pdf.FIXED):
+            report = Report()
+            pdf.read_pdf(str(source), report, page_layout=page_layout)
+            assert report.stats["pdf_layout"]["emphasis"] == 1, page_layout
+
     def test_the_two_lists_of_modes_are_one_list(self):
         """The reader branches on its own names and the interfaces offer the
         policy's; two lists that drift are a mode nobody can reach."""

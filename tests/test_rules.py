@@ -52,7 +52,13 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # nobody was told about is not one they made — and
 # `pdf.running-heads-kept-fixed` says why the one question this stage
 # usually asks is not asked of such a book.
-TAGGED_TODAY = 414
+# 415 on 2026-09-09 with `pdf.anchor-not-carried`: removing a running head
+# between the halves of a paragraph moves the second half's table-of-contents
+# anchor into the first. Where it cannot — two pages beginning inside one
+# paragraph — the entry loses its place in the document, and the report says
+# so instead of the reader finding out from EPUBCheck, which is how this was
+# found in the first place.
+TAGGED_TODAY = 415
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -164,7 +170,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 315
+TEMPLATED_TODAY = 316
 
 
 class TestTheTranslationCannotStall:

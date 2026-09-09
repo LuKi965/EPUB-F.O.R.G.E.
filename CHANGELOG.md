@@ -40,6 +40,42 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Cztery wady znalezione przez prawdziwy dokument właściciela
+
+Instrukcja obsługi ekspresu (105 stron, skład InDesign) wróciła do kontenera
+i od razu pokazała cztery rzeczy, których nie zawiera żaden materiał zastępczy.
+EPUBCheck na wyniku: **1 błąd i 11 ostrzeżeń → zero**.
+
+**`<figcaption>` nie może stać w środku.** Obrazek, który ma i podpis, i
+etykiety wypisane na sobie, dawał `<figure>` z akapitem etykiet **po**
+podpisie — a podpis wolno postawić tylko jako pierwsze albo ostatnie dziecko
+figury. Jeden dokument z dziesięciu, `element "p" not allowed here`. Etykiety
+stoją teraz za figurą, gdzie im zresztą miejsce: podpis jest nazwą obrazka,
+etykiety są tekstem, który na nim stał. Kolejność czytania bez zmian.
+
+**Usunięcie żywej paginy kasowało kotwice spisu treści.** Druga połowa akapitu
+przeciętego paginą niesie kotwicę strony, którą wskazuje spis treści; złączenie
+połówek usuwało element **razem z kotwicą**. Dwadzieścia pozycji ze stu
+dwudziestu pięciu traciło swoje miejsce, etap nawigacji robił to, co ma
+napisane — zostawiał je wskazujące na plik — i spis treści biegł wstecz, bo
+goły odsyłacz do dokumentu stoi przed każdą kotwicą w tym dokumencie
+(`NAV-011`, osiem dokumentów z dziesięciu). W raporcie nie było o tym ani
+słowa. Kotwica wędruje teraz do akapitu, w który połowę wsunięto; gdy tam już
+jedna jest — dwie strony zaczynające się w jednym akapicie — mówi to nowy wpis
+`pdf.anchor-not-carried` zamiast ciszy.
+
+**Pozycja spisu treści dla strony, do której nic nie sięga.** Trzydzieści
+dziewięć stron tej instrukcji to sam rysunek wektorowy, którego czytnik nie
+przenosi. Taka pozycja wskazywała **początek dokumentu**, czyli miejsce przed
+wszystkim, co ją poprzedza. Wskazuje teraz ostatnią kotwicę przed sobą
+w dokumencie, do którego ta strona należy.
+
+**Wyróżnienia liczone naprawdę.** Pole `emphasis` w raporcie istniało i nikt go
+nigdy nie wypełniał: raport mówił zero, a książka niosła **448** znaczników
+(333 pogrubienia, 115 kursyw). Liczba, która kłamie, jest gorsza niż liczba,
+której nie ma.
+
+
 ### Etap łączników przestał czytać wyrazy w szwach między węzłami
 
 Naprawa wady, która potrafiła **cofnąć wszystkie naprawy w dokumencie naraz**.

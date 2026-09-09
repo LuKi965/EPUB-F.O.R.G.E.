@@ -123,7 +123,7 @@ class PdfStage(Stage):
         self.note(ctx, Level.PRESERVED, "pdf.running-heads-kept", values={"count": count})
 
     def _take_out(self, ctx: Context, found: list, automation) -> None:
-        rejoined = 0
+        rejoined = orphaned = 0
         removed = 0
         documents = 0
         for resource, root, heads in found:
@@ -165,8 +165,16 @@ class PdfStage(Stage):
             removed += taken
             documents += 1
             for element in _continuations(root):
-                rejoined += _rejoin(element)
+                joined, lost = _rejoin(element)
+                rejoined += joined
+                orphaned += lost
             resource.data = xhtml.serialize(root)
+        if orphaned:
+            # Two pages beginning inside one paragraph is the only shape where
+            # the anchor cannot travel, and it is said rather than swallowed:
+            # the entry still finds the document, no longer the place in it.
+            self.note(ctx, Level.WARN, "pdf.anchor-not-carried",
+                      values={"count": orphaned})
         if not removed:
             return
         self.note(ctx, Level.FIX, "pdf.running-heads-removed",
@@ -274,15 +282,43 @@ def _drop_class(element, name: str) -> None:
         element.attrib.pop("class", None)
 
 
-def _rejoin(element) -> int:
+def _rejoin(element) -> "tuple[int, int]":
     """Fold the second half of a paragraph into the first, now that nothing
-    stands between them. Where the first half is not there any more — an
-    image, a heading, the start of the document — the half stays a paragraph
-    of its own, and only the mark goes."""
+    stands between them, and carry its anchor across.
+
+    Returns `(joined, anchors that could not travel)`. Where the first half is
+    not there any more — an image, a heading, the start of the document — the
+    half stays a paragraph of its own, and only the mark goes.
+
+    **The anchor is the part that was missing.** The second half carries the
+    `id` for the page it begins, and the table of contents points at it;
+    joining removed the element and took the anchor with it. Found on the
+    owner's manual through EPUBCheck rather than through the report: twenty
+    entries of a hundred and twenty-five lost their place, the navigation stage
+    did what it says it does — kept them pointing at the file — and the contents
+    then ran backwards, because a bare document link stands before every anchor
+    in that document (`NAV-011`, eight of ten documents). Nothing in the report
+    said a word about it; `pdf.running-heads-removed` said 484 lines had gone
+    and the anchors were somebody else's business.
+
+    The anchor moves to the paragraph the half is folded into, which is where
+    that page now begins — the same answer `_render` gives for any paragraph
+    that runs over a fold. It can only fail to move when the paragraph it joins
+    already carries one, which is two pages beginning inside one paragraph:
+    zero times in the manual's 27 carried anchors, and counted rather than
+    assumed away.
+    """
     previous = element.getprevious()
     if previous is None or xhtml.local_name(previous).lower() != "p":
         _drop_class(element, pdf.CONTINUED_CLASS)
-        return 0
+        return 0, 0
+    orphaned = 0
+    anchor = element.get("id")
+    if anchor:
+        if previous.get("id"):
+            orphaned = 1
+        else:
+            previous.set("id", anchor)
     text = element.text or ""
     children = list(element)
     # A word the typesetter broke at the foot of the page, with the running
@@ -302,7 +338,7 @@ def _rejoin(element) -> int:
     if element.tail:
         previous.tail = (previous.tail or "") + element.tail
     parent.remove(element)
-    return 1
+    return 1, orphaned
 
 
 #: Polish letters per thousand characters above which the text reads as Polish.

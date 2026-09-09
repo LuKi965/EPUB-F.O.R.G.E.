@@ -438,15 +438,17 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout",
     """
     anchored = {entry.page for entry in outline}
     placed: dict[int, str] = {}
+    spans: list = []
     for index, (title, blocks) in enumerate(sections, 1):
         path = f"text/section-{index:04d}.xhtml"
         # A section the outline did not name and no heading opened: the first
         # is the book's own front matter and takes the title; a later one is
         # named by its number, which is the one thing that is true of it.
         label = title or (book.metadata.title if index == 1 else f"{index}")
-        _add_section(book, path, label, blocks, layout, anchored, placed)
+        spans.append((path, _add_section(book, path, label, blocks, layout, anchored, placed)))
         if not outline:
             book.toc.append(NavPoint(label=label, target=path))
+    _place_the_pages_nothing_reaches(anchored, placed, spans)
     if layout.lists:
         book.add(Resource(path=STYLESHEET_PATH, media_type="text/css",
                           data=STYLESHEET.encode("utf-8")))
@@ -465,10 +467,12 @@ def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layou
     layout.tables += counts["tables"]
     layout.labelled_drawings += counts["labelled_drawings"]
     layout.lists += counts["lists"]
+    layout.emphasis += counts["emphasis"]
     layout.table_cells += sum(len(row) for block in blocks
                               if block.kind == "table" for row in block.rows)
     for page, name in counts["anchored"]:
         placed.setdefault(page, f"{path}#{name}")
+    anchors = sorted(counts["anchored"])
     for block in blocks:
         if block.kind == "image" and block.picture.name not in book.resources:
             picture = block.picture
@@ -476,12 +480,39 @@ def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layou
             layout.images += 1
     book.add(Resource(path=path, media_type="application/xhtml+xml", data=markup.encode("utf-8")))
     book.spine.append(SpineItem(path=path))
-    # A page the outline names and no block starts on — an empty page, or one
-    # whose blocks all began earlier — still has to be reachable: the document
-    # it falls in is the truthful answer.
-    for page in {p for p in anchored if p not in placed}:
-        if any(page in _block_pages(block) for block in blocks):
-            placed.setdefault(page, path)
+    pages = {page for block in blocks for page in _block_pages(block)}
+    return min(pages) if pages else 0, anchors
+
+
+def _place_the_pages_nothing_reaches(anchored: set, placed: dict, spans: list) -> None:
+    """Where a table-of-contents entry goes when its page holds nothing.
+
+    The outline names a page and no block reaches it: an empty page, or — 39 of
+    the owner's manual's 105 — a page of nothing but a drawing made of curves,
+    which this reader cannot carry. The entry still has to lead somewhere.
+
+    It leads to **the last anchor before it in the document that page falls
+    in**, which is the last thing a person would have read before that page
+    began. Only a page with no anchor before it in its own document goes to the
+    top of that document.
+
+    Not to the document itself, and that is EPUBCheck on the owner's manual: a
+    bare document link stands *before* every anchor in that document, so a
+    table of contents that mixes the two runs backwards — twenty entries of a
+    hundred and twenty-five, `NAV-011` on eight of ten documents. The entry was
+    truthful about which document and wrong about where in it, and a person
+    following "2.3 Ustaw twardość wody" landed at the head of the chapter.
+    """
+    starts = [start for _path, (start, _anchors) in spans]
+    for index, (path, (_start, anchors)) in enumerate(spans):
+        # Each section owns the pages from where it begins to where the next
+        # one does, so a page nothing reaches still belongs somewhere.
+        after = next((s for s in starts[index + 1:] if s), None)
+        for page in sorted(p for p in anchored if p not in placed):
+            if page < _start or (after is not None and page >= after):
+                continue
+            before = [name for at, name in anchors if at <= page]
+            placed[page] = f"{path}#{before[-1]}" if before else path
 
 
 def _anchor(page: int) -> str:
@@ -2190,15 +2221,24 @@ def _figure(picture: Picture, mark: str = "") -> str:
     reader looking at the drawing will look for them.
     """
     image = f'<img src="../{escape(picture.name)}" alt=""/>'
-    if not picture.labels and not picture.caption:
-        return f"    <p{mark}>{image}</p>"
-    inside = [f"      <p>{image}</p>"]
-    if picture.caption is not None:
-        inside.append(f"      <figcaption>{escape(picture.caption.text.strip())}</figcaption>")
+    labels = ""
     if picture.labels:
-        labels = " ".join(escape(label.text.strip()) for label in picture.labels)
-        inside.append(f'      <p class="{LABEL_CLASS}">{labels}</p>')
-    return f"    <figure{mark}>\n" + "\n".join(inside) + "\n    </figure>"
+        printed = " ".join(escape(label.text.strip()) for label in picture.labels)
+        labels = f'\n    <p class="{LABEL_CLASS}">{printed}</p>'
+    if picture.caption is None:
+        return f"    <p{mark}>{image}</p>{labels}"
+    # `figcaption` may be a figure's **first or last** child and nothing else,
+    # so the callouts stand after the figure rather than inside it — which is
+    # also where they belong: the caption is the picture's name, the callouts
+    # are text that stood *on* it. Found by EPUBCheck on the owner's manual,
+    # on the one shape the substitute material does not have: a picture with a
+    # name under it *and* callouts printed on it (`element "p" not allowed
+    # here`, one document of ten). The order is unchanged — name, then the
+    # callouts — because that is the order `_picture_text` reads them in, and
+    # the two sides of K1 agree about it.
+    caption = escape(picture.caption.text.strip())
+    return (f"    <figure{mark}>\n      <p>{image}</p>\n"
+            f"      <figcaption>{caption}</figcaption>\n    </figure>{labels}")
 
 
 def _grid(rows: "list[list[Line]]", mark: str = "") -> str:
@@ -2351,6 +2391,11 @@ def _element(block: Block, mark: str, counts: dict, item: bool = False,
     if block.kind == "head":
         return f'    <p{mark} class="{RUNNING_HEAD_CLASS}">{escape(block.text)}</p>'
     inner = _marked(block, body_face)
+    # What the typesetter set apart, counted where it is written. The field
+    # existed and nothing ever filled it: the report said `emphasis: 0` while
+    # the owner's manual carried 333 marks, which is a number that lies rather
+    # than a number that is missing.
+    counts["emphasis"] += inner.count("<strong>") + inner.count("<em>")
     if block.kind in ("h1", "h2"):
         counts["headings"] += 1
         return f"    <{block.kind}{mark}>{inner}</{block.kind}>"
@@ -2370,7 +2415,8 @@ def _render(blocks: list[Block], title: str, anchored: "set[int] | None" = None,
     got one — a nav entry is only allowed to point where something is.
     """
     counts: dict = {"paragraphs": 0, "headings": 0, "tables": 0,
-                    "labelled_drawings": 0, "lists": 0, "anchored": []}
+                    "labelled_drawings": 0, "lists": 0, "emphasis": 0,
+                    "anchored": []}
     wanted = set(anchored or ())
     runs = _list_runs(blocks)
     opens = {first for first, _ in runs}
@@ -2579,7 +2625,7 @@ def _fixed_picture(picture: Picture, page: Page, body_face: str) -> str:
 
 def _fixed_document(page: Page, items: list, title: str, body_face: str) -> "tuple[str, dict]":
     """One PDF page as one document, and what went onto it."""
-    counts: dict = {"lines": 0, "headings": 0, "images": 0}
+    counts: dict = {"lines": 0, "headings": 0, "images": 0, "emphasis": 0}
     body: list[str] = []
     for block, lines in items:
         if block.kind == "image":
@@ -2647,6 +2693,7 @@ def _fill_the_pages(book: Book, pages: "list[Page]", blocks: "list[Block]",
             titles.get(page.number) or book.metadata.title, layout.body_face,
         )
         layout.headings += counts["headings"]
+        layout.emphasis += markup.count("<strong>") + markup.count("<em>")
         book.add(Resource(path=path, media_type="application/xhtml+xml",
                           data=markup.encode("utf-8")))
         book.spine.append(SpineItem(path=path))
