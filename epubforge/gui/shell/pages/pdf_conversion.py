@@ -39,6 +39,7 @@ from ..responsive import Cards, LayoutMode, Panels, Responsive, spread
 from ..state import last_folder, remember_folder
 from ..tokens import CARD_GAP, Tokens
 from ..widgets import (
+    ActionFooter,
     BookRow,
     BoundedList,
     Card,
@@ -159,6 +160,16 @@ class PdfConversionPage(Responsive, QWidget):
         self.body.setSpacing(CARD_GAP)
         page.addLayout(self.body, 1)
 
+        # Outside the scroll area, exactly as on the rebuild (F08). This page
+        # did not have one, and it is the same page shape with the same
+        # problem: with twelve documents in a 600-pixel window the button that
+        # starts the conversion measured 889 px below the fold, while the
+        # rebuild's sat on screen. A module split out to be its own module
+        # inherited none of the other one's layout work — including its tests,
+        # which is why nothing said so.
+        self.footer = ActionFooter(tokens)
+        outer.addWidget(self.footer)
+
         self.show_files()
         self.begin_tracking(scroller)
 
@@ -166,6 +177,26 @@ class PdfConversionPage(Responsive, QWidget):
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)
         self.stepper.set_compact(mode is LayoutMode.COMPACT)
+        self._settle_footer()
+
+    def _settle_footer(self) -> None:
+        """Put the conversion where this width can reach it.
+
+        Narrow: in the footer, outside everything that scrolls, with the count
+        beside it. Wide: back in the summary column. One button, moved.
+        """
+        action = getattr(self, "convert_button", None)
+        self.footer.clear_except(action)
+        if action is None or self.stage is not Stage.PLAN:
+            self.footer.setVisible(False)
+            return
+        if self.layout_mode.narrow:
+            self.footer.carry(action, tr("pdf.plan.count", count=self.ready_count))
+            return
+        home = getattr(self, "_convert_home", None)
+        if self.footer.holds(action) and home is not None:
+            home.insertWidget(home.indexOf(self._safety_note), action)
+        self.footer.setVisible(False)
 
     def _settle(self) -> None:
         spread(self, self.layout_mode)
@@ -173,6 +204,9 @@ class PdfConversionPage(Responsive, QWidget):
             listing = getattr(self, name, None)
             if listing is not None and listing.parent() is not None:
                 listing.fit_within(self.height())
+        # Each state builds its own widgets, so the action the footer should be
+        # holding is a different object after every one of them.
+        self._settle_footer()
 
     def _go(self, stage: Stage) -> None:
         self.stage = stage
@@ -438,7 +472,11 @@ class PdfConversionPage(Responsive, QWidget):
         self.convert_button.setEnabled(bool(self.ready_count))
         self.convert_button.clicked.connect(self.run)
         card.body.addWidget(self.convert_button)
-        card.body.addWidget(SafetyNote(self.tokens))
+        # Where the button goes back to when the page is wide enough to hold
+        # it beside the list again.
+        self._convert_home = card.body
+        self._safety_note = SafetyNote(self.tokens)
+        card.body.addWidget(self._safety_note)
         card.body.addStretch(1)
         return card
 
@@ -471,6 +509,9 @@ class PdfConversionPage(Responsive, QWidget):
             said["count"].setText(str(self.ready_count))
         if hasattr(self, "convert_button"):
             self.convert_button.setEnabled(bool(self.ready_count))
+        if self.footer.isVisible():
+            # The footer says the same number as the list, or it is furniture.
+            self.footer.count.setText(tr("pdf.plan.count", count=self.ready_count))
 
     # -- 3. converting ------------------------------------------------------
     def plan(self):

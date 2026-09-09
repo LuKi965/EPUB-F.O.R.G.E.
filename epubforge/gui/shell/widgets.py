@@ -26,7 +26,8 @@ from ..strings import tr
 from . import icons
 from .models import STATUS_LOOK, BookItem, BookStatus, Preset, Stage
 from .responsive import LayoutMode
-from .tokens import SIDEBAR_COMPACT_WIDTH, SIDEBAR_WIDTH, Tokens
+from .tokens import (CONTENT_MARGIN, SIDEBAR_COMPACT_WIDTH, SIDEBAR_WIDTH,
+                     Tokens)
 
 
 def label(text: str, object_name: str = "", *, wrap: bool = True,
@@ -113,8 +114,6 @@ def page_body(spacing: int = 14):
     """
     from PySide6.QtWidgets import QScrollArea
 
-    from .tokens import CONTENT_MARGIN
-
     holder = QWidget()
     body = QVBoxLayout(holder)
     body.setContentsMargins(CONTENT_MARGIN, 24, CONTENT_MARGIN, 22)
@@ -127,6 +126,63 @@ def page_body(spacing: int = 14):
     # room its content actually gets rather than from its own width (F08).
     area.content_inset = 2 * CONTENT_MARGIN
     return area, body
+
+
+class ActionFooter(QWidget):
+    """The main action, outside everything that scrolls, with its count.
+
+    F08's other half. `BoundedList` stops the list from stretching the page;
+    this stops the one decision from sitting below it. In a single-column
+    composition the summary card — and the action in it — is under the list,
+    and "scroll past four hundred rows to reach Przebuduj" is not a decision
+    anybody makes twice.
+
+    **One button, moved.** Never a second copy: two live primary buttons are
+    worse than one in the wrong place. And never more than one at a time —
+    each state of a page builds its own widgets, so the action handed here
+    can be a *new* object while the last one is still parented here, out of
+    reach of the page's own teardown. That is two live primary buttons by
+    accident, which is how it was found (a screenshot, etap 5), so taking a
+    new one evicts whatever else is holding on.
+
+    Both task pages use this. The rebuild had it and the converter did not,
+    and the converter's action measured 889 px below the fold on a 600-pixel
+    page — the same defect, on the module that was split out to be its own.
+    """
+
+    def __init__(self, tokens: Tokens) -> None:
+        super().__init__()
+        self.tokens = tokens
+        self.setObjectName("actionFooter")
+        self._row = QHBoxLayout(self)
+        self._row.setContentsMargins(CONTENT_MARGIN, 10, CONTENT_MARGIN, 12)
+        self._row.setSpacing(12)
+        self.count = label("", "cardTitle")
+        self._row.addWidget(self.count)
+        self._row.addStretch(1)
+        self.hide()
+
+    def carry(self, action: QWidget, said: str) -> None:
+        """Hold *action* — and only it — with *said* beside it."""
+        self.clear_except(action)
+        if action.parent() is not self:
+            self._row.addWidget(action)
+        self.count.setText(said)
+        self.setVisible(True)
+
+    def holds(self, action: "QWidget | None") -> bool:
+        return action is not None and action.parent() is self
+
+    def clear_except(self, keep: "QWidget | None" = None) -> None:
+        """Drop everything but the count and *keep*."""
+        for index in reversed(range(self._row.count())):
+            item = self._row.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if widget is None or widget is keep or widget is self.count:
+                continue
+            self._row.takeAt(index)
+            widget.setParent(None)
+            widget.deleteLater()
 
 
 class BoundedList(QScrollArea):

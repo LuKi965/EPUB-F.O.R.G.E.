@@ -40,6 +40,7 @@ from ..models import (
 from ..responsive import Cards, LayoutMode, Panels, Responsive, spread
 from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
 from ..widgets import (
+    ActionFooter,
     BookRow,
     BoundedList,
     Card,
@@ -128,15 +129,7 @@ class RebuildPage(Responsive, QWidget):
         # a decision anybody makes twice. In a wide window the summary column
         # still carries it, and this stays hidden: two live primary buttons
         # would be worse than one in the wrong place.
-        self.footer = QWidget()
-        self.footer.setObjectName("actionFooter")
-        self._footer_row = QHBoxLayout(self.footer)
-        self._footer_row.setContentsMargins(CONTENT_MARGIN, 10, CONTENT_MARGIN, 12)
-        self._footer_row.setSpacing(12)
-        self.footer_count = label("", "cardTitle")
-        self._footer_row.addWidget(self.footer_count)
-        self._footer_row.addStretch(1)
-        self.footer.hide()
+        self.footer = ActionFooter(tokens)
         outer.addWidget(self.footer)
 
         self.drawer = SettingsDrawer(self, tokens)
@@ -170,41 +163,22 @@ class RebuildPage(Responsive, QWidget):
         kilometrowego formularza").
         """
         action = getattr(self, "run_button", None)
-        # Every state builds its own widgets, so `run_button` can be a *new*
-        # object while the last one is still parented here — outside the body,
-        # where clearing the body cannot reach it. Left alone that is two live
-        # primary buttons side by side, which is the thing moving one button
-        # instead of duplicating it was for. The footer holds one action, so
-        # anything else in it is a leftover and goes.
-        self._empty_the_footer(keep=action)
+        self.footer.clear_except(action)
         if action is None or self.stage is not Stage.PLAN:
             self.footer.setVisible(False)
             return
         # Whenever the composition is a single column — which is every mode
         # but WIDE. That is exactly when the summary card, and the main action
         # in it, sits *below* the list rather than beside it.
-        wants_footer = self.layout_mode.narrow
-        in_footer = action.parent() is self.footer
-        if wants_footer and not in_footer:
-            self._footer_row.addWidget(action)
-        elif not wants_footer and in_footer:
+        if self.layout_mode.narrow:
+            self.footer.carry(action, tr("shell.plan.count", count=self.ready_count))
+            return
+        if self.footer.holds(action):
             home = getattr(self, "_run_home", None)
             if home is not None:
                 # Back above the two lines that follow it in the column.
                 home.insertWidget(home.indexOf(self.plan_button), action)
-        self.footer_count.setText(tr("shell.plan.count", count=self.ready_count))
-        self.footer.setVisible(wants_footer)
-
-    def _empty_the_footer(self, *, keep) -> None:
-        """Drop everything the footer holds except the count and *keep*."""
-        for index in reversed(range(self._footer_row.count())):
-            item = self._footer_row.itemAt(index)
-            widget = item.widget() if item is not None else None
-            if widget is None or widget is keep or widget is self.footer_count:
-                continue
-            self._footer_row.takeAt(index)
-            widget.setParent(None)
-            widget.deleteLater()
+        self.footer.setVisible(False)
 
     def _settle(self) -> None:
         """Hand the current mode to whatever the last state just built.

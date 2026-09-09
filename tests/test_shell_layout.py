@@ -44,10 +44,12 @@ from epubforge.gui.shell.models import JobRecord, Stage  # noqa: E402
 from epubforge.gui.shell.pages import (  # noqa: E402
     HistoryPage,
     HomePage,
+    PdfConversionPage,
     RebuildPage,
     SettingsPage,
     ToolsPage,
 )
+from epubforge.gui.shell.pdf_backend import DemoPdfBackend  # noqa: E402
 from epubforge.gui.shell.responsive import LayoutMode  # noqa: E402
 from epubforge.gui.strings import set_language, tr  # noqa: E402
 from tests.geometry import problems_with, where  # noqa: E402
@@ -292,6 +294,120 @@ class TestBothLanguages:
                 finish(page)
 
 
+class TestTheConverterIsLaidOutToo:
+    """The module D-057 created had **no layout test at all**.
+
+    Every test in this file was written when there was one task page, and the
+    second one inherited none of them: not the sizes, not the long batch, not
+    the question of whether its main action can be reached. A module that is
+    its own module has to be its own module here as well, or "separate" means
+    separate everywhere except where it is checked.
+    """
+
+    @staticmethod
+    def _page(qt_app):
+        return PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+
+    @staticmethod
+    def _documents(count: int) -> "list[str]":
+        return [f"/dokumenty/Instrukcja {number:02d}.pdf" for number in range(count)]
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_the_settings_are_whole_and_the_action_is_reachable(self, qt_app, host, size):
+        page = self._page(qt_app)
+        try:
+            page.start(self._documents(3))
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, size)
+            assert not problems_with(page, main_action=page.convert_button), size
+        finally:
+            finish(page)
+
+    @pytest.mark.parametrize("count", [0, 1, 3, 50, 500])
+    def test_a_long_batch_does_not_bury_the_conversion(self, qt_app, host, count):
+        page = self._page(qt_app)
+        try:
+            documents = self._documents(count)
+            if not documents:
+                page.start(documents)
+                assert page.stage is Stage.FILES
+                return
+            page.start(documents)
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (900, 600))
+            listing = page.document_list
+            assert listing.height() <= int(page.height() * listing.SHARE_OF_THE_PAGE) + 2, (
+                count, listing.height(), page.height()
+            )
+            assert not problems_with(page, main_action=page.convert_button), count
+        finally:
+            finish(page)
+
+    def test_the_conversion_is_on_screen_and_not_below_the_documents(
+        self, qt_app, host
+    ):
+        """Measured, because "reachable" and "on screen" are not the same.
+
+        `problems_with` asks whether the main action exists and can be
+        scrolled to; both were true of a button that sat **889 px below** a
+        600-pixel page with twelve documents in it. The rebuild's footer put
+        its own action at 580 on the same page. That difference is the whole
+        of F08, and this module had none of it.
+        """
+        page = self._page(qt_app)
+        try:
+            page.start(self._documents(12))
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (900, 600))
+            assert not page.footer.isHidden(), "wąsko: stopka miała się pojawić"
+            assert page.footer.holds(page.convert_button)
+            bottom = where(page.convert_button, page).bottom()
+            assert bottom <= page.height(), (bottom, page.height())
+
+            # And back in the column when there is room beside the list.
+            laid_out(qt_app, page, host, (1440, 900))
+            assert page.footer.isHidden(), "szeroko: stopka nie jest potrzebna"
+            assert not page.footer.holds(page.convert_button)
+        finally:
+            finish(page)
+
+    def test_there_is_never_a_second_live_conversion_button(self, qt_app, host):
+        """The same trap the rebuild fell into: a new state builds a new
+        button while the old one is still parented to the footer."""
+        from PySide6.QtWidgets import QPushButton
+
+        page = self._page(qt_app)
+        try:
+            page.start(self._documents(4))
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (900, 600))
+            page.start(self._documents(2))
+            settle(qt_app, lambda: page.stage is Stage.PLAN and len(page.documents) == 2)
+            laid_out(qt_app, page, host, (900, 600))
+            inside = page.footer.findChildren(QPushButton)
+            assert len(inside) == 1, [one.text() for one in inside]
+            shown = [
+                one for one in page.findChildren(QPushButton)
+                if one.text() == tr("pdf.convert") and one.isVisibleTo(page)
+            ]
+            assert len(shown) == 1, [one.text() for one in shown]
+        finally:
+            finish(page)
+
+    def test_the_results_are_whole_at_every_size(self, qt_app, host):
+        page = self._page(qt_app)
+        try:
+            page.start(self._documents(2) + ["/dokumenty/Skan bez tekstu.pdf"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            page.run()
+            settle(qt_app, lambda: page.stage is Stage.RESULTS)
+            for size in SIZES:
+                laid_out(qt_app, page, host, size)
+                assert not problems_with(page), size
+        finally:
+            finish(page)
+
+
 class TestBothThemes:
     """The light theme shipped and nothing ever laid it out.
 
@@ -303,34 +419,33 @@ class TestBothThemes:
     in whichever theme did it.
     """
 
-    @pytest.fixture
-    def _sheet(self, qt_app):
-        """Give the application the theme's own stylesheet, and put the dark
-        one back — this fixture's pages are not the only ones in the run."""
-        before = qt_app.styleSheet()
-        yield
-        qt_app.setStyleSheet(before)
+    #: Built once. Not because generating them is slow — it is not — but
+    #: because `QApplication.setStyleSheet` is: it re-polishes every widget
+    #: the application owns, and by the middle of this file that is thousands.
+    #: Six calls to it took the suite from half a minute to over ten, which is
+    #: why the sheet goes on the *page* here and not on the application. The
+    #: page is what is being measured either way.
+    SHEETS = {name: tokens_module.stylesheet(getattr(tokens_module, name))
+              for name in ("DARK", "LIGHT")}
 
     @pytest.mark.parametrize("theme", ["DARK", "LIGHT"])
     @pytest.mark.parametrize("size", [(1440, 900), (900, 600), (800, 560)])
-    def test_no_control_is_lost_in_either_theme(self, qt_app, host, _sheet, theme, size):
+    def test_no_control_is_lost_in_either_theme(self, qt_app, host, theme, size):
         tokens = getattr(tokens_module, theme)
-        qt_app.setStyleSheet(tokens_module.stylesheet(tokens))
         for name, page in every_screen(qt_app, tokens):
             try:
+                page.setStyleSheet(self.SHEETS[theme])
                 laid_out(qt_app, page, host, size)
                 assert not problems_with(page), (theme, name, size)
             finally:
                 finish(page)
 
     @pytest.mark.parametrize("theme", ["DARK", "LIGHT"])
-    def test_the_plan_keeps_its_main_action_in_either_theme(
-        self, qt_app, host, _sheet, theme
-    ):
+    def test_the_plan_keeps_its_main_action_in_either_theme(self, qt_app, host, theme):
         tokens = getattr(tokens_module, theme)
-        qt_app.setStyleSheet(tokens_module.stylesheet(tokens))
         page = RebuildPage(tokens, DemoBackend())
         try:
+            page.setStyleSheet(self.SHEETS[theme])
             page.start(["Powiesc.epub", "Zbior.epub", "Poradnik.epub"])
             settle(qt_app, lambda: page.stage is Stage.PLAN)
             for size in ((1440, 900), (900, 600)):
@@ -669,9 +784,9 @@ class TestF08ALongBatchDoesNotBuryTheDecision:
             laid_out(qt_app, page, host, (900, 600))
             for _ in range(6):
                 qt_app.processEvents()
-            assert tr("shell.plan.count", count=6) == page.footer_count.text()
+            assert tr("shell.plan.count", count=6) == page.footer.count.text()
             page._toggle_book(page.books[0], False)
-            assert tr("shell.plan.count", count=5) == page.footer_count.text()
+            assert tr("shell.plan.count", count=5) == page.footer.count.text()
         finally:
             finish(page)
 
