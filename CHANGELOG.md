@@ -40,6 +40,38 @@ written; only the current version was reset.
 
 ## Unreleased
 
+(Nic jeszcze nie czeka — 0.4.3 wyszło 2026-09-09.)
+
+## 0.4.3 — alpha — 2026-09-09
+
+### PDF na prawdziwym dokumencie, konwerter jako osobny moduł, dwie bramy naprawione
+
+Wydanie o jednym: **PDF przestał być dodatkiem doklejonym do naprawiania
+EPUB-ów**, a prawdziwa instrukcja obsługi właściciela — 105 stron ze składu
+InDesign — znalazła to, czego nie znalazł żaden materiał zastępczy.
+
+| co | skala |
+|---|---|
+| akapity urwane w połowie zdania (instrukcja) | 26 % → **0,6 %** |
+| pozycje spisu treści | 10 → **125**, każda trafia we właściwe miejsce |
+| EPUBCheck na wyniku instrukcji | 1 błąd + 11 ostrzeżeń → **0** |
+| wyróżnienia zecera przeniesione | 0 → **448** |
+| rozgałęzień „a jeśli to PDF" w rdzeniu | 8 → **0** |
+| naprawy cofane przez błąd bramy łączników | do **1 157** na książkę → 0 |
+| suita | 4 185 → **4 283** |
+
+**Nowe.** Osobny tryb `--pdf-layout fixed`: strony PDF-a zachowane jako strony
+(jeden dokument na stronę, `pre-paginated`, dokładny spis stron) — nigdy
+domyślnie, z raportem mówiącym, ile to kosztuje. Nawigacja z **drukowanego**
+spisu treści, gdy PDF nie ma zakładek. Wyróżnienia zecera (`<strong>`, `<em>`)
+czytane na znak.
+
+**Naprawione.** Brama etapu łączników czytała wyrazy w szwach między węzłami
+i potrafiła cofnąć wszystkie naprawy w dokumencie naraz. Usunięcie żywej paginy
+kasowało kotwice spisu treści. Podpis obrazka lądował w środku figury (błąd
+XHTML). Pozycja spisu dla strony, do której nic nie sięga, wskazywała początek
+dokumentu, czyli miejsce przed sobą.
+
 ### Cztery wady znalezione przez prawdziwy dokument właściciela
 
 Instrukcja obsługi ekspresu (105 stron, skład InDesign) wróciła do kontenera
