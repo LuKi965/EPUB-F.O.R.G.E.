@@ -40,9 +40,46 @@ written; only the current version was reset.
 
 ## Unreleased
 
-Paczka właściciela **HANDOFF V3** (2026-09-09), nazwana przez niego
-specyfikacją nadrzędną wobec wcześniejszych paczek revampu. Dwa etapy z pięciu
-wykonane; reszta w toku, bez wydania.
+(Nic jeszcze nie czeka — 0.4.4 wyszło 2026-09-09.)
+
+## 0.4.4 — alpha — 2026-09-09
+
+### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki
+
+Wydanie o **HANDOFF V3** — paczce właściciela z 2026-09-09, nazwanej przez
+niego specyfikacją nadrzędną wobec wcześniejszych paczek revampu — i o
+pierwszej iteracji **roadmapy jakości konwersji** z tego samego dnia. Pięć
+etapów z pięciu wykonanych, plus dwa ustalenia roadmapy zamknięte.
+
+Zdanie, które wiąże to wszystko razem, jest z paczki roadmapy: *płynny EPUB ma
+być czytelnym e-bookiem z pełną informacją.* Rysunek, którego w książce nie ma,
+jest brakiem informacji. Przycisk 889 pikseli pod krawędzią ekranu jest brakiem
+programu.
+
+| co | skala |
+|---|---|
+| przycisk rozpoczynający konwersję, 12 dokumentów w oknie 600 px | **889 px pod krawędzią** → 580, w stopce |
+| okładka w wierszu książki | ten sam glif 22 px dla każdej → **własna okładka pliku** |
+| rysunek wektorowy w wyniku konwersji | same etykiety bez niczego → **obraz obszaru ze źródła** |
+| zgoda na usunięcie tekstu | jedna reguła płaciła za cudzą utratę → **rachunek per reguła i dokument** |
+| zakleszczenie dwóch wątków przy sprzątaniu workera | suita GUI stawała bez słowa → **naprawione, z dowodem z gdb** |
+| zrzuty aplikacji | z atrapy → **z produkcyjnych adapterów** |
+| suita | 4 283 → **4 456** |
+
+**Nowe.** PDF → EPUB jest **osobnym modułem aplikacji**, nie importerem
+uruchamianym z Przebudowy: własna komenda `epubforge convert-pdf`, własna
+pozycja na pasku bocznym, własny przebieg i własne wyniki, a `epubforge build`
+z PDF-em odmawia i wskazuje, dokąd iść. Książka pokazuje w oknie własną
+okładkę. Rysunek złożony z krzywych trafia do książki jako obraz obszaru,
+który zajmuje — przez opcjonalną zależność `epub-forge[draw]`, a bez niej
+raport mówi, czego brakuje.
+
+**Naprawione.** Okno liczy swoją najmniejszą wysokość dla **tego** ekranu,
+zamiast trzymać stałe 800×520 większe od cudzego pulpitu. Dwa żywe przyciski
+główne w stopce. Nazwy kategorii ucinane w połowie litery. Zakleszczenie dwóch
+wątków przy kasowaniu zadania. Zgoda na jedną operację przestała płacić za
+utratę, której nikt nie autoryzował. Stepper konwersji zapalał nie ten krok, na
+którym stoi człowiek.
 
 ### Wyniki mówią prawdę, a sesje nie mieszają się nawzajem
 
@@ -118,6 +155,252 @@ i nie ma ekranu konwersji.
 zapisano, oto powód", a nie końcem partii), `TAGGED_TODAY` 415 → 418 i
 `TEMPLATED_TODAY` 316 → 318 (trzy nowe linie raportu: odmowa przebudowy,
 zajęta nazwa i rdzeniowe „to nie jest książka").
+
+### Książka pokazuje własną okładkę
+
+**F02**, i to był brak funkcji, nie usterka stylu: `reader._detect_cover` od
+dawna ustala, który zasób jest okładką, a okno rysowało każdemu tytułowi ten
+sam 22-pikselowy glif, bo nic nie przenosiło tej odpowiedzi.
+
+`gui/shell/thumbnails.py` jest bez Qt, więc dekodowanie i zmniejszanie dzieje
+się na wątku roboczym, tam gdzie analiza już jest; `QPixmap` powstaje w GUI, bo
+tylko to musi. Moduł czyta **bajty, które czytnik ma już w ręku** — nigdy
+ścieżki, nigdy adresu — więc nie ma tu czego wycelować w plik spoza książki.
+Odmawia powyżej 12 MB i 40 Mpx, oddaje PNG najwyżej 112×168, co pokrywa widok
+56×84 przy DPR 2.
+
+Pamięć podręczna jest ograniczona i kluczowana **odciskiem pliku** — ścieżka,
+długość, czas modyfikacji — więc podmiana książki pod tą samą nazwą pokazuje
+nową okładkę. `None` jest zapamiętaną odpowiedzią, więc uszkodzona okładka nie
+jest dekodowana ponownie przy każdym odrysowaniu. Wiersz kompaktowy **zachowuje**
+okładkę zamiast ją chować — stary glif tam znikał i zabierał jedyny obrazek
+książki.
+
+Testy: `tests/test_shell_covers.py`, 23 przypadki, wszystkie na prawdziwych
+EPUB-ach przez adapter produkcyjny — `cover-image` z EPUB 3, `meta name="cover"`
+z EPUB 2 wskazujące obraz, który nie jest pierwszy w ZIP-ie, okładka uszkodzona
+i za duża (placeholder, a książka zostaje książką), unieważnienie odcisku,
+spóźniona odpowiedź, która nie ma gdzie wylądować. Okładki w testach i w atrapie
+to własne kolorowe prostokąty; do aplikacji trafiają okładki rzeczywistych
+plików.
+
+### Okno mieści się na ekranie, a długa partia nie chowa decyzji
+
+**F07 — dosłownie mieści się.** Podłoga była stała: 800×520 niezależnie od
+pulpitu, więc na mniejszym ekranie okno było większe od pulpitu, a jego prawa
+kolumna stała tam, skąd nic jej nie przeciągnie. `smallest_here` liczy podłogę
+dla tego ekranu, `opening_size` nigdy nie przekracza obszaru roboczego, a ramka
+jest **mierzona po `show()`**, nie zgadywana. `tools/ui_check_layout.py`
+przestało oceniać się względem `max(screen, MIN_WINDOW)` — to sprawiało, że
+jedyny ekran, na którym odpowiedź ma znaczenie, był jedynym, na którym kontrola
+nie mogła polec.
+
+**F08 — lista przewija się w sobie**, zamiast rozciągać stronę. `BoundedList`
+jest ograniczona w **wierszach**, nie w pikselach, bo wysokość wiersza właśnie
+się zmieniła, gdy doszły okładki. Stopka akcji stoi poza wszystkim, co się
+przewija — z tym samym przyciskiem **przeniesionym**, nie drugim obok. Testy na
+partiach 0, 1, 3, 50 i 500, z długimi tytułami, Unicode i bez autora.
+
+**Próg kompozycji mierzony w kontenerze, nie na stronie.** `usable_width`
+odejmuje marginesy i pasek przewijania; `WIDE_FROM` wynika z liczb projektu
+(lista 580 + podsumowanie 300 + odstęp), a nie z okrągłej liczby napisanej
+obok. Pasek jest odejmowany **zawsze, także gdy go nie widać**, i to nie jest
+zaokrąglenie w górę: liczenie tylko widocznego paska uzależnia wejście od
+wyjścia — układ krótszy traci pasek, zyskuje szerokość, wraca za próg i znowu
+rośnie. Złapane jako zawis suity, nie jako teoria; histereza tego nie naprawia,
+bo przyczyną oscylacji jest sama zmiana. Szerokość paska jest teraz tokenem
+`SCROLL_BAR_WIDTH`, którego używa i arkusz stylów, i arytmetyka progu, a test
+buduje prawdziwą stronę i pyta ją, ile faktycznie wydaje.
+
+**Zakleszczenie dwóch wątków**, znalezione przy tej okazji. Runner kasował
+zadanie przez `thread.finished` → `job.deleteLater`. To idiom Qt, ale pod
+PySide oznacza, że `~QObject` wykonuje się na wątku roboczym, gdzie zniszczenie
+obiektu z warstwą pythonową potrzebuje GIL — a Qt trzyma przy tym blokadę
+sygnałów i slotów z **małej globalnej puli wspólnej dla wszystkich `QObject`**.
+Wątek okna trzyma GIL i sięga po blokadę z tej samej puli przy każdym
+przepięciu widgetu: `QWidget::setParent` → `inheritStyle` → `setStyle_helper` →
+`QObject::disconnect`. Każdy czeka na to, co ma drugi. **Nie wywnioskowane:**
+gdb na zawieszonym procesie pokazał wątek roboczy w `~QObject` →
+`GilState::acquire`, a wątek okna w `disconnect` → `QBasicMutex::lockInternal`.
+Zadanie wraca teraz do domu, zanim zginie — połączenie bezpośrednie na
+`thread.finished`, wykonywane jeszcze na wątku roboczym, robi `moveToThread` na
+wątek okna; to jedyny moment, w którym ten ruch jest legalny. Nie da się
+napisać testu na „nie zakleszczyło się", bo suita, która się zakleszcza, nie
+dochodzi do asercji — test pilnuje więc własności, której zakleszczenie
+potrzebowało: `destroyed` przychodzi na wątku okna.
+
+**F11 — narzędzia pokazują strukturalne podsumowanie** nad surowym tekstem,
+zbudowane z liczb, które narzędzie oddaje w `ToolAnswer.facts`. Test parsuje
+`toolwork.py` i pilnuje, że żadna karta nie powstaje z regexa po prozie:
+zdanie, które się zmieni, po cichu opróżniałoby kartę. Puste jest uczciwe.
+
+### Zrzuty prawdziwej aplikacji, i cztery usterki, które pokazały
+
+Narzędzie zrzutów chodzi na **produkcyjnych adapterach**, nie na atrapie.
+`tools/ui_fixtures.py` pisze tuż przed przebiegiem prawdziwe EPUB-y i PDF-y —
+trzy książki z trzema różnymi okładkami, czwarta bez okładki i z tytułem, który
+się nie mieści, do tego PDF z warstwą tekstową i skan bez niej. Kontrola
+wyglądu ma prawdziwe Chromium, bo bez niego każda książka wychodzi zablokowana
+i zdjęcie pokazuje zepsute środowisko zamiast interfejsu. To wprost z
+polecenia: **test na atrapie nie jest dowodem działania rzeczywistego
+adaptera**, więc zrzut z atrapy nie jest zrzutem aplikacji.
+
+Cztery usterki, których nie widziały ani makiety, ani suita:
+
+**Dwa żywe przyciski główne w stopce.** Każdy stan strony buduje własne
+widgety, więc drugi plan robi nowy `run_button`, a poprzedni wciąż wisi w
+stopce — poza ciałem strony, gdzie sprzątanie ciała go nie sięga. Dokładnie to,
+czemu miało zapobiec przenoszenie jednego przycisku zamiast duplikowania.
+
+**Nazwy kategorii w szufladzie były UCINANE, nie skracane:** „Podstawo",
+„Wygląd i ty", bez wielokropka, w połowie litery. Komentarz w kodzie twierdził,
+że `QPushButton` skraca to, co się nie mieści — nie skraca tutaj. Kolumna ma
+teraz szerokość najdłuższej nazwy plus to, co wydaje sam obszar przewijania;
+obie składowe **pytane, nie założone** — pierwsze podejście doliczyło tylko
+pasek i znowu ucięło cztery litery.
+
+**Atrapa ignorowała próbę.** Silnik pisze do katalogu, który kasuje na końcu
+przebiegu, i nie publikuje nic; atrapa na to samo zadanie odpowiadała czterema
+nazwami plików.
+
+**Powód odmowy skanu był skracany do niebytu.** Wiersz daje uwadze jedną
+elidowaną linię, a zdanie kończy się za wielokropkiem — słowa „OCR" nie było
+nigdzie na ekranie. Gorzej: adapter trzymał `warnings[0]` w jednym stringu,
+więc reszta uwag ginęła między usługą a wierszem. Teraz wszystkie uwagi zostają
+przy dokumencie, a karta „Co się wydarzyło" pisze je w całości.
+
+Poza tym narzędzie zrzutów pisało swoje atrapy do **prawdziwej historii** —
+`history_path` idzie do katalogu danych aplikacji, którego przekierowanie
+`QSettings` nie obejmuje. Zauważone przez przeczytanie strony Start na zdjęciu
+i znalezienie na niej dokumentów z poprzedniego przebiegu.
+
+**Stepper konwersji zapalał nie ten krok, na którym stoi człowiek** — cztery
+nazwy przesunięte o jedno miejsce, więc ekran ustawień pokazywał krok
+„Ustawienia" odhaczony jako zrobiony i podświetlony następny. **Powód odmowy
+skanu przychodził dwa razy:** czytnik zgłasza go jako regułę, przetłumaczoną,
+i dopiero potem rzuca wyjątkiem, żeby zatrzymać przebieg, a ogólna osłona w
+`pipeline` dopisywała własny wiersz z tekstem wyjątku — na polskim ekranie
+angielskie zdanie pod polskim. `EpubReadError` niesie flagę „już zgłoszone".
+
+**Strona PDF nie miała stopki akcji.** Przy dwunastu dokumentach w oknie 600 px
+przycisk rozpoczynający konwersję wypadał **889 px poniżej krawędzi ekranu**,
+podczas gdy przycisk przebudowy siedział na 580, w stopce. Moduł wydzielony po
+to, żeby był osobnym modułem, nie odziedziczył po sąsiedzie ani tej pracy nad
+układem, ani jej testów — i dlatego nic tego nie powiedziało. Stopka jest teraz
+jednym widgetem `widgets.ActionFooter`, **wspólnym** dla obu stron zadaniowych;
+dwie kopie różnią się po pierwszej poprawce. Nowy pomiar w testach — dół
+przycisku względem wysokości strony — bo `problems_with` przepuściło tamten
+przycisk: pyta, czy główna akcja istnieje i da się do niej doscrollować, a nie
+czy jest na ekranie. Obie odpowiedzi były twierdzące dla przycisku 889 px za
+krawędzią.
+
+### Zgoda płaci rachunkiem, nie nazwą reguły
+
+**Q08 roadmapy jakości.** Brama znaków sprawdzała, czy człowiek zgodził się na
+*jakąś* operację usuwającą tekst, i przepuszczała **każdą** utratę, jeśli
+choćby jedna taka zgoda była w planie. Zgoda na usunięcie żywej paginy płaciła
+więc za utratę, która nie miała z nią nic wspólnego.
+
+Rachunek jest teraz prowadzony przez **jeden punkt** — `Stage.text_changed` —
+przez który przechodzą wszystkie przebiegi zmieniające tekst. Etap liczy
+różnicę prozy przed i po, tym samym zwinięciem, w którym mierzy brama, i
+zapisuje ją per reguła i per dokument. Brama zestawia braki z tym rejestrem:
+**brak wpisu to brak rozliczenia, czyli odmowa.** Nowy wiersz raportu
+`package.pdf-characters-lost-beyond-consent` mówi to wprost — „nikt nie prosił
+o tę utratę" i „ktoś prosił o inną" to dwie różne wiadomości i dwa różne
+następne kroki.
+
+Wpis powstaje **także wtedy, gdy przebieg nic nie zabrał**. Bez tego
+przeniesienie znaku (`xhtml.watermark-relocated`) wyglądało na nierozliczone
+i blokowało książkę, której stratę w całości tłumaczyła inna zgoda.
+
+Poprawka objęła obie drogi, którymi ta decyzja biegnie — `pdfconv/gate.py`
+i `pipeline._text_gate` — bo tylko jedna z nich pytała o nazwę reguły i
+naprawienie jednej zostawiłoby drugą.
+
+Pierwsza wersja rozliczenia **odmówiła publikacji książki, która publikuje się
+legalnie**: `hyphens.joined` też jest zgodą, też usuwa znak i nie prowadziła
+rejestru. To była dobra wiadomość — pokazała, że rejestr nie może być opisem
+pisanym w każdym etapie osobno.
+
+**Ograniczenie, powiedziane wprost:** rozliczenie jest w skali książki, nie
+miejsca. Zamiana miejsc — ubytek w dokumencie A opłacony usunięciem w
+dokumencie B — nie jest wykrywana. Zamyka to dopiero reprezentacja pośrednia.
+
+### Rysunek wektorowy trafia do książki jako obraz obszaru
+
+**Q01 roadmapy jakości.** Strona, której całą treścią był rysunek, przychodziła
+jako rząd etykiet bez niczego, co mają opisywać. Czytnik od zawsze **wiedział**,
+gdzie ten rysunek jest — otacza krzywe ramką po to, żeby zebrać tekst na nich
+stojący — i nie miał czym go tam postawić.
+
+Teraz stawia obraz tego obszaru, narysowany ze źródła w skali 2,0
+(`pdfconv/draw.py`). Nie eksport wektorów: eksport musi przenieść fonty,
+przycięcia, transformacje i efekty przez drugi silnik, a paczka wprost
+ostrzega, żeby nie zakładać, że SVG samo z siebie to rozwiązuje. Raster
+obszaru jest uczciwą pierwszą odpowiedzią — to jest to, jak strona wygląda — a
+jego koszty stoją tam, gdzie są płacone: stała rozdzielczość i żaden tekst w
+środku obrazu. **Etykiety zostają tekstem obok**, nie tylko pikselami w nim, i
+jest na to osobny test: ryzyko po zamknięciu Q01 jest odwrotne do dawnego —
+wydrukować je raz jako obrazek i uznać za przeniesione.
+
+`alt` obrazu jest pusty i taki zostaje. Program **rekomenduje, nie opisuje**:
+`AltTextStage` proponuje, człowiek pisze.
+
+**PDFium, i dlaczego.** Sprawdzian to licencja i dystrybucja, nie cena.
+`pypdfium2` jest BSD-3 i Apache-2.0, z gotowym plikiem dla Windows w kole
+3,9 MB. MuPDF jest AGPL albo komercyjny — wziąłby ze sobą cały program.
+Chromium, którego ten program już wymaga do bramy wyglądu, ma PDFium w środku
+i w trybie bez okna PDF-a nie narysuje; zmierzone trzema sposobami, za każdym
+pusty prostokąt czytnika.
+
+**Część opcjonalna, i uczciwa, kiedy jej nie ma.** Bez `epub-forge[draw]`
+rysunki nie są przenoszone, a raport mówi to wprost — jak przedtem. Wymaganie
+jej postawiłoby zależność binarną na drodze każdej przebudowy EPUB→EPUB, w
+której żadnego PDF-a nie ma. Zdanie o braku rozbite przy okazji na dwa: stare
+„ten czytnik przenosi obrazy i nie umie rysować" było prawdą w dniu, w którym
+je napisano, i przestało nią być w chwili, w której renderer dało się
+doinstalować. `pdf.drawing-not-carried` mówi teraz, **czego brakuje i jak to
+dołożyć**, a nowe `pdf.drawing-not-drawn` — że renderer jest i odmówił tego
+obszaru.
+
+**Progu nie zgadnięto.** Pierwszy fixture był za rzadki i `reader._drawings` w
+ogóle nie uznał go za rysunek. Zamiast obniżyć próg — zmierzono, przy czym się
+przełamuje: sam obrys nie, kreskowanie w jedną stronę 10 pt nie, kreskowanie
+krzyżowe 12 pt tak.
+
+### Co w tym wydaniu **nie** jest zrobione
+
+Powiedziane, bo wydanie, które milczy o swoich lukach, mówi o nich nieprawdę.
+
+- **Q02** (kolumny czytane w poprzek) — **nie odtworzyło się** na pięciu
+  geometriach fixture syntetycznych. To wynik, nie wymówka: test został jako
+  regresyjny, a prywatna instrukcja obsługi ekspresu pozostaje przypadkiem
+  odbioru.
+- **Q07** (brama renderu nie ogląda źródła) — **otwarte**, zapisane jako
+  `xfail(strict)`. Renderer już jest; brakuje **zmierzonej** tolerancji
+  antyaliasingu, a progu nikt tu nie zgadnie.
+- **Q03–Q06** (odsyłacze, wierność układu stałego, tagi PDF, dostępność) —
+  nietknięte.
+- Trzech prywatnych załączników z paczki roadmapy nie przekazano, więc hashy
+  z jej raportu nie zweryfikowano i nie odtworzono niczego na rzeczywistym
+  dokumencie. Wszystko wyżej stoi na fixture syntetycznych.
+- **Konwerter pozostaje alfą i nie jest oznaczony jako gotowy.** Etap się nie
+  zmienia; OCR nadal nie ma i jest to jawne ograniczenie.
+
+### Zapadki i blokada
+
+**Zapadki podniesione świadomie:** `TAGGED_TODAY` 418 → 420 i
+`TEMPLATED_TODAY` 318 → 321 (nowe wiersze raportu: rysunek przeniesiony,
+rysunek nienarysowany, utrata poza zgodą), `BROAD_TODAY` 73 → 75 (`thumbnails.shrink`
+wokół dekodowania cudzego obrazka). Cztery nowe handlery w `draw.py` **nie**
+podniosły tej liczby — zwężono je do `ImportError`, `OSError`, `PdfiumError`
+i `IndexError`.
+
+**Blokada zależności:** wpis `pypdfium2==5.13.0` z kompletem 22 sum SHA-256
+dopisano **ręcznie**, bo `requirements.lock` powstaje na biegaczu Windows —
+sumy są per plik i per platforma. Przy najbliższym wydaniu należy go przeliczyć
+przepływem *Generate the dependency lock*.
 
 ## 0.4.3 — alpha — 2026-09-09
 
