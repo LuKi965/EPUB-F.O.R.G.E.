@@ -38,7 +38,7 @@ from ..models import (
     Stage,
 )
 from ..responsive import Cards, LayoutMode, Panels, Responsive, spread
-from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
+from ..tokens import CARD_GAP, Tokens
 from ..widgets import (
     ActionFooter,
     BookRow,
