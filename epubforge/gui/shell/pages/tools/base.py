@@ -30,7 +30,7 @@ from ....strings import tr
 from ...responsive import Cards, LayoutMode, Panels, Responsive, spread
 from ...state import last_folder, remember_folder
 from ...tokens import CARD_GAP, Tokens
-from ...widgets import Card, PageHeader, button, label, page_body
+from ...widgets import Card, PageHeader, button, clear_layout, label, page_body
 from ...workers import Runner, ToolJob
 
 
@@ -56,6 +56,8 @@ class ToolPage(Responsive, QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         scroller, page = page_body(CARD_GAP)
         outer.addWidget(scroller)
+        # `finish_building` runs later, in the subclass, and needs it then.
+        self._scroller = scroller
 
         top = Panels(CARD_GAP)
         top.add(
@@ -95,6 +97,20 @@ class ToolPage(Responsive, QWidget):
         self._answer = None
 
         self.answer_card = Card(tr("shell.tool.result"), glyph="text", tokens=tokens)
+        # The structural summary, above the raw text (F11). The audit's point
+        # was that a wall of prose is not a result a person can read at a
+        # glance — and its other point was that a summary must come from
+        # numbers the backend hands over, not from a regex run over the prose.
+        # So this is empty until a tool fills `ToolAnswer.facts`, and empty is
+        # honest: it means that tool has nothing structural to say yet.
+        self.facts = Cards(
+            {LayoutMode.WIDE: 4, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1}, 10
+        )
+        self.facts.hide()
+        self.answer_card.body.addWidget(self.facts)
+        self.report_title = label(tr("shell.tool.report"), "cardTitle")
+        self.report_title.hide()
+        self.answer_card.body.addWidget(self.report_title)
         self.answer_card.body.addWidget(self.result, 1)
         answer_actions = QHBoxLayout()
         self.copy_button = button(tr("shell.tool.copy"), glyph="save", tokens=tokens,
@@ -118,7 +134,7 @@ class ToolPage(Responsive, QWidget):
         self.body.addWidget(self.news)
         self.body.addWidget(self.progress)
         self._answer_page.addWidget(self.answer_card, 1)
-        self.begin_tracking()
+        self.begin_tracking(self._scroller)
 
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)
@@ -253,9 +269,21 @@ class ToolPage(Responsive, QWidget):
 
     def show_answer(self, answer) -> None:
         self._answer = answer
+        self._show_the_facts(getattr(answer, "facts", ()))
         self.result.setPlainText(answer.text or tr(self.empty_key))
         self.news.setText(answer.headline)
         self.save_button.setEnabled(bool(answer.payload))
+
+    def _show_the_facts(self, facts) -> None:
+        """Draw the tool's own numbers, or draw nothing."""
+        from ...widgets import MetricCard
+
+        clear_layout(self.facts.layout())
+        for caption, value in facts:
+            self.facts.add(MetricCard(str(value), caption, self.tokens))
+        self.facts.setVisible(bool(facts))
+        self.report_title.setVisible(bool(facts))
+        spread(self, self.layout_mode)
 
     def say(self, message: str) -> None:
         self.news.setText(message)

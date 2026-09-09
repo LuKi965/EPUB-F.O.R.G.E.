@@ -1415,6 +1415,14 @@ PL: dict[str, str] = {
         "{count} {count:plik to EPUB|pliki to EPUB-y|plików to EPUB-y}. Gotową książkę "
         "naprawia Przebudowa EPUB, nie konwerter."
     ),
+    "shell.facts.title": "W skrócie",
+    "shell.facts.books": "Książki",
+    "shell.facts.unreadable": "Nieczytelne",
+    "shell.facts.findings": "Rodzaje ustaleń",
+    "shell.facts.crashed": "Awarie",
+    "shell.facts.versions": "Wersje EPUB",
+    "shell.facts.lines": "Wiersze raportu",
+    "shell.tool.report": "Raport techniczny",
     "shell.cover.of": "Okładka: {title}",
     "shell.cover.none": "Brak okładki",
     "shell.notice.dismiss": "Ukryj tę informację",
@@ -2864,6 +2872,14 @@ EN: dict[str, str] = {
         "{count} of these are EPUBs. A finished book is repaired by the EPUB "
         "rebuild, not by the converter."
     ),
+    "shell.facts.title": "In short",
+    "shell.facts.books": "Books",
+    "shell.facts.unreadable": "Unreadable",
+    "shell.facts.findings": "Kinds of finding",
+    "shell.facts.crashed": "Crashes",
+    "shell.facts.versions": "EPUB versions",
+    "shell.facts.lines": "Report lines",
+    "shell.tool.report": "Technical report",
     "shell.cover.of": "Cover: {title}",
     "shell.cover.none": "No cover",
     "shell.notice.dismiss": "Hide this message",

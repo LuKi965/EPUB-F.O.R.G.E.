@@ -28,6 +28,8 @@ from enum import Enum
 
 from PySide6.QtWidgets import QGridLayout, QSizePolicy, QWidget
 
+from .tokens import CONTENT_MARGIN, SCROLL_BAR_WIDTH
+
 
 class LayoutMode(Enum):
     """How much room the content has, in the only three sizes anything cares."""
@@ -42,15 +44,38 @@ class LayoutMode(Enum):
         return self is not LayoutMode.WIDE
 
 
-#: A page viewport at least this wide gets the side-by-side composition. The
-#: number is the design package's, and it is where two columns of readable text
-#: plus their gaps stop fitting.
-WIDE_FROM = 1180
-#: Below this, one column of anything.
-MEDIUM_FROM = 820
-#: Slack around a threshold. Without it a window dragged to exactly 1180 px
-#: flaps between two compositions as the mouse jitters, which is worse than
-#: either of them.
+#: What the two columns of the side-by-side composition each need, from
+#: 02-UI-DESIGN: *„Dwie kolumny tylko gdy lista ma >=580 px, podsumowanie
+#: >=300 px i mieści się odstęp."* Named rather than added up into a round
+#: number, so changing what a column needs changes the threshold.
+LIST_NEEDS = 580
+SUMMARY_NEEDS = 300
+#: And the gap between them; the same one the cards use.
+COLUMN_GAP = 14
+
+#: Content at least this wide gets the side-by-side composition. **Content**,
+#: not the page: the page spends its margins and, when it has one, its scroll
+#: bar before any of this reaches a column, and measuring the threshold on the
+#: page rather than on the room a column actually gets is F08 of the handoff.
+WIDE_FROM = LIST_NEEDS + SUMMARY_NEEDS + COLUMN_GAP
+
+#: What a page spends before a column sees any of it: `widgets.page_body` sets
+#: 2 x `CONTENT_MARGIN`, and a bar is as wide as the stylesheet says. Both are
+#: the shell's own declared numbers rather than a guess about them. What
+#: decides a live layout is still `Responsive._bar_room`, which asks the
+#: running style; these are here so the restatement below is arithmetic.
+PAGE_MARGINS = 2 * CONTENT_MARGIN
+
+#: Below this, one column of anything and the compact form of everything that
+#: has one. Unlike `WIDE_FROM` the design package does not name this boundary,
+#: so it is not derived from it — it is the boundary the shell already had,
+#: restated in content width. The old number was 820 measured on the *page*;
+#: moving the measurement into the container (`usable_width`) had to not move
+#: this threshold along with it, and 820 of page is this much of content.
+MEDIUM_FROM = 820 - PAGE_MARGINS - SCROLL_BAR_WIDTH
+#: Slack around a threshold. Without it a window dragged to exactly the width
+#: of a threshold flaps between two compositions as the mouse jitters, which is
+#: worse than either of them.
 HYSTERESIS = 24
 
 
@@ -82,17 +107,58 @@ class Responsive:
     Qt's. A page overrides `reflow`; everything else is this.
     """
 
-    def begin_tracking(self) -> None:
-        """Call at the end of `__init__`, once the layout exists."""
+    #: What this widget spends before its content gets any: its own margins.
+    #: A page built with `widgets.page_body` sets this to the margins that
+    #: function applies; anything else keeps 0 and is measured whole.
+    content_inset = 0
+
+    def begin_tracking(self, area=None) -> None:
+        """Call at the end of `__init__`, once the layout exists.
+
+        *area* is the scroll area the content lives in, when there is one: its
+        vertical bar takes width from the columns and therefore belongs in the
+        measurement (F08).
+        """
         self._layout_mode: "LayoutMode | None" = None
+        self._area = area
+        if area is not None:
+            # `widgets.page_body` says what its margins cost; a caller that
+            # hands over some other scroll area gets whatever it declares.
+            self.content_inset = getattr(area, "content_inset", 0)
         self._settle_mode()
+
+    def usable_width(self) -> int:
+        """The width the *content* has, which is what the thresholds are about.
+
+        The page's own width includes margins it will never give a column and a
+        scroll bar it may need. Deciding a composition from that number is
+        deciding it from a number nothing is laid out in (F08).
+
+        The bar is subtracted **whether or not it is showing**, and that is not
+        a rounding-up: it is what keeps the measurement from feeding back into
+        itself. Counting only the visible bar makes the input depend on the
+        output — a composition that gets shorter loses its bar, gains width,
+        crosses back over the threshold and gets taller again — and no amount
+        of hysteresis fixes an oscillation whose *cause* is the change. A
+        composition also should not differ between a page that happens to be
+        scrolled and the same page that does not.
+        """
+        return max(0, self.width() - getattr(self, "content_inset", 0) - self._bar_room())
+
+    def _bar_room(self) -> int:
+        """What a vertical scroll bar costs this page, from the style."""
+        area = getattr(self, "_area", None)
+        if area is None:
+            return 0
+        bar = area.verticalScrollBar()
+        return bar.sizeHint().width() if bar is not None else 0
 
     @property
     def layout_mode(self) -> LayoutMode:
         return getattr(self, "_layout_mode", None) or LayoutMode.WIDE
 
     def _settle_mode(self) -> None:
-        mode = mode_for(self.width(), getattr(self, "_layout_mode", None))
+        mode = mode_for(self.usable_width(), getattr(self, "_layout_mode", None))
         if mode is not getattr(self, "_layout_mode", None):
             self._layout_mode = mode
             self.reflow(mode)

@@ -73,43 +73,58 @@ def main() -> int:
     # fits the screen it opens on: at 200 % a 1440-pixel window is 2880 device
     # pixels, and its right-hand column is off the desktop where nothing can
     # drag it back. Measured before anything resizes it.
-    # A screen smaller than the smallest window this program has is not
-    # something the window can honour — and that is the case here at 200 %,
-    # where Qt's offscreen platform reports a 400x400 logical desktop. So the
-    # rule is: never larger than the screen, or than the minimum, whichever is
-    # the larger of the two.
+    #
+    # **Literally, and including the frame** (F07). This used to allow
+    # `max(screen, MIN_WINDOW)`, which is to say: a window larger than the
+    # desktop passed as long as it was no larger than the size the program
+    # wished for. That is not what "fits" means to somebody who cannot reach
+    # the right-hand column, and it made the one screen where the answer
+    # matters — a small one — the one screen the check could not fail on.
+    frame = window.frameGeometry()
     fits = (
-        window.width() <= max(available.width(), MIN_WINDOW[0]) + 1
-        and window.height() <= max(available.height(), MIN_WINDOW[1]) + 1
+        frame.width() <= available.width() + 1
+        and frame.height() <= available.height() + 1
     )
     opened = [window.width(), window.height()]
+    # A screen too small for the size this interface would like is the one case
+    # the handoff allows an emergency scroll bar in: *„Na ekstremalnie małym
+    # ekranie dopuszczalny awaryjny scroll, nie niedostępne kontrolki."* So the
+    # sideways rule is relaxed exactly there — and every other rule stays,
+    # including the one that says the main action must be reachable, because
+    # "you can scroll to it" is not the same as "it is not there".
+    squeezed = (
+        available.width() < MIN_WINDOW[0] or available.height() < MIN_WINDOW[1]
+    )
     window.resize(min(SIZE[0], available.width()), min(SIZE[1], available.height()))
     settle(app, 0.2)
+
+    def wrong(page, **kwargs):
+        return problems_with(page, allow_sideways=squeezed, **kwargs)
 
     problems: list[str] = []
     for route in ("home", "tools", "history", "settings"):
         window.navigate(route)
         settle(app, 0.2)
-        problems += [f"{route}: {said}" for said in problems_with(window.pages[route])]
+        problems += [f"{route}: {said}" for said in wrong(window.pages[route])]
 
     window.navigate("rebuild")
     window.rebuild.start(BOOKS)
     wait_for(app, window, Stage.PLAN)
     problems += [
         f"plan: {said}"
-        for said in problems_with(window.rebuild, main_action=window.rebuild.run_button)
+        for said in wrong(window.rebuild, main_action=window.rebuild.run_button)
     ]
 
     window.rebuild.run()
     wait_for(app, window, Stage.RESULTS)
-    problems += [f"wyniki: {said}" for said in problems_with(window.rebuild)]
+    problems += [f"wyniki: {said}" for said in wrong(window.rebuild)]
 
     for name in ("library", "diagnostics", "corpus"):
         window.navigate("tools")
         window.tools.open_tool(name)
         settle(app, 0.2)
         page = window.tools.router.currentWidget()
-        problems += [f"{name}: {said}" for said in problems_with(page)]
+        problems += [f"{name}: {said}" for said in wrong(page)]
 
     window.rebuild.runner.stop()
     window.rebuild.runner.wait_for_idle()
@@ -118,9 +133,16 @@ def main() -> int:
         "scale": os.environ.get("QT_SCALE_FACTOR", "1.0"),
         "size": [window.width(), window.height()],
         "screen": [available.width(), available.height()],
+        "frame": [frame.width(), frame.height()],
         "minimum": list(MIN_WINDOW),
+        # What the window promised on *this* screen, which on a small one is
+        # smaller than the wish above.
+        "floor": list(window.minimumSize().toTuple()),
         "opened": opened,
         "fits": fits,
+        # Whether this screen is too small for the size the interface wishes
+        # for, and therefore whether an emergency scroll was allowed above.
+        "squeezed": squeezed,
         "problems": problems,
     }))
     return 0

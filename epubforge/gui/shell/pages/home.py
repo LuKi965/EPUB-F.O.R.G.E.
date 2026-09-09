@@ -241,7 +241,7 @@ class HomePage(Responsive, QWidget):
         page.addWidget(body, 1)
 
         self.set_history(history or [])
-        self.begin_tracking()
+        self.begin_tracking(scroller)
 
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)

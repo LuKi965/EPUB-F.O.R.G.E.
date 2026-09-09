@@ -38,9 +38,10 @@ from ..models import (
     Stage,
 )
 from ..responsive import Cards, LayoutMode, Panels, Responsive, spread
-from ..tokens import CARD_GAP, Tokens
+from ..tokens import CARD_GAP, CONTENT_MARGIN, Tokens
 from ..widgets import (
     BookRow,
+    BoundedList,
     Card,
     MetricCard,
     Notice,
@@ -121,10 +122,27 @@ class RebuildPage(Responsive, QWidget):
         self.body.setSpacing(CARD_GAP)
         page.addLayout(self.body, 1)
 
+        # Outside the scroll area on purpose (F08). With fifty books in the
+        # list — let alone five hundred — the main decision sat below all of
+        # them, and "scroll past four hundred rows to reach Przebuduj" is not
+        # a decision anybody makes twice. In a wide window the summary column
+        # still carries it, and this stays hidden: two live primary buttons
+        # would be worse than one in the wrong place.
+        self.footer = QWidget()
+        self.footer.setObjectName("actionFooter")
+        self._footer_row = QHBoxLayout(self.footer)
+        self._footer_row.setContentsMargins(CONTENT_MARGIN, 10, CONTENT_MARGIN, 12)
+        self._footer_row.setSpacing(12)
+        self.footer_count = label("", "cardTitle")
+        self._footer_row.addWidget(self.footer_count)
+        self._footer_row.addStretch(1)
+        self.footer.hide()
+        outer.addWidget(self.footer)
+
         self.drawer = SettingsDrawer(self, tokens)
         self.drawer.applied.connect(self._apply_overrides)
         self.show_files()
-        self.begin_tracking()
+        self.begin_tracking(scroller)
 
     # -- housekeeping -------------------------------------------------------
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
@@ -135,8 +153,40 @@ class RebuildPage(Responsive, QWidget):
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)
         self.stepper.set_compact(mode is LayoutMode.COMPACT)
+        for card in getattr(self, "_preset_cards", []):
+            # Three tall cards in one column is the "kilometrowy formularz" the
+            # design names; stacked, they say the same thing shorter.
+            card.set_compact(mode.narrow)
+        self._settle_footer()
         if self.drawer.isVisible():
             self.drawer.set_mode(mode)
+
+    def _settle_footer(self) -> None:
+        """Put the main action where this width can reach it.
+
+        Narrow: in the footer, outside everything that scrolls, with the count
+        beside it. Wide: back in the summary column, where the design puts it.
+        One button, moved — never two (02-UI-DESIGN, „Adaptacja bez
+        kilometrowego formularza").
+        """
+        action = getattr(self, "run_button", None)
+        if action is None or self.stage is not Stage.PLAN:
+            self.footer.setVisible(False)
+            return
+        # Whenever the composition is a single column — which is every mode
+        # but WIDE. That is exactly when the summary card, and the main action
+        # in it, sits *below* the list rather than beside it.
+        wants_footer = self.layout_mode.narrow
+        in_footer = action.parent() is self.footer
+        if wants_footer and not in_footer:
+            self._footer_row.addWidget(action)
+        elif not wants_footer and in_footer:
+            home = getattr(self, "_run_home", None)
+            if home is not None:
+                # Back above the two lines that follow it in the column.
+                home.insertWidget(home.indexOf(self.plan_button), action)
+        self.footer_count.setText(tr("shell.plan.count", count=self.ready_count))
+        self.footer.setVisible(wants_footer)
 
     def _settle(self) -> None:
         """Hand the current mode to whatever the last state just built.
@@ -144,12 +194,23 @@ class RebuildPage(Responsive, QWidget):
         Each state draws itself from scratch, so the containers it makes are
         new and have never been told how much room they have.
         """
+        for name in ("book_list", "result_list"):
+            listing = getattr(self, name, None)
+            if listing is not None and listing.parent() is not None:
+                # The share of the *page* a list may take, measured on the page
+                # rather than assumed: a threshold in pixels is a threshold
+                # that is wrong on the next window size (F08).
+                listing.fit_within(self.height())
         spread(self, self.layout_mode)
 
     def _go(self, stage: Stage) -> None:
         self.stage = stage
         self.stage_changed.emit(stage)
         self.stepper.set_stage(stage)
+        if stage is not Stage.PLAN:
+            # It belongs to the plan and to nothing else; the widgets it holds
+            # are deleted when the plan is replaced.
+            self.footer.setVisible(False)
         name = stage.name.lower()
         self.header.retitle(
             tr(f"shell.rebuild.title.{name}"),
@@ -443,11 +504,16 @@ class RebuildPage(Responsive, QWidget):
         actions.addStretch(1)
         books_card.body.addLayout(actions)
 
+        # The list scrolls inside itself once it is longer than a few books, so
+        # the presets and the main action below it stay where they were (F08).
+        self.book_list = BoundedList()
         for book in self.books:
             row = BookRow(book, self.tokens)
             row.removed.connect(self._remove_book)
             row.toggled.connect(self._toggle_book)
-            books_card.body.addWidget(row)
+            self.book_list.add(row)
+        self.book_list.finish()
+        books_card.body.addWidget(self.book_list)
         # Spare height goes to the bottom of the card. Without this the layout
         # shares it out between the rows, and the card reads as three widgets
         # adrift in it rather than a list.
@@ -475,6 +541,7 @@ class RebuildPage(Responsive, QWidget):
                 recommended=recommended, selected=preset == self.preset,
             )
             card.chosen.connect(self._choose_preset)
+            card.set_compact(self.layout_mode.narrow)
             self._preset_cards.append(card)
             presets.add(card)
         plan_card.body.addWidget(presets)
@@ -522,6 +589,10 @@ class RebuildPage(Responsive, QWidget):
         self.run_button.setMinimumHeight(44)
         self.run_button.clicked.connect(self.run)
         card.body.addWidget(self.run_button)
+        # Where it goes back to when the window is wide again. The same button
+        # object either way: two of them would be two things to keep enabled
+        # in step, and one of them would eventually be wrong.
+        self._run_home = card.body
         self.plan_button = button(tr("shell.run.plan"), glyph="save", tokens=self.tokens,
                                   tip=tr("shell.run.plan.tip"))
         self.plan_button.clicked.connect(lambda: self.run(plan_only=True))
@@ -605,6 +676,10 @@ class RebuildPage(Responsive, QWidget):
         note = getattr(self, "nothing_note", None)
         if note is not None:
             note.setVisible(not ready)
+        # The footer says the same number as the card, because it is the same
+        # number: "N wybranych · Przebuduj" beside a list saying something else
+        # is the disagreement this method exists to prevent.
+        self._settle_footer()
 
     def _open_drawer(self) -> None:
         self.drawer.open_with(
@@ -728,11 +803,14 @@ class RebuildPage(Responsive, QWidget):
         results = Card(tr("shell.results.list"), tr("shell.results.list.body"), glyph="book",
                        tokens=self.tokens)
         self._result_rows = []
+        self.result_list = BoundedList()
         for book in outcome.books:
             row = BookRow(book, self.tokens, results=True)
             row.opened.connect(self._select_book)
             self._result_rows.append(row)
-            results.body.addWidget(row)
+            self.result_list.add(row)
+        self.result_list.finish()
+        results.body.addWidget(self.result_list)
         results.body.addStretch(1)
 
         self._changes_card = Card(tr("shell.results.changes"), tr("shell.results.changes.body"),

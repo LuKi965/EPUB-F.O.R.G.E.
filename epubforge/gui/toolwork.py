@@ -39,6 +39,13 @@ class ToolAnswer:
     empty when there is nothing worth saving. `headline` is the one line that
     used to go to the status bar. `used` carries the one piece of state a
     corpus run leaves behind: which folder of signatures it compared against.
+
+    `facts` is the structural summary the handoff asks for (F11): the few
+    numbers a tool *already has* on its way to writing `text`, as
+    `(label, value)` pairs. Filled by the tool that knows them and by nothing
+    else — the audit is explicit that a summary must not be regexed back out
+    of a paragraph written for a person, because a sentence that changes then
+    silently empties a card.
     """
 
     text: str = ""
@@ -46,6 +53,7 @@ class ToolAnswer:
     headline: str = ""
     suggestion: str = ""
     used: str = ""
+    facts: "tuple[tuple[str, str], ...]" = ()
 
 
 # --------------------------------------------------------------------------
@@ -72,6 +80,14 @@ def survey_shelf(folder: str, *, with_names: bool = False, tick=_quietly) -> Too
         payload=to_json(result, with_names=with_names),
         headline=tr("common.done", count=result.books),
         suggestion="przeglad.json",
+        # Numbers `Survey` already holds, not numbers read back out of the
+        # paragraph above (F11).
+        facts=(
+            (tr("shell.facts.books"), str(result.books)),
+            (tr("shell.facts.unreadable"), str(len(result.unreadable))),
+            (tr("shell.facts.findings"), str(len(result.findings))),
+            (tr("shell.facts.crashed"), str(len(result.crashed))),
+        ),
     )
 
 
@@ -95,6 +111,11 @@ def take_inventory(folder: str, *, tick=_quietly) -> ToolAnswer:
         payload=to_json(measured),
         headline=tr("common.done", count=len(measured)),
         suggestion="spis.json",
+        facts=(
+            (tr("shell.facts.books"), str(len(measured))),
+            (tr("shell.facts.versions"),
+             str(len({one.version for one in measured if one.version}))),
+        ),
     )
 
 
@@ -340,6 +361,10 @@ def answer_for_each(books: "list[str]", answer, *, tick=_quietly) -> ToolAnswer:
         payload=text,
         headline=tr("common.done", count=len(books)),
         suggestion="diagnostyka.txt",
+        facts=(
+            (tr("shell.facts.books"), str(len(books))),
+            (tr("shell.facts.lines"), str(len(lines))),
+        ),
     )
 
 

@@ -123,6 +123,11 @@ MIN_WINDOW = (800, 520)
 REFERENCE_WINDOW = (1536, 960)
 CONTENT_MARGIN = 28
 CARD_GAP = 14
+#: How thick the stylesheet makes a scroll bar — the width of a vertical one,
+#: the height of a horizontal one. Named because two things need it and one of
+#: them is not styling: a page that scrolls hands this much of its width to the
+#: bar, and `responsive` decides a composition from what is left (F08).
+SCROLL_BAR_WIDTH = 10
 
 
 def _tick(colour: str) -> str:
@@ -253,9 +258,9 @@ def stylesheet(tokens: Tokens) -> str:
     QCheckBox:disabled, QRadioButton:disabled {{ color: {t.muted}; }}
 
     QScrollArea {{ border: none; background: transparent; }}
-    QScrollBar:vertical {{ width: 10px; background: transparent; margin: 2px; }}
+    QScrollBar:vertical {{ width: {SCROLL_BAR_WIDTH}px; background: transparent; margin: 2px; }}
     QScrollBar::handle:vertical {{ background: {t.border_strong}; min-height: 30px; border-radius: 4px; }}
-    QScrollBar:horizontal {{ height: 10px; background: transparent; margin: 2px; }}
+    QScrollBar:horizontal {{ height: {SCROLL_BAR_WIDTH}px; background: transparent; margin: 2px; }}
     QScrollBar::handle:horizontal {{ background: {t.border_strong}; min-width: 30px; border-radius: 4px; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
     QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}

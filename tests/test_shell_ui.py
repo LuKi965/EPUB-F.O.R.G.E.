@@ -27,7 +27,7 @@ pytest.importorskip("PySide6.QtWidgets")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from epubforge.gui.shell import backend as backend_module  # noqa: E402
 from epubforge.gui.shell import options as options_module  # noqa: E402
@@ -88,6 +88,22 @@ def settle(app, page, until, tries: int = 200) -> None:
     raise AssertionError(f"nie doczekano się stanu; etap = {page.stage}")
 
 
+class DeskOfSize:
+    """A screen of a stated size, for asking `smallest_here` directly.
+
+    Not named `Test…`: pytest would try to collect it, and it has an
+    `__init__`.
+    """
+
+    def __init__(self, width: int, height: int) -> None:
+        from PySide6.QtCore import QRect
+
+        self._room = QRect(0, 0, width, height)
+
+    def availableGeometry(self):  # noqa: N802 - Qt casing
+        return self._room
+
+
 class TestTheShellIsTheArchitectureThatWasApproved:
     def test_six_destinations_in_the_order_the_design_names(self, window):
         """02-UI-DESIGN §1: Start / Przebudowa EPUB / PDF → EPUB / Narzędzia /
@@ -121,11 +137,28 @@ class TestTheShellIsTheArchitectureThatWasApproved:
         ]
 
     def test_the_window_fits_the_smallest_supported_screen(self, window):
-        assert (window.minimumWidth(), window.minimumHeight()) == tokens_module.MIN_WINDOW
+        """The minimum is a *wish*, and the screen overrules it (F07).
+
+        It used to be a constant the window insisted on, which on a desktop
+        smaller than 800×520 meant a window larger than the desktop. So what is
+        asserted here is the promise on a large screen, and the fact that it is
+        never larger than the screen actually in front of it.
+        """
+        from epubforge.gui.shell.window import smallest_here
+
         assert tokens_module.MIN_WINDOW <= (800, 520), (
             "the minimum is a promise about the smallest usable window, not a "
             "refusal to be that size"
         )
+        screen = window.screen() or QApplication.primaryScreen()
+        room = screen.availableGeometry()
+        floor = (window.minimumWidth(), window.minimumHeight())
+        # Never larger than the desktop it is on, whatever the wish says.
+        assert floor[0] <= max(1, room.width())
+        assert floor[1] <= max(1, room.height())
+        # And never smaller than the wish where the desktop can honour it.
+        assert floor <= tokens_module.MIN_WINDOW
+        assert smallest_here(DeskOfSize(4000, 3000)) == tokens_module.MIN_WINDOW
 
     def test_the_sidebar_collapses_when_the_window_is_narrow(self, window):
         """244 px of names is a lot to spend on a 900-pixel window."""
@@ -141,24 +174,83 @@ class TestTheShellIsTheArchitectureThatWasApproved:
 class TestTheOneLayoutMechanism:
     """Three modes, two thresholds, and every page reading the same ruler."""
 
-    @pytest.mark.parametrize(
-        ("width", "expected"),
-        [(1600, "WIDE"), (1180, "WIDE"), (1179, "MEDIUM"), (900, "MEDIUM"),
-         (820, "MEDIUM"), (819, "COMPACT"), (640, "COMPACT")],
-    )
-    def test_the_mode_follows_the_width_of_the_content(self, width, expected):
-        from epubforge.gui.shell.responsive import LayoutMode, mode_for
+    def test_the_mode_follows_the_width_of_the_content(self):
+        """Stated against the thresholds rather than against numbers copied
+        beside them: what the rule *is* survives a change to what a column
+        needs, and a number typed twice does not."""
+        from epubforge.gui.shell.responsive import (LayoutMode, MEDIUM_FROM,
+                                                    WIDE_FROM, mode_for)
 
-        assert mode_for(width) is getattr(LayoutMode, expected)
+        assert mode_for(WIDE_FROM + 400) is LayoutMode.WIDE
+        assert mode_for(WIDE_FROM) is LayoutMode.WIDE
+        assert mode_for(WIDE_FROM - 1) is LayoutMode.MEDIUM
+        assert mode_for(MEDIUM_FROM) is LayoutMode.MEDIUM
+        assert mode_for(MEDIUM_FROM - 1) is LayoutMode.COMPACT
+        assert mode_for(320) is LayoutMode.COMPACT
+
+    def test_the_wide_threshold_is_what_two_columns_need(self):
+        """F08: the threshold used to be a round number written on the page.
+        It is now what 02-UI-DESIGN says the two columns need — *„lista >=580
+        px, podsumowanie >=300 px i mieści się odstęp"* — added up, so
+        changing what a column needs changes when two of them are offered."""
+        from epubforge.gui.shell.responsive import (COLUMN_GAP, LIST_NEEDS,
+                                                    SUMMARY_NEEDS, WIDE_FROM)
+
+        assert (LIST_NEEDS, SUMMARY_NEEDS) == (580, 300)
+        assert WIDE_FROM == LIST_NEEDS + SUMMARY_NEEDS + COLUMN_GAP
+
+    def test_the_other_threshold_says_what_it_is_a_restatement_of(self, qt_app):
+        """The design names what two columns need; it does not name where the
+        roomy one-column form stops. So that one is not derived from it — it is
+        the boundary the shell already had, restated in content width, and the
+        parts of the restatement are measured here rather than assumed.
+
+        The check is the arithmetic's own inputs: a real page, built the way
+        every page is built, is asked what it actually spends. If that ever
+        stops matching, the restatement describes a page that no longer exists
+        and the boundary has quietly moved after all.
+        """
+        from epubforge.gui.shell.responsive import (MEDIUM_FROM, PAGE_MARGINS,
+                                                    WIDE_FROM)
+        from epubforge.gui.shell.tokens import SCROLL_BAR_WIDTH
+        from epubforge.gui.shell.widgets import page_body
+
+        area, _page = page_body(14)
+        try:
+            assert area.content_inset == PAGE_MARGINS, "strona wydaje inne marginesy"
+            bar = area.verticalScrollBar().sizeHint().width()
+            assert bar == SCROLL_BAR_WIDTH, "arkusz stylów daje pasek innej szerokości"
+            assert MEDIUM_FROM == 820 - PAGE_MARGINS - SCROLL_BAR_WIDTH
+            assert MEDIUM_FROM < WIDE_FROM
+        finally:
+            area.deleteLater()
+
+    def test_the_threshold_is_measured_on_the_content_and_not_on_the_page(self, qt_app):
+        """The other half of F08. A page spends its margins and its scroll bar
+        before a column gets anything, so the width the mode is decided from is
+        smaller than the page's own — always by the same amount, whether the
+        bar happens to be showing or not."""
+        page = RebuildPage(tokens_module.DARK, DemoBackend())
+        try:
+            page.resize(1000, 700)
+            qt_app.processEvents()
+            assert page.content_inset > 0, "strona nie mówi, ile kosztują marginesy"
+            assert page.usable_width() < page.width()
+            assert page.usable_width() == page.width() - page.content_inset - page._bar_room()
+        finally:
+            page.runner.stop()
+            page.runner.wait_for_idle()
+            page.close()
 
     def test_a_window_dragged_across_a_threshold_does_not_flap(self):
         """The slack is the point: without it, one pixel of mouse jitter
         rebuilds the composition twice a frame."""
-        from epubforge.gui.shell.responsive import LayoutMode, mode_for
+        from epubforge.gui.shell.responsive import (HYSTERESIS, LayoutMode,
+                                                    WIDE_FROM, mode_for)
 
-        assert mode_for(1170, LayoutMode.WIDE) is LayoutMode.WIDE
-        assert mode_for(1155, LayoutMode.WIDE) is LayoutMode.MEDIUM
-        assert mode_for(1180, LayoutMode.MEDIUM) is LayoutMode.WIDE
+        assert mode_for(WIDE_FROM - HYSTERESIS + 1, LayoutMode.WIDE) is LayoutMode.WIDE
+        assert mode_for(WIDE_FROM - HYSTERESIS - 1, LayoutMode.WIDE) is LayoutMode.MEDIUM
+        assert mode_for(WIDE_FROM, LayoutMode.MEDIUM) is LayoutMode.WIDE
 
     def test_blocks_sit_side_by_side_when_wide_and_stack_when_not(self, qt_app):
         from PySide6.QtWidgets import QLabel
@@ -1128,6 +1220,39 @@ class TestTheThreadEndsBeforeAnythingIsDestroyed:
                 break
         assert gone, "worker nie został zniszczony, tylko zapomniany"
 
+    def test_r07_the_worker_dies_on_the_window_thread_and_not_on_its_own(
+        self, qt_app, page
+    ):
+        """And it matters *where* it is destroyed, not only that it is.
+
+        `thread.finished.connect(job.deleteLater)` — the shape this replaces —
+        runs `~QObject` on the worker, which under PySide needs the GIL while
+        Qt is holding a signal/slot lock from its small global pool. The
+        window's thread holds the GIL and asks for a lock from that same pool
+        every time a widget is re-parented, which is most of what a layout
+        does. The two wait for each other and the application stops dead: no
+        error, no traceback, and on a test run no output at all.
+
+        There is no way to assert "did not deadlock" — a suite that deadlocks
+        does not reach its assertion. So this asserts the property the deadlock
+        needed: the destructor runs on the window's thread.
+        """
+        from PySide6.QtCore import QThread
+
+        page.start(["a.epub"])
+        job = page.runner.job
+        assert job is not None
+        where = []
+        job.destroyed.connect(lambda *_: where.append(QThread.currentThread()))
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        assert page.runner.wait_for_idle(3000)
+        for _ in range(50):
+            qt_app.processEvents()
+            if where:
+                break
+        assert where, "worker nie został zniszczony"
+        assert where[0] is qt_app.thread(), "zniszczony na wątku roboczym"
+
     def test_r07_cancelling_and_closing_over_and_over_leaves_nothing_behind(
         self, qt_app, window
     ):
@@ -1569,6 +1694,67 @@ class TestTheToolsAreThisWindowsOwnPages:
         assert page.result.toPlainText() == "120 książek"
         assert page.news.text() == "gotowe: 120"
         assert page.save_button.isEnabled()
+
+    def test_f11_a_tool_shows_its_own_numbers_above_the_raw_text(self, qt_app, window):
+        """F11: the result used to be a wall of prose in a text box and nothing
+        else. The summary above it comes from numbers the tool *hands over*,
+        never from a regex run over the prose — a sentence that changes would
+        then silently empty a card."""
+        from epubforge.gui.shell.widgets import MetricCard
+        from epubforge.gui.toolwork import ToolAnswer
+
+        window.navigate("tools")
+        window.tools.open_tool("library")
+        page = window.tools.router.currentWidget()
+
+        assert page.facts.isHidden(), "bez liczb karta liczb się nie pokazuje"
+        page.show_answer(ToolAnswer(
+            text="dużo tekstu", headline="gotowe",
+            facts=((tr("shell.facts.books"), "12"), (tr("shell.facts.unreadable"), "1")),
+        ))
+        qt_app.processEvents()
+        cards = page.facts.findChildren(MetricCard)
+        assert len(cards) == 2
+        said = [one.text() for one in page.facts.findChildren(QLabel) if one.text()]
+        assert tr("shell.facts.books") in said and "12" in " ".join(said)
+        # And the text is still there, under a heading that says what it is.
+        assert page.result.toPlainText() == "dużo tekstu"
+        assert not page.report_title.isHidden()
+
+    def test_f11_a_tool_with_nothing_structural_to_say_says_nothing(self, qt_app, window):
+        """Empty is honest. An invented card is not."""
+        from epubforge.gui.toolwork import ToolAnswer
+
+        window.navigate("tools")
+        window.tools.open_tool("library")
+        page = window.tools.router.currentWidget()
+        page.show_answer(ToolAnswer(text="tekst bez liczb", headline=""))
+        qt_app.processEvents()
+        assert page.facts.isHidden() and page.report_title.isHidden()
+
+    def test_f11_the_numbers_come_from_the_backend_and_not_from_the_prose(self):
+        """The rule, held to at the source: every `facts` entry a tool builds
+        is built from its own result object."""
+        import ast
+        import pathlib as _pathlib
+
+        source = (_pathlib.Path(ROOT) / "epubforge" / "gui" / "toolwork.py").read_text(
+            encoding="utf-8"
+        )
+        tree = ast.parse(source)
+        found = 0
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name) and node.func.id == "ToolAnswer"):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "facts":
+                    continue
+                found += 1
+                said = ast.unparse(keyword.value)
+                assert "re." not in said and "findall" not in said, said
+                assert "text" not in said.split("(")[0], said
+        assert found >= 3, f"tylko {found} narzędzi podaje liczby"
 
     def test_changing_the_question_forgets_the_last_answer(self, qt_app, window):
         """Save is offered separately from Run, so the two can drift: run one

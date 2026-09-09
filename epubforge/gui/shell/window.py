@@ -68,20 +68,61 @@ SHORTCUTS = {
 }
 
 
-def opening_size(screen) -> "tuple[int, int]":
+#: What a window frame costs, when Qt cannot yet say. A title bar and two
+#: borders are not part of `size()` and *are* part of what has to fit on the
+#: screen; asked properly once the window exists (`_frame_cost`), and estimated
+#: from this until then.
+FRAME_GUESS = (16, 48)
+
+
+def room_on(screen) -> "tuple[int, int]":
+    """How much of *screen* a window may actually occupy.
+
+    The screen's working area — its geometry minus the taskbar, dock or panel —
+    which is the only number that answers "will this fit".
+    """
+    if screen is None:  # pragma: no cover - only when Qt reports no screen
+        return MIN_WINDOW
+    available = screen.availableGeometry()
+    return available.width(), available.height()
+
+
+def smallest_here(screen, frame: "tuple[int, int]" = FRAME_GUESS) -> "tuple[int, int]":
+    """The minimum size to promise **on this screen**.
+
+    F07, and the thing that made it a defect rather than a preference: the
+    window asked for 800×520 whatever the screen was, so on a smaller one it
+    was larger than the desktop and its right-hand column sat where nothing can
+    drag it back. The floor is now a *wish*, and the screen overrules it — with
+    the frame subtracted, because a title bar takes room a person cannot.
+
+    A window squeezed below what a page needs is not left with unreachable
+    controls: every page scrolls (`page_body`), so the last resort is a scroll
+    bar rather than a card nobody can reach.
+    """
+    width, height = room_on(screen)
+    return (
+        min(MIN_WINDOW[0], max(320, width - frame[0])),
+        min(MIN_WINDOW[1], max(240, height - frame[1])),
+    )
+
+
+def opening_size(screen, frame: "tuple[int, int]" = FRAME_GUESS) -> "tuple[int, int]":
     """How big the window opens: comfortable, and never larger than the screen.
 
     A window that opens 1440 px wide on a 1366 px laptop has its right edge —
     and half of every side-by-side layout — off the desktop, where nothing can
     drag it back. So the preferred size is a *ceiling*, the screen's working
-    area is the real limit, and the floor is the minimum this window promises.
+    area is the real limit, and the floor is what this window promises **on
+    this screen** — which on a small one is smaller than `MIN_WINDOW` (F07).
     """
     if screen is None:  # pragma: no cover - only when Qt reports no screen
         return MIN_WINDOW
-    available = screen.availableGeometry()
+    width, height = room_on(screen)
+    floor = smallest_here(screen, frame)
     return (
-        max(MIN_WINDOW[0], min(1440, int(available.width() * 0.86))),
-        max(MIN_WINDOW[1], min(920, int(available.height() * 0.88))),
+        max(floor[0], min(1440, int(width * 0.86), width - frame[0])),
+        max(floor[1], min(920, int(height * 0.88), height - frame[1])),
     )
 
 
@@ -125,8 +166,9 @@ class MainWindow(QMainWindow):
         #: True from the first close request until the threads have stopped.
         self._closing = False
         self.setWindowTitle(tr("window.title", version=version_string()))
-        self.setMinimumSize(*MIN_WINDOW)
-        self.resize(*opening_size(self.screen() or QApplication.primaryScreen()))
+        self._screen = self.screen() or QApplication.primaryScreen()
+        self.setMinimumSize(*smallest_here(self._screen))
+        self.resize(*opening_size(self._screen))
         self._restore_where_it_was()
         self.setAcceptDrops(True)
 
@@ -223,7 +265,55 @@ class MainWindow(QMainWindow):
             rect.moveLeft(max(room.left(), min(rect.left(), room.right() - rect.width())))
             rect.moveTop(max(room.top(), min(rect.top(), room.bottom() - rect.height())))
         self.move(rect.topLeft())
-        self.resize(max(MIN_WINDOW[0], rect.width()), max(MIN_WINDOW[1], rect.height()))
+        # The rectangle is already trimmed to the screen above; what is left is
+        # the floor, and the floor is **this screen's** rather than a fixed
+        # 800×520 that a small screen cannot honour (F07).
+        floor = smallest_here(screen or self._screen)
+        self.resize(max(floor[0], rect.width()), max(floor[1], rect.height()))
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().showEvent(event)
+        # Now, and only now, Qt can say what the frame costs. Before the window
+        # is on a screen `frameGeometry()` is the geometry, so the title bar
+        # and borders — which take room a person cannot use — were guessed at.
+        self.fit_the_screen()
+
+    def _frame_cost(self) -> "tuple[int, int]":
+        """What the title bar and borders add to this window, in logical px."""
+        frame, inside = self.frameGeometry(), self.geometry()
+        return (max(0, frame.width() - inside.width()),
+                max(0, frame.height() - inside.height()))
+
+    def fit_the_screen(self) -> None:
+        """Make the window literally fit the screen it is on, frame included.
+
+        F07. The floor was a constant — 800×520, whatever the desktop was — so
+        on anything smaller the window was *larger than the screen*, with its
+        right-hand column where nothing can drag it back from. The floor is now
+        this screen's, the frame is measured rather than assumed, and a window
+        squeezed below what a page would like keeps every control reachable
+        because every page scrolls: an emergency scroll bar is the fallback the
+        handoff allows, an unreachable button is not.
+        """
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:  # pragma: no cover - only when Qt reports no screen
+            return
+        self._screen = screen
+        frame = self._frame_cost()
+        floor = smallest_here(screen, frame)
+        self.setMinimumSize(*floor)
+        room = screen.availableGeometry()
+        width = max(floor[0], min(self.width(), room.width() - frame[0]))
+        height = max(floor[1], min(self.height(), room.height() - frame[1]))
+        if (width, height) != (self.width(), self.height()):
+            self.resize(width, height)
+        # And inside the working area, not merely the right size: a window the
+        # right size in the wrong place is the same problem.
+        here = self.frameGeometry()
+        moved_x = max(room.left(), min(here.left(), room.right() - here.width() + 1))
+        moved_y = max(room.top(), min(here.top(), room.bottom() - here.height() + 1))
+        if (moved_x, moved_y) != (here.left(), here.top()):
+            self.move(moved_x, moved_y)
 
     # -- routing ------------------------------------------------------------
     def navigate(self, route: str) -> None:

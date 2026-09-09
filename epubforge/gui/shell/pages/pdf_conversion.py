@@ -40,6 +40,7 @@ from ..state import last_folder, remember_folder
 from ..tokens import CARD_GAP, Tokens
 from ..widgets import (
     BookRow,
+    BoundedList,
     Card,
     MetricCard,
     Notice,
@@ -153,7 +154,7 @@ class PdfConversionPage(Responsive, QWidget):
         page.addLayout(self.body, 1)
 
         self.show_files()
-        self.begin_tracking()
+        self.begin_tracking(scroller)
 
     # -- housekeeping -------------------------------------------------------
     def reflow(self, mode: LayoutMode) -> None:
@@ -162,6 +163,10 @@ class PdfConversionPage(Responsive, QWidget):
 
     def _settle(self) -> None:
         spread(self, self.layout_mode)
+        for name in ("document_list", "result_list"):
+            listing = getattr(self, name, None)
+            if listing is not None and listing.parent() is not None:
+                listing.fit_within(self.height())
 
     def _go(self, stage: Stage) -> None:
         self.stage = stage
@@ -314,12 +319,15 @@ class PdfConversionPage(Responsive, QWidget):
         actions.addStretch(1)
         documents_card.body.addLayout(actions)
         self._rows = []
+        self.document_list = BoundedList()
         for item in self.documents:
             row = BookRow(item, self.tokens)
             row.removed.connect(self._remove)
             row.toggled.connect(self._toggle)
             self._rows.append(row)
-            documents_card.body.addWidget(row)
+            self.document_list.add(row)
+        self.document_list.finish()
+        documents_card.body.addWidget(self.document_list)
         left.addWidget(documents_card)
         left.addWidget(self._settings_card())
         left.addWidget(self._limits_card())
@@ -583,11 +591,14 @@ class PdfConversionPage(Responsive, QWidget):
         results = Card(tr("pdf.results.list"), tr("pdf.results.list.body"), glyph="book",
                        tokens=self.tokens)
         self._result_rows = []
+        self.result_list = BoundedList()
         for item in outcome.books:
             row = BookRow(item, self.tokens, results=True, repairs=False)
             row.opened.connect(self._select)
             self._result_rows.append(row)
-            results.body.addWidget(row)
+            self.result_list.add(row)
+        self.result_list.finish()
+        results.body.addWidget(self.result_list)
         results.body.addStretch(1)
         columns.add(results, 2)
         columns.add(self._next_card(outcome), 1)

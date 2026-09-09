@@ -105,7 +105,7 @@ class ToolsPage(Responsive, QWidget):
         layout.addStretch(1)
         self.router.addWidget(index_page)
         self._index = index_page
-        self.begin_tracking()
+        self.begin_tracking(scroller)
 
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)

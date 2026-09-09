@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QCoreApplication, QObject, Qt, QThread, Signal
 
 
 class _Job(QObject):
@@ -152,9 +152,10 @@ class Runner(QObject):
     runner is idle — happens when `QThread.finished` says it really has:
 
         job.finished/failed → thread.quit()
-        thread.finished     → deleteLater, forget, on_done, idle
+        thread.finished     → destroy both, forget, on_done, idle
 
-    so nothing waits and nothing is destroyed while it is still running.
+    so nothing waits and nothing is destroyed while it is still running — and
+    the destroying happens on this thread, for the reason `start` sets out.
     """
 
     #: The thread has ended and this runner owns nothing. The window closes on
@@ -204,15 +205,39 @@ class Runner(QObject):
         thread = QThread()
         job.moveToThread(thread)
         thread.started.connect(job.run)
-        # Qt's own idiom, and the reason it is Qt's own idiom: `deleteLater`
-        # posts a deferred-delete event **to the object's thread**, and this
-        # object lives on `thread`. Connected here, the call happens while that
-        # thread is still winding down and Qt delivers the event as part of its
-        # teardown. Called later from the window's thread — which is what
-        # `_thread_ended` used to do — the event is posted to a thread whose
-        # loop has already ended, and nothing ever delivers it: the job simply
-        # stayed alive (F10).
-        thread.finished.connect(job.deleteLater)
+        # Where the job is destroyed is not a detail: both of the obvious
+        # answers are wrong, in opposite directions.
+        #
+        # `job.deleteLater()` from the window's thread, once the thread has
+        # ended, posts the deferred delete to a loop that is already over.
+        # Nothing ever delivers it and the job simply stays alive (F10).
+        #
+        # `thread.finished.connect(job.deleteLater)` looks like the fix and is
+        # Qt's usual idiom, but under PySide it deadlocks the application.
+        # `deleteLater` posts to the *object's* thread, so `~QObject` runs on
+        # the worker — and destroying a Python-wrapped object needs the GIL.
+        # Qt holds that object's signal/slot lock across the destructor, and
+        # those locks come from one small global pool shared by every QObject,
+        # so it is not "its own" lock in any useful sense. Meanwhile the
+        # window's thread holds the GIL and asks for a lock from that same pool
+        # the moment anything re-parents a widget: `QWidget::setParent` ->
+        # `inheritStyle` -> `setStyle_helper` -> `QObject::disconnect`. Each
+        # thread waits for what the other is holding, and the whole interface
+        # stops — no error, no traceback, nothing on screen.
+        #
+        # That is measured, not deduced: on a hung run `gdb` showed the worker
+        # in `~QObject` -> `Shiboken::GilState::acquire` and the window's
+        # thread in `QObject::disconnect` -> `QBasicMutex::lockInternal`.
+        #
+        # So the job comes home first. `finished` is emitted from inside the
+        # worker just after its loop ends, and `moveToThread` may only be
+        # called from the thread an object currently lives on — this is that
+        # thread, and this is the last moment it exists. Direct on purpose:
+        # queued would arrive on the window's thread, where the move is
+        # illegal. Afterwards the job belongs to the window like any other
+        # object and `deleteLater` means what it says.
+        home = QCoreApplication.instance().thread()
+        thread.finished.connect(lambda: job.moveToThread(home), Qt.DirectConnection)
         thread.finished.connect(self._thread_ended, Qt.QueuedConnection)
         for signal in (getattr(job, "finished", None), getattr(job, "failed", None)):
             if signal is not None:
@@ -238,14 +263,17 @@ class Runner(QObject):
     def _thread_ended(self) -> None:
         """The thread really has stopped. Now everything can go.
 
-        The job is already gone by here — `thread.finished` deleted it on its
-        own thread, where a deferred delete can still be delivered. This drops
-        the runner's references and the thread, which lives on this one.
+        Queued, so this runs on the window's thread — and by now so do both
+        objects: the thread object always did, and the job was moved back as
+        its own thread ended. That is the point of the method rather than a
+        detail of it; a job deleted on the worker deadlocks the application
+        (see `start`).
         """
-        thread = self.thread
+        thread, job = self.thread, self.job
         self.thread = self.job = None
-        if thread is not None:
-            thread.deleteLater()
+        for one in (job, thread):
+            if one is not None:
+                one.deleteLater()
         done, self._on_done = self._on_done, None
         if done is not None:
             done()

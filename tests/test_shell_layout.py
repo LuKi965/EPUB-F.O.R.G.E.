@@ -428,6 +428,206 @@ class TestALargerFontDoesNotBreakThePage:
                 finish(page)
 
 
+class TestF08ALongBatchDoesNotBuryTheDecision:
+    """*„Główna akcja osiągalna bez przewijania setek wierszy"* — and the
+    batches the acceptance list names: 0, 1, 3, 50 and 500.
+
+    The plan used to put the whole list above the presets and the main action
+    and let the page grow to fit it, so a shelf of five hundred put the one
+    decision that has nothing to do with the five hundred four hundred rows
+    down.
+    """
+
+    BATCHES = (0, 1, 3, 50, 500)
+
+    @staticmethod
+    def _books(count: int) -> "list[str]":
+        """Long titles, Unicode, no author, awkward paths — the list the
+        acceptance asks for, not five hundred copies of one clean name."""
+        made = []
+        for number in range(count):
+            if number % 7 == 3:
+                name = "Bardzo-dluga-nazwa-" + "z-mysnikami-" * 6 + str(number)
+            elif number % 7 == 5:
+                name = f"Zażółć gęślą jaźń — wydanie {number}"
+            else:
+                name = f"Ksiazka {number}"
+            made.append(f"/polka/{number % 4}/{name}.epub")
+        return made
+
+    @pytest.mark.parametrize("count", BATCHES)
+    def test_the_list_stops_growing_and_the_action_stays_reachable(
+        self, qt_app, host, count
+    ):
+        page = rebuild_page(qt_app)
+        try:
+            books = self._books(count)
+            if not books:
+                # The empty batch is its own case: nothing to plan, and the
+                # page must not pretend otherwise.
+                page.start(books)
+                assert page.stage is Stage.FILES
+                return
+            page.start(books)
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (1440, 900))
+            assert len(page.books) == count
+
+            listing = page.book_list
+            assert listing.height() <= int(page.height() * listing.SHARE_OF_THE_PAGE) + 2, (
+                count, listing.height(), page.height()
+            )
+            # And the decision is where a person can reach it without going
+            # through the list: above the fold or in the footer, never below
+            # five hundred rows.
+            assert not problems_with(page, main_action=page.run_button), count
+        finally:
+            finish(page)
+
+    def test_a_long_batch_does_not_make_the_page_taller_than_a_short_one(
+        self, qt_app, host
+    ):
+        """The measurement behind the rule: fifty books and three books make
+        the same page, because the difference scrolls inside the list."""
+        heights = {}
+        for count in (3, 50):
+            page = rebuild_page(qt_app)
+            try:
+                page.start(self._books(count))
+                settle(qt_app, lambda: page.stage is Stage.PLAN)
+                laid_out(qt_app, page, host, (1440, 900))
+                heights[count] = page.book_list.height()
+            finally:
+                finish(page)
+        assert heights[50] <= heights[3] * 3, heights
+        assert heights[50] <= int(900 * 0.56), heights
+
+    def test_the_footer_carries_the_action_when_the_window_is_narrow(self, qt_app, host):
+        """02-UI-DESIGN: in a narrow layout the footer stays outside the
+        scrolled content — and there is never a second live primary button."""
+        page = rebuild_page(qt_app)
+        try:
+            page.start(self._books(30))
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+
+            laid_out(qt_app, page, host, (1440, 900))
+            assert page.footer.isHidden(), "szeroko: stopka nie jest potrzebna"
+            assert page.run_button.parent() is not page.footer
+
+            # Every mode but WIDE puts the summary — and the main action in it
+            # — below the list, so every one of them wants the footer.
+            laid_out(qt_app, page, host, (900, 600))
+            for _ in range(6):
+                qt_app.processEvents()
+            assert not page.footer.isHidden(), "wąsko: stopka miała się pojawić"
+            assert page.run_button.parent() is page.footer
+            # One button, moved — not two.
+            from PySide6.QtWidgets import QPushButton
+
+            primaries = [
+                one for one in page.findChildren(QPushButton)
+                if one.text() == tr("shell.run") and one.isVisibleTo(page)
+            ]
+            assert len(primaries) == 1, [one.text() for one in primaries]
+        finally:
+            finish(page)
+
+    def test_the_footer_says_the_same_number_as_the_list(self, qt_app, host):
+        page = rebuild_page(qt_app)
+        try:
+            page.start(self._books(6))
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (900, 600))
+            for _ in range(6):
+                qt_app.processEvents()
+            assert tr("shell.plan.count", count=6) == page.footer_count.text()
+            page._toggle_book(page.books[0], False)
+            assert tr("shell.plan.count", count=5) == page.footer_count.text()
+        finally:
+            finish(page)
+
+
+class TestF07TheWindowFitsTheScreenLiterally:
+    """The floor was a constant, and a constant cannot fit every screen.
+
+    `opening_size` and `_restore_where_it_was` both said `max(MIN_WINDOW, …)`,
+    so on any desktop smaller than 800×520 the window opened *larger than the
+    screen*, with its right-hand column where nothing can drag it back. The
+    checker agreed with itself: it called that "fits", because it compared
+    against `max(screen, MIN_WINDOW)` — which made the one screen where the
+    answer matters the one screen it could not fail on.
+    """
+
+    #: A desktop smaller than the size this interface wishes for.
+    SMALL = (640, 480)
+
+    class Desk:
+        """A screen of a stated size, for asking the two functions directly."""
+
+        def __init__(self, width, height):
+            from PySide6.QtCore import QRect
+
+            self._room = QRect(0, 0, width, height)
+
+        def availableGeometry(self):  # noqa: N802 - Qt casing
+            return self._room
+
+    def test_the_floor_is_this_screens_and_not_a_constant(self):
+        from epubforge.gui.shell.window import smallest_here
+
+        big = smallest_here(self.Desk(1920, 1080))
+        assert big == tokens_module.MIN_WINDOW, "na dużym ekranie obietnica zostaje"
+
+        small = smallest_here(self.Desk(*self.SMALL), frame=(10, 30))
+        assert small[0] <= self.SMALL[0] - 10 and small[1] <= self.SMALL[1] - 30
+        assert small[0] < tokens_module.MIN_WINDOW[0], "podłoga nie zeszła poniżej życzenia"
+
+    def test_the_opening_size_never_exceeds_the_screen_minus_the_frame(self):
+        from epubforge.gui.shell.window import opening_size
+
+        for size in ((1920, 1080), (1366, 768), (1024, 600), (640, 480), (480, 360)):
+            frame = (12, 36)
+            width, height = opening_size(self.Desk(*size), frame=frame)
+            assert width + frame[0] <= size[0], size
+            assert height + frame[1] <= size[1], size
+
+    def test_a_real_window_ends_up_inside_the_working_area(self, qt_app):
+        """Not the two functions — the window, after Qt has had its say about
+        frames and layout minimums."""
+        from epubforge.gui.shell.window import MainWindow
+
+        window = MainWindow(tokens_module.DARK, backend=DemoBackend())
+        try:
+            window.show()
+            for _ in range(6):
+                qt_app.processEvents()
+            window.fit_the_screen()
+            for _ in range(6):
+                qt_app.processEvents()
+            room = (window.screen() or qt_app.primaryScreen()).availableGeometry()
+            frame = window.frameGeometry()
+            assert frame.width() <= room.width() + 1, (frame, room)
+            assert frame.height() <= room.height() + 1, (frame, room)
+            assert room.contains(frame.topLeft())
+        finally:
+            window.rebuild.runner.stop()
+            window.rebuild.runner.wait_for_idle()
+            window.close()
+
+    def test_and_every_control_is_still_reachable_when_it_is_squeezed(self, qt_app, host):
+        """The fallback the handoff allows is a scroll bar, not a button
+        nobody can get to: at 640×480 the plan still has its main action."""
+        page = rebuild_page(qt_app)
+        try:
+            page.start(["Powiesc.epub", "Zbior.epub"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, self.SMALL)
+            assert not problems_with(page, main_action=page.run_button,
+                                     allow_sideways=True)
+        finally:
+            finish(page)
+
+
 class TestTheSameAtEveryDisplayScale:
     """Qt reads the scale once, at startup, so each of these is a process."""
 

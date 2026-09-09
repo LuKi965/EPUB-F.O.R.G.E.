@@ -123,7 +123,7 @@ class HistoryPage(Responsive, QWidget):
         self.card.body.addLayout(self.rows)
         layout.addWidget(self.card, 1)
         self.set_records(records or [])
-        self.begin_tracking()
+        self.begin_tracking(scroller)
 
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)

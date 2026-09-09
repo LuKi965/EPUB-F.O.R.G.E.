@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -122,7 +123,79 @@ def page_body(spacing: int = 14):
     area.setWidgetResizable(True)
     area.setFrameShape(QFrame.NoFrame)
     area.setWidget(holder)
+    # What this costs a column, so a page can decide its composition from the
+    # room its content actually gets rather than from its own width (F08).
+    area.content_inset = 2 * CONTENT_MARGIN
     return area, body
+
+
+class BoundedList(QScrollArea):
+    """A list that scrolls inside itself instead of stretching the page.
+
+    F08. With fifty books — let alone five hundred — the plan grew to fifty
+    rows tall and everything under it, the presets and the main action
+    included, went with it. A person then scrolled past four hundred rows to
+    reach a decision that has nothing to do with the four hundred.
+
+    Bounded in *rows* rather than in pixels, because the row's own height is
+    what changed when covers arrived: "about eight books" stays about eight
+    books whatever a row turns out to measure.
+    """
+
+    #: How much of the list to show before it starts scrolling on its own.
+    ROWS = 8
+    #: And never taller than this share of the page, so a short window does not
+    #: give the whole of itself to the list.
+    SHARE_OF_THE_PAGE = 0.55
+
+    def __init__(self, spacing: int = 8) -> None:
+        super().__init__()
+        self.setObjectName("boundedList")
+        self.setFrameShape(QFrame.NoFrame)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        holder = QWidget()
+        self.rows = QVBoxLayout(holder)
+        self.rows.setContentsMargins(0, 0, 0, 0)
+        self.rows.setSpacing(spacing)
+        self.setWidget(holder)
+        self._tallest = 0
+
+    def add(self, widget: QWidget) -> None:
+        self.rows.addWidget(widget)
+
+    def finish(self) -> None:
+        """Call once the rows are in: work out how tall this may be.
+
+        Short lists keep their natural height — a batch of two books in a box
+        with room for eight is a box with a hole in it — and long ones stop
+        growing.
+        """
+        self.rows.addStretch(1)
+        rows = [
+            self.rows.itemAt(index).widget()
+            for index in range(self.rows.count())
+            if self.rows.itemAt(index).widget() is not None
+        ]
+        if not rows:
+            self._tallest = 0
+            return
+        one = max(row.sizeHint().height() for row in rows)
+        spacing = self.rows.spacing()
+        self._tallest = self.ROWS * one + (self.ROWS - 1) * spacing
+        wanted = len(rows) * one + max(0, len(rows) - 1) * spacing
+        if wanted <= self._tallest:
+            # Short enough to show whole; no bound, no scroll bar, no hole.
+            self.setMaximumHeight(16777215)
+            self.setMinimumHeight(0)
+            return
+        self.setMaximumHeight(self._tallest)
+
+    def fit_within(self, height: int) -> None:
+        """Take at most a share of *height*, whatever the row count says."""
+        if not self._tallest:
+            return
+        self.setMaximumHeight(max(140, min(self._tallest, int(height * self.SHARE_OF_THE_PAGE))))
 
 
 def scrolling_body(spacing: int = 14):
@@ -522,18 +595,38 @@ class PresetCard(Clickable):
                  *, recommended: bool = False, selected: bool = False) -> None:
         super().__init__("preset")
         self.preset = preset
-        stack = QVBoxLayout(self)
+        self._stack = stack = QVBoxLayout(self)
         stack.setContentsMargins(15, 14, 15, 14)
         stack.setSpacing(8)
         stack.addWidget(label(title, "cardTitle"))
-        if recommended:
-            stack.addWidget(StatusBadge(tr("shell.preset.recommended"), "success", tokens))
-        stack.addWidget(label(description, "cardSubtitle"))
+        self.badge = (
+            StatusBadge(tr("shell.preset.recommended"), "success", tokens)
+            if recommended else None
+        )
+        if self.badge is not None:
+            stack.addWidget(self.badge)
+        self.description = label(description, "cardSubtitle")
+        stack.addWidget(self.description)
+        self._tail = stack.count()
         stack.addStretch(1)
         self.setAccessibleName(title)
         self.setAccessibleDescription(description)
         self.set_selected(selected)
         self.activated.connect(lambda: self.chosen.emit(self.preset))
+
+    def set_compact(self, compact: bool) -> None:
+        """Three tall cards, or a compact row that says the same thing.
+
+        02-UI-DESIGN: three columns only where each can hold its content;
+        otherwise *„zwarta lista radio-card z krótkim opisem, nie trzy ogromne
+        pionowe karty"*. The description is what makes them tall, so it is what
+        goes — into the tooltip, which is where it is still reachable rather
+        than gone.
+        """
+        self.description.setVisible(not compact)
+        self._stack.setContentsMargins(15, 10, 15, 10) if compact else \
+            self._stack.setContentsMargins(15, 14, 15, 14)
+        self.setToolTip(self.accessibleDescription() if compact else "")
 
 
 class Eliding(QLabel):

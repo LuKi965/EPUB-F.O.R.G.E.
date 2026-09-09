@@ -113,7 +113,7 @@ class SettingsPage(Responsive, QWidget):
         card.body.addWidget(label(tr("shell.settings.restart"), "muted"))
         card.body.addStretch(1)
         layout.addWidget(card, 1)
-        self.begin_tracking()
+        self.begin_tracking(scroller)
 
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)
