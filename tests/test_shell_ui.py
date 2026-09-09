@@ -681,6 +681,54 @@ class TestTheDrawer:
         # without that condition.
         assert page.focusWidget() is page.details_button
 
+    def test_a_group_about_pdfs_is_not_shown_to_somebody_rebuilding_epubs(self, qt_app, page):
+        """D-056, seen from the window. The converter's settings are not
+        choices a person repairing EPUBs has to make, and a group they can
+        click into and find empty is worse than one that is not there."""
+        page.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
+        page.show_plan()
+        page._open_drawer()
+        drawer = page.drawer
+        assert not drawer._buttons_by_category["basics"].isHidden(), "test nic nie mierzy"
+        assert page._kinds_of_source() == frozenset({""})
+        # `isHidden`, not `isVisible`: a child of a hidden parent is invisible
+        # whatever anybody decided about it, so `isVisible` would pass here for
+        # every button and prove nothing. `isHidden` is the explicit answer.
+        assert drawer._buttons_by_category["import"].isHidden()
+        assert "import" not in [
+            drawer.category_combo.itemData(i) for i in range(drawer.category_combo.count())
+        ]
+        drawer._searched("PDF")
+        assert not [option for option in drawer._matching() if option.key.startswith("pdf.")]
+
+    def test_the_group_is_there_when_a_pdf_is(self, qt_app, page):
+        page.books = [BookItem(source=pathlib.Path("a.pdf"), title="a", kind="PDF")]
+        page.show_plan()
+        page._open_drawer()
+        drawer = page.drawer
+        # Asked of the registry, not of the file name: the window does not know
+        # what a PDF is, the module that reads one says so.
+        assert page._kinds_of_source() == frozenset({"pdf"})
+        assert not drawer._buttons_by_category["import"].isHidden()
+        drawer._show_category("import")
+        assert {option.key for option in drawer._matching()} == {
+            "pdf.layout", "pdf.running_heads"
+        }
+
+    def test_a_group_that_went_does_not_leave_the_drawer_on_it(self, qt_app, page):
+        """Opened on a PDF, then on an EPUB: the drawer was showing a group
+        that is no longer there and has to fall back rather than show nothing."""
+        page.books = [BookItem(source=pathlib.Path("a.pdf"), title="a", kind="PDF")]
+        page.show_plan()
+        page._open_drawer()
+        page.drawer._show_category("import")
+        page.drawer.close_drawer()
+        page.books = [BookItem(source=pathlib.Path("b.epub"), title="b")]
+        page.show_plan()
+        page._open_drawer()
+        assert page.drawer._category != "import"
+        assert page.drawer._matching(), "szuflada pokazuje pusto"
+
     def test_search_looks_at_what_a_person_can_read(self, qt_app, page):
         page.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
         page.show_plan()

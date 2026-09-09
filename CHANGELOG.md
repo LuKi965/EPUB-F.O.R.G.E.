@@ -40,6 +40,16 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Szuflada ustawień pokazuje to, co dotyczy książek w planie
+
+Domknięcie D-056 po stronie okna. Ustawienia konwertera PDF mają własną grupę
+„Z PDF-a", a grupa pojawia się wtedy, gdy w planie jest PDF — bo grupa, w którą
+można wejść i nie znaleźć nic, jest gorsza niż jej brak. Opcja mówi, jakich
+źródeł dotyczy (`Option.for_sources`), a okno pyta o rodzaj źródła **rejestru**
+(`sources.for_source`), nie nazw plików: nadal nie wie, co to PDF, i nie musi.
+Wyszukiwarka w szufladzie szuka po tym samym zbiorze, a grupa, która zniknęła
+spod kursora, odsyła do pierwszej, która została.
+
 ### Konwerter PDF jako osobny moduł (D-056)
 
 Właściciel, zobaczywszy ustawienia PDF w oknie przy przebudowie EPUB-a:

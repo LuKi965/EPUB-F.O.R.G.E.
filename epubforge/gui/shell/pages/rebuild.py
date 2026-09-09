@@ -507,7 +507,27 @@ class RebuildPage(Responsive, QWidget):
             self.overrides,
             sum(1 for book in self.books if book.chosen),
             opener=getattr(self, "details_button", None),
+            sources=self._kinds_of_source(),
         )
+
+    def _kinds_of_source(self) -> frozenset:
+        """Which kinds of source the chosen books are, by importer name — "" for
+        an ordinary EPUB, which is what this program repairs.
+
+        Asked of the registry rather than of the file names, so the window
+        stays as ignorant of what a PDF is as the rest of the program: a module
+        that reads some other kind of source says which files are its (D-056),
+        and the drawer then shows the settings that module offers.
+        """
+        from .... import sources
+
+        found = set()
+        for book in self.books:
+            if not book.chosen:
+                continue
+            importer = sources.for_source(str(book.source))
+            found.add(importer.name if importer is not None else "")
+        return frozenset(found)
 
     def _apply_overrides(self, overrides: dict) -> None:
         self.overrides = dict(overrides)

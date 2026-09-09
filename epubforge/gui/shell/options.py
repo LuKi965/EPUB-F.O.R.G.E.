@@ -45,6 +45,13 @@ class Option:
     #: Behind "show expert options": diagnostics and run mechanics, not choices
     #: about a book.
     expert: bool = False
+    #: Importer names (`sources.Importer.name`) this setting is about, when it
+    #: is about only some kinds of source. Empty means every book. The drawer
+    #: hides an option whose sources are not in the plan — a person rebuilding
+    #: EPUBs has no business being offered a choice about PDF pages (D-056) —
+    #: and asks the registry which name a file has, so it stays as ignorant of
+    #: what a PDF is as the rest of the core.
+    for_sources: tuple[str, ...] = ()
     #: For "int": bounds and step.
     minimum: int = 0
     maximum: int = 0
@@ -140,11 +147,11 @@ OPTIONS: tuple[Option, ...] = (
     # the drawer without the drawer knowing whose they are.
     Option(
         "pdf.layout", "import", "choice", "policy.pdf.layout", "policy.pdf.layout.tip",
-        choices=("reflowable", "fixed"),
+        choices=("reflowable", "fixed"), for_sources=("pdf",),
     ),
     Option(
         "pdf.running_heads", "import", "choice", "policy.pdf.heads", "policy.pdf.heads.tip",
-        choices=("ask", "keep", "remove"),
+        choices=("ask", "keep", "remove"), for_sources=("pdf",),
     ),
     Option("verify_text_survives", "validation", "bool", "policy.text.invariant", "policy.text.invariant.tip"),
     Option(
@@ -176,11 +183,35 @@ OPTIONS: tuple[Option, ...] = (
 BY_KEY = {option.key: option for option in OPTIONS}
 
 
-def in_category(category: str, *, expert: bool = False) -> tuple[Option, ...]:
-    """Options of one category — the everyday ones, or the expert ones."""
+def in_category(category: str, *, expert: bool = False,
+                sources: "frozenset[str] | None" = None) -> tuple[Option, ...]:
+    """Options of one category — the everyday ones, or the expert ones.
+
+    *sources* names the kinds of source in the plan (`sources.Importer.name`,
+    with "" for an ordinary EPUB). An option about a kind that is not there is
+    left out; `None` means "do not filter", which is what a search across every
+    setting wants.
+    """
     return tuple(
         option for option in OPTIONS
         if option.category == category and option.expert is expert
+        and applies_to(option, sources)
+    )
+
+
+def applies_to(option: Option, sources: "frozenset[str] | None") -> bool:
+    """Whether *option* has anything to say about the books in hand."""
+    if not option.for_sources or sources is None:
+        return True
+    return bool(set(option.for_sources) & sources)
+
+
+def categories_for(sources: "frozenset[str] | None") -> tuple:
+    """The drawer's categories, minus any that would come out empty. A group
+    with no rows in it is a heading a person clicks and finds nothing under."""
+    return tuple(
+        entry for entry in CATEGORIES
+        if in_category(entry[0], sources=sources) or in_category(entry[0], expert=True, sources=sources)
     )
 
 

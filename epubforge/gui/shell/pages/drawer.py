@@ -27,7 +27,8 @@ from PySide6.QtWidgets import (
 
 from ...strings import tr
 from .. import icons
-from ..options import CATEGORIES, OPTIONS, Option, in_category
+from ..options import (CATEGORIES, OPTIONS, Option, applies_to,
+                       categories_for, in_category)
 from ..responsive import LayoutMode, Panels, spread
 from ..tokens import DRAWER_WIDTH, Tokens
 from ..widgets import StatusBadge, button, clear_layout, label
@@ -154,6 +155,10 @@ class SettingsDrawer(QWidget):
         self.tokens = tokens
         self._defaults: dict = {}
         self._values: dict = {}
+        #: The kinds of source in the plan, by importer name ("" for an
+        #: ordinary EPUB). `None` until a plan says otherwise, which means
+        #: "show everything" — the drawer's own tests open it without books.
+        self._sources: "frozenset[str] | None" = None
         self._category = CATEGORIES[0][0]
         self._expert = False
         self._search = ""
@@ -216,6 +221,7 @@ class SettingsDrawer(QWidget):
         self.categories.setSpacing(4)
         self._category_buttons = QButtonGroup(self)
         self._category_buttons.setExclusive(True)
+        self._buttons_by_category: dict = {}
         for name, glyph, key in CATEGORIES:
             item = QPushButton(tr(key))
             item.setObjectName("nav")
@@ -232,6 +238,7 @@ class SettingsDrawer(QWidget):
             item.setToolTip(tr(key))
             item.clicked.connect(lambda _checked=False, target=name: self._show_category(target))
             self._category_buttons.addButton(item)
+            self._buttons_by_category[name] = item
             self.categories.addWidget(item)
         self.categories.addStretch(1)
         column = QWidget()
@@ -322,8 +329,10 @@ class SettingsDrawer(QWidget):
         )
 
     # -- opening and closing ------------------------------------------------
-    def open_with(self, defaults: dict, overrides: dict, books: int, opener: QWidget | None = None
-                  ) -> None:
+    def open_with(self, defaults: dict, overrides: dict, books: int, opener: QWidget | None = None,
+                  sources: "frozenset[str] | None" = None) -> None:
+        self._sources = sources
+        self._show_the_groups_there_is_something_in()
         self._defaults = dict(defaults)
         self._values = {**defaults, **overrides}
         self._opener = opener
@@ -334,6 +343,34 @@ class SettingsDrawer(QWidget):
         self.raise_()
         self._draw()
         self.search.setFocus(Qt.OtherFocusReason)
+
+    def _show_the_groups_there_is_something_in(self) -> None:
+        """Hide a group that has nothing to say about the books in hand.
+
+        A setting about how a PDF's pages are read is not a choice a person
+        rebuilding EPUBs has to make, and a group they can click into and find
+        empty is worse than one that is not there (D-056). Both shapes of the
+        chooser are kept in step, and if the group being shown is one of the
+        ones that went, the drawer falls back to the first that stayed.
+        """
+        wanted = [entry[0] for entry in categories_for(self._sources)]
+        for name, item in self._buttons_by_category.items():
+            item.setVisible(name in wanted)
+        self.category_combo.blockSignals(True)
+        self.category_combo.clear()
+        for name, _glyph, key in categories_for(self._sources):
+            self.category_combo.addItem(tr(key), name)
+        self.category_combo.blockSignals(False)
+        if self._category not in wanted and wanted:
+            self._category = wanted[0]
+            item = self._buttons_by_category.get(self._category)
+            if item is not None:
+                item.setChecked(True)
+        index = self.category_combo.findData(self._category)
+        if index >= 0:
+            self.category_combo.blockSignals(True)
+            self.category_combo.setCurrentIndex(index)
+            self.category_combo.blockSignals(False)
 
     def close_drawer(self) -> None:
         self.hide()
@@ -393,12 +430,13 @@ class SettingsDrawer(QWidget):
         if self._search:
             return [
                 option for option in OPTIONS
-                if self._search in
+                if applies_to(option, self._sources)
+                and self._search in
                 f"{tr(option.label_key)} {tr(option.help_key)}".lower()
             ]
-        everyday = list(in_category(self._category))
+        everyday = list(in_category(self._category, sources=self._sources))
         if self._expert:
-            everyday += list(in_category(self._category, expert=True))
+            everyday += list(in_category(self._category, expert=True, sources=self._sources))
         return everyday
 
     def _draw(self) -> None:
