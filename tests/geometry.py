@@ -93,19 +93,54 @@ def _room_for(widget: QWidget, page: QWidget):
     return where(widget, page), page.width(), page.height()
 
 
-def needs_sideways_scrolling(page: QWidget) -> bool:
-    """Whether anything forces the page to scroll horizontally.
+def sideways_scrolling(page: QWidget) -> "list[str]":
+    """Every scroll area that has to go sideways, and by how much.
 
     The old shell simply switched the horizontal bar off, which does not make
     content fit — it makes the part that does not fit unreachable. Every
     scroll area on the page is asked, not just the outermost: the settings
     drawer has three, and the one that overflowed was not the first.
+
+    It used to answer `True`, and the sentence built from that named nothing:
+    *„strona wymaga przewijania w poziomie"*, on a page with three scroll
+    areas. That is what came back from the Windows runner for 0.4.4, on a
+    failure this machine's font does not reproduce — so the one place that
+    knew which area it was said the least it could. It now names the area, the
+    room it had, what wanted to go in it, and the widest thing inside, because
+    a failure that can only be seen on another machine has to arrive
+    describing itself.
     """
-    return any(
-        area.horizontalScrollBar().maximum() > 0
-        for area in page.findChildren(QScrollArea)
-        if area.isVisibleTo(page)
-    )
+    found = []
+    for area in page.findChildren(QScrollArea):
+        if not area.isVisibleTo(page):
+            continue
+        over = area.horizontalScrollBar().maximum()
+        if over <= 0:
+            continue
+        inner = area.widget()
+        found.append(
+            f"{_name_of(area)} przewija sie w poziomie o {over} px "
+            f"(miejsce {area.viewport().width()}, tresc "
+            f"{inner.width() if inner else '?'}, podloga tresci "
+            f"{inner.minimumSizeHint().width() if inner else '?'}"
+            f"{_widest_in(inner)})"
+        )
+    return found
+
+
+def _widest_in(inner) -> str:
+    """The child that reaches furthest right inside *inner*, named."""
+    if inner is None:
+        return ""
+    worst = ("", 0)
+    for child in inner.findChildren(QWidget):
+        if not child.isVisibleTo(inner):
+            continue
+        needs = max(child.minimumSizeHint().width(), child.minimumWidth())
+        reach = child.mapTo(inner, child.rect().topLeft()).x() + needs
+        if reach > worst[1]:
+            worst = (_name_of(child), reach)
+    return f", najdalej siega {worst[0]} do {worst[1]}" if worst[0] else ""
 
 
 def problems_with(page: QWidget, *, main_action=None,
@@ -139,8 +174,8 @@ def problems_with(page: QWidget, *, main_action=None,
                 found.append(f"{name} nachodzi na {other_name}")
         seen.setdefault(inside, []).append((name, rect))
 
-    if not allow_sideways and needs_sideways_scrolling(page):
-        found.append("strona wymaga przewijania w poziomie")
+    if not allow_sideways:
+        found += sideways_scrolling(page)
     if main_action is not None:
         if not main_action.isVisibleTo(page):
             found.append("glowna akcja jest niewidoczna")

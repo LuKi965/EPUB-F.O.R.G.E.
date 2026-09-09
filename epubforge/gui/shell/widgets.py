@@ -26,7 +26,8 @@ from ..strings import tr
 from . import icons
 from .models import STATUS_LOOK, BookItem, BookStatus, Preset, Stage
 from .responsive import LayoutMode
-from .tokens import (CONTENT_MARGIN, SIDEBAR_COMPACT_WIDTH, SIDEBAR_WIDTH,
+from .tokens import (CONTENT_MARGIN, SCROLL_BAR_WIDTH, SIDEBAR_COMPACT_WIDTH,
+                     SIDEBAR_WIDTH,
                      Tokens)
 
 
@@ -236,6 +237,16 @@ class BoundedList(QScrollArea):
         if not rows:
             self._tallest = 0
             return
+        # How narrow this list may be made, said out loud. A row is a cover, a
+        # sentence that elides, a badge and a button; only the sentence gives
+        # way, so below the width of the rest the row cannot be drawn and the
+        # list has to scroll sideways — which this shell refuses to do. A
+        # scroll area's own minimum is nearly nothing, so without this the
+        # composition beside it takes what it likes and the list is starved
+        # (0.4.4, build 70: 290 px for rows that needed 405). Measured, not
+        # written: the badge is as wide as its words in the font in use.
+        self.setMinimumWidth(max(row.minimumSizeHint().width() for row in rows)
+                             + SCROLL_BAR_WIDTH)
         one = max(row.sizeHint().height() for row in rows)
         spacing = self.rows.spacing()
         self._tallest = self.ROWS * one + (self.ROWS - 1) * spacing

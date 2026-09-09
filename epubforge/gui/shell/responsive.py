@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from enum import Enum
 
+from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QGridLayout, QSizePolicy, QWidget
 
 from .tokens import CONTENT_MARGIN, SCROLL_BAR_WIDTH
@@ -189,6 +190,7 @@ class Panels(QWidget):
         self._items: list = []
         self._stack_below = stack_below
         self._mode = LayoutMode.WIDE
+        self._watched = None
 
     def add(self, widget: QWidget, weight: int = 1) -> None:
         """One block, with the share of the width it takes in `WIDE`."""
@@ -201,11 +203,103 @@ class Panels(QWidget):
         self._mode = mode
         self._place()
 
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().showEvent(event)
+        self._watch_the_parent()
+        self._replace_if_the_answer_changed()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt casing
+        """The parent getting narrower is the event this has to hear.
+
+        Not this widget's own `resizeEvent`: when the blocks will not shrink
+        this widget does not shrink either — it stays at its minimum and hangs
+        over the edge — so the resize it is waiting for never arrives. The page
+        around it is what actually changed size.
+        """
+        if watched is self._watched and event.type() == QEvent.Resize:
+            self._replace_if_the_answer_changed()
+        return False
+
+    def _watch_the_parent(self) -> None:
+        parent = self.parentWidget()
+        if parent is self._watched:
+            return
+        if self._watched is not None:
+            self._watched.removeEventFilter(self)
+        self._watched = parent
+        if parent is not None:
+            parent.installEventFilter(self)
+
+    def _replace_if_the_answer_changed(self) -> None:
+        placed = self._grid.itemAtPosition(0, 1) is not None
+        if placed is not self.side_by_side:
+            self._place()
+
     @property
     def side_by_side(self) -> bool:
-        return self._mode is LayoutMode.WIDE or (
+        by_mode = self._mode is LayoutMode.WIDE or (
             self._stack_below is LayoutMode.MEDIUM and self._mode is LayoutMode.MEDIUM
         )
+        return by_mode and self._room_for_both()
+
+    def _room_for_both(self) -> bool:
+        """Whether the blocks can stand beside each other without being cut.
+
+        The mode says what the page is wide enough for in the abstract; this
+        asks the blocks themselves. `WIDE_FROM` is built from the design
+        package's numbers — a list of 580 and a summary of 300 — and those are
+        the widths at the font the design was drawn in. On a machine whose
+        interface face is wider the same blocks need more, and the difference
+        came out as a list squeezed to 290 px for rows that could not be drawn
+        in less than 405 (0.4.4, build 70, on the Windows runner).
+
+        So the threshold decides whether the page is *allowed* two columns and
+        this decides whether they *fit*. Stacking is the honest answer to "they
+        do not": one column of everything, whole, beats two columns of which
+        one has to scroll sideways.
+        """
+        room = self._room()
+        if len(self._items) < 2 or room <= 0:
+            return True
+        return room >= self._side_by_side_needs()
+
+    def _side_by_side_needs(self) -> int:
+        """The width the blocks need standing beside each other.
+
+        Not the sum of their minimums, which is what a first attempt at this
+        used and why it kept answering "they fit" while the page scrolled: the
+        columns take **shares**, 2 to 1 here, so a summary with a 300 px floor
+        in the one-third column does not need 300 px of page — it needs 900.
+        The binding block is whichever needs the most once its share is
+        undone, which is the arithmetic Qt itself does and this has to agree
+        with rather than approximate.
+        """
+        weights = sum(max(1, weight) for _, weight in self._items)
+        need = 0
+        for widget, weight in self._items:
+            floor = widget.minimumSizeHint().width()
+            need = max(need, floor * weights // max(1, weight))
+        return need + (len(self._items) - 1) * self._grid.spacing()
+
+    def _room(self) -> int:
+        """How much width there is to be had — asked of the parent, not of self.
+
+        `self.width()` is the wrong question and asking it is how this fails
+        silently: a widget whose contents will not shrink is *already* as wide
+        as they demand, so it compares that width against itself and always
+        answers yes, while the page around it scrolls sideways. The same trap
+        the composition threshold has written up beside it — an input taken
+        from the output.
+        """
+        parent = self.parentWidget()
+        if parent is None:
+            return self.width()
+        room = parent.width()
+        layout = parent.layout()
+        if layout is not None:
+            margins = layout.contentsMargins()
+            room -= margins.left() + margins.right()
+        return room
 
     def _place(self) -> None:
         for widget, _weight in self._items:

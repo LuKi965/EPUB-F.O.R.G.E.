@@ -213,7 +213,7 @@ class SettingsDrawer(QWidget):
         self.category_combo.hide()
         stack.addWidget(self.category_combo)
 
-        body = QHBoxLayout()
+        body = self.body = QHBoxLayout()
         body.setSpacing(14)
         self.categories = QVBoxLayout()
         self.categories.setSpacing(4)
@@ -322,11 +322,12 @@ class SettingsDrawer(QWidget):
         page is *for* while it is open.
         """
         self._mode = mode
-        viewport = self.parentWidget().width() if self.parentWidget() else DRAWER_WIDTH
+        # Before the panel's width, not after it: the rail's width is decided
+        # by the font and the panel has to be told what it is about to hold.
+        # The font can also have changed since this was built — the
+        # accessibility setting changes it under a live window.
+        self._fit_the_rail()
         if mode is LayoutMode.WIDE:
-            width = max(360, min(DRAWER_WIDTH, int(viewport * 0.55)))
-            self.panel.setMinimumWidth(width)
-            self.panel.setMaximumWidth(width)
             self.outer.setStretch(0, 1)
             self.outer.setStretch(1, 0)
         else:
@@ -334,23 +335,125 @@ class SettingsDrawer(QWidget):
             self.panel.setMaximumWidth(16777215)
             self.outer.setStretch(0, 0)
             self.outer.setStretch(1, 1)
-        narrow = mode is LayoutMode.COMPACT
-        # The font can have changed since this was built — the accessibility
-        # setting changes it under a live window — and the names are as wide
-        # as the font makes them.
-        self._fit_the_rail()
-        self.category_column.setVisible(not narrow)
-        self.category_combo.setVisible(narrow)
+        self._fit_the_panel()
+
+    def _show_the_rail(self, shown: bool) -> None:
+        """The category chooser as a column, or as the combo above the list."""
+        self.category_column.setVisible(shown)
+        self.category_combo.setVisible(not shown)
+
+    def _fit_the_panel(self) -> None:
+        """Give the panel a width its contents fit in, and settle the rows.
+
+        A share of the page is a statement about the page. What has to fit
+        inside is a statement about the *font*: the rail is as wide as the
+        longest category name, and the rows have a floor of their own. Windows
+        draws in Segoe UI, wider than the face this is developed against, so on
+        the build runner the rail grew, the list got what was left, and the
+        list had to scroll sideways — the one thing this shell refuses to do
+        (0.4.4, build 70, at 1440×900, the only size where the drawer is a
+        panel beside the page rather than the whole of it, and so the only one
+        where a cap could pinch it).
+
+        Three things in order, and the order is the whole of it:
+
+        1. the rail goes away entirely on a narrow page, where it would be a
+           third of the width;
+        2. the panel takes its share of the page, or what is inside it,
+           whichever is larger — it may exceed `DRAWER_WIDTH`, because a cap
+           written for one font is not a cap for another;
+        3. and if even the whole page is not enough, the rail gives way to the
+           combo above the list. A column that forces the settings sideways is
+           worse than a chooser that reaches the same seven places in one
+           control.
+
+        Called from `_draw` as well as from `set_mode`, and that is not belt
+        and braces: the rows do not exist until `_draw` builds them, so before
+        it every measurement here is of an empty box.
+        """
+        viewport = self.parentWidget().width() if self.parentWidget() else DRAWER_WIDTH
+        self._show_the_rail(self._mode is not LayoutMode.COMPACT)
+        if self._mode is LayoutMode.WIDE:
+            share = max(360, min(DRAWER_WIDTH, int(viewport * 0.55)))
+            self._hold(share)
+            self._settle_rows()
+            self._hold(min(max(share, self._narrowest()), viewport))
+        else:
+            self._settle_rows()
+        if self._narrowest() > viewport:
+            self._show_the_rail(False)
+        # Rows are settled once more only because putting the rail away hands
+        # the list the width the rail had. Stopping here is deliberate: more
+        # room never makes a stacked row overflow, and a third pass could flip
+        # the rows back to the shape that wants more width — a loop, not a
+        # layout.
         self._settle_rows()
+
+    def _hold(self, width: int) -> None:
+        """Pin the panel to *width*, which is how a fixed width is said here."""
+        self.panel.setMinimumWidth(width)
+        self.panel.setMaximumWidth(width)
+        self.panel.resize(width, self.panel.height())
+
+    def _narrowest(self) -> int:
+        """The least this panel can be without something scrolling sideways.
+
+        Asked of the widgets rather than written down, because the answer is
+        in the font: the same drawer needs one width here and another on a
+        machine whose interface face is wider. A number written next to this
+        would be right on exactly one machine (D-012).
+
+        The rows are asked one by one rather than through the layout that
+        holds them, and that is the difference between this working and not.
+        `_draw` builds the rows and measures immediately; Qt does not make a
+        freshly re-parented widget visible until the event loop comes round,
+        and **a layout counts a hidden child as empty**. So the aggregate
+        answered 8 px — an empty box — for a list that needed 303, which is
+        how a panel capped at `DRAWER_WIDTH` came to be sized as though it had
+        nothing in it. Measured: `holder.minimumSizeHint()` 8 before the rows
+        are shown, 303 after, with the rows unchanged in between.
+        """
+        rail = self._rail_width()
+        widest = 0
+        for index in range(self.rows.count()):
+            row = self.rows.itemAt(index).widget()
+            if row is not None:
+                widest = max(widest, row.minimumSizeHint().width())
+        # What stands between the list and the panel's edge: the panel's
+        # margins, the list's own, the gap between rail and list, and the bar
+        # the list keeps whenever the settings are taller than the drawer.
+        outer = self.panel.layout().contentsMargins()
+        inner = self.rows.contentsMargins()
+        return (rail + widest
+                + outer.left() + outer.right()
+                + inner.left() + inner.right()
+                + self.body.spacing() + SCROLL_BAR_WIDTH)
 
     #: A setting row narrower than this puts its control under the sentence.
     #: The drawer's own width decides it: the drawer is a panel on a page, so
     #: the page's mode says nothing about how much room a row in it has.
     ROWS_STACK_BELOW = 520
 
+    def _rail_width(self) -> int:
+        """How much width the category column takes, or 0 when it is put away.
+
+        `isVisible()` is the wrong question here and asking it was the bug.
+        `open_with` sizes the drawer *before* `show()`, and a child of a
+        hidden widget is not visible however much it is about to be — so the
+        rail counted as nothing, the panel was sized as if the list had the
+        whole width, and on a machine with a wider interface font the list
+        then had to scroll sideways (0.4.4, build 70). `isVisibleTo` is the
+        question that was meant: would this be visible once its parent is.
+
+        The width is the one `_fit_the_rail` set, not `width()`, which before
+        the first `show()` is whatever Qt last happened to give it.
+        """
+        if not self.category_column.isVisibleTo(self.panel):
+            return 0
+        return self.category_column.minimumWidth()
+
     def _settle_rows(self) -> None:
-        room = self.panel.width() - (self.category_column.width() if
-                                     self.category_column.isVisible() else 0)
+        room = self.panel.width() - self._rail_width()
         spread(
             self.panel,
             LayoutMode.WIDE if room >= self.ROWS_STACK_BELOW else LayoutMode.COMPACT,
@@ -492,6 +595,7 @@ class SettingsDrawer(QWidget):
             toggle.clicked.connect(self._toggle_expert)
             self.rows.addWidget(toggle)
         self.rows.addStretch(1)
+        self._fit_the_panel()
         self._settle_rows()
         self._update_count()
 

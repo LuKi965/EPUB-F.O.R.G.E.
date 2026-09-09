@@ -52,7 +52,11 @@ from epubforge.gui.shell.pages import (  # noqa: E402
 from epubforge.gui.shell.pdf_backend import DemoPdfBackend  # noqa: E402
 from epubforge.gui.shell.responsive import LayoutMode  # noqa: E402
 from epubforge.gui.strings import set_language, tr  # noqa: E402
-from tests.geometry import problems_with, where  # noqa: E402
+from tests.geometry import (  # noqa: E402
+    problems_with,
+    sideways_scrolling,
+    where,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -65,6 +69,30 @@ SIZES = ((1440, 900), (1180, 700), (1000, 650), (900, 600), (800, 560))
 WIDER_TYPE = tokens_module.stylesheet(tokens_module.DARK).replace(
     "font-size: 10pt", "font-size: 13pt"
 )
+
+#: Wider still, and 16 is not a round number picked for effect. The Windows
+#: runner draws in Segoe UI and failed the ordinary tests at the ordinary
+#: font (0.4.4, build 70); this machine's face does not, so the failure had to
+#: be reached by widening the type until it appeared. Measured, stepping 10 →
+#: 28: the drawer's settings list is first squeezed at **16 pt**, and the
+#: converter's results list at 16 pt as well. 13 pt — what `WIDER_TYPE` uses —
+#: reproduces neither, which is why the stress class did not catch this.
+#:
+#: So this is a stand-in for a wider *face* at the ordinary size, not a test
+#: of large type: what it asserts is that the layout changes shape rather than
+#: scrolling sideways, which is true at every size and every face.
+MUCH_WIDER_TYPE = tokens_module.stylesheet(tokens_module.DARK).replace(
+    "font-size: 10pt", "font-size: 16pt"
+)
+
+
+@pytest.fixture
+def wider_face(qt_app):
+    """The stylesheet a wider interface font amounts to, for one test."""
+    before = qt_app.styleSheet()
+    qt_app.setStyleSheet(MUCH_WIDER_TYPE)
+    yield
+    qt_app.setStyleSheet(before)
 
 
 @pytest.fixture(autouse=True)
@@ -407,6 +435,36 @@ class TestTheConverterIsLaidOutToo:
         finally:
             finish(page)
 
+    def test_the_results_survive_being_narrowed_and_widened_again(
+        self, qt_app, host, wider_face
+    ):
+        """Both directions, on one page, because the shape has a memory.
+
+        The test above walks the sizes downwards and that is not an accident
+        of how it was written — it is the harder direction. A composition
+        decided while the page was wide does not undo itself when the page
+        narrows unless something asks it to, and the block that will not
+        shrink keeps its width and hangs over the edge rather than reporting a
+        resize anybody could notice. Measured on the Windows runner as a
+        results list squeezed to 290 px for rows that could not be drawn in
+        less than 405 (0.4.4, build 70).
+
+        So: down, then up, then down again, and the layout has to be whole at
+        every step — not merely whole the first time it reaches a width.
+        """
+        page = self._page(qt_app)
+        try:
+            page.start(self._documents(2) + ["/dokumenty/Skan bez tekstu.pdf"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            page.run()
+            settle(qt_app, lambda: page.stage is Stage.RESULTS)
+            walk = list(SIZES) + list(reversed(SIZES)) + list(SIZES)
+            for size in walk:
+                laid_out(qt_app, page, host, size)
+                assert not problems_with(page), size
+        finally:
+            finish(page)
+
 
 class TestBothThemes:
     """The light theme shipped and nothing ever laid it out.
@@ -602,6 +660,41 @@ class TestALargerFontDoesNotBreakThePage:
             for _ in range(8):
                 qt_app.processEvents()
             assert not problems_with(page.drawer, allow_sideways=True), size
+            page.drawer.close_drawer()
+        finally:
+            finish(page)
+
+    @pytest.mark.parametrize("size", SIZES)
+    def test_a_wider_font_changes_the_shape_instead_of_scrolling_sideways(
+        self, qt_app, host, wider_face, size
+    ):
+        """The one thing `allow_sideways` must not be allowed to excuse.
+
+        Every other test in this class permits sideways scrolling, on the
+        argument that at half again the type nothing fits and a person who
+        chose that has chosen it. True of *height* and of a page as a whole —
+        and it let a real defect through: the drawer's panel kept the width a
+        narrower font gave it, so the settings list inside it was squeezed
+        until it had to scroll sideways. That is not "does not fit", it is a
+        list a person cannot read the right-hand side of, and no amount of
+        larger type asks for it.
+
+        Found on the Windows runner, which draws in Segoe UI — wider than this
+        machine's face — where it failed the ordinary test at the ordinary
+        font (0.4.4, build 70). This is that failure made reproducible
+        anywhere: a wider font must move the *shape* — the panel widens, and
+        past what the page can give, the category rail folds into its combo —
+        never the scroll bar.
+        """
+        page = rebuild_page(qt_app)
+        try:
+            page.start(["a.epub"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, size)
+            page._open_drawer()
+            for _ in range(8):
+                qt_app.processEvents()
+            assert not sideways_scrolling(page.drawer), size
             page.drawer.close_drawer()
         finally:
             finish(page)
