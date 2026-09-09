@@ -229,6 +229,38 @@ napisać testu na „nie zakleszczyło się", bo suita, która się zakleszcza, 
 dochodzi do asercji — test pilnuje więc własności, której zakleszczenie
 potrzebowało: `destroyed` przychodzi na wątku okna.
 
+**Szersza czcionka zmienia kształt, a nie pasek przewijania.** Znalezione
+przez pierwszą próbę wydania tej wersji: build padł na dwóch testach układu,
+**tylko na Windowsie**, który rysuje w Segoe UI — szerszym niż krój maszyny,
+na której to powstaje. Trzy przyczyny, jedna pod drugą, i wszystkie są tym
+samym błędem: **pytaniem o stan, którego jeszcze nie ma.**
+
+Szuflada pytała `isVisible()` **przed** `show()`, a dziecko ukrytego widgetu
+nie jest widoczne — więc szyna kategorii liczyła się jako zerowa i panel
+dostawał szerokość tak, jakby lista miała ją całą. Podłoga listy była mierzona
+na pustym pudełku: `_draw` buduje wiersze i mierzy natychmiast, a Qt nie
+pokazuje świeżo przepiętego widgetu do następnego obiegu pętli — **układ liczy
+ukryte dziecko jako puste**, więc suma mówiła 8 px dla listy, która
+potrzebowała 303. A kompozycja dwukolumnowa mierzyła **własną** szerokość:
+widget, którego treść nie chce się zwęzić, już jest tak szeroki, jak ona żąda,
+więc porównywał tę szerokość sam ze sobą i zawsze odpowiadał „mieści się",
+podczas gdy strona wokół przewijała się w bok. Ta sama pułapka, którą ten
+plik opisuje przy `WIDE_FROM` — wejście wzięte z wyjścia.
+
+Minimum kolumny liczy się teraz tak, jak liczy je Qt: wobec **udziału**
+kolumny, nie jako suma. Podsumowanie z podłogą 300 px w kolumnie jednej
+trzeciej nie potrzebuje 300 px strony, tylko 900. `BoundedList` podaje wreszcie
+swoją podłogę — wiersz to okładka, zdanie, które się skraca, plakietka i
+przycisk, i tylko zdanie ustępuje.
+
+**Asercja mówi teraz, co się nie mieści.** Brzmiała „strona wymaga przewijania
+w poziomie" — na stronie z trzema obszarami przewijania, czyli jedyne miejsce,
+które wiedziało, który to obszar, mówiło najmniej, jak się dało. Podaje obszar,
+miejsce, treść i najszerszy element w środku: awaria widoczna tylko na cudzej
+maszynie musi przyjeżdżać z opisem samej siebie. Próg 16 pt w nowych testach
+jest **zmierzony**, nie okrągły — przechodząc czcionkę od 10 do 28 pt, łamie
+się od szesnastu; stres suity chodzi na 13 i dlatego tego nie widział.
+
 **F11 — narzędzia pokazują strukturalne podsumowanie** nad surowym tekstem,
 zbudowane z liczb, które narzędzie oddaje w `ToolAnswer.facts`. Test parsuje
 `toolwork.py` i pilnuje, że żadna karta nie powstaje z regexa po prozie:
