@@ -364,6 +364,17 @@ doinstalować. `pdf.drawing-not-carried` mówi teraz, **czego brakuje i jak to
 dołożyć**, a nowe `pdf.drawing-not-drawn` — że renderer jest i odmówił tego
 obszaru.
 
+**W instalatorze Windows renderer jest**, więc „opcjonalna" dotyczy instalacji
+z pakietu, nie tego, co dostaje właściciel. `pypdfium2` to cienka nakładka na
+bibliotekę natywną, a PyInstaller zabiera połowę pythonową takiej pary bez
+pytania o drugą — build w takim stanie **nie wywala się**, tylko melduje „nie
+ma renderera", czyli zachowuje się poprawnie na maszynie bez tej części i cicho
+nieprawdziwie na maszynie, która ją ma. Spec zbiera więc binaria i dane obu
+pakietów, a test dymny pyta o to **zbudowany produkt**: konwertuje PDF z
+rysunkiem i sprawdza, czy w książce jest obraz — pytając książki, nie konsoli,
+bo raport wypisuje zdania, a nie identyfikatory reguł, więc grep po nazwie
+reguły byłby kontrolą, która nigdy nie może zapalić.
+
 **Progu nie zgadnięto.** Pierwszy fixture był za rzadki i `reader._drawings` w
 ogóle nie uznał go za rysunek. Zamiast obniżyć próg — zmierzono, przy czym się
 przełamuje: sam obrys nie, kreskowanie w jedną stronę 10 pt nie, kreskowanie
