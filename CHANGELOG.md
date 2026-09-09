@@ -40,6 +40,35 @@ written; only the current version was reset.
 
 ## Unreleased
 
+### Etap łączników przestał czytać wyrazy w szwach między węzłami
+
+Naprawa wady, która potrafiła **cofnąć wszystkie naprawy w dokumencie naraz**.
+Etap łączników zmienia słowa, więc pilnuje się własną bramą: bierze tekst przed
+zmianą, nakłada na niego uzgodnione połączenia i wymaga, żeby wynik był co do
+znaku tym, co powstało. Zmiana szła **węzeł po węźle**, a brama liczyła na
+`"".join(itertext())`, czyli na tekście sklejonym z wszystkich węzłów — i w tej
+sklejce wyraz złamany przez granicę akapitu (`obo-` kończy jeden, `jętna`
+zaczyna następny) wygląda dokładnie jak wyraz złamany wewnątrz jednego. Takiego
+program nigdy nie łączy, bo nie przenosi tekstu między blokami. Brama
+oczekiwała więc połączenia, którego zmiana słusznie nie zrobiła, i **wszystkie
+połączenia w tym dokumencie wracały** — przy instrukcji właściciela 1 157
+napraw przez jeden zbieg okoliczności, a raport nie umiał powiedzieć dlaczego.
+To samo dotyczyło znacznika postawionego między połowami słowa: kotwice stron
+zostały wtedy usunięte z trybu stałego, żeby to obejść — wada siedziała pod
+nimi.
+
+To jest ta sama lekcja co D-044 („sklejanie wymyśla słowa na szwach"), jeden
+moduł dalej i w **bramie**, a nie w regule. Brama liczy teraz kawałek po
+kawałku, dokładnie tam, gdzie zmiana wolno jej sięgać; obie ścieżki — wyraz
+w jednym węźle i wyraz przecięty znacznikiem — mają swoją, a ta druga składa
+oczekiwany tekst w miejscu, w którym kandydat stoi, zamiast w pierwszym
+napotkanym. Cztery testy, które są czerwone na kodzie sprzed naprawy.
+
+Przy okazji: `id()` nie jest w lxml tożsamością węzła — biblioteka oddaje nowy
+obiekt proxy, gdy poprzedni został zebrany, więc dwa przejścia po jednym
+drzewie dawały identyfikatory zgodne albo nie, zależnie od tego, kiedy zadziałał
+odśmiecacz. Węzły adresowane są ścieżką.
+
 ### Szuflada ustawień pokazuje to, co dotyczy książek w planie
 
 Domknięcie D-056 po stronie okna. Ustawienia konwertera PDF mają własną grupę

@@ -230,6 +230,112 @@ class TestTheTextIsCheckedAfterwards:
         assert result.status.wrote_a_file
 
 
+#: The same broken pair twice: once across a paragraph boundary, where it is
+#: not a candidate and must never be joined, and once inside a paragraph, where
+#: it is. The first exists **only in the concatenation** of the document's text
+#: nodes — no node contains it — and that is the whole point.
+SEAM = (
+    "<p>Zdanie kończy się tak, że zostaje zupełnie obo-</p>"
+    "<p>jętna na wszystko dookoła i tyle.</p>"
+    "<p>Potem znowu była obo-jętna, jak co dnia.</p>"
+    "<p>Była obojętna wtedy i obojętna później.</p>"
+)
+
+
+class TestTheGuardDoesNotReadWordsIntoTheSeams:
+    """D-044, one module over. The typography stage learned that joining text
+    nodes invents words on the seams between them; the hyphen stage's *guard*
+    still did it, and the guard is the thing that decides whether the whole
+    document keeps its repairs.
+
+    The mutation works node by node and is right. The check compared the
+    document's whole text — `"".join(itertext())` — with the same rule applied
+    to it, and in that string a word broken across a paragraph boundary looks
+    exactly like a word broken inside one. So the check expected two joins, the
+    mutation had honestly made one, and **every join in the document went
+    back**. On the PDF material that is 1 157 repairs lost to one coincidence.
+    """
+
+    def test_a_word_broken_across_a_paragraph_is_not_joined(self, tmp_path):
+        result = rebuild_with(book(tmp_path / "in.epub", SEAM), tmp_path, Joins())
+        text = text_of(result)
+        # The seam stays broken: two paragraphs are two paragraphs, and this
+        # program does not move text between them.
+        assert "zupełnie obo-</p>" in text.replace(" </p>", "</p>")
+        assert "jętna na wszystko" in text
+
+    def test_and_the_real_one_beside_it_is_still_joined(self, tmp_path):
+        result = rebuild_with(book(tmp_path / "in.epub", SEAM), tmp_path, Joins())
+        assert "była obojętna, jak co dnia" in text_of(result)
+        assert "hyphens.joined" in rules_of(result)
+        assert "hyphens.reverted" not in rules_of(result)
+
+
+    def test_the_same_seam_does_not_undo_a_join_across_markup(self, tmp_path):
+        """The other path, the same defect. A candidate cut by a bare `<span>`
+        is spliced at the two nodes it stands in; the check used to look for
+        the word in the document's whole text and find the paragraph seam
+        first."""
+        body = (
+            "<p>Zdanie kończy się tak, że zostaje zupełnie obo-</p>"
+            "<p>jętna na wszystko dookoła i tyle.</p>"
+            "<p>Zupełnie <span>obo-</span>jętna sprawa.</p>"
+            "<p>Była obojętna wobec tego.</p>"
+            "<p>Zupełnie obojętna rzecz.</p>"
+        )
+        result = rebuild_with(book(tmp_path / "in.epub", body), tmp_path, Joins())
+        text = text_of(result)
+        assert "hyphens.joined" in rules_of(result)
+        assert "hyphens.reverted" not in rules_of(result)
+        assert "<span>obo-</span>" not in text
+        assert "zupełnie obo-</p>" in text.replace(" </p>", "</p>")
+
+    def test_a_marker_between_the_halves_does_not_undo_the_rest(self, tmp_path):
+        """The shape that cost the most, and the reason this was looked at.
+
+        A page anchor written between the two halves of a word the typesetter
+        broke — `obo-<span id="…"/>jętna` — is a word no node holds, and the
+        element carries an `id` somebody chose, so nothing may be moved out of
+        it. The mutation rightly joins nothing there. The guard, reading the
+        document as one string, saw the same word it had agreed to join further
+        down, expected two joins where one was honest, and **every join in that
+        document went back**: on the owner's manual, 1 157 of them. The anchors
+        were taken out of the fixed-layout renderer to get past it; the defect
+        was underneath them and is what this test holds.
+        """
+        body = (
+            '<p>Zdanie z wyrazem obo-<span id="pdf-page-0002"/>jętna w środku.</p>'
+            "<p>Potem znowu była obo-jętna, jak co dnia.</p>"
+            "<p>Była obojętna wtedy i obojętna później.</p>"
+        )
+        result = rebuild_with(book(tmp_path / "in.epub", body), tmp_path, Joins())
+        text = text_of(result)
+        assert "hyphens.joined" in rules_of(result)
+        assert "hyphens.reverted" not in rules_of(result)
+        # The word standing on its own is joined; the one the anchor cuts in
+        # two is left exactly as it was, anchor and all.
+        assert "była obojętna, jak co dnia" in text
+        assert 'obo-<span id="pdf-page-0002"></span>jętna' in text
+
+    def test_the_walk_the_guard_uses_reads_the_document_the_same_way(self):
+        """`_text_pieces` has one job: yield what `itertext()` yields, in that
+        order, with the node each piece came from. If the two ever disagree the
+        guard is measuring a different document from the one it is guarding —
+        and a comment's body is exactly where they nearly did."""
+        from lxml import etree
+
+        from epubforge.stages.hyphens import _text_pieces
+
+        for markup in (
+            b"<p>a<b>c<i>e</i>f</b>d</p>",
+            b"<div><p>x</p>ogon<!-- uwaga -->po<p>y</p></div>",
+            b"<div><?pi tresc?>ogon<p>y</p></div>",
+            b"<body><p>obo-</p><p>jetna</p></body>",
+        ):
+            root = etree.fromstring(markup)
+            assert [text for _e, _a, text in _text_pieces(root)] == list(root.itertext()), markup
+
+
 class TestAnswersSurviveToTheNextRebuild:
     def test_the_second_run_does_not_ask_again(self, tmp_path):
         from epubforge import decisions
@@ -292,8 +398,11 @@ class TestTheTextInvariantStillHolds:
         from epubforge.stages.hyphens import HyphenStage
 
         planned = [(type("C", (), {"word": "obo-jętna"})(), "obojętna")]
+        # The guard is handed the document's text nodes as it found them, each
+        # marked with whether the mutation may touch it — because the rule is
+        # applied where the mutation applies it and nowhere else.
         assert HyphenStage._only_the_hyphens_went(
-            "Była obo-jętna dziś.", "Była obojętna dziś.", planned
+            [("Była obo-jętna dziś.", True)], "Była obojętna dziś.", planned
         )
 
     def test_a_pass_that_did_more_than_agreed_is_caught(self, tmp_path):
@@ -301,7 +410,31 @@ class TestTheTextInvariantStillHolds:
 
         planned = [(type("C", (), {"word": "obo-jętna"})(), "obojętna")]
         assert not HyphenStage._only_the_hyphens_went(
-            "Była obo-jętna dziś.", "Była obojętna wczoraj.", planned
+            [("Była obo-jętna dziś.", True)], "Była obojętna wczoraj.", planned
+        )
+
+    def test_a_pair_that_only_exists_across_two_nodes_is_not_expected_to_join(self):
+        """The seam, at the level of the guard itself. Two text nodes end and
+        begin with the halves; no node holds the word, so the mutation makes no
+        join there — and the guard must not require one."""
+        from epubforge.stages.hyphens import HyphenStage
+
+        planned = [(type("C", (), {"word": "obo-jętna"})(), "obojętna")]
+        pieces = [("zostaje zupełnie obo-", True), ("jętna na wszystko.", True)]
+        assert HyphenStage._only_the_hyphens_went(
+            pieces, "zostaje zupełnie obo-jętna na wszystko.", planned
+        )
+
+    def test_a_node_the_walk_does_not_touch_is_left_out_of_the_expectation(self):
+        """Text inside an element the mutation is not allowed to edit — a
+        `<code>`, a quotation in another language — keeps its hyphen, and the
+        guard has to expect exactly that."""
+        from epubforge.stages.hyphens import HyphenStage
+
+        planned = [(type("C", (), {"word": "obo-jętna"})(), "obojętna")]
+        pieces = [("Była obo-jętna dziś. ", True), ("obo-jętna", False)]
+        assert HyphenStage._only_the_hyphens_went(
+            pieces, "Była obojętna dziś. obo-jętna", planned
         )
 
     def test_a_candidate_is_joined_only_where_it_stands_alone(self):

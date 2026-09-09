@@ -46,6 +46,76 @@ from .base import Context, Stage, machinery_nav
 _TOKEN = re.compile(r"[\w-]+", re.UNICODE)
 
 
+def _text_pieces(element):
+    """`(element, attribute, text)` for every text node under *element*, in the
+    order `itertext()` yields them — and yielding exactly the same strings.
+
+    lxml keeps a node's trailing text on the node itself, so a walk that
+    forgets the tails reads half a paragraph; and `itertext()` skips the body
+    of a comment, so a walk that keeps it says the document has text it does
+    not. Both are checked against `itertext()` by a test, because "the same
+    order and the same strings" is the whole reason this exists.
+    """
+    if isinstance(element.tag, str) and element.text:
+        yield element, "text", element.text
+    for child in element:
+        yield from _text_pieces(child)
+        if child.tail:
+            yield child, "tail", child.tail
+
+
+def _still_broken(candidate) -> bool:
+    """Whether both halves are still where the walk found them.
+
+    The tree moves under us when another stage edits the same text between the
+    walk and here. Not an error, and not something to force through.
+    """
+    element, attribute = candidate.first
+    following, next_attribute = candidate.second
+    head = getattr(element, attribute) or ""
+    tail = getattr(following, next_attribute) or ""
+    return head.endswith(f"{candidate.left}-") and tail.startswith(candidate.right)
+
+
+def _expected_across(root, agreed: list) -> "str | None":
+    """The document's text after exactly these cross-node joins — spliced where
+    each of them stands, not at the first place the word happens to appear.
+
+    The same lesson as `_only_the_hyphens_went`, and the same cost: this used to
+    be `expected.replace(f"{left}-{right}", replacement, 1)` over the whole
+    document, so a word broken across a **paragraph** boundary earlier in the
+    file — which is not a candidate and is never joined — took the replacement
+    meant for the real one further down. The texts then disagreed and every
+    join in the document went back.
+
+    `None` when a half cannot be found in the walk any more, which is the same
+    answer as a mismatch: do not write.
+    """
+    where = root.getroottree()
+    starts: dict = {}
+    parts: list[str] = []
+    position = 0
+    for element, attribute, text in _text_pieces(root):
+        starts[(where.getpath(element), attribute)] = position
+        parts.append(text)
+        position += len(text)
+    before = "".join(parts)
+    edits: list = []
+    for candidate, replacement in agreed:
+        element, attribute = candidate.first
+        start = starts.get((where.getpath(element), attribute))
+        if start is None:
+            return None
+        head = getattr(element, attribute) or ""
+        # The hyphen ends the head, and the second half opens the very next
+        # piece — that adjacency is what made this a cross candidate at all.
+        begin = start + len(head) - len(candidate.left) - 1
+        edits.append((begin, begin + len(candidate.word), replacement))
+    for begin, end, replacement in sorted(edits, reverse=True):
+        before = before[:begin] + replacement + before[end:]
+    return before
+
+
 def _join_whole_words(text: str, planned: list) -> "tuple[str, dict[str, int]]":
     """*text* with every planned candidate replaced where it stands alone,
     and how many times each was — the one rule for the mutation and for the
@@ -323,7 +393,26 @@ class HyphenStage(Stage):
                 continue
             tree = ctx.take(resource)
             root = tree.root
-            before = "".join(root.itertext())
+            # The document as it stands, piece by piece and with the editable
+            # ones marked — because the check below has to be able to apply the
+            # rule exactly where the mutation applies it, and nowhere else.
+            #
+            # Addressed by path and **not** by `id()`, which is not a node's
+            # identity in lxml: the library hands out a fresh Python proxy for
+            # a node whose previous one has been collected, so two walks over
+            # one tree yield objects whose ids agree or do not depending on
+            # when the garbage collector ran. Measured while writing this: the
+            # set said one paragraph of three was editable, and which one
+            # changed between runs.
+            where = root.getroottree()
+            editable = {
+                (where.getpath(element), attribute)
+                for element, attribute in typography.text_nodes(root)
+            }
+            before_pieces = [
+                (text, (where.getpath(element), attribute) in editable)
+                for element, attribute, text in _text_pieces(root)
+            ]
 
             def mutate(root=root, planned=planned, resource=resource) -> int:
                 changed = 0
@@ -358,9 +447,9 @@ class HyphenStage(Stage):
                 rule="hyphens.joined",
                 target=resource.path,
                 precondition=lambda: bool(planned),
-                postcondition=lambda root=root, before=before, planned=planned: (
+                postcondition=lambda root=root, pieces=before_pieces, planned=planned: (
                     self._only_the_hyphens_went(
-                        before, "".join(root.itertext()), planned
+                        pieces, "".join(root.itertext()), planned
                     )
                 ),
                 reversible=False,
@@ -390,23 +479,39 @@ class HyphenStage(Stage):
         self._report_changes(ctx, joined, reverted)
 
     @staticmethod
-    def _only_the_hyphens_went(before: str, after: str, planned: list) -> bool:
+    def _only_the_hyphens_went(before_pieces: list, after: str, planned: list) -> bool:
         """Did the document change in exactly the way it was supposed to?
 
         K1 says no character of the text is lost, and joining a word loses one
         on purpose — so the invariant is restated rather than dropped: apply the
         same replacements to the *before* text and require the result to be the
         after text, character for character. Anything else the pass did to the
-        document shows up as a mismatch and the document goes back.
+        document — a node moved, an element dropped, a word joined that nobody
+        was asked about — shows up as a mismatch and the document goes back.
+
+        **Applied piece by piece, not to the document's text as one string**,
+        and that is D-044 one module over: joining the text nodes invents words
+        on the seams between them. A word broken across a paragraph boundary —
+        `obo-` ending one paragraph, `jętna` beginning the next — is not a
+        candidate and is never joined, because this program does not move text
+        between two blocks. In the concatenation it looks exactly like a word
+        broken inside one. So the check expected a join the mutation had rightly
+        not made, the postcondition failed, and **every join in that document
+        went back**: on the PDF material, 1 157 repairs lost to one coincidence,
+        and nothing in the report could say why.
+
+        The rule itself is the same function the mutation applies, not a
+        restatement of it. With `str.replace` here and whole words there, any
+        candidate that is the start of a longer word (`pick-up` in
+        `pick-uptruck`) made the two disagree the same way — every document of
+        the PDF acceptance material, 790 confirmed candidates, one joined
+        (EF-088). K3 could not see either: a repair that stops happening is
+        stable. The acceptance measurement could.
         """
-        # The same function the mutation applies, not a restatement of its
-        # rule. With `str.replace` here and whole words there, any candidate
-        # that is the start of a longer word (`pick-up` in `pick-uptruck`)
-        # made the two disagree, the postcondition failed, and the whole
-        # document went back — every document of the PDF acceptance material,
-        # 790 confirmed candidates, one joined. K3 could not see it: a repair
-        # that stops happening is stable. The acceptance measurement could.
-        expected, _ = _join_whole_words(before, planned)
+        expected = "".join(
+            _join_whole_words(text, planned)[0] if editable else text
+            for text, editable in before_pieces
+        )
         return typography.unchanged(expected, after)
 
     def _report_left(self, ctx: Context, unanswered: int, kept: int) -> None:
@@ -470,22 +575,26 @@ class HyphenStage(Stage):
                 continue
             tree = ctx.take(resource)
             root = tree.root
-            before = "".join(root.itertext())
             before_data = resource.data
-            expected = before
+            applicable = [
+                (candidate, replacement)
+                for candidate, replacement in agreed
+                if _still_broken(candidate)
+            ]
+            if not applicable:
+                continue
+            # Worked out before a single node is touched: the offsets it needs
+            # are the ones the document has now.
+            expected = _expected_across(root, applicable)
+            if expected is None:
+                reverted += 1
+                continue
             changed = 0
-            for candidate, replacement in agreed:
+            for candidate, replacement in applicable:
                 element, attribute = candidate.first
                 following, next_attribute = candidate.second
                 head = getattr(element, attribute) or ""
                 tail = getattr(following, next_attribute) or ""
-                if not head.endswith(f"{candidate.left}-") or not tail.startswith(
-                    candidate.right
-                ):
-                    # The tree moved under us — another stage edited this text
-                    # between the walk and here. Not an error and not something
-                    # to force through.
-                    continue
                 setattr(
                     element, attribute,
                     head[: -len(candidate.left) - 1] + replacement,
@@ -493,12 +602,7 @@ class HyphenStage(Stage):
                 setattr(
                     following, next_attribute, tail[len(candidate.right):]
                 )
-                expected = expected.replace(
-                    f"{candidate.left}-{candidate.right}", replacement, 1
-                )
                 changed += 1
-            if not changed:
-                continue
             after = "".join(root.itertext())
             if not typography.unchanged(expected, after):
                 reverted += 1
