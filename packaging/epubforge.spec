@@ -13,6 +13,8 @@ import os
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+
 SPEC_DIR = Path(SPECPATH).resolve()
 PROJECT_ROOT = SPEC_DIR.parent
 BUNDLE_DIR = SPEC_DIR / "_bundle"
@@ -37,6 +39,28 @@ if (BUNDLE_DIR / "chromium").is_dir():
 # a build without them detects exactly as every build before 0.2.28 did.
 if (BUNDLE_DIR / "dictionaries").is_dir():
     datas.append((str(BUNDLE_DIR / "dictionaries"), "dictionaries"))
+
+# Q01's renderer. `pypdfium2` is a thin wrapper over a native library that
+# lives inside `pypdfium2_raw` — `pdfium.dll` on Windows — and both packages
+# read a `version.json` beside themselves at import time. PyInstaller finds the
+# Python modules on its own (the import sits inside a function, which the
+# analysis still walks) and would ship neither the library nor the JSON, so the
+# frozen build would import the wrapper, fail on the missing binary, and report
+# "no renderer" — degrading exactly as designed, and therefore silently. That
+# is the failure mode this file has been bitten by twice: something present in
+# the repository and absent from the build, discoverable only by somebody
+# opening the thing. The smoke test checks it too, on the built product.
+#
+# Not guarded by an `is_dir()` the way the bundle directories above are, but
+# not allowed to break a build either: a checkout without the optional extra
+# should still produce an executable, and it should say so on the console
+# rather than in a log nobody reads.
+try:
+    binaries = collect_dynamic_libs("pypdfium2_raw")
+    datas += collect_data_files("pypdfium2_raw") + collect_data_files("pypdfium2")
+except ImportError:
+    print("!! pypdfium2 is not installed -- this build cannot draw PDF regions")
+    binaries = []
 
 # The window and taskbar icons are loaded at runtime; the executable's own
 # resource icon (set below) only covers how Explorer draws the file.
@@ -86,11 +110,16 @@ hiddenimports = [
     # And the old one, because the escape hatch has to work in the build it
     # is an escape hatch for.
     "epubforge.gui.app",
+    # Q01's renderer, named for the same reason as the pages above: the import
+    # is inside a function, and a build that quietly lacks it reports "no
+    # renderer" rather than failing, which is a sentence nobody would question.
+    "pypdfium2",
+    "pypdfium2_raw",
 ]
 
 common = dict(
     pathex=[str(PROJECT_ROOT)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

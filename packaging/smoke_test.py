@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -119,13 +120,66 @@ def main() -> int:
                 + build.stdout[-2000:]
             )
 
+        check_the_drawing(cli, env, work)
         check_the_window(gui, env, work)
 
     print(
-        "smoke test passed: rebuild, EPUBCheck and the renderer all ran from the "
-        "bundle, and the windowed executable opens the new interface"
+        "smoke test passed: rebuild, EPUBCheck, both renderers and the PDF "
+        "converter all ran from the bundle, and the windowed executable opens "
+        "the new interface"
     )
     return 0
+
+
+def check_the_drawing(cli: Path, env: dict, work: Path) -> None:
+    """Q01, asked of the built product: does the converter still draw?
+
+    `pypdfium2` is a wrapper over a native library, and PyInstaller ships the
+    Python half of such a pair without being told about the other. A build in
+    that state does not crash — it reports "no renderer" and carries on, which
+    is the designed behaviour on a machine without the optional extra and a
+    silent lie on a machine that has it. The same argument as the Chromium
+    check above: the right place to find out is here, not on somebody's disk.
+    """
+    from tests.test_pdf import _spiral, column, make_pdf
+
+    source = make_pdf(
+        work / "drawn.pdf",
+        [column(["A page of prose with a diagram drawn on it in curves."], top=700)],
+        strokes={0: _spiral(300, 420, 90)},
+    )
+    output = work / "converted"
+    output.mkdir()
+    # `--running-heads keep` because the default is to ask once per document
+    # and there is nobody here to answer. One page cannot have a running head
+    # anyway, so this only makes the silence deliberate rather than lucky.
+    convert = run(
+        [str(cli), "convert-pdf", str(source), "-o", str(output),
+         "--running-heads", "keep"],
+        env,
+    )
+    if convert.returncode != 0:
+        raise SystemExit(
+            "the frozen build could not convert a PDF:\n" + convert.stdout[-2000:]
+        )
+    books = list(output.glob("*.epub"))
+    if not books:
+        raise SystemExit("the frozen build wrote no book from the PDF")
+    # Asked of the book and not of the console. The report prints translated
+    # sentences rather than rule identifiers, so a grep for the rule's name
+    # would be a check that can never fire — and a check that cannot fail is
+    # the thing this whole file exists to avoid. The page carries no raster of
+    # its own, so a PNG in here can only be the drawn region.
+    with zipfile.ZipFile(books[0]) as archive:
+        drawn = [name for name in archive.namelist() if name.endswith(".png")]
+    if not drawn:
+        raise SystemExit(
+            "the converted book carries no picture of the drawing, so this "
+            "build has no PDF renderer in it: the Python wrapper is bundled "
+            "and its native library is not. See `binaries` in epubforge.spec.\n"
+            + convert.stdout[-2000:]
+        )
+    print(f"the frozen converter drew the region: {drawn[0]}")
 
 
 def check_the_window(gui: Path, env: dict, work: Path) -> None:

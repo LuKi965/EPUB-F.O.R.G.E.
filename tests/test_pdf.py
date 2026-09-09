@@ -61,7 +61,8 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
     on a page (by index): ``(x, y, width, height, pixel_width, pixel_height,
     rgb_bytes)``. *outline* is the PDF's bookmarks: ``(title, page_index)``.
     *strokes* draws lines on a page: ``(x0, y0, x1, y1)`` each — vector artwork,
-    which the reader sees as a drawing and cannot carry."""
+    which the reader sees as a drawing and, since Q01, carries as a picture of
+    the region it occupies when a renderer is installed."""
     objects: list[bytes] = []
 
     def add(body: bytes) -> int:
