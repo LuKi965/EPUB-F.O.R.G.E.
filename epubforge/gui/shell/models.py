@@ -367,6 +367,15 @@ class JobRecord:
             else "shell.history.kind.older"
 
     @property
+    def entry_key(self) -> str:
+        """Which sentence counts this record's sources: a conversion counts
+        documents, a rebuild counts books, and calling either the other is a
+        small lie the history has no reason to tell."""
+        return ("shell.history.entry.pdf"
+                if self.operation == Operation.PDF_CONVERSION.value
+                else "shell.history.entry")
+
+    @property
     def status(self) -> BookStatus:
         if self.cancelled:
             return BookStatus.CANCELLED

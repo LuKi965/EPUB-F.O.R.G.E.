@@ -27,8 +27,7 @@ from PySide6.QtWidgets import (
 
 from ...strings import tr
 from .. import icons
-from ..options import (CATEGORIES, OPTIONS, Option, applies_to,
-                       categories_for, in_category)
+from ..options import CATEGORIES, OPTIONS, Option, categories_for, in_category
 from ..responsive import LayoutMode, Panels, spread
 from ..tokens import DRAWER_WIDTH, Tokens
 from ..widgets import StatusBadge, button, clear_layout, label
@@ -158,7 +157,6 @@ class SettingsDrawer(QWidget):
         #: The kinds of source in the plan, by importer name ("" for an
         #: ordinary EPUB). `None` until a plan says otherwise, which means
         #: "show everything" — the drawer's own tests open it without books.
-        self._sources: "frozenset[str] | None" = None
         self._category = CATEGORIES[0][0]
         self._expert = False
         self._search = ""
@@ -329,9 +327,8 @@ class SettingsDrawer(QWidget):
         )
 
     # -- opening and closing ------------------------------------------------
-    def open_with(self, defaults: dict, overrides: dict, books: int, opener: QWidget | None = None,
-                  sources: "frozenset[str] | None" = None) -> None:
-        self._sources = sources
+    def open_with(self, defaults: dict, overrides: dict, books: int,
+                  opener: QWidget | None = None) -> None:
         self._show_the_groups_there_is_something_in()
         self._defaults = dict(defaults)
         self._values = {**defaults, **overrides}
@@ -353,12 +350,12 @@ class SettingsDrawer(QWidget):
         chooser are kept in step, and if the group being shown is one of the
         ones that went, the drawer falls back to the first that stayed.
         """
-        wanted = [entry[0] for entry in categories_for(self._sources)]
+        wanted = [entry[0] for entry in categories_for()]
         for name, item in self._buttons_by_category.items():
             item.setVisible(name in wanted)
         self.category_combo.blockSignals(True)
         self.category_combo.clear()
-        for name, _glyph, key in categories_for(self._sources):
+        for name, _glyph, key in categories_for():
             self.category_combo.addItem(tr(key), name)
         self.category_combo.blockSignals(False)
         if self._category not in wanted and wanted:
@@ -430,13 +427,12 @@ class SettingsDrawer(QWidget):
         if self._search:
             return [
                 option for option in OPTIONS
-                if applies_to(option, self._sources)
-                and self._search in
+                if self._search in
                 f"{tr(option.label_key)} {tr(option.help_key)}".lower()
             ]
-        everyday = list(in_category(self._category, sources=self._sources))
+        everyday = list(in_category(self._category))
         if self._expert:
-            everyday += list(in_category(self._category, expert=True, sources=self._sources))
+            everyday += list(in_category(self._category, expert=True))
         return everyday
 
     def _draw(self) -> None:

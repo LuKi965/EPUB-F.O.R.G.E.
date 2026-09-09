@@ -215,9 +215,13 @@ class Sidebar(QWidget):
 
     route_requested = Signal(str)
 
+    #: The two jobs are two entries, and that is D-057 in one tuple: a person
+    #: looking for "make a book out of a PDF" finds it here rather than by
+    #: dropping a PDF on the rebuild and hoping.
     ROUTES = (
         ("home", "home", "shell.nav.home"),
         ("rebuild", "rebuild", "shell.nav.rebuild"),
+        ("pdf", "book", "shell.nav.pdf"),
         ("tools", "tools", "shell.nav.tools"),
         ("history", "history", "shell.nav.history"),
     )
@@ -294,11 +298,16 @@ class Stepper(QWidget):
     so a screen reader reads "krok 2 z 4, Analiza, w toku" rather than a glyph.
     """
 
+    #: The rebuild's four. A module with different steps passes its own —
+    #: "Plan przebudowy" over a conversion would be exactly the label-over-the-
+    #: same-page the owner said is not a separate module (D-057).
     KEYS = ("shell.step.files", "shell.step.analysis", "shell.step.plan", "shell.step.results")
 
-    def __init__(self, tokens: Tokens) -> None:
+    def __init__(self, tokens: Tokens, keys: "tuple[str, ...] | None" = None) -> None:
         super().__init__()
         self.tokens = tokens
+        if keys is not None:
+            self.KEYS = keys
         self._labels: list[QLabel] = []
         self._compact = False
         self._stage = Stage.FILES
@@ -439,6 +448,41 @@ class SafetyNote(QFrame):
         self.setAccessibleName(title or tr("shell.safety.title"))
 
 
+class Notice(QFrame):
+    """One sentence at the top of a page, with at most one thing to do about it.
+
+    A modal box would have been fewer lines and the wrong shape: "these three
+    files belong to the other module" is information, not a question that has
+    to be answered before the program will go on. It sits on the page, the
+    person acts on it or does not, and the batch underneath is untouched.
+    """
+
+    acted = Signal()
+    dismissed = Signal()
+
+    def __init__(self, tokens: Tokens, text: str, action: str = "", *,
+                 glyph: str = "warning", role: str = "warning") -> None:
+        super().__init__()
+        self.setObjectName("warningCard")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(16, 12, 16, 12)
+        row.setSpacing(12)
+        mark = QLabel()
+        mark.setPixmap(icons.icon(glyph, getattr(tokens, role)).pixmap(20, 20))
+        row.addWidget(mark, 0, Qt.AlignTop)
+        row.addWidget(label(text, "cardSubtitle"), 1)
+        if action:
+            self.action = button(action, glyph="chevron", tokens=tokens)
+            self.action.clicked.connect(self.acted)
+            row.addWidget(self.action, 0, Qt.AlignTop)
+        close = button("", glyph="close", tokens=tokens, tip=tr("shell.notice.dismiss"))
+        close.setAccessibleName(tr("shell.notice.dismiss"))
+        close.clicked.connect(self.dismissed)
+        close.clicked.connect(self.hide)
+        row.addWidget(close, 0, Qt.AlignTop)
+        self.setAccessibleName(text)
+
+
 class Clickable(QFrame):
     """A card that behaves like a button: focus ring, Space and Enter, name."""
 
@@ -549,7 +593,8 @@ class BookRow(Clickable):
     toggled = Signal(object, bool)
     opened = Signal(object)
 
-    def __init__(self, book: BookItem, tokens: Tokens, *, results: bool = False) -> None:
+    def __init__(self, book: BookItem, tokens: Tokens, *, results: bool = False,
+                 repairs: bool = True) -> None:
         super().__init__("bookRow")
         self.book = book
         self._narrow: bool | None = None
@@ -597,11 +642,16 @@ class BookRow(Clickable):
         row.addWidget(status_badge(book.status, tokens))
 
         if results:
-            counts = QLabel(f"{book.fixed}\n{tr('shell.results.fixed')}")
-            counts.setAlignment(Qt.AlignCenter)
-            counts.setObjectName("cardTitle")
-            counts.setAccessibleName(tr("shell.results.fixed.reader", count=book.fixed))
-            row.addWidget(counts)
+            if repairs:
+                # A count of repairs is a rebuild's number. A conversion makes
+                # a new book and repairs nothing, so it does not carry one —
+                # and printing "0 napraw" beside a converted document would be
+                # the rebuild's vocabulary on another module's screen.
+                counts = QLabel(f"{book.fixed}\n{tr('shell.results.fixed')}")
+                counts.setAlignment(Qt.AlignCenter)
+                counts.setObjectName("cardTitle")
+                counts.setAccessibleName(tr("shell.results.fixed.reader", count=book.fixed))
+                row.addWidget(counts)
             open_report = button(
                 "", glyph="chevron", tokens=tokens, kind="ghost",
                 tip=tr("shell.results.open", title=book.title),

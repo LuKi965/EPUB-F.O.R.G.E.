@@ -65,6 +65,16 @@ def note_prose_check(report: Report) -> None:
     report.add("package", Level.INFO, "package.prose-check-pdf")
 
 
+def instead_of_rebuilding(report: Report) -> None:
+    """Why the EPUB rebuild will not take a PDF, and what will.
+
+    The refusal is the core's — whether a file is one it repairs is its
+    question — and the sentence is this module's, because the alternative it
+    names is this module's (D-057). Nothing is written either way.
+    """
+    report.add("reader", Level.ERROR, "pdf.not-for-the-rebuild")
+
+
 def note_second_opinion(report: Report, check: Check, consented: list) -> str:
     """What it means that the character count refused, and whether that refuses
     the book.

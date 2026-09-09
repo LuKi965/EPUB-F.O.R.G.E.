@@ -30,17 +30,31 @@ from ..responsive import Cards, LayoutMode, Panels, Responsive, spread
 from ..tokens import CARD_GAP, Tokens
 from ..widgets import Card, PageHeader, Tile, button, label, page_body, status_badge
 
-#: What a drop is allowed to bring in. The same two the old window accepted.
+#: What a drop on the *start* screen may bring in: either module's files, which
+#: the window then sorts (`shell.routing`). A module's own page passes its own
+#: list, because a page that takes what it cannot convert is a page that has to
+#: apologise afterwards.
 SUFFIXES = (".epub", ".pdf")
 
 
 class DropZone(QFrame):
-    """The invitation. A drop target that says what it takes and what it does."""
+    """The invitation. A drop target that says what it takes and what it does.
+
+    One class, two modules: the words and the suffixes are arguments, because
+    "drop files here" is furniture and what happens to them is not.
+    """
 
     files_dropped = Signal(list)
 
-    def __init__(self, tokens: Tokens) -> None:
+    def __init__(self, tokens: Tokens, *, suffixes: "tuple[str, ...]" = SUFFIXES,
+                 title_key: str = "shell.drop.title",
+                 subtitle_key: str = "shell.drop.subtitle",
+                 choose_key: str = "shell.drop.choose",
+                 hint_key: str = "shell.drop.hint",
+                 filter_key: str = "dialog.filter") -> None:
         super().__init__()
+        self.suffixes = suffixes
+        self.filter_key = filter_key
         self.setObjectName("dropZone")
         self.setProperty("active", "false")
         self.setAcceptDrops(True)
@@ -61,17 +75,17 @@ class DropZone(QFrame):
         mark.setAlignment(Qt.AlignCenter)
         stack.addWidget(mark)
 
-        title = label(tr("shell.drop.title"), "pageTitle")
+        title = label(tr(title_key), "pageTitle")
         title.setAlignment(Qt.AlignCenter)
         stack.addWidget(title)
-        subtitle = label(tr("shell.drop.subtitle"), "pageSubtitle")
+        subtitle = label(tr(subtitle_key), "pageSubtitle")
         subtitle.setAlignment(Qt.AlignCenter)
         stack.addWidget(subtitle)
 
         row = QHBoxLayout()
         row.addStretch(1)
         self.choose = button(
-            tr("shell.drop.choose"), kind="primary", glyph="folder", tokens=tokens,
+            tr(choose_key), kind="primary", glyph="folder", tokens=tokens,
             tip=tr("toolbar.add.tip"),
         )
         self.choose.clicked.connect(self._choose)
@@ -79,16 +93,16 @@ class DropZone(QFrame):
         row.addStretch(1)
         stack.addLayout(row)
 
-        self.hint = label(tr("shell.drop.hint"), "muted")
+        self.hint = label(tr(hint_key), "muted")
         self.hint.setAlignment(Qt.AlignCenter)
         stack.addWidget(self.hint)
         stack.addStretch(1)
-        self.setAccessibleName(tr("shell.drop.title"))
-        self.setAccessibleDescription(tr("shell.drop.hint"))
+        self.setAccessibleName(tr(title_key))
+        self.setAccessibleDescription(tr(hint_key))
 
     def _choose(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
-            self, tr("dialog.selectfiles"), self._start_folder(), tr("dialog.filter")
+            self, tr("dialog.selectfiles"), self._start_folder(), tr(self.filter_key)
         )
         if paths:
             remember_folder("input", paths[0])
@@ -116,7 +130,7 @@ class DropZone(QFrame):
         self._highlight(False)
         paths = [
             url.toLocalFile() for url in event.mimeData().urls()
-            if url.isLocalFile() and url.toLocalFile().lower().endswith(SUFFIXES)
+            if url.isLocalFile() and url.toLocalFile().lower().endswith(self.suffixes)
         ]
         if paths:
             self.files_dropped.emit(paths)
@@ -124,7 +138,9 @@ class DropZone(QFrame):
 
 
 class HomePage(Responsive, QWidget):
-    rebuild_requested = Signal(list)
+    #: Files dropped here. The window sorts them and takes each set where it
+    #: belongs (`MainWindow.route`); this page does not decide (D-057).
+    files_dropped = Signal(list)
     route_requested = Signal(str)
     tool_requested = Signal(str)
 
@@ -152,9 +168,28 @@ class HomePage(Responsive, QWidget):
         main = QVBoxLayout(main_side)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(CARD_GAP)
-        self.drop = DropZone(tokens)
-        self.drop.files_dropped.connect(self.rebuild_requested)
+        self.drop = DropZone(tokens, filter_key="dialog.filter.both")
+        self.drop.files_dropped.connect(self.files_dropped)
         main.addWidget(self.drop, 3)
+
+        # Two jobs, said as two (02-UI-DESIGN §1). A person who has a PDF and
+        # wants a book out of it should not have to work out that the way in is
+        # to drop it on something called "rebuild".
+        self.tasks = Cards({LayoutMode.WIDE: 2, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1},
+                           CARD_GAP)
+        self.rebuild_tile = Tile(
+            "rebuild", tr("shell.home.task.rebuild"), tr("shell.home.task.rebuild.body"),
+            tr("shell.home.task.rebuild.action"), tokens,
+        )
+        self.rebuild_tile.activated.connect(lambda: self.route_requested.emit("rebuild"))
+        self.tasks.add(self.rebuild_tile)
+        self.convert_tile = Tile(
+            "book", tr("shell.home.task.pdf"), tr("shell.home.task.pdf.body"),
+            tr("shell.home.task.pdf.action"), tokens,
+        )
+        self.convert_tile.activated.connect(lambda: self.route_requested.emit("pdf"))
+        self.tasks.add(self.convert_tile)
+        main.addWidget(self.tasks, 2)
 
         self.tiles = Cards({LayoutMode.WIDE: 2, LayoutMode.MEDIUM: 2, LayoutMode.COMPACT: 1},
                            CARD_GAP)

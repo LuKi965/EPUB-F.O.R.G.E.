@@ -58,7 +58,13 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # paragraph — the entry loses its place in the document, and the report says
 # so instead of the reader finding out from EPUBCheck, which is how this was
 # found in the first place.
-TAGGED_TODAY = 415
+# 418 on 2026-09-09 with the three lines D-057 needed: `pdf.not-for-the-rebuild`
+# (what the EPUB repair entry says when it is handed a PDF, and which command
+# does convert one), `pdf.destination-exists` (a conversion refuses to land on
+# somebody's file) and `package.not-a-book` (the core's own wording for a source
+# some other module of this program reads, for an importer that offers no
+# sentence of its own).
+TAGGED_TODAY = 418
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -170,7 +176,7 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 316
+TEMPLATED_TODAY = 318
 
 
 class TestTheTranslationCannotStall:

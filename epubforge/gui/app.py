@@ -37,8 +37,8 @@ from PySide6.QtWidgets import (
 
 from .. import plan, resources, version_string, watermark
 from ..pipeline import Status, rebuild_all
-from ..policy import (GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS, PDF_LAYOUTS,
-                      PDF_RUNNING_HEADS, RENDER_GATES, Policy)
+from ..policy import (GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS,
+                      RENDER_GATES, Policy)
 from ..quips import quip_for
 from ..report import Level, Report, batch_summary, batch_to_json
 from ..validate import find_epubcheck, validate
@@ -774,34 +774,11 @@ class MainWindow(QMainWindow):
             HYPHEN_REVIEWS.index(Policy().hyphen_review)
         )
         layout.addWidget(self.hyphen_review_combo)
-        # A separate mode and never a default (2026-09-08): a fixed page keeps
-        # the look and takes the reader's font size away, which is right for a
-        # form or a diagram and wrong for a novel. Only the person holding the
-        # document knows which they have.
-        layout_label = QLabel(tr("policy.pdf.layout"))
-        layout_label.setToolTip(tr("policy.pdf.layout.tip"))
-        layout.addWidget(layout_label)
-        self.pdf_layout_combo = QComboBox()
-        self.pdf_layout_combo.setToolTip(tr("policy.pdf.layout.tip"))
-        for index, value in enumerate(PDF_LAYOUTS):
-            key = f"policy.pdf.layout.{value}"
-            self.pdf_layout_combo.addItem(tr(key), value)
-            self.pdf_layout_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
-        self.pdf_layout_combo.setCurrentIndex(PDF_LAYOUTS.index(Policy().pdf.layout))
-        layout.addWidget(self.pdf_layout_combo)
-        # 0.5 (D-052): a PDF source brings running heads and page numbers in
-        # its text layer. Asked once per book by default; a batch can settle it.
-        pdf_label = QLabel(tr("policy.pdf.heads"))
-        pdf_label.setToolTip(tr("policy.pdf.heads.tip"))
-        layout.addWidget(pdf_label)
-        self.pdf_heads_combo = QComboBox()
-        self.pdf_heads_combo.setToolTip(tr("policy.pdf.heads.tip"))
-        for index, value in enumerate(PDF_RUNNING_HEADS):
-            key = f"policy.pdf.heads.{value}"
-            self.pdf_heads_combo.addItem(tr(key), value)
-            self.pdf_heads_combo.setItemData(index, tr(f"{key}.tip"), Qt.ToolTipRole)
-        self.pdf_heads_combo.setCurrentIndex(PDF_RUNNING_HEADS.index(Policy().pdf.running_heads))
-        layout.addWidget(self.pdf_heads_combo)
+        # No PDF settings here. This column is the *rebuild's* settings, and
+        # making a book out of a PDF stopped being one of the things a rebuild
+        # does (D-057): it is its own job, with its own screen, in the shell
+        # window. This one repairs EPUBs and refuses a PDF with a line saying
+        # where to take it.
         # D-054: runs of empty paragraphs are a converter carrying somebody's
         # page pushing; a single blank line between paragraphs is a break and
         # is never touched. Kept by default, one question per book on `ask`.
@@ -1080,7 +1057,9 @@ class MainWindow(QMainWindow):
             [
                 url.toLocalFile()
                 for url in event.mimeData().urls()
-                if url.toLocalFile().lower().endswith((".epub", ".pdf"))
+                # Books. Making one out of a PDF is the shell window's own
+                # screen and this window has none (D-057).
+                if url.toLocalFile().lower().endswith(".epub")
             ]
         )
 
@@ -1155,8 +1134,6 @@ class MainWindow(QMainWindow):
         policy.accept_unverified_render = self.unverified_check.isChecked()
         policy.accept_reconstructed_metadata = self.reconstructed_check.isChecked()
         policy.hyphen_review = self.hyphen_review_combo.currentData()
-        policy.pdf.layout = self.pdf_layout_combo.currentData()
-        policy.pdf.running_heads = self.pdf_heads_combo.currentData()
         policy.empty_paragraph_runs = self.empty_runs_combo.currentData()
         policy.detect_hyphens = self.hyphens_check.isChecked()
         policy.detect_substitutions = self.substitutions_check.isChecked()
@@ -1466,7 +1443,7 @@ def run(argv: list[str] | None = None) -> int:
     # shell verb and from dragging files onto the executable.
     queued = [
         path for path in argv[1:]
-        if path.lower().endswith((".epub", ".pdf")) and os.path.isfile(path)
+        if path.lower().endswith(".epub") and os.path.isfile(path)
     ]
 
     # Retranslating an imperatively built UI in place means tracking every

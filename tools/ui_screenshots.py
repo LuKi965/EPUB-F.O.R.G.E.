@@ -32,9 +32,13 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from epubforge.gui.shell import tokens as tokens_module  # noqa: E402
 from epubforge.gui.shell.backend import DemoBackend  # noqa: E402
 from epubforge.gui.shell.models import Stage  # noqa: E402
+from epubforge.gui.shell.pdf_backend import DemoPdfBackend  # noqa: E402
 from epubforge.gui.shell.window import MainWindow  # noqa: E402
 
 BOOKS = ["Powiesc_przykladowa.epub", "Zbior_opowiadan.epub", "Poradnik_techniczny.epub"]
+#: The converter's own three, including the one it refuses: a screenshot of a
+#: module that only ever succeeds is a screenshot of half of it.
+DOCUMENTS = ["Instrukcja urzadzenia.pdf", "Katalog czesci.pdf", "Skan bez tekstu.pdf"]
 #: Wide and narrow. The narrow one is the smallest window this interface
 #: promises to work in, which is the one worth a picture.
 WIDE = (1440, 900)
@@ -48,9 +52,9 @@ def settle(app, seconds: float = 0.4) -> None:
         time.sleep(0.01)
 
 
-def wait_for(app, window, stage: Stage, limit: float = 15.0) -> None:
+def wait_for(app, page, stage: Stage, limit: float = 15.0) -> None:
     end = time.time() + limit
-    while time.time() < end and window.rebuild.stage is not stage:
+    while time.time() < end and page.stage is not stage:
         app.processEvents()
         time.sleep(0.01)
     settle(app, 0.2)
@@ -83,7 +87,7 @@ def main(argv: "list[str]") -> int:
     tokens = tokens_module.DARK
     app.setStyleSheet(tokens_module.stylesheet(tokens))
 
-    window = MainWindow(tokens, backend=DemoBackend())
+    window = MainWindow(tokens, backend=DemoBackend(), pdf_backend=DemoPdfBackend())
     window.show()
     settle(app)
 
@@ -94,7 +98,7 @@ def main(argv: "list[str]") -> int:
     settle(app, 0.05)
     shoot(window, out, f"02-analiza{suffix}", sizes=(WIDE,))
 
-    wait_for(app, window, Stage.PLAN)
+    wait_for(app, window.rebuild, Stage.PLAN)
     shoot(window, out, f"03-plan{suffix}")
 
     window.rebuild._open_drawer()
@@ -104,8 +108,21 @@ def main(argv: "list[str]") -> int:
     settle(app, 0.1)
 
     window.rebuild.run()
-    wait_for(app, window, Stage.RESULTS)
+    wait_for(app, window.rebuild, Stage.RESULTS)
     shoot(window, out, f"05-wyniki{suffix}")
+
+    # The converter, which is a module of its own and gets its own pictures.
+    window.navigate("pdf")
+    settle(app, 0.2)
+    shoot(window, out, f"05a-pdf-dokumenty{suffix}")
+
+    window.pdf.start(DOCUMENTS)
+    wait_for(app, window.pdf, Stage.PLAN)
+    shoot(window, out, f"05b-pdf-ustawienia{suffix}")
+
+    window.pdf.run()
+    wait_for(app, window.pdf, Stage.RESULTS)
+    shoot(window, out, f"05c-pdf-wyniki{suffix}")
 
     window.navigate("tools")
     settle(app, 0.2)
@@ -123,8 +140,9 @@ def main(argv: "list[str]") -> int:
     settle(app, 0.2)
     shoot(window, out, f"09-ustawienia{suffix}")
 
-    window.rebuild.runner.stop()
-    window.rebuild.runner.wait_for_idle()
+    for page in (window.rebuild, window.pdf):
+        page.runner.stop()
+        page.runner.wait_for_idle()
     window.close()
     print(f"gotowe: {out}")
     return 0

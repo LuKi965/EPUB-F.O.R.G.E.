@@ -248,16 +248,37 @@ class Recorder:
 
 def rebuilt(source: pathlib.Path, tmp_path: pathlib.Path, *, standing: dict | None = None,
             asker=None, **policy):
-    # The converter's settings live under `Policy.pdf` (D-056); spelled flat
-    # here because a test reads better saying what it turns on than saying
-    # which object holds it.
+    """One conversion, through the converter's own service.
+
+    It used to be `rebuild(pdf, …)` — the repair core's entry, with the
+    converter's settings carried in `Policy.pdf`. D-057 ended that: `build`
+    and `rebuild` take EPUBs, and a PDF goes through `pdfconv.service`, which
+    composes its own run on the shared publication machinery. Every one of
+    these tests is the same test as before; what changed is the door.
+
+    `pdf_*` keyword arguments are the converter's settings, spelled flat
+    because a test reads better saying what it turns on than saying which
+    object holds it. Everything else is the publication policy, which is why
+    `policy_for` is monkeypatched rather than passed: the service decides how a
+    book it made is written, and the tests need the gates off.
+    """
+    from epubforge.pdfconv import service
+    from epubforge.pdfconv.models import PdfConversionPlan
+    from epubforge.pdfconv.settings import PdfSettings
+
     converter = {name[4:]: policy.pop(name) for name in list(policy) if name.startswith("pdf_")}
-    settings = Policy.preset(
+    settings = PdfSettings(**converter)
+    written = Policy.preset(
         "preserve", validate_before_publish="off", render_gate="off", render_sample=0, **policy
     )
-    for name, value in converter.items():
-        setattr(settings.pdf, name, value)
-    return rebuild(str(source), str(tmp_path / "out.epub"), settings, standing=standing, asker=asker)
+    plan = PdfConversionPlan(
+        sources=(pathlib.Path(source),), destination=tmp_path / "out",
+        settings=settings, ask=asker is not None,
+    )
+    return service.convert_document(
+        source, tmp_path / "out.epub", plan.settings, written,
+        asker=asker, standing=standing,
+    )
 
 
 def rules_of(result) -> set:
@@ -1285,16 +1306,50 @@ class TestThePipeline:
         assert result.book.metadata.language == "pl"
 
     def test_the_command_line_takes_a_pdf_and_the_flag(self, tmp_path, capsys):
+        """The same test as before D-057, at the command it now belongs to.
+        `build` used to take this; `convert-pdf` does, and the flag came with
+        it — the converter's settings are the converter's command's."""
         source = book_with_heads(tmp_path)
         out = tmp_path / "out"
         code = main([
-            "build", str(source), "-o", str(out / "book.epub"), "--gate", "off", "--render-gate", "off",
-            "--pdf-running-heads", "remove",
+            "convert-pdf", str(source), "-o", str(out), "--running-heads", "remove",
         ])
         assert code == EXIT_OK, capsys.readouterr()
         written = list(out.glob("*.epub"))
         assert len(written) == 1
         assert "THE BOOK OF PAGES" not in prose_of(str(written[0]))
+
+    def test_the_build_command_refuses_a_pdf_and_names_the_other_one(self, tmp_path, capsys):
+        """P10 and P02. `build` repairs books; a PDF is refused with nothing
+        written, and the refusal says which command does convert it."""
+        source = book_with_heads(tmp_path)
+        out = tmp_path / "out"
+        code = main(["build", str(source), "-o", str(out / "book.epub"),
+                     "--gate", "off", "--render-gate", "off"])
+        assert code != EXIT_OK
+        said = capsys.readouterr().out
+        assert "convert-pdf" in said, said
+        assert not list(tmp_path.rglob("*.epub"))
+
+    def test_and_the_library_entry_refuses_it_too(self, tmp_path):
+        """Not only the command: the refusal is the pipeline's, so a script
+        calling `rebuild` directly gets it as well — and gets it *because* the
+        converter is installed, which is the case the acceptance list names."""
+        from epubforge import pdfconv
+
+        assert pdfconv.installed()
+        result = rebuild(str(book_with_heads(tmp_path)), str(tmp_path / "out.epub"))
+        assert result.status is Status.BLOCKED
+        assert result.output_path is None
+        assert "pdf.not-for-the-rebuild" in rules_of(result)
+        assert not (tmp_path / "out.epub").exists()
+
+    def test_rebuild_all_refuses_it_before_it_opens_the_container(self, tmp_path):
+        from epubforge.pipeline import rebuild_all
+
+        (result,) = rebuild_all(str(book_with_heads(tmp_path)), str(tmp_path / "out.epub"))
+        assert result.status is Status.BLOCKED
+        assert "pdf.not-for-the-rebuild" in rules_of(result)
 
     def test_an_image_only_pdf_is_refused_before_anything_is_written(self, tmp_path):
         PIL = pytest.importorskip("PIL.Image")
@@ -1355,8 +1410,10 @@ class TestThePageKeptAsAPage:
         policy's; two lists that drift are a mode nobody can reach."""
         from epubforge.pdfconv.settings import LAYOUTS
 
+        from epubforge.pdfconv.settings import PdfSettings
+
         assert LAYOUTS == (pdf.REFLOWABLE, pdf.FIXED)
-        assert Policy().pdf.layout == pdf.REFLOWABLE
+        assert PdfSettings().layout == pdf.REFLOWABLE
 
     def test_one_document_per_page_each_saying_how_big_its_page_is(self, tmp_path):
         source = make_pdf(tmp_path / "three.pdf", [
@@ -1513,8 +1570,8 @@ class TestThePageKeptAsAPage:
     def test_the_command_line_offers_the_mode(self, tmp_path, capsys):
         out = tmp_path / "out"
         code = main([
-            "build", str(book_with_heads(tmp_path)), "-o", str(out / "book.epub"),
-            "--gate", "off", "--render-gate", "off", "--pdf-layout", "fixed",
+            "convert-pdf", str(book_with_heads(tmp_path)), "-o", str(out),
+            "--layout", "fixed",
         ])
         assert code == EXIT_OK, capsys.readouterr()
         written = list(out.glob("*.epub"))

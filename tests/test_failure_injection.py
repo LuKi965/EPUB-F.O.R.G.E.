@@ -121,11 +121,24 @@ class TestAnImporterStageThatRaises:
             title="Injected",
         ))
 
+    @staticmethod
+    def _converted(source: str, destination) -> object:
+        """Through the module's own service, because that is the only way in.
+
+        `rebuild` refuses a PDF now (D-057), so a test driving this stage
+        through it would be testing the refusal instead of the promise. The
+        promise is the same one as above and is held on the same machinery:
+        a stage that raises leaves no file, whichever module composed the run.
+        """
+        from epubforge.pdfconv.service import convert_document
+
+        return convert_document(source, destination, policy=Policy.preset("preserve"))
+
     def test_no_file_is_written(self, importer, stage_class, imported, tmp_path, monkeypatch):
         destination = tmp_path / "out.epub"
         explode_in(monkeypatch, stage_class)
 
-        result = rebuild(imported, str(destination), Policy.preset("preserve"))
+        result = self._converted(imported, destination)
 
         assert result.status is Status.FAILED
         assert result.output_path is None
@@ -134,11 +147,24 @@ class TestAnImporterStageThatRaises:
     def test_the_failure_names_the_stage(self, importer, stage_class, imported, tmp_path, monkeypatch):
         explode_in(monkeypatch, stage_class, "injected failure")
 
-        result = rebuild(imported, str(tmp_path / "out.epub"), Policy.preset("preserve"))
+        result = self._converted(imported, tmp_path / "out.epub")
 
         errors = [f for f in result.report.findings if f.level is Level.ERROR]
         assert any("injected failure" in f.message for f in errors)
         assert any(f.stage == stage_class.name for f in errors)
+
+    def test_the_repair_entry_will_not_run_it_at_all(self, importer, stage_class, imported,
+                                                     tmp_path, monkeypatch):
+        """P02, from the other side: `rebuild` refuses the source before any
+        stage runs, so an exploding one is never reached and no file appears."""
+        explode_in(monkeypatch, stage_class, "injected failure")
+        destination = tmp_path / "refused.epub"
+
+        result = rebuild(imported, str(destination), Policy.preset("preserve"))
+
+        assert result.status is Status.BLOCKED
+        assert not destination.exists()
+        assert not any("injected failure" in f.message for f in result.report.findings)
 
 
 class TestTheImporterStagesRunOnlyForTheirOwnBooks:

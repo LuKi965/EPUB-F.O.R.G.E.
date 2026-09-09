@@ -44,8 +44,8 @@ def install() -> None:
 
     from .. import sources
     from . import rules
-    from .gate import (characters_survive, note_prose_check,
-                       note_second_opinion, render_gate)
+    from .gate import (characters_survive, instead_of_rebuilding,
+                       note_prose_check, note_second_opinion, render_gate)
     from .stage import PdfStage
 
     rules.install()
@@ -59,9 +59,11 @@ def install() -> None:
         render_gate=render_gate,
         note_prose_check=note_prose_check,
         note_second_opinion=note_second_opinion,
+        instead_of_rebuilding=instead_of_rebuilding,
         # First, because it removes text on a person's word before any stage
-        # reads the prose — and only for the books this importer read, which is
-        # the difference D-056 asked for.
+        # reads the prose. Declared here so a reader of `sources.py` can see
+        # what this source brings; the list a run actually uses is composed by
+        # this module's own service (D-057).
         stages=(PdfStage,),
         # A running head or a page number a PDF brought along, removed on a
         # person's word (0.5, D-052): text the source had and the book should

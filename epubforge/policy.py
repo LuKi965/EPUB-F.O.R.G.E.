@@ -6,7 +6,6 @@ from dataclasses import dataclass, field, fields
 
 from . import budget as _budget
 from . import watermark
-from .pdfconv import settings as _pdf
 
 #: What `Policy.validate_before_publish` may say. Ordered least to most
 #: refusing, which is the order they are offered in every interface.
@@ -18,12 +17,6 @@ RENDER_GATES = ("off", "report", "stop")
 #: What `Policy.hyphen_review` may say: how far down the confidence classes
 #: the questions go. Ordered least to most asking, like the gates above.
 HYPHEN_REVIEWS = ("confirmed", "grouped", "each")
-#: The converter's own choices, re-exported so the window and the command line
-#: reach every setting through one module. They are defined in
-#: `pdfconv.settings` and belong to it (D-056): the repair core carries the
-#: *slot*, not the meaning.
-PDF_RUNNING_HEADS = _pdf.RUNNING_HEADS
-PDF_LAYOUTS = _pdf.LAYOUTS
 #: What becomes of runs of empty paragraphs — two or more in a row, at the
 #: edge of a document, beside a heading (D-054): asked once per book, kept
 #: (the default: a single blank line between paragraphs is never touched
@@ -291,15 +284,6 @@ class Policy:
     #:   189 candidates are one decision instead of 189.
     #: * `each` — every candidate individually, for going through them properly.
     hyphen_review: str = "confirmed"
-
-    #: The PDF converter's own settings — see `pdfconv.settings.PdfSettings`.
-    #:
-    #: One field and not two loose ones, and that is D-056 rather than tidiness:
-    #: this program repairs EPUBs, and a converter's choices sitting in the row
-    #: with `strict` and `remove_dead` said that reading a PDF was one of the
-    #: things it does to a book. It is not; it is how some books arrive. The
-    #: window shows this group only when there is a PDF to show it for.
-    pdf: "_pdf.PdfSettings" = field(default_factory=_pdf.PdfSettings)
 
     #: Runs of empty paragraphs (D-054): a single empty paragraph between two
     #: paragraphs of text is a break between scenes and is never touched; a

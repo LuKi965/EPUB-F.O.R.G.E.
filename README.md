@@ -196,13 +196,18 @@ EPUB-a.
 epubforge build ksiazka.epub --kepub
 ```
 
-### PDF na wejściu
+### PDF → EPUB: osobne zadanie
 
-PDF **z warstwą tekstową** wchodzi tą samą drogą co EPUB: `epubforge build
-ksiazka.pdf`, katalog z PDF-ami albo plik upuszczony na okno. Warstwa tekstowa
-jest czytana (`pdfminer.six`, czysty Python, więc build Windows ją ma) w ten
-sam model co EPUB, a dalej książka idzie przez te same etapy, bilans,
-walidator i bramy — i wychodzi EPUB 3.3 (albo KEPUB z `--kepub`). Z geometrii
+Zrobienie książki z PDF-a **nie jest przebudową** i nie idzie przez `build`
+(D-057). To osobna komenda, osobna strona w oknie i osobna usługa:
+`epubforge convert-pdf ksiazka.pdf`, katalog z PDF-ami albo PDF upuszczony na
+okno, który trafia do modułu **PDF → EPUB**. `build` z PDF-em odmawia,
+wskazuje tę komendę i nie zapisuje nic.
+
+Wspólne zostaje to, co jest wspólne: writer, walidator, atomowy zapis, bilans
+i bramy publikacji. Warstwa tekstowa jest czytana (`pdfminer.six`, czysty
+Python, więc build Windows ją ma) w ten sam model co EPUB, a dalej książka
+idzie przez te same etapy, bilans, walidator i bramy — i wychodzi EPUB 3.3. Z geometrii
 składu powstają akapity (odstęp, wcięcie, krótki wiersz przed wielką literą),
 nagłówki (rozmiar względem tekstu: 1,6× → `h1`, 1,25× → `h2`), dokumenty
 i spis treści z zakładek PDF-a, gdy są; obrazy JPEG i Flate wchodzą jako pliki
@@ -214,8 +219,8 @@ i pytaniem, jak dla każdej książki.
 Dwie rzeczy, które PDF przynosi, a książka nie, są **pytaniem**, nie decyzją
 programu: żywa pagina i numery stron (wiersz powtarzający się na tej samej
 wysokości na większości stron — jedno pytanie z przykładami, zalecane
-*usuń*; bez odpowiedzi zostają; dla partii `--pdf-running-heads
-ask|keep|remove`, w oknie kratka) oraz język, którego PDF zwykle nie
+*usuń*; bez odpowiedzi zostają; dla partii `--running-heads
+ask|keep|remove`, w oknie lista wyboru) oraz język, którego PDF zwykle nie
 deklaruje (propozycja z tekstu, ustawiana tylko na słowo człowieka). Skan bez
 warstwy tekstowej jest odmową z powodem (`pdf.no-text-layer`) — OCR to inny
 program. Dwie kolumny są czytane kolumna po kolumnie i zgłaszane, nie
@@ -225,7 +230,7 @@ znacznika — listą, obie policzone w raporcie; okładki nie ma.
 Ze stron powstaje książka **z tekstem płynnym** — tak jest domyślnie i tak być
 powinno, bo książka, która się przelewa, jest książką do przeczytania przez
 każdego i w każdym stopniu pisma. Dokument, w którym układ *jest* treścią —
-formularz, nuty, rysunek z podpisami — można złożyć inaczej: `--pdf-layout
+formularz, nuty, rysunek z podpisami — można złożyć inaczej: `--layout
 fixed` zapisuje jeden dokument na stronę, każdy wiersz tam, gdzie postawił go
 zecer, na stronie o wymiarach oryginału, i deklaruje publikację jako
 `pre-paginated`. Raport mówi, ile to kosztuje, bo to wymiana: brak przepływu,
@@ -235,9 +240,10 @@ koniec wiersza zostawiony przecięty. Tekst nadal jest tekstem — każdy znak,
 w kolejności czytania.
 
 ```bash
-epubforge build ksiazka.pdf
-epubforge build skany/ --pdf-running-heads remove
-epubforge build formularz.pdf --pdf-layout fixed
+epubforge convert-pdf ksiazka.pdf
+epubforge convert-pdf dokumenty/ --running-heads remove
+epubforge convert-pdf formularz.pdf --layout fixed
+epubforge build ksiazka.pdf          # odmawia i wskazuje convert-pdf
 ```
 
 ## Co narzędzie o sobie mówi

@@ -42,7 +42,7 @@ class HistoryRow(QFrame):
         names.addWidget(
             Eliding(
                 f"{tr(record.kind_key)}  ·  "
-                f"{tr('shell.history.entry', count=record.count, preset=record.preset)}"
+                f"{tr(record.entry_key, count=record.count, preset=record.preset)}"
                 f"  ·  {record.when}",
                 "muted",
             )
@@ -81,7 +81,8 @@ class HistoryRow(QFrame):
         stack.addWidget(split)
         self.setAccessibleName(title)
         self.setAccessibleDescription(
-            tr("shell.history.entry", count=record.count, preset=record.preset)
+            f"{tr(record.kind_key)}. "
+            + tr(record.entry_key, count=record.count, preset=record.preset)
         )
 
 

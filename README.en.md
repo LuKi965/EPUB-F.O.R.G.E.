@@ -201,14 +201,19 @@ unchanged to the character; every other reader sees a plain EPUB.
 epubforge build book.epub --kepub
 ```
 
-### PDF as input
+### PDF → EPUB: a job of its own
 
-A PDF **with a text layer** comes in the way an EPUB does: `epubforge build
-book.pdf`, a folder with PDFs, or a file dropped on the window. The text
-layer is read (`pdfminer.six`, pure Python, so the Windows build carries it)
-into the same model an EPUB is read into, and from there the book goes
-through the same stages, balance, validator and gates — and comes out an
-EPUB 3.3 (or a KEPUB with `--kepub`). The typesetter's geometry becomes
+Making a book out of a PDF **is not a rebuild** and does not go through
+`build` (D-057). It is its own command, its own page in the window and its own
+service: `epubforge convert-pdf book.pdf`, a folder with PDFs, or a PDF
+dropped on the window, which lands in the **PDF → EPUB** module. `build` given
+a PDF refuses, names that command and writes nothing.
+
+What stays shared is what is shared: the writer, the validator, the atomic
+publish, the balance and the publication gates. The text layer is read
+(`pdfminer.six`, pure Python, so the Windows build carries it) into the same
+model an EPUB is read into, and from there the book goes through the same
+stages, balance, validator and gates — and comes out an EPUB 3.3. The typesetter's geometry becomes
 paragraphs (a gap, an indent, a short line before a capital), headings
 (size against the body: 1.6× → `h1`, 1.25× → `h2`), documents and a table
 of contents from the PDF's outline when it has one; JPEG and Flate images
@@ -220,8 +225,8 @@ decides that, with its dictionary and its question, as for any book.
 Two things a PDF brings that a book does not are a **question**, not the
 program's decision: running heads and page numbers (a line repeating at the
 same height on most pages — one question with examples, recommended
-*remove*; without an answer they stay; for a batch `--pdf-running-heads
-ask|keep|remove`, a box in the window) and the language, which a PDF rarely
+*remove*; without an answer they stay; for a batch `--running-heads
+ask|keep|remove`, a list in the window) and the language, which a PDF rarely
 declares (proposed from the text, set only on a person's word). A scan with
 no text layer is refused with the reason (`pdf.no-text-layer`) — OCR is a
 different program. Two columns are read column by column and reported, not
@@ -232,7 +237,7 @@ is no cover.
 The pages become a book that **reflows** — that is the default and should be,
 because a book that reflows is a book anybody can read at any size. A document
 whose layout *is* its content — a form, a score, a diagram with words in it —
-can be built the other way: `--pdf-layout fixed` writes one document per page,
+can be built the other way: `--layout fixed` writes one document per page,
 every line where the typesetter set it, on a page of the source's own
 measurements, and declares the publication `pre-paginated`. The report says
 what that costs, because it is a trade: no reflow, no reader font size, tables
@@ -241,9 +246,10 @@ structure, and a word broken at a line end left broken. The text is still
 text — every character, in reading order.
 
 ```bash
-epubforge build book.pdf
-epubforge build scans/ --pdf-running-heads remove
-epubforge build form.pdf --pdf-layout fixed
+epubforge convert-pdf book.pdf
+epubforge convert-pdf documents/ --running-heads remove
+epubforge convert-pdf form.pdf --layout fixed
+epubforge build book.pdf             # refuses, and names convert-pdf
 ```
 
 ## What it tells you about itself

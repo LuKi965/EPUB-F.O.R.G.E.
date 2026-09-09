@@ -309,11 +309,14 @@ class TestEF087TextInAFormXObjectIsReadAndCounted:
         drawn = pdf.character_inventory(str(self._pdf(tmp_path)))
         assert drawn["U"] >= 2 and drawn["Q"] == 1, drawn
 
-    def test_a_rebuild_carries_it(self, tmp_path):
+    def test_a_conversion_carries_it(self, tmp_path):
+        """The same test as when it was written; it goes through the
+        converter's own service now, because `rebuild` takes EPUBs (D-057)."""
         from epubforge import fidelity
+        from epubforge.pdfconv.service import convert_document
 
-        result = pipeline.rebuild(
-            str(self._pdf(tmp_path)), str(tmp_path / "out.epub"), measuring()
+        result = convert_document(
+            self._pdf(tmp_path), tmp_path / "out.epub", policy=measuring()
         )
         assert result.output_path, result.report.to_text()
         assert "UNIQUE FORM TEXT MUST SURVIVE" in fidelity.spine_text_of(result.output_path)

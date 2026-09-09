@@ -103,7 +103,7 @@ i zacząć budować to, co stoi od miesiąca.
 | odbudowa arkusza: format, scalanie, kolejność, martwe reguły — domknięta | `epubforge/stages/style.py`, `epubforge/stylesheet.py` |
 | koszyki śmieci generatorów (Word, Calibre, Sigil, InDesign) w obu trybach, każdy za kratką | `epubforge/stages/style.py`, `epubforge/stages/content.py` |
 | eksport KEPUB | `epubforge/kepub.py`, `epubforge/stages/kepub.py` |
-| PDF z warstwą tekstową → ten sam model, jako osobny moduł (D-056) | `epubforge/pdfconv/`, szew `epubforge/sources.py` |
+| PDF z warstwą tekstową → EPUB, jako **osobne zadanie**: własna komenda `convert-pdf`, własna strona okna, własny plan i usługa; `build`/`rebuild` odmawiają PDF-a (D-057) | `epubforge/pdfconv/` (`service.py`, `models.py`), `epubforge/gui/shell/pages/pdf_conversion.py`, `epubforge/gui/shell/routing.py` |
 | ciągi pustych akapitów (dwa i więcej, na brzegu, przy nagłówku) za polem polityki `empty_paragraph_runs` — domyślnie tylko liczone; pojedyncza przerwa między akapitami nietykana (D-054) | `epubforge/stages/paragraphs.py` |
 
 Co zostało z odbudowy zapisu — atrybuty `style="…"` do klas, `div`
@@ -220,7 +220,7 @@ na półce, nie na atrapie).
 | gdzie | co |
 |---|---|
 | `epubforge/reader.py` | czytnik EPUB, z odbudową uszkodzonego pakietu |
-| `epubforge/pdfconv/` | konwerter PDF → EPUB jako osobny moduł: czytnik, etap, bramy, ustawienia, reguły; wpina się przez `epubforge/sources.py` i nie jest znany rdzeniowi (D-056) |
+| `epubforge/pdfconv/` | konwerter PDF → EPUB jako osobne zadanie: czytnik, etap, bramy, ustawienia, reguły, **własny plan i usługa** (`models.py`, `service.py`). Usługa składa własny przebieg na wspólnej maszynerii publikacji (`pipeline.produce`); rdzeń nie czyta PDF-a i odmawia go w `rebuild` (D-057). `epubforge/sources.py` zostaje przy pytaniach bram — co znaczy K1 i kontrola wyglądu dla źródła bez „przed" — i nie jest już drogą, którą plik znajduje czytnik |
 | `epubforge/model.py` | model książki — kontrakt (K12) |
 | `epubforge/stages/` | potok etapów; `stages/__init__.py` podaje kolejność **z powodami** |
 | `epubforge/pipeline.py` | przebieg, budżety, bramy, publikacja |

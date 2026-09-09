@@ -76,9 +76,17 @@ class Importer:
     #: computes which named passes the person agreed to — and the *wording* is
     #: the importer's, for the same reason `note_prose_check` is.
     note_second_opinion: "Callable[..., str] | None" = None
-    #: Stages this importer adds in front of the core's, for the books it read
-    #: and for no others.
+    #: Stages this importer's own service puts in front of the core's. The
+    #: core does not read this: the module composing a run says which stages it
+    #: runs (D-057). It is declared here so that a reader of this file can see
+    #: what a source brings with it without opening the module.
     stages: tuple = field(default_factory=tuple)
+    #: Says, into the report, why the EPUB repair entry will not take this file
+    #: and what to use instead: `(report) -> None`. A callable and not a rule
+    #: name, for the reason `note_prose_check` is one — a rule identifier has
+    #: to be a literal where it is raised or nobody can grep their way from a
+    #: report line to the code.
+    instead_of_rebuilding: "Callable[[object], None] | None" = None
     #: Rules of this importer's own that K1 forgives by name, on the same terms
     #: as the core's: a removal somebody consented to, said in the report.
     removes_text_on_purpose: frozenset = frozenset()

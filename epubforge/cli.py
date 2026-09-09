@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import sys
 import tempfile
 
@@ -14,8 +15,10 @@ from rich.table import Table
 from . import compat, version_string, watermark
 from .pipeline import Status, rebuild, rebuild_all
 from .plan import describe, ledger_lines, plan_batch
-from .policy import (GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS, PDF_LAYOUTS,
-                     PDF_RUNNING_HEADS, RENDER_GATES, Policy)
+from .pdfconv.settings import LAYOUTS as PDF_LAYOUTS
+from .pdfconv.settings import RUNNING_HEADS as PDF_RUNNING_HEADS
+from .policy import (GATES, HYPHEN_REVIEWS, EMPTY_PARAGRAPH_RUNS,
+                     RENDER_GATES, Policy)
 from .reader import EpubReadError, read_epub
 from .quips import quip_for
 from . import rules
@@ -32,13 +35,28 @@ LEVEL_STYLE = {
 }
 
 
-def collect_inputs(raw_inputs: list[str]) -> list[str]:
+#: What a scan of a folder picks up. Books, because that is what this program
+#: repairs; a converter's sources are the converter's command to ask for
+#: (D-057, `convert-pdf`), and sweeping them in here is how a batch rebuild
+#: came to be handed a PDF in the first place.
+BOOKS = (".epub",)
+DOCUMENTS = (".pdf",)
+
+
+def collect_inputs(raw_inputs: list[str], suffixes: "tuple[str, ...]" = BOOKS) -> list[str]:
+    """Every file named, and every file of the right kind under a folder named.
+
+    A file given by name is taken as given — somebody who types a path means
+    it, whatever it is called — and refused later by the command that cannot
+    use it. Only the *scan* filters, because a scan is a guess about intent.
+    """
     found: list[str] = []
     for entry in raw_inputs:
         if os.path.isdir(entry):
             for root, _, files in os.walk(entry):
                 found.extend(
-                    os.path.join(root, name) for name in sorted(files) if name.lower().endswith((".epub", ".pdf"))
+                    os.path.join(root, name) for name in sorted(files)
+                    if name.lower().endswith(suffixes)
                 )
         elif os.path.isfile(entry):
             found.append(entry)
@@ -131,24 +149,27 @@ def build_policy(args: argparse.Namespace) -> Policy:
     return policy
 
 
-def _apply_pdf_flags(args: argparse.Namespace, policy: Policy) -> None:
-    """The two flags that mean nothing unless the source is a PDF: what its
-    pages become, and what becomes of the furniture they carry.
+def pdf_settings_from(args: argparse.Namespace):
+    """The converter's settings, from the converter's own flags.
 
-    Their own function because they are their own subject — and kept above
-    `_apply_valued_flags`, where the command line's reachability test reads
-    for them (`test_cli_reaches_everything`).
+    Not part of `build_policy`, and that is the whole of D-057 in one function:
+    these belong to `convert-pdf`, they are not fields of the repair core's
+    policy any more, and `build` neither offers them nor has anywhere to put
+    them.
     """
-    if getattr(args, "pdf_layout", None):
-        policy.pdf.layout = args.pdf_layout
-    if getattr(args, "pdf_running_heads", None):
-        policy.pdf.running_heads = args.pdf_running_heads
+    from .pdfconv.settings import PdfSettings
+
+    settings = PdfSettings()
+    if getattr(args, "layout", None):
+        settings.layout = args.layout
+    if getattr(args, "running_heads", None):
+        settings.running_heads = args.running_heads
+    return settings
 
 
 def _apply_valued_flags(args: argparse.Namespace, policy: Policy) -> None:
     """The flags that carry a value of their own, after the switches: the
     `--watermarks` mode overrides `--keep-watermark-markup`, as it always has."""
-    _apply_pdf_flags(args, policy)
     if getattr(args, "render_gate", None) is not None:
         policy.render_gate = args.render_gate
     if getattr(args, "hyphen_review", None):
@@ -334,6 +355,10 @@ def command_build(args: argparse.Namespace) -> int:
         console.print("[yellow]No .epub files found.[/]")
         return 1
 
+    refused = _refuse_what_this_command_does_not_repair(console, inputs)
+    if refused is not None:
+        return refused
+
     policy = build_policy(args)
     output_dir = args.output
     if len(inputs) > 1 and output_dir and not os.path.isdir(output_dir):
@@ -507,6 +532,79 @@ def _say_what_became_of_it(console: Console, args: argparse.Namespace, result, j
     reason = "refused" if result.status is Status.BLOCKED else "not written"
     console.print(f"  [bold red]{reason}[/] — see the report above")
     return EXIT_NOT_WRITTEN
+
+
+def _refuse_what_this_command_does_not_repair(console, inputs: list) -> "int | None":
+    """`build` repairs books. A document another command converts is refused
+    here, by name, before a single file is opened (D-057, P10).
+
+    The pipeline refuses it too — that is the guarantee, and it holds for a
+    library caller as well. This is so a person who typed the wrong command
+    reads one sentence instead of a report per file.
+    """
+    from . import sources
+
+    strangers = [path for path in inputs if sources.for_source(path) is not None]
+    if not strangers:
+        return None
+    console.print(
+        f"[bold red]{len(strangers)} file(s) here are not EPUBs[/] — "
+        f"`build` repairs books that already are one."
+    )
+    for path in strangers[:5]:
+        console.print(f"  {path}")
+    if len(strangers) > 5:
+        console.print(f"  … and {len(strangers) - 5} more")
+    console.print("Making a book out of a PDF: [bold]epubforge convert-pdf[/]")
+    return EXIT_NOT_WRITTEN
+
+
+def command_convert_pdf(args: argparse.Namespace) -> int:
+    """Make an EPUB out of each PDF named, through the converter's own service.
+
+    Deliberately short: everything that decides anything is in
+    `pdfconv.service`, which the window's adapter calls as well. A command
+    line that quietly did something else than the window would be two
+    programs wearing one name.
+    """
+    from .pdfconv.models import PdfConversionPlan
+    from .pdfconv.service import convert
+
+    console = Console(stderr=False)
+    inputs = collect_inputs(args.inputs, DOCUMENTS)
+    if not inputs:
+        console.print("[yellow]No .pdf files found.[/]")
+        return 1
+
+    plan = PdfConversionPlan(
+        sources=tuple(pathlib.Path(path) for path in inputs),
+        destination=pathlib.Path(args.output) if args.output else None,
+        settings=pdf_settings_from(args),
+        collision="overwrite" if args.replace else "refuse",
+        validate=args.gate or "off",
+        render_gate=args.render_gate or "stop",
+        # Nobody is at the keyboard of a command line in the middle of a batch,
+        # so nothing is asked and nothing is changed that cannot be justified
+        # without an answer — the same rule `build` runs under.
+        ask=False,
+    )
+    if plan.destination is not None:
+        os.makedirs(plan.destination, exist_ok=True)
+
+    results = convert(plan, language=args.report_language)
+    written = [one for one in results if one.published]
+    for one in results:
+        if one.published:
+            console.print(
+                f"[green]{one.source.name}[/] → {one.published_outputs[0]}"
+                f"  [dim]({one.layout})[/]"
+            )
+        else:
+            console.print(f"[bold red]{one.source.name}[/] — {one.error or 'not written'}")
+        for warning in one.warnings[:3]:
+            console.print(f"  [yellow]{warning}[/]")
+    console.print(f"{len(written)} of {len(results)} converted")
+    return EXIT_OK if len(written) == len(results) else EXIT_NOT_WRITTEN
 
 
 def _keep_the_report(args: argparse.Namespace, result, destination: str, collected: list) -> None:
@@ -1158,26 +1256,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="draw every page rather than a sample of twelve",
     )
     build.add_argument(
-        "--pdf-layout",
-        choices=PDF_LAYOUTS,
-        help=(
-            "what a PDF source becomes: 'reflowable' reads its geometry back "
-            "into paragraphs, headings, tables and lists so the text can be set "
-            "at any size (default), 'fixed' keeps the pages as pages — every "
-            "line where it was set, the publication declared pre-paginated, and "
-            "no reflow and no reader font size in exchange"
-        ),
-    )
-    build.add_argument(
-        "--pdf-running-heads",
-        choices=PDF_RUNNING_HEADS,
-        help=(
-            "what becomes of the running heads and page numbers a PDF source "
-            "brought along: 'ask' once per book (default), 'keep' them as text, "
-            "'remove' them all — the standing answer for a batch"
-        ),
-    )
-    build.add_argument(
         "--empty-paragraph-runs",
         choices=EMPTY_PARAGRAPH_RUNS,
         help=(
@@ -1527,6 +1605,66 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--series", help="set the series name")
     build.add_argument("--language", help="override dc:language (BCP 47)")
     build.set_defaults(func=command_build)
+
+    convert = subparsers.add_parser(
+        "convert-pdf",
+        help="make an EPUB out of a PDF that has a text layer",
+        description=(
+            "A job of its own, not a mode of `build`: `build` repairs books "
+            "that are already EPUBs and refuses a PDF. There is no OCR here — "
+            "a scan with no text layer is refused and says so."
+        ),
+    )
+    convert.add_argument("inputs", nargs="+", help="PDF files or directories")
+    convert.add_argument(
+        "-o", "--output", help="where to write; by default beside each PDF"
+    )
+    convert.add_argument(
+        "--layout",
+        choices=PDF_LAYOUTS,
+        help=(
+            "what the PDF becomes: 'reflowable' reads its geometry back "
+            "into paragraphs, headings, tables and lists so the text can be set "
+            "at any size (default), 'fixed' keeps the pages as pages — every "
+            "line where it was set, the publication declared pre-paginated, and "
+            "no reflow and no reader font size in exchange"
+        ),
+    )
+    convert.add_argument(
+        "--running-heads",
+        choices=PDF_RUNNING_HEADS,
+        help=(
+            "what becomes of the running heads and page numbers the PDF "
+            "brought along: 'ask' once per document (default), 'keep' them as "
+            "text, 'remove' them all — the standing answer for a batch"
+        ),
+    )
+    convert.add_argument(
+        "--gate",
+        choices=GATES,
+        help=(
+            "the EPUBCheck gate on the file this makes: 'off', "
+            "'no-new-errors' or 'clean'"
+        ),
+    )
+    convert.add_argument(
+        "--render-gate",
+        choices=RENDER_GATES,
+        help=(
+            "what happens when the pages of the new book cannot be drawn and "
+            "checked: 'stop' refuses to write (the default), 'report' says so "
+            "and writes, 'off' does not look"
+        ),
+    )
+    convert.add_argument(
+        "--replace", action="store_true",
+        help="write even where a file of that name already exists",
+    )
+    convert.add_argument(
+        "--report-language", choices=("pl", "en"), default="pl",
+        help="the language the report is written in",
+    )
+    convert.set_defaults(func=command_convert_pdf)
 
     inspect = subparsers.add_parser("inspect", help="report on a file without rebuilding it")
     inspect.add_argument("inputs", nargs="+")

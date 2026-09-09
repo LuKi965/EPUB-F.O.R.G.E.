@@ -40,7 +40,84 @@ written; only the current version was reset.
 
 ## Unreleased
 
-(Nic jeszcze nie czeka — 0.4.3 wyszło 2026-09-09.)
+Paczka właściciela **HANDOFF V3** (2026-09-09), nazwana przez niego
+specyfikacją nadrzędną wobec wcześniejszych paczek revampu. Dwa etapy z pięciu
+wykonane; reszta w toku, bez wydania.
+
+### Wyniki mówią prawdę, a sesje nie mieszają się nawzajem
+
+Cztery osie zamiast jednego `DONE` (**F03**, **F04**, **F06**): czy przebieg
+się skończył, czy plik został opublikowany, jak czysty jest wynik i o jaką
+pracę chodziło. `_absorb` liczył ostrzeżenia do `issues`, a stan podnosił
+tylko przy błędzie — książka z dwoma uwagami wychodziła jako zrobiona.
+Atrapa robiła to inną regułą, więc testy na atrapie tego nie widziały; teraz
+obie idą tą samą. `BatchOutcome.published` liczy **publikacje**, nie statusy,
+które by plik zapisały: próba pisze do katalogu tymczasowego, który znika, i
+nie jest już liczona jako zapis. `published_outputs` niesie wszystkie pliki
+książki — wielorendycjowy EPUB publikuje po jednym na rendycję, a adapter
+trzymał `produced[0]`. Karta Wyników grupuje pliki po pełnym katalogu i przy
+wielu lokalizacjach daje wybór, zamiast brać katalog pierwszego pliku dla
+całej partii.
+
+Identyfikator sesji na każdym sygnale workera (**F05**). Drugi zestaw plików
+czyścił listę i wynik trwającej pracy — teraz `start()` pyta (poczekaj /
+zatrzymaj bieżące / pomiń), a pliki czekają i ruszają same. Odpowiedź partii,
+której już nie ma, jest odrzucana. To samo na stronie Narzędzi, gdzie
+formularz można zmienić w trakcie pracy.
+
+`Ctrl+S` przelicza się dla strony, która jest na ekranie (**F09**) — szedł za
+ostatnim etapem Przebudowy i działał także w Ustawieniach. Kasowanie workera
+podpięte do `thread.finished` przy starcie, zgodnie ze wzorcem Qt (**F10**):
+wołane z wątku okna po zakończeniu wątku joba nie robiło nic i worker
+zostawał żywy. Test pyta Qt sygnałem `destroyed`.
+
+### PDF → EPUB jest osobnym zadaniem, nie trybem przebudowy
+
+**D-057**, wprost z paczki: *„PDF → EPUB ma być osobnym modułem aplikacji, a
+nie importerem uruchamianym z Przebudowy EPUB. Nie wystarczy osobny katalog,
+ukrywanie ustawień PDF ani nowa etykieta nad tym samym RebuildPage."*
+Zastępuje **interpretację** D-056 — kierunek był decyzją właściciela z
+2026-09-08 i został wykonany jako porządek w kodzie; tym razem rozdzielony
+jest workflow.
+
+**Co się zmienia dla używającego.** Nowa komenda `epubforge convert-pdf`, z
+własnymi flagami `--layout` i `--running-heads`; `epubforge build` z PDF-em
+**odmawia**, wskazuje `convert-pdf` i nie zapisuje nic — tak samo
+`pipeline.rebuild` i `rebuild_all` wołane z biblioteki, i to również wtedy, gdy
+konwerter jest zainicjalizowany. Skan katalogu dla `build` przestał zgarniać
+PDF-y. W oknie: własna pozycja na pasku bocznym **PDF → EPUB**, własna strona
+z dokumentami, dwiema decyzjami konwersji i wypisanymi ograniczeniami, własny
+przebieg i własne wyniki. Start ma dwie karty zadaniowe zamiast jednego
+miejsca na wszystko; upuszczenie mieszanego zestawu podsumowuje podział i nie
+uruchamia niczego samo; plik przyniesiony nie temu modułowi jest informacją na
+stronie z przyciskiem „Przejdź tam", nie oknem, które trzeba zamknąć.
+Opcjonalne „Przekaż utworzony EPUB do przebudowy" dodaje tylko zapisane pliki
+i **nie startuje** przebudowy.
+
+**Co się nie zmienia.** Możliwości konwertera zostają co do jednej: odczyt
+warstwy tekstowej, tekst płynny domyślnie, układ stały jako świadomy wybór,
+żywa pagina za pytaniem, tabele, listy, spis treści, raport o pominiętych
+elementach. OCR nadal nie ma i jest to jawne ograniczenie. **Zabezpieczenia
+zostają wspólne i działają:** writer, walidator, atomowy zapis, budżet, bilans
+i obie bramy — K1-PDF nadal potrafi odmówić, anulowanie nadal zatrzymuje w
+środku dokumentu, plik o zajętej nazwie nie jest nadpisywany.
+
+**Jak to jest zrobione.** `pipeline.produce` — wspólna połowa programu, od
+odczytu do zapisanego pliku — bierze od modułu jego czytnik i jego listę
+etapów; `pipeline.rebuild` podaje czytnik EPUB, `pdfconv.service.convert`
+swój. `Policy` nie ma już pola `pdf`: ustawienia konwertera są w
+`PdfConversionPlan`, a `PdfStage` dostaje je w konstruktorze. Rejestr
+`epubforge/sources.py` zostaje przy pytaniach bram — co znaczy K1 i kontrola
+wyglądu dla źródła, które nie ma „przed" — i nie jest już drogą, którą plik
+znajduje czytnik; jest drogą, którą przebudowa rozpoznaje plik do odrzucenia.
+Stare okno (`EPUBFORGE_LEGACY_UI=1`) straciło ustawienia PDF: naprawia EPUB-y
+i nie ma ekranu konwersji.
+
+**Zapadki podniesione świadomie:** `BROAD_TODAY` 72 → 73 (jeden handler w
+`pdfconv.service._convert_one`: awaria jednego dokumentu ma być wierszem „nie
+zapisano, oto powód", a nie końcem partii), `TAGGED_TODAY` 415 → 418 i
+`TEMPLATED_TODAY` 316 → 318 (trzy nowe linie raportu: odmowa przebudowy,
+zajęta nazwa i rdzeniowe „to nie jest książka").
 
 ## 0.4.3 — alpha — 2026-09-09
 

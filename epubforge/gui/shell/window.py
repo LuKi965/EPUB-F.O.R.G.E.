@@ -33,7 +33,9 @@ from ..strings import language, set_language, tr
 from . import tokens as tokens_module
 from .backend import EngineBackend
 from .models import JobRecord
-from .pages import HistoryPage, HomePage, RebuildPage, SettingsPage, ToolsPage
+from .pages import (HistoryPage, HomePage, PdfConversionPage, RebuildPage,
+                    SettingsPage, ToolsPage)
+from .pdf_backend import PdfBackend
 from .state import (
     forget_folders,
     forget_history,
@@ -43,11 +45,16 @@ from .state import (
     save_geometry,
     settings,
 )
+from . import routing
 from .tokens import COMPACT_BELOW, COMPACT_SLACK, MIN_WINDOW, Tokens
 from .widgets import Sidebar
 
-#: Files this window accepts by drag, drop or command line.
-SUFFIXES = (".epub", ".pdf")
+#: Files this window accepts by drag, drop or command line — both modules'
+#: own lists, put together by the routing table. What happens to each of them
+#: is `routing.route_for`, not this tuple: accepting a file and knowing whose
+#: job it is are two questions, and answering only the first is how a PDF came
+#: to start a rebuild (D-057).
+SUFFIXES = routing.every_suffix()
 
 #: The keyboard, in one place. Every one of these was in the old menu; they
 #: outlive it because a shortcut is not furniture.
@@ -108,7 +115,8 @@ def chosen_tokens(app) -> Tokens:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, tokens: Tokens, backend=None, initial_files: "list[str] | None" = None):
+    def __init__(self, tokens: Tokens, backend=None, initial_files: "list[str] | None" = None,
+                 pdf_backend=None):
         super().__init__()
         self.tokens = tokens
         self.backend = backend or EngineBackend(language())
@@ -138,6 +146,7 @@ class MainWindow(QMainWindow):
 
         self.home = HomePage(tokens, self.history)
         self.rebuild = RebuildPage(tokens, self.backend, resolver_factory=self._resolver)
+        self.pdf = PdfConversionPage(tokens, pdf_backend or PdfBackend(language()))
         self.tools = ToolsPage(tokens)
         self.history_page = HistoryPage(tokens, self.history)
         self.settings_page = SettingsPage(
@@ -149,6 +158,7 @@ class MainWindow(QMainWindow):
         self.pages = {
             "home": self.home,
             "rebuild": self.rebuild,
+            "pdf": self.pdf,
             "tools": self.tools,
             "history": self.history_page,
             "settings": self.settings_page,
@@ -158,10 +168,18 @@ class MainWindow(QMainWindow):
 
         self.sidebar.route_requested.connect(self.navigate)
         self.home.route_requested.connect(self.navigate)
-        self.home.rebuild_requested.connect(self._start_rebuild)
+        self.home.files_dropped.connect(self.route)
         self.home.tool_requested.connect(self._open_tool)
         self.rebuild.finished.connect(self._record)
         self.rebuild.busy_changed.connect(self._busy_changed)
+        self.pdf.finished.connect(self._record)
+        self.pdf.busy_changed.connect(self._busy_changed)
+        # Each page says on its own face that some of the files it was handed
+        # belong next door; acting on that notice is what reaches the window,
+        # and the window only takes them there (D-057, 03-PDF-MODULE §6).
+        self.pdf.misrouted.connect(self._start_rebuild)
+        self.pdf.handover.connect(self._hand_over_to_the_rebuild)
+        self.rebuild.misrouted.connect(self._start_conversion)
         self.tools.merge_requested.connect(self._merge_copies)
         self.history_page.open_requested.connect(self._open_folder)
         self.history_page.cleared.connect(self._forget_history)
@@ -171,10 +189,11 @@ class MainWindow(QMainWindow):
         self.settings_page.about_requested.connect(self._show_about)
 
         self.rebuild.stage_changed.connect(self._stage_changed)
+        self.pdf.stage_changed.connect(self._stage_changed)
         self._build_actions()
         self.navigate("home")
         if initial_files:
-            self._start_rebuild(list(initial_files))
+            self.route(list(initial_files))
 
     def _restore_where_it_was(self) -> None:
         """Put the window back, if back is still somewhere a person can see.
@@ -227,6 +246,67 @@ class MainWindow(QMainWindow):
         self.navigate("rebuild")
         self.rebuild.start(paths)
 
+    def _start_conversion(self, paths: "list[str]") -> None:
+        self.navigate("pdf")
+        self.pdf.start(paths)
+
+    def route(self, paths: "list[str]") -> None:
+        """Send each file to the module whose job it is.
+
+        The window used to have one destination and the converter was reached
+        by dropping a PDF on the rebuild. Now the files are sorted first, and
+        a mixed set is two jobs a person confirms rather than one batch of
+        whatever arrived (D-057, 02-UI-DESIGN §1).
+        """
+        sorted_out = routing.sort_out(path for path in paths if path)
+        books, documents = sorted_out["rebuild"], sorted_out["pdf"]
+        if books and documents:
+            self._offer_both(books, documents)
+            return
+        if documents:
+            self._start_conversion([str(path) for path in documents])
+        elif books:
+            self._start_rebuild([str(path) for path in books])
+
+    def _offer_both(self, books: list, documents: list) -> None:
+        """A mixed set: say what it is, and put nothing anywhere until asked.
+
+        02-UI-DESIGN §1 asks for the split to be *summarised* and for both
+        halves to be addable — as **two separate sessions**, not one batch of
+        whatever arrived. Adding is not running: each page fills its list and
+        waits for its own button, so nothing is written by a drop.
+        """
+        from PySide6.QtWidgets import QMessageBox
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Question)
+        box.setWindowTitle(tr("pdf.mixed.title"))
+        box.setText(tr("pdf.mixed.body", books=len(books), documents=len(documents)))
+        box.setInformativeText(tr("pdf.mixed.hint"))
+        both = box.addButton(tr("pdf.mixed.both"), QMessageBox.AcceptRole)
+        to_rebuild = box.addButton(tr("pdf.mixed.books"), QMessageBox.AcceptRole)
+        to_convert = box.addButton(tr("pdf.mixed.documents"), QMessageBox.AcceptRole)
+        box.addButton(tr("shell.busy.forget"), QMessageBox.RejectRole)
+        box.setDefaultButton(both)
+        box.exec()
+        answered = box.clickedButton()
+        if answered in (both, to_convert):
+            self._start_conversion([str(path) for path in documents])
+        if answered in (both, to_rebuild):
+            # Last, so the window ends up on the rebuild when both were added:
+            # it is the larger half of nearly every mixed drop.
+            self._start_rebuild([str(path) for path in books])
+
+    def _hand_over_to_the_rebuild(self, paths: "list[str]") -> None:
+        """The converter's optional last step, taken only when asked.
+
+        It adds finished `.epub` files to the rebuild's session and **does not
+        start it** (03-PDF-MODULE §3D). The rebuild's own `start` decides what
+        to do about a session already under way; nothing here overrides that.
+        """
+        if paths:
+            self._start_rebuild(list(paths))
+
     def _busy_changed(self, busy: bool) -> None:
         """Whether the window has work running, for anything that has to know.
 
@@ -271,7 +351,11 @@ class MainWindow(QMainWindow):
             written=outcome.written,
             attention=outcome.attention,
             failed=outcome.failed,
-            preset=tr(f"shell.preset.{self.rebuild.preset.name.lower()}"),
+            preset=(
+                tr(f"pdf.layout.{self.pdf.settings.layout}")
+                if outcome.operation.is_a_conversion
+                else tr(f"shell.preset.{self.rebuild.preset.name.lower()}")
+            ),
             operation=outcome.operation.value,
             destination=folders[0] if folders else "",
             destinations=folders,
@@ -416,7 +500,7 @@ class MainWindow(QMainWindow):
             if url.toLocalFile().lower().endswith(SUFFIXES)
         ]
         if paths:
-            self._start_rebuild(paths)
+            self.route(paths)
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)

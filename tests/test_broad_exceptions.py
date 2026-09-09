@@ -49,7 +49,16 @@ SOURCE = pathlib.Path(epubforge.__file__).parent
 #: zipfile, EPUBCheck, przeglądarka — i awaria jednego z nich ma być wiadomością
 #: w polu wyniku, a nie martwym wątkiem i stroną, która do końca sesji pokazuje
 #: pasek postępu. Ten sam argument co przy dwóch handlerach w `workers` obok.
-BROAD_TODAY = 72
+#: **Podniesione 72 → 73 (2026-09-09, HANDOFF V3 etap 2).** Jedno miejsce:
+#: `pdfconv.service._convert_one`. Konwersja czyta cudzy PDF przez pdfminer
+#: i buduje książkę przez lxml; awaria jednego dokumentu ma być wierszem
+#: „nie zapisano, oto powód", a nie końcem partii na trzecim z trzydziestu.
+#: Ten sam argument co przy `backend._rebuild_one` obok — i ta sama granica:
+#: wychodzi do człowieka, nie do logu. Drugie miejsce tej samej pary:
+#: `pages/pdf_conversion.ConversionJob.run` — bez niego awaria konwersji
+#: zabija wątek, a strona zostaje na pasku postępu do końca sesji; ten sam
+#: handler, który `RebuildJob.run` ma obok. 73 -> 74.
+BROAD_TODAY = 74
 
 #: Co liczy się jako szerokie: wszystko, co złapie błąd, którego nikt nie
 #: wymienił z nazwy.

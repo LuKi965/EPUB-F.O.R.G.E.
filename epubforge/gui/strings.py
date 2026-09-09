@@ -1045,7 +1045,11 @@ PL: dict[str, str] = {
     ),
     "dialog.noreport.title": "Brak raportu",
     "dialog.noreport.body": "Najpierw przebuduj książkę, a potem zaznacz ją na liście.",
-    "dialog.filter": "Książki (*.epub *.pdf);;Pliki EPUB (*.epub);;Pliki PDF (*.pdf)",
+    # Each module offers what it reads. The rebuild used to offer both, which
+    # is how a PDF reached it in the first place (D-057).
+    "dialog.filter": "Pliki EPUB (*.epub)",
+    "dialog.filter.pdf": "Pliki PDF (*.pdf)",
+    "dialog.filter.both": "Książki i dokumenty (*.epub *.pdf);;Pliki EPUB (*.epub);;Pliki PDF (*.pdf)",
     "dialog.selectfiles": "Wybierz pliki EPUB",
     "dialog.selectfolder": "Wybierz folder wyjściowy",
     "dialog.savereport": "Zapisz raport",
@@ -1128,13 +1132,17 @@ PL: dict[str, str] = {
     "shell.home.recent.empty": "Jeszcze nic tu nie ma — pierwsza przebudowa pojawi się na tej liście.",
     "shell.home.recent.all": "Zobacz historię",
 
-    "shell.drop.title": "Przebuduj książki",
-    "shell.drop.subtitle": "Upuść pliki EPUB lub PDF",
+    # Start bierze jedno i drugie i rozpoznaje, co jest czym; strona modułu
+    # przyjmuje tylko to, co sama czyta (D-057).
+    "shell.drop.title": "Upuść tu pliki",
+    "shell.drop.subtitle": "EPUB do przebudowy albo PDF do konwersji",
     "shell.drop.choose": "Wybierz pliki",
     "shell.drop.hint": (
-        "Możesz wskazać jeden plik albo wiele naraz. EPUB F.O.R.G.E. przeanalizuje "
-        "je i bezpiecznie przebuduje."
+        "Jeden plik albo wiele naraz. EPUB F.O.R.G.E. rozpozna, co jest czym, "
+        "i zaproponuje właściwe zadanie — nic nie startuje samo."
     ),
+    "shell.rebuild.drop.title": "Przebuduj książki",
+    "shell.rebuild.drop.subtitle": "Upuść pliki EPUB",
 
     "shell.rebuild.eyebrow": "Przebudowa e-booków",
     "shell.rebuild.title.files": "Wybierz książki",
@@ -1296,6 +1304,120 @@ PL: dict[str, str] = {
     "shell.cat.metadata.body": "Co pakiet mówi o książce.",
     "shell.cat.validation": "Walidacja",
     "shell.cat.validation.body": "Bramy, które decydują, czy plik w ogóle powstanie.",
+    # --- PDF -> EPUB: osobny modul (D-057) --------------------------------
+    "shell.nav.pdf": "PDF → EPUB",
+    "shell.home.task.rebuild": "Przebuduj EPUB",
+    "shell.home.task.rebuild.body": (
+        "Napraw i uporządkuj istniejącą książkę EPUB. Oryginał pozostaje bez zmian."
+    ),
+    "shell.home.task.rebuild.action": "Wybierz EPUB",
+    "shell.home.task.pdf": "PDF → EPUB · alpha",
+    "shell.home.task.pdf.body": (
+        "Utwórz e-book z dokumentu PDF. Możliwości konwersji zależą od struktury dokumentu."
+    ),
+    "shell.home.task.pdf.action": "Wybierz PDF",
+    "pdf.eyebrow": "Konwersja",
+    "pdf.title.files": "PDF → EPUB",
+    "pdf.title.settings": "Ustawienia konwersji",
+    "pdf.title.running": "Konwertowanie",
+    "pdf.title.results": "Wyniki konwersji",
+    "pdf.subtitle.files": "Utwórz nową książkę z dokumentu PDF.",
+    "pdf.subtitle.settings": "{count} {count:dokument|dokumenty|dokumentów} do konwersji.",
+    "pdf.subtitle.running": "Trwa konwersja — możesz ją przerwać.",
+    "pdf.subtitle.results": "Utworzono {count} {count:plik|pliki|plików} EPUB.",
+    "pdf.alpha": "alpha",
+    "pdf.alpha.tip": (
+        "Konwerter jest wczesną wersją. Co się uda, zależy od tego, jak zbudowany "
+        "jest dokument; wynik zawsze warto przeczytać."
+    ),
+    "pdf.drop": "Przeciągnij pliki PDF tutaj",
+    "pdf.drop.body": "albo wskaż je przyciskiem poniżej. Oryginały pozostają bez zmian.",
+    "pdf.add": "Dodaj PDF",
+    "pdf.documents": "Dokumenty",
+    "pdf.documents.body": "Odznacz to, czego nie chcesz konwertować.",
+    "pdf.analysis.unchecked": "Nie sprawdzono — struktura zostanie odczytana przy konwersji.",
+    "pdf.settings": "Sposób konwersji",
+    "pdf.settings.body": "Dwie decyzje, które naprawdę zmieniają wynik.",
+    "pdf.layout": "Co zrobić ze stronami:",
+    "pdf.layout.reflowable": "Tekst dopasowujący się do ekranu",
+    "pdf.layout.reflowable.tip": (
+        "Domyślnie. Układ stron zostaje odczytany jako akapity, nagłówki, tabele "
+        "i listy, więc tekst można ustawić w dowolnym rozmiarze."
+    ),
+    "pdf.layout.fixed": "Zachowaj strony — układ stały",
+    "pdf.layout.fixed.tip": (
+        "Układ stron pozostaje stały. Tekst nie dopasowuje się do rozmiaru ekranu "
+        "tak jak zwykły e-book."
+    ),
+    "pdf.heads": "Powtarzalne nagłówki i numery stron:",
+    "pdf.heads.ask": "Pytaj przy każdym dokumencie",
+    "pdf.heads.ask.tip": "jedno pytanie z przykładami; bez odpowiedzi wiersze zostają",
+    "pdf.heads.keep": "Zachowaj",
+    "pdf.heads.keep.tip": "wiersze zostają jako zwykłe akapity, bez pytania",
+    "pdf.heads.remove": "Usuń",
+    "pdf.heads.remove.tip": "stała odpowiedź dla partii; raport mówi ile usunięto",
+    "pdf.gate.render": "Kontrola wyglądu przed zapisem:",
+    "pdf.gate.render.stop": "Nie zapisuj bez sprawdzenia",
+    "pdf.gate.render.stop.tip": (
+        "domyślnie; bez przeglądarki do narysowania stron nic nie powstaje"
+    ),
+    "pdf.gate.render.report": "Zapisz i napisz w raporcie",
+    "pdf.gate.render.report.tip": "plik powstaje, a raport mówi, czego nie sprawdzono",
+    "pdf.gate.render.off": "Nie sprawdzaj",
+    "pdf.gate.render.off.tip": "szybciej; program nie ogląda, co narysował",
+    "pdf.step.documents": "Dokumenty",
+    "pdf.step.settings": "Ustawienia",
+    "pdf.step.convert": "Konwersja",
+    "pdf.step.results": "Wyniki",
+    "pdf.where": "Gdzie zapisać",
+    "pdf.where.beside": "Obok dokumentów",
+    "pdf.where.body": "Puste — obok każdego dokumentu PDF.",
+    "pdf.limits": "Czego ten konwerter nie robi",
+    "pdf.limits.ocr": "Nie rozpoznaje tekstu z obrazu (OCR). Skan bez warstwy tekstowej zostanie odrzucony.",
+    "pdf.limits.layout": "Złożony układ — kolumny, ramki, rysunki z podpisami — może dać tekst w innej kolejności.",
+    "pdf.limits.check": "Sprawdzana jest liczba znaków i poprawność EPUB-a. Wygląd nie jest sprawdzany.",
+    "pdf.convert": "Konwertuj do EPUB",
+    "pdf.needs.ocr": "Ten PDF wymaga OCR. Ta wersja konwertera go nie obsługuje.",
+    "pdf.warning.reading-order": "Warto sprawdzić kolejność czytania.",
+    "pdf.results.banner.ok": "Konwersja zakończona",
+    "pdf.results.banner.ok.body": "Książki powstały. Dokumenty PDF pozostały bez zmian.",
+    "pdf.results.banner.warn": "Zakończone, część dokumentów wymaga uwagi",
+    "pdf.results.banner.warn.body": "Pliki powstały; przeczytaj pozycje oznaczone ostrzeżeniem.",
+    "pdf.results.banner.failed": "Część dokumentów nie została przekonwertowana",
+    "pdf.results.banner.failed.body": "Udane konwersje zostają; przy nieudanych napisano powód.",
+    "pdf.results.banner.cancelled": "Konwersja przerwana",
+    "pdf.results.banner.cancelled.body": "To, co zdążyło powstać, zostało zapisane.",
+    "pdf.results.metric.done": "Utworzone książki",
+    "pdf.results.metric.warned": "Z uwagami",
+    "pdf.results.metric.failed": "Nieudane",
+    "pdf.results.again": "Konwertuj kolejne",
+    "pdf.results.list": "Wyniki",
+    "pdf.results.list.body": "Kliknij dokument, aby zobaczyć szczegóły.",
+    "pdf.results.handover": "Przekaż utworzony EPUB do przebudowy",
+    "pdf.results.handover.tip": (
+        "Dodaje zapisane pliki do sesji Przebudowy EPUB. Nic nie startuje samo."
+    ),
+    "pdf.mixed.title": "Dwa rodzaje plików",
+    "pdf.mixed.body": (
+        "{books} {books:plik EPUB|pliki EPUB|plików EPUB} do przebudowy "
+        "i {documents} {documents:PDF|PDF-y|PDF-ów} do konwersji."
+    ),
+    "pdf.mixed.hint": "To dwa osobne zadania. Nic nie startuje samo.",
+    "pdf.mixed.both": "Dodaj do obu zadań",
+    "pdf.mixed.books": "Dodaj EPUB-y do Przebudowy",
+    "pdf.mixed.documents": "Dodaj PDF-y do konwersji",
+    "pdf.wrong.module.title": "To zadanie dla innego modułu",
+    "pdf.wrong.module.pdf": (
+        "{count} {count:plik to PDF|pliki to PDF-y|plików to PDF-y}. Książkę z PDF-a "
+        "tworzy moduł PDF → EPUB, nie przebudowa."
+    ),
+    "pdf.wrong.module.epub": (
+        "{count} {count:plik to EPUB|pliki to EPUB-y|plików to EPUB-y}. Gotową książkę "
+        "naprawia Przebudowa EPUB, nie konwerter."
+    ),
+    "shell.notice.dismiss": "Ukryj tę informację",
+    "pdf.wrong.module.go": "Przejdź tam",
+    "pdf.wrong.module.stay": "Zostaw",
     "shell.cat.import": "Z PDF-a",
     "shell.cat.import.body":
         "Dotyczy wyłącznie plików PDF wrzuconych do przebudowy. Na książkę "
@@ -1328,6 +1450,7 @@ PL: dict[str, str] = {
     "shell.history.subtitle": "Wróć do wyników, raportów i folderów docelowych.",
     "shell.history.empty": "Historia jest pusta. Pierwsze zakończone zadanie pojawi się tutaj.",
     "shell.history.entry": "{count} {count:książka|książki|książek} · {preset}",
+    "shell.history.entry.pdf": "{count} {count:dokument|dokumenty|dokumentów} · {preset}",
     "shell.history.kind.epub_rebuild": "Przebudowa EPUB",
     "shell.history.kind.epub_dry_run": "Próba przebudowy",
     "shell.history.kind.pdf_conversion": "PDF → EPUB",
@@ -2374,7 +2497,9 @@ EN: dict[str, str] = {
     "dialog.overwrite.body": "Choose a different output folder — {name} would be overwritten in place.",
     "dialog.noreport.title": "No report",
     "dialog.noreport.body": "Rebuild a book first, then select it.",
-    "dialog.filter": "Books (*.epub *.pdf);;EPUB files (*.epub);;PDF files (*.pdf)",
+    "dialog.filter": "EPUB files (*.epub)",
+    "dialog.filter.pdf": "PDF files (*.pdf)",
+    "dialog.filter.both": "Books and documents (*.epub *.pdf);;EPUB files (*.epub);;PDF files (*.pdf)",
     "dialog.selectfiles": "Select EPUB files",
     "dialog.selectfolder": "Select output folder",
     "dialog.savereport": "Save report",
@@ -2456,13 +2581,15 @@ EN: dict[str, str] = {
     "shell.home.recent.empty": "Nothing here yet — your first rebuild will appear in this list.",
     "shell.home.recent.all": "See history",
 
-    "shell.drop.title": "Rebuild books",
-    "shell.drop.subtitle": "Drop EPUB or PDF files here",
+    "shell.drop.title": "Drop files here",
+    "shell.drop.subtitle": "EPUBs to rebuild or PDFs to convert",
     "shell.drop.choose": "Choose files",
     "shell.drop.hint": (
-        "One file or many at once. EPUB F.O.R.G.E. analyses them and rebuilds "
-        "them safely."
+        "One file or many at once. EPUB F.O.R.G.E. works out which is which and "
+        "offers the right job — nothing starts by itself."
     ),
+    "shell.rebuild.drop.title": "Rebuild books",
+    "shell.rebuild.drop.subtitle": "Drop EPUB files here",
 
     "shell.rebuild.eyebrow": "Rebuilding e-books",
     "shell.rebuild.title.files": "Choose books",
@@ -2624,6 +2751,120 @@ EN: dict[str, str] = {
     "shell.cat.metadata.body": "What the package says about the book.",
     "shell.cat.validation": "Validation",
     "shell.cat.validation.body": "The gates that decide whether a file is written at all.",
+    # --- PDF -> EPUB: a module of its own (D-057) -------------------------
+    "shell.nav.pdf": "PDF → EPUB",
+    "shell.home.task.rebuild": "Rebuild an EPUB",
+    "shell.home.task.rebuild.body": (
+        "Repair and tidy a book that already is an EPUB. Your original is unchanged."
+    ),
+    "shell.home.task.rebuild.action": "Choose an EPUB",
+    "shell.home.task.pdf": "PDF → EPUB · alpha",
+    "shell.home.task.pdf.body": (
+        "Make an e-book out of a PDF document. What the conversion manages depends "
+        "on how the document is built."
+    ),
+    "shell.home.task.pdf.action": "Choose a PDF",
+    "pdf.eyebrow": "Conversion",
+    "pdf.title.files": "PDF → EPUB",
+    "pdf.title.settings": "Conversion settings",
+    "pdf.title.running": "Converting",
+    "pdf.title.results": "Conversion results",
+    "pdf.subtitle.files": "Make a new book out of a PDF document.",
+    "pdf.subtitle.settings": "{count} document(s) to convert.",
+    "pdf.subtitle.running": "Converting — you can stop it.",
+    "pdf.subtitle.results": "{count} EPUB file(s) created.",
+    "pdf.alpha": "alpha",
+    "pdf.alpha.tip": (
+        "The converter is an early version. What it manages depends on how the "
+        "document is built; the result is always worth reading."
+    ),
+    "pdf.drop": "Drop PDF files here",
+    "pdf.drop.body": "or choose them with the button below. Your originals are unchanged.",
+    "pdf.add": "Add PDFs",
+    "pdf.documents": "Documents",
+    "pdf.documents.body": "Untick anything you do not want converted.",
+    "pdf.analysis.unchecked": "Not checked — the structure is read during the conversion.",
+    "pdf.settings": "How to convert",
+    "pdf.settings.body": "The two decisions that really change the result.",
+    "pdf.layout": "What to do with the pages:",
+    "pdf.layout.reflowable": "Text that fits the screen",
+    "pdf.layout.reflowable.tip": (
+        "The default. The page layout is read back into paragraphs, headings, "
+        "tables and lists, so the text can be set at any size."
+    ),
+    "pdf.layout.fixed": "Keep the pages — fixed layout",
+    "pdf.layout.fixed.tip": (
+        "The page layout stays fixed. The text does not fit itself to the screen "
+        "the way an ordinary e-book does."
+    ),
+    "pdf.heads": "Repeating headers and page numbers:",
+    "pdf.heads.ask": "Ask for every document",
+    "pdf.heads.ask.tip": "one question with examples; without an answer the lines stay",
+    "pdf.heads.keep": "Keep",
+    "pdf.heads.keep.tip": "the lines stay as ordinary paragraphs, no question",
+    "pdf.heads.remove": "Remove",
+    "pdf.heads.remove.tip": "the standing answer for a batch; the report says how many left",
+    "pdf.gate.render": "Check the appearance before writing:",
+    "pdf.gate.render.stop": "Do not write without checking",
+    "pdf.gate.render.stop.tip": (
+        "the default; with no browser to draw the pages with, nothing is written"
+    ),
+    "pdf.gate.render.report": "Write, and say so in the report",
+    "pdf.gate.render.report.tip": "the file is written and the report says what was not checked",
+    "pdf.gate.render.off": "Do not check",
+    "pdf.gate.render.off.tip": "faster; the program does not look at what it drew",
+    "pdf.step.documents": "Documents",
+    "pdf.step.settings": "Settings",
+    "pdf.step.convert": "Converting",
+    "pdf.step.results": "Results",
+    "pdf.where": "Where to write",
+    "pdf.where.beside": "Beside the documents",
+    "pdf.where.body": "Empty — beside each PDF document.",
+    "pdf.limits": "What this converter does not do",
+    "pdf.limits.ocr": "It does not read text from an image (OCR). A scan with no text layer is refused.",
+    "pdf.limits.layout": "A complicated layout — columns, boxes, captioned drawings — may come out in a different order.",
+    "pdf.limits.check": "The character count and the EPUB's validity are checked. The appearance is not.",
+    "pdf.convert": "Convert to EPUB",
+    "pdf.needs.ocr": "This PDF needs OCR. This version of the converter does not do it.",
+    "pdf.warning.reading-order": "Worth checking the reading order.",
+    "pdf.results.banner.ok": "Conversion finished",
+    "pdf.results.banner.ok.body": "The books were made. The PDF documents are unchanged.",
+    "pdf.results.banner.warn": "Finished; some documents need a look",
+    "pdf.results.banner.warn.body": "The files exist; read the rows marked with a warning.",
+    "pdf.results.banner.failed": "Some documents were not converted",
+    "pdf.results.banner.failed.body": "Successful conversions stand; the failures say why.",
+    "pdf.results.banner.cancelled": "Conversion cancelled",
+    "pdf.results.banner.cancelled.body": "What was finished has been written.",
+    "pdf.results.metric.done": "Books created",
+    "pdf.results.metric.warned": "With notes",
+    "pdf.results.metric.failed": "Failed",
+    "pdf.results.again": "Convert more",
+    "pdf.results.list": "Results",
+    "pdf.results.list.body": "Click a document to see the details.",
+    "pdf.results.handover": "Send the new EPUB to the rebuild",
+    "pdf.results.handover.tip": (
+        "Adds the written files to the EPUB rebuild session. Nothing starts by itself."
+    ),
+    "pdf.mixed.title": "Two kinds of file",
+    "pdf.mixed.body": (
+        "{books} EPUB file(s) to rebuild and {documents} PDF(s) to convert."
+    ),
+    "pdf.mixed.hint": "Those are two separate jobs. Nothing starts by itself.",
+    "pdf.mixed.both": "Add both",
+    "pdf.mixed.books": "Add the EPUBs to the rebuild",
+    "pdf.mixed.documents": "Add the PDFs to the conversion",
+    "pdf.wrong.module.title": "That is another module's job",
+    "pdf.wrong.module.pdf": (
+        "{count} of these are PDFs. Making a book out of a PDF is the PDF → EPUB "
+        "module's job, not the rebuild's."
+    ),
+    "pdf.wrong.module.epub": (
+        "{count} of these are EPUBs. A finished book is repaired by the EPUB "
+        "rebuild, not by the converter."
+    ),
+    "shell.notice.dismiss": "Hide this message",
+    "pdf.wrong.module.go": "Go there",
+    "pdf.wrong.module.stay": "Leave them",
     "shell.cat.import": "From a PDF",
     "shell.cat.import.body":
         "Only for PDF files dropped in for rebuilding. Nothing in this group "
@@ -2656,6 +2897,7 @@ EN: dict[str, str] = {
     "shell.history.subtitle": "Go back to results, reports and destination folders.",
     "shell.history.empty": "History is empty. Your first finished job will appear here.",
     "shell.history.entry": "{count} book(s) · {preset}",
+    "shell.history.entry.pdf": "{count} document(s) · {preset}",
     "shell.history.kind.epub_rebuild": "EPUB rebuild",
     "shell.history.kind.epub_dry_run": "Rebuild trial",
     "shell.history.kind.pdf_conversion": "PDF → EPUB",

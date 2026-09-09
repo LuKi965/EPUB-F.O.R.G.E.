@@ -34,6 +34,8 @@ CATALOGUE: dict[str, str] = {
     "pdf.running-heads-left": "{count} running head(s) in {document} were not removed after all: what would have been left was not the text minus those lines, so the document went back to what it was and the lines stay",
     "pdf.running-heads-removed": "{count} running head(s) or page number(s) from the PDF removed from {documents} document(s), on a person's word or a batch's standing answer, and {rejoined} paragraph(s) they had cut in two joined back; the change ledger carries the entry",
     "pdf.characters-unplaced": "{count} character(s) the PDF draws did not land in any line this reader could place (for example {sample}); the rebuild cannot carry what it could not read, and the text check below will say so rather than pass",
+    "pdf.destination-exists": "there is already a file called {name} where this conversion would write. Nothing was written: an existing file is somebody's, and this program does not decide on their behalf that it is not. Choose another folder, or say the file may be replaced",
+    "pdf.not-for-the-rebuild": "this is a PDF, and the EPUB rebuild repairs books that are already in that format. Making one out of a PDF is a job of its own, with its own settings and its own report: `epubforge convert-pdf`, or PDF -> EPUB in the window. Nothing was written",
 }
 
 #: The same, Polish. Every identifier above has one here; `test_rules` holds
@@ -61,6 +63,8 @@ CATALOGUE_PL: dict[str, str] = {
     'pdf.running-heads-left': '{count} wierszy żywej paginy w {document} jednak nie usunięto: to, co miało zostać, nie było tekstem bez tych wierszy, więc dokument wrócił do stanu sprzed zmiany, a wiersze zostają',
     'pdf.running-heads-removed': '{count} wierszy żywej paginy albo numerów stron z PDF-a usuniętych z {documents} dokumentów, na słowo człowieka albo stałą odpowiedź partii, a {rejoined} akapitów przez nie przeciętych złączonych z powrotem; wpis jest w bilansie zmian',
     'pdf.characters-unplaced': '{count} {count:znak narysowany|znaki narysowane|znaków narysowanych} w PDF-ie nie {count:trafił|trafiły|trafiło} do żadnego wiersza, który ten czytnik umie ułożyć (np. {sample}); przebudowa nie przeniesie tego, czego nie odczytała, a kontrola tekstu niżej powie to zamiast przepuścić',
+    'pdf.destination-exists': 'w miejscu, gdzie miałaby powstać książka, jest już plik {name}. Nic nie zapisano: istniejący plik jest czyjś i program nie rozstrzyga za nikogo, że nie jest. Wskaż inny folder albo pozwól zastąpić plik',
+    'pdf.not-for-the-rebuild': 'to jest PDF, a przebudowa EPUB naprawia książki, które już są EPUB-ami. Zrobienie książki z PDF-a to osobne zadanie, z własnymi ustawieniami i własnym raportem: `epubforge convert-pdf`, albo PDF -> EPUB w oknie. Nic nie zapisano',
 }
 
 

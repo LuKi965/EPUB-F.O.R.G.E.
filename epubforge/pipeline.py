@@ -1265,7 +1265,17 @@ def rebuild_all(
     The first rendition goes to *destination* exactly as `rebuild` would put it,
     so nothing changes for the overwhelming majority of books. The others go
     beside it, named after what the container calls them.
+
+    A source this program does not repair is refused here as it is in
+    `rebuild` — before the container is opened, because there is no container
+    (D-057).
     """
+    refused = _refuse_a_source_this_does_not_repair(
+        source, Report(source=source, output=destination)
+    )
+    if refused is not None:
+        return [refused]
+
     offered = _renditions_of(source)
     if len(offered) < 2:
         return [
@@ -1380,9 +1390,82 @@ def rebuild(
     is there, which is what a batch run, the corpus and a library caller all
     want; the rebuild then changes nothing it cannot justify and says so in the
     report. See :mod:`epubforge.references`.
+
+    **This is the entry for repairing an EPUB, and it takes EPUBs.** A file
+    some other module of this program reads — a PDF, today — is refused here
+    with nothing written and a line saying what to use instead (D-057). It was
+    accepted before, and reading it went through a registry rather than through
+    a branch; that was tidier code for the same workflow, and the workflow was
+    the thing the owner asked to separate.
     """
     policy = policy or Policy()
     report = Report(source=source, output=destination)
+    refused = _refuse_a_source_this_does_not_repair(source, report)
+    if refused is not None:
+        return refused
+    return produce(
+        source, destination, policy, report,
+        read=_epub_reader(rendition), stages=stages, resolver=resolver,
+        asker=asker, cancelled=cancelled, standing=standing,
+    )
+
+
+def _epub_reader(rendition: "str | None"):
+    """The repair core's own reader, as the shape `produce` takes."""
+
+    def read(source, report, budget, _policy):
+        return read_epub(source, report, budget, rendition=rendition)
+
+    return read
+
+
+def _refuse_a_source_this_does_not_repair(source, report) -> "Result | None":
+    """Refuse a file that belongs to another module of this program.
+
+    The registry stays — it is how the publication gates know that a source
+    with no package document has no version to state and no pages to draw. What
+    it no longer is, is the way a job finds its reader: asking it here turns it
+    from a door into a doorman. Registering the converter therefore cannot
+    reopen this path, which is the case the acceptance list names.
+    """
+    importer = sources.for_source(str(source))
+    if importer is None:
+        return None
+    if importer.instead_of_rebuilding is not None:
+        # What to do with this file instead is the other module's sentence to
+        # write; a rule identifier belongs where it is raised.
+        importer.instead_of_rebuilding(report)
+    else:  # pragma: no cover - every importer says what it offers
+        report.add("reader", Level.ERROR, "package.not-a-book",
+                   values={"kind": importer.name})
+    return Result(report, None, None, Status.BLOCKED)
+
+
+def produce(
+    source: str,
+    destination: str,
+    policy: Policy,
+    report: Report,
+    *,
+    read,
+    stages: "tuple | list | None" = None,
+    resolver: "Resolver | None" = None,
+    asker=None,
+    cancelled=None,
+    standing: "dict | None" = None,
+) -> Result:
+    """Everything from the read to the written file, for whichever module asked.
+
+    The shared half of the program, and deliberately not a second name for
+    `rebuild`: the modules differ in *what they read* and *which stages they
+    run*, and agree on everything after — the balance, K1, the validator, the
+    publication gates, the atomic write. Splitting the workflow was the point;
+    splitting these would mean two copies of the safeguards, or one module
+    without them (03-PDF-MODULE §4).
+
+    Not public API. `pipeline.rebuild` and `pdfconv.service.convert` are the
+    two entries, and each composes this with its own reader and stage list.
+    """
     # Made here, so the deadline covers reading as well as rebuilding: a book
     # that takes five minutes to *open* has already cost what the limit is for.
     # The ceiling is the policy's (`time_budget_seconds`), not the module's:
@@ -1397,9 +1480,9 @@ def rebuild(
     # this program should refuse before it opens it, not after.
     try:
         with budget_module.active(budget):
-            return _rebuild_inside_budget_or_cancelled(
+            return _produce_inside_budget_or_cancelled(
                 source, destination, policy, report, budget, stages, resolver,
-                rendition, asker, standing=standing,
+                read, asker, standing=standing,
             )
     finally:
         # A batch runs a shelf one book after another in the same process, and
@@ -1412,14 +1495,14 @@ def rebuild(
         memory.release()
 
 
-def _rebuild_inside_budget_or_cancelled(
-    source, destination, policy, report, budget, stages, resolver, rendition, asker,
+def _produce_inside_budget_or_cancelled(
+    source, destination, policy, report, budget, stages, resolver, read, asker,
     standing=None,
 ) -> "Result":
     try:
-        return _rebuild_inside_budget(
+        return _produce_inside_budget(
             source, destination, policy, report, budget, stages, resolver,
-            rendition, asker, standing=standing,
+            read, asker, standing=standing,
         )
     except Cancelled:
         # The writer unlinks its staging file on any `BaseException`, so by the
@@ -1430,11 +1513,11 @@ def _rebuild_inside_budget_or_cancelled(
         return Result(report, None, None, Status.BLOCKED)
 
 
-def _rebuild_inside_budget(
-    source, destination, policy, report, budget, stages, resolver, rendition, asker=None,
+def _produce_inside_budget(
+    source, destination, policy, report, budget, stages, resolver, read, asker=None,
     standing=None,
 ) -> "Result":
-    """One rebuild, from the first refusal to the written file, in the order
+    """One run, from the first refusal to the written file, in the order
     the refusals were added: each step either says no with a `Result` or
     hands on. The steps are functions of their own so that each can be read
     against the finding that put it here (audit 2026-09-03, A-04)."""
@@ -1442,7 +1525,7 @@ def _rebuild_inside_budget(
     if refused:
         return refused
 
-    book, refused = _read_or_refuse(source, report, budget, rendition, policy)
+    book, refused = _read_or_refuse(source, report, budget, read, policy)
     if refused:
         return refused
 
@@ -1474,7 +1557,7 @@ def _rebuild_inside_budget(
         resolver=resolver, decisions=queue,
     )
 
-    refused = _run_stages(ctx, stages, budget, report, source)
+    refused = _run_stages(ctx, stages, budget, report)
     if refused:
         return refused
 
@@ -1561,16 +1644,17 @@ def _budget_refused(report: Report, area: str, exc: BudgetExceeded) -> None:
         report.add(area, Level.INFO, "package.time-budget-is-a-setting", values={})
 
 
-def _read_or_refuse(source, report, budget, rendition, policy) -> "tuple[Book | None, Result | None]":
-    """The book, or the refusal that stands in for it."""
+def _read_or_refuse(source, report, budget, read, policy) -> "tuple[Book | None, Result | None]":
+    """The book, or the refusal that stands in for it.
+
+    *read* is the caller's reader: `(source, report, budget, policy) -> Book`,
+    raising what the EPUB reader raises. The **module composing the run** says
+    which one it is, because that is the difference between a program with two
+    jobs and a program with one job and a branch in it (D-057). Nothing after
+    this line knows which module asked.
+    """
     try:
-        importer = sources.for_source(source)
-        if importer is not None:
-            # D-052/D-056: a source this program does not repair, read by the
-            # module that understands it into the same model. Nothing else in
-            # the run knows which module that was.
-            return importer.read(source, report, budget, policy), None
-        return read_epub(source, report, budget, rendition=rendition), None
+        return read(source, report, budget, policy), None
     except BudgetExceeded as exc:
         # A refusal, not a crash, and it says both numbers. A limit whose
         # message does not say what it was is a limit nobody can act on.
@@ -1724,18 +1808,20 @@ def _state_the_version_change(book, report) -> None:
         report.add("package", Level.WARN, "package.version-unusable")
 
 
-def _run_stages(ctx, stages, budget, report, source: str = "") -> "Result | None":
+def _run_stages(ctx, stages, budget, report) -> "Result | None":
     """Every stage in order, each held to the budget and to its own word.
 
-    A book read by an importer gets that importer's stages first (D-056): they
-    exist for the source it read and run for no other book. A caller that names
-    the stages itself gets exactly those, as it always did — that is how the
-    tests pin one stage at a time.
+    *stages* is the module's own composition — the repair core's list, or that
+    list with a converter's stages in front of it (D-057). `None` means the
+    core's list, which is what a caller with nothing to add wants; a caller
+    that names the stages gets exactly those, which is how the tests pin one
+    stage at a time. An entry may be a `Stage` class or anything callable that
+    returns one, so a stage carrying its module's settings needs no channel
+    through the policy to reach them.
     """
     book = ctx.book
     if stages is None:
-        importer = sources.for_source(source) if source else None
-        stages = (importer.stages if importer is not None else ()) + DEFAULT_STAGES
+        stages = DEFAULT_STAGES
     for stage_class in stages:
         stage = stage_class()
         # F-029, the checkable part. Making the model immutable is a refactor of

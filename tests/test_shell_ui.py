@@ -89,14 +89,19 @@ def settle(app, page, until, tries: int = 200) -> None:
 
 
 class TestTheShellIsTheArchitectureThatWasApproved:
-    def test_five_destinations_in_the_order_the_design_names(self, window):
-        assert list(window.pages) == ["home", "rebuild", "tools", "history", "settings"]
+    def test_six_destinations_in_the_order_the_design_names(self, window):
+        """02-UI-DESIGN §1: Start / Przebudowa EPUB / PDF → EPUB / Narzędzia /
+        Historia, with Ustawienia at the bottom. The converter is a destination
+        of its own now (D-057), which is the whole point of the handoff."""
+        assert list(window.pages) == [
+            "home", "rebuild", "pdf", "tools", "history", "settings"
+        ]
 
     def test_settings_is_the_one_anchored_at_the_bottom(self, window):
         """Everything else is navigation; settings is where you go last."""
         bar = window.sidebar
         routes = [route for route, _glyph, _key in bar.ROUTES]
-        assert routes == ["home", "rebuild", "tools", "history"]
+        assert routes == ["home", "rebuild", "pdf", "tools", "history"]
         assert "settings" in bar.buttons
 
     def test_there_is_no_decorative_tile_in_the_sidebar(self):
@@ -816,52 +821,51 @@ class TestTheDrawer:
         # without that condition.
         assert page.focusWidget() is page.details_button
 
-    def test_a_group_about_pdfs_is_not_shown_to_somebody_rebuilding_epubs(self, qt_app, page):
-        """D-056, seen from the window. The converter's settings are not
-        choices a person repairing EPUBs has to make, and a group they can
-        click into and find empty is worse than one that is not there."""
-        page.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
+    def test_the_converter_has_no_settings_in_this_drawer_at_all(self, qt_app, page):
+        """D-057, seen from the window. Under D-056 the converter's settings
+        were rows here, hidden until a PDF appeared in the plan — and the owner
+        said in as many words that hiding them is not enough: *„Nie wystarczy …
+        ukrywanie ustawień PDF"*. They are not rows here any more. Making a
+        book out of a PDF is its own screen, with its own settings on it.
+        """
+        from epubforge.gui.shell import options as options_module
+
+        page.books = [BookItem(source=pathlib.Path("a.pdf"), title="a", kind="PDF")]
         page.show_plan()
         page._open_drawer()
         drawer = page.drawer
         assert not drawer._buttons_by_category["basics"].isHidden(), "test nic nie mierzy"
-        assert page._kinds_of_source() == frozenset({""})
-        # `isHidden`, not `isVisible`: a child of a hidden parent is invisible
-        # whatever anybody decided about it, so `isVisible` would pass here for
-        # every button and prove nothing. `isHidden` is the explicit answer.
-        assert drawer._buttons_by_category["import"].isHidden()
+        assert "import" not in drawer._buttons_by_category
         assert "import" not in [
             drawer.category_combo.itemData(i) for i in range(drawer.category_combo.count())
         ]
+        # Not merely hidden — absent, in the catalogue and in the search.
+        assert not [one for one in options_module.OPTIONS if one.key.startswith("pdf.")]
         drawer._searched("PDF")
-        assert not [option for option in drawer._matching() if option.key.startswith("pdf.")]
+        assert not [one for one in drawer._matching() if one.key.startswith("pdf.")]
 
-    def test_the_group_is_there_when_a_pdf_is(self, qt_app, page):
-        page.books = [BookItem(source=pathlib.Path("a.pdf"), title="a", kind="PDF")]
-        page.show_plan()
-        page._open_drawer()
-        drawer = page.drawer
-        # Asked of the registry, not of the file name: the window does not know
-        # what a PDF is, the module that reads one says so.
-        assert page._kinds_of_source() == frozenset({"pdf"})
-        assert not drawer._buttons_by_category["import"].isHidden()
-        drawer._show_category("import")
-        assert {option.key for option in drawer._matching()} == {
-            "pdf.layout", "pdf.running_heads"
-        }
+    def test_and_the_rebuild_policy_has_nowhere_to_put_them(self, qt_app, page):
+        """The other half of the same boundary, below the window: a converter
+        setting cannot be smuggled through the rebuild's plan because the
+        policy it becomes has no field for it."""
+        from epubforge.gui.shell.backend import policy_for
 
-    def test_a_group_that_went_does_not_leave_the_drawer_on_it(self, qt_app, page):
-        """Opened on a PDF, then on an EPUB: the drawer was showing a group
-        that is no longer there and has to fall back rather than show nothing."""
-        page.books = [BookItem(source=pathlib.Path("a.pdf"), title="a", kind="PDF")]
+        page.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
         page.show_plan()
-        page._open_drawer()
-        page.drawer._show_category("import")
-        page.drawer.close_drawer()
+        policy, _check, _plan_only = policy_for(page.plan())
+        assert not hasattr(policy, "pdf")
+        assert not [name for name in vars(policy) if "pdf" in name]
+
+    def test_a_group_the_drawer_shows_always_has_something_in_it(self, qt_app, page):
+        """What the removed group made possible — a heading a person clicks
+        and finds nothing under — must stay impossible."""
         page.books = [BookItem(source=pathlib.Path("b.epub"), title="b")]
         page.show_plan()
         page._open_drawer()
-        assert page.drawer._category != "import"
+        drawer = page.drawer
+        for name in drawer._buttons_by_category:
+            drawer._show_category(name)
+            assert drawer._matching(), f"grupa {name} jest pusta"
         assert page.drawer._matching(), "szuflada pokazuje pusto"
 
     def test_search_looks_at_what_a_person_can_read(self, qt_app, page):

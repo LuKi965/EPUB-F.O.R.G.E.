@@ -5,15 +5,17 @@ the ones it took for a running head or a page number — as paragraphs marked
 `ef-pdf-running-head`, so that nothing leaves the text before somebody has
 said so. This stage is where somebody says so: one question for all of them,
 with examples, recommended to remove, and nothing removed without an answer
-(S-02, S-05). `policy.pdf.running_heads` is the standing answer for a
-batch: `ask`, `keep` or `remove`. On a book that did not come from a PDF the
-stage does nothing.
+(S-02, S-05). `PdfSettings.running_heads` — handed to this stage by the
+conversion service, not read out of the repair core's policy (D-057) — is the
+standing answer for a batch: `ask`, `keep` or `remove`. On a book that did not
+come from a PDF the stage does nothing.
 """
 
 from __future__ import annotations
 
 from .. import typography, xhtml
 from . import reader as pdf
+from .settings import PdfSettings
 from ..decisions import KEEP, METADATA, TEXT, Option, Question
 from ..question_texts import say
 from ..report import Action, Automation, Level, Risk
@@ -24,6 +26,14 @@ from ..stages.base import Context, Stage
 class PdfStage(Stage):
     name = "pdf"
     mutates = True
+
+    def __init__(self, settings: "PdfSettings | None" = None) -> None:
+        # The converter's settings arrive here and not through `Policy`: the
+        # repair core's policy is the repair core's, and a converter storing
+        # its options in it was the shape D-057 asked to undo. The service
+        # composes this stage with the plan's settings; the default is what a
+        # caller who names none would have got from the old field.
+        self.settings = settings or PdfSettings()
 
     def run(self, ctx: Context) -> None:
         if ctx.book.source_version != "pdf":
@@ -86,7 +96,7 @@ class PdfStage(Stage):
 
     def _answer(self, ctx: Context, found: list, examples: list, count: int) -> "tuple[str, object]":
         """The standing answer of the batch, or one question for all of them."""
-        choice = ctx.policy.pdf.running_heads
+        choice = self.settings.running_heads
         if choice == "ask":
             question = Question(
                 kind=TEXT,

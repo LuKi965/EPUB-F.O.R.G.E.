@@ -43,6 +43,7 @@ from ..widgets import (
     BookRow,
     Card,
     MetricCard,
+    Notice,
     PageHeader,
     SafetyNote,
     Stepper,
@@ -72,6 +73,10 @@ class RebuildPage(Responsive, QWidget):
     #: Which of the four states is showing. The window binds keys to it: saving
     #: a report is not an action that exists before there is one.
     stage_changed = Signal(object)  # Stage
+    #: Files handed to this page that belong to another module. The window
+    #: offers to take them there; this page does not add them to the plan
+    #: (D-057, 03-PDF-MODULE §6).
+    misrouted = Signal(list)
 
     def __init__(self, tokens: Tokens, backend, resolver_factory=None) -> None:
         super().__init__()
@@ -94,6 +99,9 @@ class RebuildPage(Responsive, QWidget):
         self.session_id: str = uuid.uuid4().hex
         #: Files dropped while a job was running, waiting for an answer.
         self._queued_paths: list = []
+        #: Files handed to this page that another module reads; shown as a
+        #: notice until the person acts on it or hides it.
+        self._strangers: list = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -156,7 +164,12 @@ class RebuildPage(Responsive, QWidget):
     # -- 1. files -----------------------------------------------------------
     def show_files(self) -> None:
         self._go(Stage.FILES)
-        zone = DropZone(self.tokens)
+        self._show_any_strangers()
+        zone = DropZone(
+            self.tokens, suffixes=(".epub",),
+            title_key="shell.rebuild.drop.title",
+            subtitle_key="shell.rebuild.drop.subtitle",
+        )
         zone.files_dropped.connect(self.start)
         self.body.addWidget(zone)
 
@@ -169,9 +182,24 @@ class RebuildPage(Responsive, QWidget):
         analysis was still reading (F05). Now the person is asked, and neither
         answer loses anything: the files wait, or the running job is stopped
         first and then they start.
+
+        A file another module reads never enters the plan (D-057). It used to:
+        `SUFFIXES` took `.pdf`, this page took whatever it was given, and the
+        adapter handed it to `rebuild_all`.
         """
-        chosen = [pathlib.Path(path) for path in paths if path]
+        from .. import routing
+
+        sorted_out = routing.sort_out(path for path in paths if path)
+        strangers = sorted_out["pdf"]
+        chosen = sorted_out["rebuild"]
+        # Not added and not refused in silence: another module reads these, and
+        # the page says so where the person is looking. A modal box would make
+        # it a question that has to be answered before anything else can
+        # happen, and it is not one.
+        self._strangers = [str(path) for path in strangers]
         if not chosen:
+            if strangers:
+                self.show_files()
             return
         if self.runner.working:
             self._ask_about(chosen)
@@ -253,6 +281,26 @@ class RebuildPage(Responsive, QWidget):
         job.finished.connect(self._analysed, Qt.QueuedConnection)
         self.busy_changed.emit(True)
         self.runner.start(job, on_done=self._idle)
+
+    def _show_any_strangers(self) -> None:
+        """The notice about files that belong to the other module, if there
+        are any. Acting on it hands them over; hiding it forgets them."""
+        if not self._strangers:
+            return
+        notice = Notice(
+            self.tokens,
+            tr("pdf.wrong.module.pdf", count=len(self._strangers)),
+            tr("pdf.wrong.module.go"),
+        )
+        notice.acted.connect(self._hand_the_strangers_over)
+        notice.dismissed.connect(lambda: setattr(self, "_strangers", []))
+        self.notice = notice
+        self.body.addWidget(notice)
+
+    def _hand_the_strangers_over(self) -> None:
+        going, self._strangers = self._strangers, []
+        if going:
+            self.misrouted.emit(going)
 
     def _idle(self) -> None:
         self.busy_changed.emit(False)
@@ -371,6 +419,7 @@ class RebuildPage(Responsive, QWidget):
     # -- 3. plan ------------------------------------------------------------
     def show_plan(self) -> None:
         self._go(Stage.PLAN)
+        self._show_any_strangers()
         columns = Panels(CARD_GAP)
 
         left_side = QWidget()
@@ -563,27 +612,7 @@ class RebuildPage(Responsive, QWidget):
             self.overrides,
             sum(1 for book in self.books if book.chosen),
             opener=getattr(self, "details_button", None),
-            sources=self._kinds_of_source(),
         )
-
-    def _kinds_of_source(self) -> frozenset:
-        """Which kinds of source the chosen books are, by importer name — "" for
-        an ordinary EPUB, which is what this program repairs.
-
-        Asked of the registry rather than of the file names, so the window
-        stays as ignorant of what a PDF is as the rest of the program: a module
-        that reads some other kind of source says which files are its (D-056),
-        and the drawer then shows the settings that module offers.
-        """
-        from .... import sources
-
-        found = set()
-        for book in self.books:
-            if not book.chosen:
-                continue
-            importer = sources.for_source(str(book.source))
-            found.add(importer.name if importer is not None else "")
-        return frozenset(found)
 
     def _apply_overrides(self, overrides: dict) -> None:
         self.overrides = dict(overrides)
