@@ -5,14 +5,28 @@ findings about the converter. Its first iteration asks for two things and is
 explicit that they are different: **characterise** Q01 and Q02 without fixing
 them, and **fix** Q08.
 
-So the drawing and the columns are here as `xfail(strict=True)`. That marker
-does the two things the package asks for at once — *„Zapisz ich testy jako
-jawne znane luki z identyfikatorem i powodem, bez przedstawiania ich jako
-zaliczonych"* and *„Nie pozostawiaj nieopisanej awarii głównego CI"*: pytest
-reports them as `xfailed` rather than `passed`, CI stays green, and on the day
-the gap closes `strict` turns the unexpected pass into a failure so that
-somebody has to come back here and say so. What is **not** done is the thing
-the package forbids: no golden was updated to the output as it stands today.
+Where they stand as this file is written, each said once here and argued in
+the class that holds it:
+
+* **Q01, the vanishing drawing — closed.** The reader boxes the strokes in
+  order to gather the text standing on them, and now renders that box from the
+  source (`pdfconv/draw.py`). The tests pass, and skip rather than fail where
+  no renderer is installed, because the feature is optional and says so.
+* **Q02, the columns read across — did not reproduce.** Five geometries were
+  tried and none interleaved. That is the measurement, not a verdict: the page
+  it was found on is a private one, denser than anything written here. Kept as
+  a passing regression test against `LEGEND` below.
+* **Q07, the render gate never looks at the source — open**, as
+  `xfail(strict=True)`.
+
+That marker does the two things the package asks for at once — *„Zapisz ich
+testy jako jawne znane luki z identyfikatorem i powodem, bez przedstawiania
+ich jako zaliczonych"* and *„Nie pozostawiaj nieopisanej awarii głównego
+CI"*: pytest reports the gap as `xfailed` rather than `passed`, CI stays
+green, and on the day it closes `strict` turns the unexpected pass into a
+failure so that somebody has to come back here and say so. What is **not**
+done is the thing the package forbids: no golden was updated to the output as
+it stands today.
 
 The fixtures are this file's own, synthetic, and deliberately unlike the
 private document the roadmap was written from. They reproduce the *kind* of
@@ -31,7 +45,7 @@ import zipfile
 
 import pytest
 
-from epubforge.pdfconv import service
+from epubforge.pdfconv import draw, service
 from epubforge.pdfconv.models import PdfConversionPlan
 from epubforge.pdfconv.settings import PdfSettings
 from tests.test_pdf import column, make_pdf
@@ -68,14 +82,28 @@ def diagram_with_a_legend(tmp_path: pathlib.Path) -> pathlib.Path:
     by some unrelated picture the page happened to carry — which is the trap
     the package names (*„Test nie może uznać dowolnego img za dowód"*).
     """
-    # A box with an arrow and a divider: nine strokes, which no amount of text
-    # extraction produces.
-    strokes = {0: [
+    # A drawing dense enough to *be* one. `reader.DRAWING_DENSITY` asks for a
+    # cell to be touched twice on average, and rightly: a single box round a
+    # paragraph is not a diagram. Nine strokes did not clear it — measured —
+    # so this is line art of the kind the roadmap is about: an outline, its
+    # internal divisions, hatching, and leader lines out to the callouts.
+    strokes = [
         (150, 560, 450, 560), (150, 560, 150, 700), (450, 560, 450, 700),
-        (150, 700, 450, 700),
+        (150, 700, 450, 700), (150, 630, 450, 630), (300, 560, 300, 700),
         (300, 700, 300, 730), (300, 730, 290, 720), (300, 730, 310, 720),
-        (150, 630, 450, 630), (300, 560, 300, 700),
-    ]}
+    ]
+    # Cross-hatched, because `reader.DRAWING_DENSITY` asks for a cell to be
+    # touched twice on average and one direction of hatching gives it one.
+    # Measured on the way here: outline alone — not a drawing; hatched one way
+    # at 10 pt — not a drawing; cross-hatched at 12 pt — a drawing. That
+    # threshold is right, and a fixture has to clear it honestly rather than
+    # have it lowered.
+    for x in range(150, 451, 12):
+        strokes.append((x, 560, x, 700))
+    for y in range(560, 701, 12):
+        strokes.append((150, y, 450, y))
+    for x, y in ((190, 670), (400, 670), (190, 590), (400, 590)):
+        strokes.append((x, y, x + 20, y + 20))   # leader lines to the callouts
     lines = [(210, 745, 11.0, "Rysunek 1. Widok od przodu")]
     # The callouts, printed on the drawing the way a manual prints them.
     for label, x, y in (("L1", 170, 670), ("L2", 380, 670),
@@ -99,7 +127,7 @@ def diagram_with_a_legend(tmp_path: pathlib.Path) -> pathlib.Path:
         lines.append((320, y, 10.0, f"{name}. {said[0]}"))
         lines.append((320, y - 13, 10.0, said[1]))
     return make_pdf(tmp_path / "diagram.pdf", [lines],
-                    title="Rysunek i legenda", language="pl", strokes=strokes)
+                    title="Rysunek i legenda", language="pl", strokes={0: strokes})
 
 
 def converted(source: pathlib.Path, tmp_path: pathlib.Path, **settings):
@@ -132,20 +160,27 @@ class TestQ01TheDrawingDoesNotSurviveTheConversion:
     """*„Znikający wektor: input zawiera rysunek; output ma zachować go
     wizualnie, nie tylko nazwy elementów."*
 
-    **Known gap, not fixed in this iteration.** The reader collects a page's
-    curves as bounding boxes to find regions with (`reader.Page.drawings`, and
-    its own comment says so: *„Not carried into the book — this reader has no
-    way to draw them"*), and the fixed emitter writes text and rasters only.
-    Nothing between the page and the book can draw a line, so the callouts
-    arrive as a row of labels with nothing to label.
+    **Closed.** The reader always knew where the drawing was — it boxes the
+    curves in order to gather the text standing on them — and had nothing to
+    put there. It now puts a picture of that box, drawn from the source PDF at
+    a stated scale (`pdfconv/draw.py`), appended to the page's pictures so
+    that everything a picture already gets applies: the callouts are gathered
+    into it, it is emitted where it stood, it is written as a resource.
 
-    Closing it is a piece of work the roadmap puts behind a decision that is
-    the owner's: a page image or an SVG export, each with its own cost in
-    accessibility, size and reader support. That decision is not made here.
+    A raster of the region and not an SVG export, deliberately: an export
+    needs fonts, clipping, transforms and effects to survive a second engine,
+    and the roadmap warns against assuming SVG solves the problem by itself.
+    What is asserted below is the requirement — *the drawing arrives* — not
+    the technique, so a later vector emitter satisfies it unchanged.
+
+    Skipped rather than failed where no renderer is installed: the feature is
+    optional and degrades honestly, and a test machine without it is not a
+    defect in the book.
     """
 
-    @pytest.mark.xfail(strict=True, reason="Q01: rysunki wektorowe nie sa przenoszone")
     def test_the_drawing_arrives_as_something_that_can_be_drawn(self, tmp_path):
+        if not draw.available():
+            pytest.skip(f"brak renderera ({draw.why_not()})")
         source = diagram_with_a_legend(tmp_path)
         result = converted(source, tmp_path)
         assert result.published, result.error
@@ -160,21 +195,45 @@ class TestQ01TheDrawingDoesNotSurviveTheConversion:
             "rysunek zniknal: w wyniku nie ma ani grafiki wektorowej, ani obrazu "
             "regionu — same etykiety, ktore nie maja juz czego opisywac"
         )
+        # And it is a picture of *this* drawing, not an empty box: the page
+        # carries no raster of its own, so anything here came from the region,
+        # and a region that rendered blank would be a few bytes.
+        with zipfile.ZipFile(book) as archive:
+            biggest = max(archive.getinfo(name).file_size for name in drawn)
+        assert biggest > 500, f"obraz regionu jest pusty ({biggest} B)"
 
-    def test_and_meanwhile_the_callouts_arrive_without_it(self, tmp_path):
-        """The other half of the same fact, and this one passes today.
+    def test_the_callouts_stay_text_beside_it(self, tmp_path):
+        """The drawing arriving must not cost the text that stood on it.
 
-        It is here so the gap above is not the only record: the labels *are*
-        carried, which is precisely why a check that only counts characters
-        sees nothing wrong with a page whose drawing is gone.
+        Every character the PDF draws has to be in the book (K1-PDF), and the
+        callouts are now *also* pixels inside the picture — so the risk this
+        guards is the opposite of the old one: printing them once as an image
+        and calling that carried.
         """
         source = diagram_with_a_legend(tmp_path)
         result = converted(source, tmp_path)
         assert result.published, result.error
         (book,) = result.published_outputs
         said = " ".join(documents_of(book).values())
-        assert "L1" in said and "R1" in said, "etykiety tez zniknely"
-        assert result.warnings, "utrata rysunku nie zostala nawet odnotowana"
+        for label, _ in LEGEND:
+            assert label in said, f"etykieta {label} zniknela z tekstu"
+
+    def test_without_a_renderer_the_book_still_comes_out(self, tmp_path, monkeypatch):
+        """Optional means optional. With no renderer the drawing is not
+        carried, the report says so in as many words, and the conversion is
+        not a failure — which is how it behaved before any of this."""
+        # The library itself, not the sentence about it: `available()` reads
+        # `_renderer()`, so taking away the renderer is the same thing that
+        # happens on a machine where the optional extra was never installed.
+        monkeypatch.setattr(draw, "_renderer", lambda: None)
+        source = diagram_with_a_legend(tmp_path)
+        result = converted(source, tmp_path)
+        assert result.published, result.error
+        (book,) = result.published_outputs
+        drawn = [name for name in resources_of(book) if name.endswith(".png")]
+        assert not drawn, "bez renderera nie powinno byc obrazu regionu"
+        assert any("drawing-not-carried" in one or "rysunk" in one.lower()
+                   for one in result.warnings), result.warnings
 
 
 class TestQ02TheColumnsAreReadAcross:
@@ -231,11 +290,14 @@ class TestQ07TheRenderGateNeverLooksAtTheSource:
     """*„`render_gate` uruchamia `render_fidelity.drawn(candidate, …)`:
     kontrolę niepustego renderowania wyniku, bez porównania z PDF."*
 
-    **Known gap, not fixed in this iteration**, and not for lack of will: the
-    comparison needs a renderer, and which one is a licence and distribution
-    decision the roadmap explicitly leaves to the owner (`02-TARGET-
-    ARCHITECTURE`, „Decyzje zależności i źródła"). Making that choice here to
-    turn a test green would be deciding it by the back door.
+    **Known gap, not fixed in this iteration**, and the reason has moved since
+    it was written. A renderer now exists — `pdfconv/draw.py`, optional, drawn
+    on for Q01 — so the comparison is no longer blocked on choosing one. What
+    it is blocked on is the number: a gate that compares two rasters needs a
+    tolerance, and a tolerance nobody measured is a tolerance that either
+    passes everything or refuses good books. That measurement is work of its
+    own, on real documents, and inventing a threshold here to turn a test
+    green is the one thing this project's rules forbid outright (D-012).
 
     What is asserted is the shape of the gate as it stands, so the day the
     comparison arrives, this says where it goes.

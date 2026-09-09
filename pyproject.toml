@@ -47,6 +47,23 @@ dependencies = [
 [project.optional-dependencies]
 gui = ["PySide6>=6.6,<7"]
 dev = ["pytest>=8.0,<10", "pytest-cov>=6,<8"]
+# Q01 of the quality roadmap: a diagram made of vector strokes is not a picture
+# to carry, so a page whose content was a drawing arrived as callout labels
+# with nothing to label. This draws the region instead.
+#
+# PDFium and not the alternatives, and the reason is licence and distribution
+# rather than price — the check the roadmap actually asks for. `pypdfium2` is
+# BSD-3 and Apache-2.0 with permissive dependencies, and ships a prebuilt
+# binary for Windows in a 3.9 MB wheel; MuPDF is AGPL or commercial, which
+# would take the whole application with it. The Chromium this program already
+# needs for the appearance gate embeds PDFium and will not render a PDF to a
+# screenshot in headless — measured three ways, all a blank viewer background.
+#
+# **Optional on purpose.** Without it the drawings are not carried and the
+# report says exactly that, as it did before; nothing fails and nothing
+# pretends the drawing arrived. Making it required would put a binary
+# dependency in the path of every EPUB→EPUB rebuild, which has no PDF in it.
+draw = ["pypdfium2>=4,<6"]
 
 [project.scripts]
 epubforge = "epubforge.cli:main"

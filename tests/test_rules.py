@@ -64,7 +64,13 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # somebody's file) and `package.not-a-book` (the core's own wording for a source
 # some other module of this program reads, for an importer that offers no
 # sentence of its own).
-TAGGED_TODAY = 418
+# 420 on 2026-09-09 with Q01: `pdf.drawing-carried` (a diagram arrived as a
+# picture of the region it occupies, at a stated scale) and
+# `pdf.drawing-not-drawn` — split off from `pdf.drawing-not-carried` so that
+# "there is no renderer installed here, and here is its name" and "the
+# renderer refused this region" stop being one sentence. The first is a thing
+# the owner can act on and the second is not.
+TAGGED_TODAY = 420
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -183,7 +189,13 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: because the two are different answers — "nobody asked for this loss" and
 #: "somebody asked for a different one" — and a person reading the report has
 #: a different next step for each.
-TEMPLATED_TODAY = 319
+#:
+#: 319 → 321 the same day with Q01: `pdf.drawing-carried` and
+#: `pdf.drawing-not-drawn`, both in both languages. The second exists because
+#: the sentence it was cut out of said "this reader carries pictures and
+#: cannot draw" — true when it was written, and a lie the moment a renderer
+#: became installable. A missing optional part is news the owner can act on.
+TEMPLATED_TODAY = 321
 
 
 class TestTheTranslationCannotStall:

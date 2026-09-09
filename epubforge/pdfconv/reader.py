@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from ..model import Book, Creator, Identifier, NavPoint, PageTarget, Resource, SpineItem
 from ..reader import EpubReadError
+from . import draw
 from ..report import Level, Report
 from ..writer import escape
 
@@ -141,6 +142,11 @@ class Picture:
     labels: "list[Line]" = field(default_factory=list)
     #: The name written under the picture — "Americano" under the icon of it.
     caption: "Line | None" = None
+    #: True when this is a *rendered region* rather than an image the PDF
+    #: embedded: a diagram of vector strokes, drawn at a stated scale because
+    #: this program cannot draw (Q01). Kept because the report must not say
+    #: "carried an image" about a picture the program made of a page.
+    drawn: bool = False
 
     def holds(self, line: "Line") -> bool:
         """Whether *line* stands inside this picture's box."""
@@ -288,6 +294,9 @@ class Layout:
     #: gathered out of the prose.
     drawing_pages: int = 0
     labelled_drawings: int = 0
+    #: Drawings carried into the book as a rendered picture of their region
+    #: (Q01). A page may hold several; this counts the pictures, not the pages.
+    drawings_carried: int = 0
     images: int = 0
     images_skipped: int = 0
     running_heads: int = 0
@@ -399,6 +408,9 @@ def _lay_out_all(pages: list[Page], layout: "Layout") -> float:
     layout.column_pages = sum(1 for page in pages if page.columns)
     layout.regions = sum(len(page.regions) for page in pages)
     layout.drawing_pages = sum(1 for page in pages if page.drawings)
+    layout.drawings_carried = sum(
+        1 for page in pages for picture in page.pictures if picture.drawn
+    )
     layout.body_size = _body_size(pages)
     layout.body_face = _body_face(pages)
     return layout.body_size
@@ -632,17 +644,45 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             values={"count": layout.lists},
             location=source,
         )
-    if layout.drawing_pages:
-        # Said because the alternative is a book that quietly lacks every
-        # diagram its source had. This reader carries pictures; it cannot draw,
-        # and a diagram made of curves is not a picture to carry.
+    if layout.drawings_carried:
+        # Carried as a picture of the region, drawn from the source at a
+        # stated scale (Q01). A separate sentence from the one below, because
+        # "the diagram is in the book" and "the diagram is not in the book"
+        # are not degrees of the same news.
         report.add(
             "pdf",
-            Level.WARN,
-            "pdf.drawing-not-carried",
-            values={"pages": layout.drawing_pages, "labelled": layout.labelled_drawings},
+            Level.FIX,
+            "pdf.drawing-carried",
+            values={"count": layout.drawings_carried, "scale": draw.SCALE,
+                    "labelled": layout.labelled_drawings},
             location=source,
         )
+    if layout.drawing_pages and not layout.drawings_carried:
+        # Said because the alternative is a book that quietly lacks every
+        # diagram its source had. Two sentences and not one, because the two
+        # reasons ask different things of the reader: a missing optional
+        # library is something he can install, and a renderer that refused
+        # the region is not. Telling him the first as though it were the
+        # second would be telling him a fixable thing is impossible.
+        if draw.available():
+            report.add(
+                "pdf",
+                Level.WARN,
+                "pdf.drawing-not-drawn",
+                values={"pages": layout.drawing_pages,
+                        "labelled": layout.labelled_drawings},
+                location=source,
+            )
+        else:
+            report.add(
+                "pdf",
+                Level.WARN,
+                "pdf.drawing-not-carried",
+                values={"pages": layout.drawing_pages,
+                        "labelled": layout.labelled_drawings,
+                        "missing": draw.why_not()},
+                location=source,
+            )
     if layout.images_skipped:
         report.add(
             "pdf",
@@ -864,6 +904,7 @@ def _read(source: str):
     # did not carry it, and K1 — reading through this same reader — said
     # nothing (EF-087). The inventory below is the second opinion — walked
     # here, over the same parse, so that it does not cost a second one.
+    sheet = draw.Sheet(source)
     for number, lt_page in enumerate(extract_pages(source, laparams=LAParams(all_texts=True)), 1):
         _walk_characters(lt_page, drawn)
         page = Page(number=number, width=lt_page.width, height=lt_page.height)
@@ -902,12 +943,20 @@ def _read(source: str):
                 else:
                     page.pictures.append(picture)
         page.drawings = _drawings(strokes, page.width, page.height)
+        # A drawing this reader cannot draw becomes a picture of itself (Q01).
+        # Appended to `pictures` and not to some list of its own, because
+        # everything a picture already gets is what a drawing needs: the
+        # callouts standing on it are gathered into it, it is emitted as an
+        # image block where it stood, and it is written as a resource. A
+        # second channel would be a second set of all three.
+        pictures_seen = _carry_the_drawings(sheet, page, pictures_seen)
         page.lines.sort(key=lambda line: (-round(line.y1), line.x0))
         split = _two_columns(page)
         page.columns = split is not None
         page.split = split
         _reading_order(page, split)
         pages.append(page)
+    sheet.close()
     _remember_drawn(identity, "".join(drawn))
 
     info: dict = {}
@@ -1233,6 +1282,41 @@ CELLS_ACROSS_A_DRAWING = 3
 #: 105 hold a "drawing", at one and a half 43, at two 39, at three 33. The
 #: leaders and the rules drop out at the cliff and nothing else moves.
 DRAWING_DENSITY = 2.0
+
+
+def _carry_the_drawings(sheet, page: "Page", seen: int) -> int:
+    """Turn each of this page's drawings into a picture of itself (Q01).
+
+    Returns the running picture count, because the names come off it and a
+    drawing is numbered in the same sequence as a raster — one namespace for
+    the images of one book.
+
+    A region that overlaps a picture the page already carries is skipped: a
+    photograph with a frame drawn round it is one illustration, and carrying
+    both would put it in the book twice.
+    """
+    if not page.drawings:
+        return seen
+    for box in page.drawings:
+        if any(_overlaps(box, (p.x0, p.y0, p.x1, p.y1)) for p in page.pictures):
+            continue
+        data = sheet.region(page.number, box, page.height)
+        if data is None:
+            continue
+        seen += 1
+        x0, y0, x1, y1 = box
+        page.pictures.append(Picture(
+            f"images/pdf-{seen:04d}.png", data, "image/png",
+            page.number, y1, x0=x0, x1=x1, y0=y0, drawn=True,
+        ))
+    return seen
+
+
+def _overlaps(one, other) -> bool:
+    """Whether two boxes share any area."""
+    ax0, ay0, ax1, ay1 = one
+    bx0, by0, bx1, by1 = other
+    return ax0 < bx1 and bx0 < ax1 and ay0 < by1 and by0 < ay1
 
 
 def _drawings(strokes: list, width: float, height: float) -> list:

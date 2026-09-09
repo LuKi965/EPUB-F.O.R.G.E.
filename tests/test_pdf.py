@@ -975,10 +975,15 @@ class TestTheReader:
         assert "<li>A7. Kabel zasilajacy</li>" in markup
         assert "<p>A6.</p>" not in markup
 
-    def test_a_drawing_this_reader_cannot_carry_is_reported(self, tmp_path):
+    def test_a_drawing_this_reader_cannot_carry_is_reported(self, tmp_path, monkeypatch):
         """A book that quietly lacks every diagram its source had is not an
-        honest rebuild. This reader carries pictures and cannot draw, so it
-        says which pages had a drawing on them."""
+        honest rebuild. On a machine with no renderer installed the drawing
+        cannot be carried, so the report says which pages had one — and says
+        what is missing, because that is a thing the owner can install."""
+        # No renderer: `available()` reads `_renderer()`, so taking the
+        # renderer away is what an installation without the optional extra
+        # looks like from in here.
+        monkeypatch.setattr(pdf.draw, "_renderer", lambda: None)
         lines = column(["A page of prose with a diagram drawn on it in curves,",
                         "which this reader has no way to carry."], top=700)
         source = make_pdf(tmp_path / "drawn.pdf", [lines], strokes={0: _spiral(120, 420, 60)})
@@ -987,6 +992,7 @@ class TestTheReader:
         said = next(f for f in report.findings if f.rule == "pdf.drawing-not-carried")
         assert said.level is Level.WARN
         assert said.values["pages"] == 1
+        assert said.values["missing"] == pdf.draw.why_not()
         # And a page with nothing but a rule under its heading has no drawing.
         plain = make_pdf(tmp_path / "plain.pdf", [lines], strokes={0: [(72, 690, 340, 690)]})
         quiet = Report(source=str(plain))
