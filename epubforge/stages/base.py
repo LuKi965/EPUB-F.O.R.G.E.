@@ -51,9 +51,15 @@ def _account_for_what_left(ctx, path: str, rule: str, before: bytes, after: byte
     def folded(text: str) -> Counter:
         return Counter(c for c in canonical(legal(text)) if not c.isspace())
 
+    # Written even when nothing left, and that empty entry is the point of it:
+    # a pass that *moves* text — relocating a watermark — removes nothing and
+    # so has nothing to record, and without an entry it read as a rule that had
+    # failed to account for itself. Two consents, one of them explaining the
+    # whole loss, and the book was refused because the other had been quiet.
+    # An entry says "this rule ran here and took this much out", where "this
+    # much" may be nothing; *absence* is what means no accounting, and that
+    # still refuses.
     gone = folded(was) - folded(now)
-    if not gone:
-        return
     ctx.report.stats.setdefault(REMOVAL_LEDGER, []).append({
         "rule": rule,
         "document": path,

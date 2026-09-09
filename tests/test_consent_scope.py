@@ -238,6 +238,68 @@ class TestTheSevenCasesOfConsentScope:
         assert source.read_bytes() == before, "zrodlo zostalo naruszone"
         assert out.read_bytes() == kept, "poprzedni poprawny wynik zostal nadpisany"
 
+    def test_a_consent_that_removed_nothing_does_not_block_one_that_accounted(self):
+        """The eighth case, which the seven did not cover and the fix needed.
+
+        „No entry in the ledger" was reading as „no accounting", and a pass
+        that *moved* text — `xhtml.watermark-relocated` is the shape — removes
+        nothing and therefore had nothing to write. Two consents, one of them
+        explaining the whole loss, and the book was refused because the other
+        one had been quiet.
+
+        So a pass that runs writes an entry either way, and an empty one is an
+        answer: *this rule took nothing out of this document*. Absence still
+        means no accounting and still refuses; it just stops meaning two
+        different things at once.
+        """
+        from epubforge.fidelity import Check
+
+        report = Report()
+        report.stats[gate.REMOVAL_LEDGER] = [
+            {"rule": "pdf.running-heads-removed", "document": "text/a.xhtml", "text": "abc"},
+            {"rule": "xhtml.watermark-relocated", "document": "text/a.xhtml", "text": ""},
+        ]
+        check = Check("K1-PDF", False, "3 znaki", {"missing": {"a": 1, "b": 1, "c": 1}})
+        refusal = gate.note_second_opinion(
+            report, check, ["pdf.running-heads-removed", "xhtml.watermark-relocated"]
+        )
+        assert not refusal, refusal
+
+        # And a rule that never wrote anything at all is still refused.
+        quiet = Report()
+        quiet.stats[gate.REMOVAL_LEDGER] = [
+            {"rule": "pdf.running-heads-removed", "document": "text/a.xhtml", "text": "abc"},
+        ]
+        assert gate.note_second_opinion(
+            quiet, check, ["pdf.running-heads-removed", "xhtml.watermark-relocated"]
+        )
+
+    def test_a_pass_that_took_nothing_out_still_says_so(self):
+        """The other half, and the half the ledger above was hand-written past.
+
+        The case above proves the *gate* reads an empty entry as an answer.
+        This one proves the *recorder* writes one — without it the gate never
+        sees the entry and the two consents case cannot arise in a real run at
+        all. Asked of `text_changed` directly, because that is the one door
+        every text-changing pass goes through.
+        """
+        from types import SimpleNamespace
+
+        from epubforge.stages.base import REMOVAL_LEDGER, Stage
+
+        page = b'<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Tekst na miejscu.</p></body></html>'
+        moved = b'<html xmlns="http://www.w3.org/1999/xhtml"><body><p class="mark">Tekst na miejscu.</p></body></html>'
+        report = Report()
+        ctx = SimpleNamespace(text_changes={}, report=report)
+        Stage.text_changed(
+            Stage(), ctx, "text/a.xhtml", "xhtml.watermark-relocated",
+            before=page, after=moved,
+        )
+        entries = report.stats.get(REMOVAL_LEDGER) or []
+        assert entries, "przebieg, ktory nic nie usunal, nie zostawil sladu"
+        assert entries[0]["rule"] == "xhtml.watermark-relocated"
+        assert entries[0]["text"] == "", entries
+
     def test_7_an_ordinary_epub_rebuild_is_untouched(self, tmp_path):
         """The change is in the importer's path. A book that was never a PDF
         goes through the gate it always did, and still comes out."""
