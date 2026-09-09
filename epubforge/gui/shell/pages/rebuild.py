@@ -12,6 +12,7 @@ report, and never touches an EPUB.
 from __future__ import annotations
 
 import pathlib
+import uuid
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QVBoxLayout,
@@ -84,6 +86,14 @@ class RebuildPage(Responsive, QWidget):
         self.outcome: BatchOutcome | None = None
         self.runner = Runner(self)
         self._selected: BookItem | None = None
+        #: Which batch the page is showing. Every job carries the token it was
+        #: started with and every answer arrives with it, so a job that was
+        #: cancelled — or whose last word was already queued when the person
+        #: started something else — can be recognised as belonging to a batch
+        #: that is over, and dropped instead of written into the new one (F05).
+        self.session_id: str = uuid.uuid4().hex
+        #: Files dropped while a job was running, waiting for an answer.
+        self._queued_paths: list = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -151,13 +161,50 @@ class RebuildPage(Responsive, QWidget):
         self.body.addWidget(zone)
 
     def start(self, paths: "list[str]") -> None:
-        """Take a list of files and begin: analysis, then the plan."""
+        """Take a list of files and begin: analysis, then the plan.
+
+        A batch already under way is never silently replaced. This used to
+        clear the list and the result the moment a second set of files
+        arrived — a drop, Ctrl+O, a file on the command line — while the first
+        analysis was still reading (F05). Now the person is asked, and neither
+        answer loses anything: the files wait, or the running job is stopped
+        first and then they start.
+        """
         chosen = [pathlib.Path(path) for path in paths if path]
         if not chosen:
             return
+        if self.runner.working:
+            self._ask_about(chosen)
+            return
+        self.session_id = uuid.uuid4().hex
         self.books = []
         self.outcome = None
         self.show_analysis(chosen)
+
+    def _ask_about(self, chosen: "list[pathlib.Path]") -> None:
+        """Something is running and more files have arrived. Whose call it is."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Question)
+        box.setWindowTitle(tr("shell.busy.title"))
+        box.setText(tr("shell.busy.body", count=len(chosen)))
+        box.setInformativeText(tr("shell.busy.hint"))
+        wait = box.addButton(tr("shell.busy.wait"), QMessageBox.AcceptRole)
+        box.addButton(tr("shell.busy.stop"), QMessageBox.DestructiveRole)
+        drop = box.addButton(tr("shell.busy.forget"), QMessageBox.RejectRole)
+        box.setDefaultButton(wait)
+        box.exec()
+        answered = box.clickedButton()
+        if answered is drop:
+            return
+        self._queued_paths = [str(path) for path in chosen]
+        if answered is not wait:
+            self._cancel()
+
+    def _start_queued(self) -> None:
+        """Begin what was waiting, now that the runner is free."""
+        waiting, self._queued_paths = self._queued_paths, []
+        if waiting and not self.runner.working:
+            self.start(waiting)
 
     def add_files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
@@ -200,7 +247,7 @@ class RebuildPage(Responsive, QWidget):
         # undefined behaviour that Qt reports as "cannot set parent, new parent
         # is in a different thread" long after the damage.
         self._carry_over = existing
-        job = AnalysisJob(self.backend, paths)
+        job = AnalysisJob(self.backend, paths, self.session_id)
         job.progress.connect(self._on_progress, Qt.QueuedConnection)
         job.failed.connect(self._on_failed, Qt.QueuedConnection)
         job.finished.connect(self._analysed, Qt.QueuedConnection)
@@ -209,8 +256,15 @@ class RebuildPage(Responsive, QWidget):
 
     def _idle(self) -> None:
         self.busy_changed.emit(False)
+        self._start_queued()
 
-    def _analysed(self, books: "list[BookItem]") -> None:
+    def _ours(self, session: str) -> bool:
+        """Whether a job speaking now belongs to the batch on the screen."""
+        return session == self.session_id
+
+    def _analysed(self, session: str, books: "list[BookItem]") -> None:
+        if not self._ours(session):
+            return
         for book in books:
             # A file the analysis could not read starts unticked. It stays in
             # the list, with its reason beside it — the batch is a record of
@@ -224,8 +278,8 @@ class RebuildPage(Responsive, QWidget):
             return
         self.show_plan()
 
-    def _on_progress(self, step: Progress) -> None:
-        if not hasattr(self, "progress"):
+    def _on_progress(self, session: str, step: Progress) -> None:
+        if not self._ours(session) or not hasattr(self, "progress"):
             return
         if step.determinate:
             self.progress.setRange(0, step.total)
@@ -239,7 +293,7 @@ class RebuildPage(Responsive, QWidget):
                 f"{step.name}   ·   {tr('shell.progress.of', done=step.done, total=step.total)}"
             )
 
-    def _on_failed(self, message: str) -> None:
+    def _on_failed(self, session: str, message: str) -> None:
         """Something threw. The batch is not thrown away with it.
 
         This used to send the flow back to the file picker, which lost the
@@ -247,6 +301,8 @@ class RebuildPage(Responsive, QWidget):
         a person who had spent a minute setting up thirty books had to do all
         of it again because one of them raised in a library.
         """
+        if not self._ours(session):
+            return
         self._failure = message
         if not self.books:
             QMessageBox.warning(
@@ -544,6 +600,7 @@ class RebuildPage(Responsive, QWidget):
             preset=self.preset,
             overrides=overrides,
             ask=bool(overrides.get("ask", True)),
+            session_id=self.session_id,
         )
 
     def run(self, *, plan_only: bool = False) -> None:
@@ -595,19 +652,34 @@ class RebuildPage(Responsive, QWidget):
         job.progress.connect(self._on_progress, Qt.QueuedConnection)
         job.failed.connect(self._on_failed, Qt.QueuedConnection)
         job.book_finished.connect(self._book_finished, Qt.QueuedConnection)
-        job.finished.connect(self.show_results, Qt.QueuedConnection)
+        job.finished.connect(self._rebuilt, Qt.QueuedConnection)
         self.busy_changed.emit(True)
         self.runner.start(job, on_done=self._idle)
 
-    def _book_finished(self, index: int, book: BookItem) -> None:
+    def _book_finished(self, session: str, index: int, book: BookItem) -> None:
+        if not self._ours(session):
+            return
         chosen = [item for item in self.books if item.chosen]
         if index < len(chosen):
             original = chosen[index]
             for field in ("status", "fixed", "kept", "issues", "output", "report_text",
-                          "categories", "error", "title", "author", "summary"):
+                          "categories", "error", "title", "author", "summary",
+                          "severity", "published_outputs"):
                 setattr(original, field, getattr(book, field))
         if hasattr(self, "progress"):
             self.progress.setValue(index + 1)
+
+    def _rebuilt(self, session: str, outcome: BatchOutcome) -> None:
+        """A run has ended. Show it only if the page is still that run's page.
+
+        The last word of a cancelled batch is queued to this thread like any
+        other, and a person who cancels and immediately starts something else
+        would otherwise be shown the old batch's results over the new one's
+        list (F05).
+        """
+        if not self._ours(session):
+            return
+        self.show_results(outcome)
 
     def show_results(self, outcome: BatchOutcome) -> None:
         self.outcome = outcome
@@ -653,7 +725,12 @@ class RebuildPage(Responsive, QWidget):
         self.finished.emit(outcome)
 
     def _banner(self, outcome: BatchOutcome) -> QFrame:
-        if outcome.cancelled:
+        if outcome.operation.is_a_trial and not outcome.failed and not outcome.cancelled:
+            # A trial that went well is not a rebuild that went well. It says
+            # so first, before the tone of the banner can suggest that files
+            # are waiting somewhere (F04).
+            name, role, glyph = "dry", "successCard", "inspect"
+        elif outcome.cancelled:
             name, role, glyph = "cancelled", "warningCard", "close"
         elif outcome.failed:
             name, role, glyph = "failed", "dangerCard", "error"
@@ -687,11 +764,19 @@ class RebuildPage(Responsive, QWidget):
         row.addLayout(words, 1)
         split.add(said, 2)
 
+        # Books, not files: they are the same number for nearly every batch and
+        # differ exactly when a book has several renditions, which is when
+        # naming one of them for the other misleads (02-UI §3).
         numbers = [
-            (outcome.written, tr("shell.results.metric.done"), "success", "check"),
+            (outcome.published, tr("shell.results.metric.done"), "success", "check"),
             (outcome.fixed, tr("shell.results.metric.fixed"), "accent", "rebuild"),
             (outcome.attention, tr("shell.results.metric.attention"), "warning", "warning"),
         ]
+        if len(outcome.published_outputs) != outcome.published:
+            numbers.insert(
+                1, (len(outcome.published_outputs), tr("shell.results.metric.files"),
+                    "success", "folder")
+            )
         if outcome.failed:
             numbers.append(
                 (outcome.failed, tr("shell.results.metric.failed"), "danger", "error")
@@ -709,13 +794,29 @@ class RebuildPage(Responsive, QWidget):
     def _next_card(self, outcome: BatchOutcome) -> Card:
         card = Card(tr("shell.results.next"), tr("shell.results.next.body"), glyph="chevron",
                     tokens=self.tokens)
-        written = [book for book in outcome.books if book.output]
-        open_folder = button(tr("shell.results.open.folder"), kind="primary", glyph="folder",
-                             tokens=self.tokens)
-        open_folder.setEnabled(bool(written))
-        open_folder.clicked.connect(
-            lambda: self.backend.reveal(written[0].output) if written else None
-        )
+        places = outcome.folders
+        if len(places) > 1:
+            # A batch left to write beside its sources lands in as many folders
+            # as the books came from. One button labelled "the output folder"
+            # opens the first of them and sends the person looking for books
+            # that were never there (F06).
+            open_folder = button(tr("shell.results.open.many", count=len(places)),
+                                 kind="primary", glyph="folder", tokens=self.tokens,
+                                 tip="\n".join(places))
+            menu = QMenu(open_folder)
+            for place in places:
+                action = menu.addAction(place)
+                action.triggered.connect(
+                    lambda _checked=False, target=place: self.backend.reveal(pathlib.Path(target))
+                )
+            open_folder.setMenu(menu)
+        else:
+            open_folder = button(tr("shell.results.open.folder"), kind="primary", glyph="folder",
+                                 tokens=self.tokens, tip=places[0] if places else "")
+            open_folder.setEnabled(bool(places))
+            open_folder.clicked.connect(
+                lambda: self.backend.reveal(pathlib.Path(places[0])) if places else None
+            )
         card.body.addWidget(open_folder)
         save = button(tr("shell.results.save"), glyph="save", tokens=self.tokens)
         save.clicked.connect(self.save_report)
@@ -728,14 +829,30 @@ class RebuildPage(Responsive, QWidget):
         card.body.addWidget(again)
         card.body.addSpacing(10)
         card.body.addWidget(label(tr("shell.results.files"), "cardTitle"))
-        if written:
-            card.body.addWidget(label(tr("shell.results.files.at"), "muted"))
-            card.body.addWidget(label(str(written[0].output.parent), "cardSubtitle"))
-            for book in written[:6]:
-                card.body.addWidget(label(book.output.name, "muted"))
-            card.body.addWidget(label(tr("shell.results.extension"), "muted"))
-        else:
-            card.body.addWidget(label(tr("shell.results.none"), "muted"))
+        if not outcome.published_outputs:
+            card.body.addWidget(label(
+                tr("shell.results.dry") if outcome.operation.is_a_trial
+                else tr("shell.results.none"), "muted"
+            ))
+            card.body.addStretch(1)
+            return card
+        card.body.addWidget(label(tr("shell.results.files.at"), "muted"))
+        shown = 0
+        for place in places:
+            card.body.addWidget(label(place, "cardSubtitle"))
+            here = [path for path in outcome.published_outputs if str(path.parent) == place]
+            for path in here:
+                if shown >= 6:
+                    break
+                card.body.addWidget(label(path.name, "muted"))
+                shown += 1
+            if shown >= 6:
+                card.body.addWidget(label(
+                    tr("shell.results.files.more",
+                       count=len(outcome.published_outputs) - shown), "muted"
+                ))
+                break
+        card.body.addWidget(label(tr("shell.results.extension"), "muted"))
         card.body.addStretch(1)
         return card
 
@@ -786,6 +903,15 @@ class RebuildPage(Responsive, QWidget):
         close.clicked.connect(dialog.accept)
         stack.addWidget(close, alignment=Qt.AlignRight)
         dialog.exec()
+
+    def can_export_report(self) -> bool:
+        """Whether there is a report on this page, right now, to save.
+
+        The window asks the page that is showing rather than remembering the
+        last stage this one reached, so walking away from the results turns the
+        shortcut off instead of exporting something nobody can see (F09).
+        """
+        return self.stage is Stage.RESULTS and self.outcome is not None
 
     def save_report(self) -> None:
         """One book's report, in the same JSON the old window wrote."""

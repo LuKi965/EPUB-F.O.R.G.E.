@@ -13,6 +13,8 @@ in both windows because it is the same function.
 
 from __future__ import annotations
 
+import uuid
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -45,6 +47,10 @@ class ToolPage(Responsive, QWidget):
         self.empty_key = empty_key
         self.runner = Runner(self)
         self._buttons: list = []
+        #: Which question is being answered. The form can be changed while the
+        #: tool is working, and an answer arriving afterwards would be read as
+        #: the answer to what the form says *now* (R08).
+        self._question = ""
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -202,18 +208,25 @@ class ToolPage(Responsive, QWidget):
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)
         self.result.setPlainText(tr("shell.tool.working"))
-        job = ToolJob(work)
+        self._question = uuid.uuid4().hex
+        job = ToolJob(work, self._question)
         job.progress.connect(self._on_progress, Qt.QueuedConnection)
         job.failed.connect(self._on_failed, Qt.QueuedConnection)
-        job.finished.connect(self.show_answer, Qt.QueuedConnection)
+        job.finished.connect(self._answered, Qt.QueuedConnection)
         self.runner.start(job, on_done=self._idle)
+
+    def _ours(self, question: str) -> bool:
+        """Whether a job speaking now is the one this page is waiting for."""
+        return question == self._question
 
     def _idle(self) -> None:
         self.progress.setVisible(False)
         for item in self._buttons:
             item.setEnabled(True)
 
-    def _on_progress(self, step) -> None:
+    def _on_progress(self, question: str, step) -> None:
+        if not self._ours(question):
+            return
         if step.determinate:
             self.progress.setRange(0, step.total)
             self.progress.setValue(step.done)
@@ -221,9 +234,22 @@ class ToolPage(Responsive, QWidget):
             self.progress.setRange(0, 0)
         self.news.setText(tr("common.working", name=step.name))
 
-    def _on_failed(self, message: str) -> None:
+    def _on_failed(self, question: str, message: str) -> None:
+        if not self._ours(question):
+            return
         self.result.setPlainText(message)
         self.news.setText(message.splitlines()[0] if message else "")
+
+    def _answered(self, question: str, answer) -> None:
+        """One tool has finished. Show it only if the page still asked it.
+
+        Somebody can change the form while the tool is working; an answer
+        arriving afterwards describes the old parameters and would be read as
+        describing the new ones, so it is dropped rather than displayed (R08).
+        """
+        if not self._ours(question):
+            return
+        self.show_answer(answer)
 
     def show_answer(self, answer) -> None:
         self._answer = answer

@@ -260,12 +260,43 @@ class TestTheKeyboardWithoutAMenu:
         assert not window.actions_by_key["save-batch"].isEnabled()
 
     def test_and_is_one_in_the_results(self, qt_app, window):
+        window.navigate("rebuild")
         window.rebuild.start(["A.epub", "B.epub"])
         settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.PLAN)
         window.rebuild.run()
         settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.RESULTS)
         assert window.actions_by_key["save"].isEnabled()
         assert window.actions_by_key["save-batch"].isEnabled()
+
+    def test_r06_walking_away_from_the_results_takes_the_shortcut_with_it(
+        self, qt_app, window, monkeypatch
+    ):
+        """F09: the keys followed the rebuild's *last* stage, not the page in
+        front of the person. Ctrl+S in Settings exported the report of a screen
+        that was no longer there — and with a second module it would export the
+        wrong module's."""
+        window.navigate("rebuild")
+        window.rebuild.start(["A.epub"])
+        settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.PLAN)
+        window.rebuild.run()
+        settle(qt_app, window.rebuild, lambda: window.rebuild.stage is Stage.RESULTS)
+        assert window.actions_by_key["save"].isEnabled()
+
+        exported = []
+        monkeypatch.setattr(type(window.rebuild), "save_report",
+                            lambda self: exported.append(self))
+        window.navigate("settings")
+        assert not window.actions_by_key["save"].isEnabled()
+        assert not window.actions_by_key["save-batch"].isEnabled()
+        # Not only greyed out: triggering it anyway exports nothing, because
+        # the window asks which page is showing rather than remembering one.
+        window.actions_by_key["save"].trigger()
+        assert exported == []
+
+        window.navigate("rebuild")
+        assert window.actions_by_key["save"].isEnabled()
+        window.actions_by_key["save"].trigger()
+        assert exported == [window.rebuild]
 
     def test_the_window_takes_a_panel_s_news_instead_of_a_status_bar(self, window):
         """A panel deep in a page cannot know what furniture its window has, so
@@ -334,6 +365,12 @@ class TestTheRebuildFlow:
                 outcome = super().rebuild(plan, books, **kwargs)
                 outcome.books[0].status = BookStatus.FAILED
                 outcome.books[0].error = "nie udało się"
+                # A book that failed published nothing. Saying so is now part
+                # of failing: `written` counts files, not statuses that would
+                # have written one (F04), so leaving the outputs behind would
+                # make this fixture claim a file the failure did not produce.
+                outcome.books[0].output = None
+                outcome.books[0].published_outputs = ()
                 return outcome
 
         page.backend = Grumpy()
@@ -429,6 +466,104 @@ class TestTheChosenResultIsVisiblyTheChosenOne:
         second = page._result_rows[1]
         second.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier))
         assert page._selected is second.book
+
+
+class TestTheResultsCardSaysWhereTheFilesReallyAre:
+    """R04/F06. The card took `written[0].output.parent` and printed it above
+    every file's name, so a batch written beside its sources — the ordinary
+    case, three shelves, three folders — named one folder and listed books that
+    were not in it. The history was fixed for this; this card was not.
+    """
+
+    @staticmethod
+    def _texts(page) -> "list[str]":
+        from PySide6.QtWidgets import QLabel
+
+        card = page._next_card(page.outcome)
+        return [item.text() for item in card.findChildren(QLabel) if item.text()]
+
+    def test_every_folder_of_the_batch_is_named(self, qt_app, page, tmp_path):
+        first, second = tmp_path / "polka-a", tmp_path / "polka-b"
+        page.start([str(first / "jedna.epub"), str(second / "druga.epub")])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        assert set(page.outcome.folders) == {str(first), str(second)}
+        shown = self._texts(page)
+        assert str(first) in shown and str(second) in shown
+        assert "jedna.forged.epub" in shown and "druga.forged.epub" in shown
+
+    def test_one_folder_still_reads_as_one_place(self, qt_app, page, tmp_path):
+        # The sources sit somewhere else: a chosen folder keeps each book's own
+        # name, so writing into the folder they came from is the one thing the
+        # program refuses — and refusing it is a modal dialog, not a result.
+        page.destination = tmp_path / "wynik"
+        page.start([str(tmp_path / "zrodla" / "jedna.epub"),
+                    str(tmp_path / "zrodla" / "druga.epub")])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        assert page.outcome.folders == (str(tmp_path / "wynik"),)
+        assert self._texts(page).count(str(tmp_path / "wynik")) == 1
+
+    def test_a_batch_that_wrote_nothing_offers_no_folder_to_open(self, qt_app, page):
+        from PySide6.QtWidgets import QPushButton
+
+        class Fruitless(DemoBackend):
+            def rebuild(self, plan, books, **kwargs):
+                outcome = super().rebuild(plan, books, **kwargs)
+                for book in outcome.books:
+                    book.status, book.output = BookStatus.FAILED, None
+                    book.published_outputs = ()
+                return outcome
+
+        page.backend = Fruitless()
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        card = page._next_card(page.outcome)
+        opener = card.findChildren(QPushButton)[0]
+        assert not opener.isEnabled()
+        assert tr("shell.results.none") in self._texts(page)
+
+
+class TestADryRunIsNotAPublication:
+    """R02/F04. `written` counted statuses that *would have* written a file,
+    and a trial writes into a temporary directory that is deleted when the run
+    ends. The summary said a book had been written where none had."""
+
+    def test_the_banner_says_a_trial_finished_and_nothing_was_written(self, qt_app, page):
+        from epubforge.gui.shell.models import Operation
+
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS)
+        outcome = page.outcome
+        outcome.operation = Operation.EPUB_DRY_RUN
+        for book in outcome.books:
+            book.output, book.published_outputs = None, ()
+
+        from PySide6.QtWidgets import QLabel
+
+        banner = page._banner(outcome)
+        said = [item.text() for item in banner.findChildren(QLabel) if item.text()]
+        assert tr("shell.results.banner.dry") in said
+        # The metric's value sits in the label before its caption; the value
+        # carries an inline icon, so it is the tail that is read.
+        written_at = said.index(tr("shell.results.metric.done"))
+        assert said[written_at - 1].endswith(" 0"), (
+            f"próba nie pokazała zera publikacji: {said}"
+        )
+        assert outcome.published == 0 and outcome.written == 0
+
+    def test_the_plan_carries_the_session_and_the_trial_flag(self, qt_app, page):
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        plan = page.plan(plan_only=True)
+        assert plan.session_id == page.session_id
+        assert plan.overrides["plan_only"] is True
 
 
 class TestAFailureDoesNotThrowAwayTheBatch:
@@ -826,7 +961,7 @@ class TestHistoryRemembersLittleAndNothingPrivate:
         fields = set(JobRecord.__dataclass_fields__)
         assert fields == {
             "when", "count", "written", "attention", "failed", "preset",
-            "destination", "destinations", "titles", "cancelled",
+            "operation", "destination", "destinations", "titles", "cancelled",
         }
 
     def test_a_history_file_from_an_older_version_still_reads(self):
@@ -970,6 +1105,143 @@ class TestTheThreadEndsBeforeAnythingIsDestroyed:
         window.closeEvent(event)
         assert event.isAccepted()
 
+    def test_r07_the_worker_is_really_destroyed_and_not_only_forgotten(self, qt_app, page):
+        """F10. `deleteLater` posts a deferred-delete event *to the object's
+        own thread*, and the runner called it from the window's thread after
+        that thread had ended — where nothing was left to deliver it. The
+        references went to `None` and the job stayed alive, which is why this
+        asks Qt (`destroyed`) rather than asking the runner."""
+        page.start(["a.epub"])
+        job = page.runner.job
+        assert job is not None
+        gone = []
+        job.destroyed.connect(lambda *_: gone.append(1))
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        assert page.runner.wait_for_idle(3000)
+        for _ in range(50):
+            qt_app.processEvents()
+            if gone:
+                break
+        assert gone, "worker nie został zniszczony, tylko zapomniany"
+
+    def test_r07_cancelling_and_closing_over_and_over_leaves_nothing_behind(
+        self, qt_app, window
+    ):
+        """The same promise under repetition: three batches, each cancelled,
+        and at the end no thread, no job and a window that closes."""
+        from PySide6.QtGui import QCloseEvent
+
+        window.navigate("rebuild")
+        for _ in range(3):
+            window.rebuild.session_id = "wymuszona-nowa-sesja"
+            window.rebuild.show_analysis([pathlib.Path("a.epub"), pathlib.Path("b.epub")])
+            window.rebuild.runner.cancel()
+            settle(qt_app, window.rebuild, lambda: not window.rebuild.runner.busy)
+            qt_app.processEvents()
+        assert window.rebuild.runner.thread is None
+        assert window.rebuild.runner.job is None
+        event = QCloseEvent()
+        window.closeEvent(event)
+        assert event.isAccepted()
+
+
+class TestOneSessionsResultDoesNotLandInAnother:
+    """R05/F05. `RebuildPage.start` cleared the list and the result the moment
+    a second set of files arrived — a drop, Ctrl+O, a file on the command line
+    — while the first job was still reading. The first job then finished and
+    wrote its books into whatever was on the screen by then.
+
+    Two halves: nothing is silently replaced, and a message from a batch that
+    is over is recognised as such.
+    """
+
+    def test_a_result_from_the_previous_session_is_dropped(self, qt_app, page):
+        from epubforge.gui.shell.models import BatchOutcome
+
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        before = page.session_id
+        page.session_id = "nowa-sesja"
+
+        stale = BatchOutcome(
+            books=(BookItem(source=pathlib.Path("stara.epub"), title="stara",
+                            status=BookStatus.DONE),),
+            session_id=before,
+        )
+        page._rebuilt(before, stale)
+        assert page.outcome is None, "wynik starej sesji trafił na ekran nowej"
+        assert page.stage is Stage.PLAN
+
+        fresh = BatchOutcome(books=stale.books, session_id="nowa-sesja")
+        page._rebuilt("nowa-sesja", fresh)
+        assert page.outcome is fresh
+
+    def test_a_book_from_the_previous_session_does_not_edit_the_new_list(self, qt_app, page):
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        old = page.session_id
+        page.session_id = "nowa-sesja"
+        page.books[0].title = "nowa"
+        page._book_finished(old, 0, BookItem(source=pathlib.Path("a.epub"), title="podmieniona"))
+        assert page.books[0].title == "nowa"
+
+    def test_an_analysis_that_finishes_late_does_not_replace_the_list(self, qt_app, page):
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        old, kept = page.session_id, list(page.books)
+        page.session_id = "nowa-sesja"
+        page._analysed(old, [BookItem(source=pathlib.Path("obca.epub"), title="obca")])
+        assert page.books == kept
+
+    def test_a_failure_of_a_batch_that_is_over_is_not_shown(self, qt_app, page):
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        old = page.session_id
+        page.session_id = "nowa-sesja"
+        page._on_failed(old, "coś pękło")
+        assert page.stage is Stage.PLAN
+        assert not hasattr(page, "_failure") or page._failure != "coś pękło"
+
+    def test_files_arriving_during_a_job_do_not_empty_the_list(self, qt_app, page, monkeypatch):
+        """The heart of F05: the second drop used to run `self.books = []`
+        before anybody was asked anything."""
+        import threading
+
+        release = threading.Event()
+
+        class Slow(DemoBackend):
+            def analyse(self, paths, **kwargs):
+                release.wait(3)
+                return super().analyse(paths, **kwargs)
+
+        asked = []
+        monkeypatch.setattr(
+            type(page), "_ask_about",
+            lambda self, chosen: asked.append([str(path) for path in chosen])
+        )
+        page.backend = Slow()
+        page.books = [BookItem(source=pathlib.Path("a.epub"), title="a")]
+        session, books = page.session_id, list(page.books)
+        page.show_analysis([pathlib.Path("b.epub")], keep=True)
+        assert page.runner.working
+
+        page.start(["c.epub"])
+        assert asked == [["c.epub"]], "druga partia nie zapytała, tylko weszła"
+        assert page.books == books and page.session_id == session
+
+        release.set()
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        assert [book.source.name for book in page.books] == ["a.epub", "b.epub"]
+
+    def test_waiting_files_start_by_themselves_when_the_job_is_over(self, qt_app, page):
+        page.start(["a.epub"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.run()
+        page._queued_paths = ["c.epub"]
+        settle(qt_app, page, lambda: [book.source.name for book in page.books] == ["c.epub"])
+        assert page._queued_paths == []
+        assert page.session_id, "nowa partia dostaje własną sesję"
+
 
 class TestAStoppedResolverStopsAsking:
     """A question is a blocking call from the worker into the window's thread.
@@ -1064,6 +1336,26 @@ class TestHistoryKnowsWhereTheFilesActuallyWent:
         item = row.findChildren(QPushButton)[0]
         assert item.text() == tr("shell.history.open.many", count=2)
         assert [action.text() for action in item.menu().actions()] == ["/tmp/a", "/tmp/b"]
+
+    def test_the_record_says_what_kind_of_job_it_was(self, qt_app):
+        """02-UI §4: history carries the kind of operation. A record written
+        before there was more than one kind says so plainly rather than being
+        guessed at from its titles."""
+        from epubforge.gui.shell.models import Operation
+
+        rebuilt = JobRecord(when="", count=1, written=1, attention=0, failed=0, preset="p",
+                            operation=Operation.EPUB_REBUILD.value)
+        assert tr(rebuilt.kind_key) == tr("shell.history.kind.epub_rebuild")
+        trial = JobRecord(when="", count=1, written=0, attention=0, failed=0, preset="p",
+                          operation=Operation.EPUB_DRY_RUN.value)
+        assert tr(trial.kind_key) != tr(rebuilt.kind_key)
+        older = JobRecord(when="", count=1, written=1, attention=0, failed=0, preset="p")
+        assert tr(older.kind_key) == tr("shell.history.kind.older")
+        assert JobRecord.from_dict(rebuilt.as_dict()).operation == rebuilt.operation
+        # And a file written by an older version still reads.
+        legacy = dict(rebuilt.as_dict())
+        legacy.pop("operation")
+        assert JobRecord.from_dict(legacy).kind_key == "shell.history.kind.older"
 
     def test_a_run_that_wrote_nothing_and_was_stopped_is_not_a_success(self, qt_app, window):
         from epubforge.gui.shell.models import BatchOutcome

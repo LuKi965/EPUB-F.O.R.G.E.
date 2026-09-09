@@ -14,14 +14,22 @@ from PySide6.QtCore import QObject, Qt, QThread, Signal
 
 
 class _Job(QObject):
-    """Shared plumbing: a cancel flag and the two signals every job has."""
+    """Shared plumbing: a cancel flag and the two signals every job has.
 
-    progress = Signal(object)
-    failed = Signal(str)
+    **Every signal names its session first.** A job that was cancelled, or one
+    whose last word was queued to the window a moment before the person started
+    something else, still arrives — and arrives at a page that has moved on. It
+    used to be written into whatever list was there by then (F05); now the page
+    can see whose result it is holding and drop the ones that are not its own.
+    """
 
-    def __init__(self) -> None:
+    progress = Signal(str, object)
+    failed = Signal(str, str)
+
+    def __init__(self, session: str = "") -> None:
         super().__init__()
         self._cancelled = False
+        self.session = session
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -31,16 +39,16 @@ class _Job(QObject):
         return self._cancelled
 
     def _report(self, step) -> None:
-        self.progress.emit(step)
+        self.progress.emit(self.session, step)
 
 
 class AnalysisJob(_Job):
     """Read the chosen files and say what they are. Nothing is written."""
 
-    finished = Signal(object)  # list[BookItem]
+    finished = Signal(str, object)  # session, list[BookItem]
 
-    def __init__(self, backend, paths) -> None:
-        super().__init__()
+    def __init__(self, backend, paths, session: str = "") -> None:
+        super().__init__(session)
         self._backend = backend
         self._paths = list(paths)
 
@@ -52,19 +60,21 @@ class AnalysisJob(_Job):
         except Exception as exc:  # noqa: BLE001 — a broken analysis is a message
             # The alternative is a dead thread and a window that never leaves
             # the progress screen.
-            self.failed.emit(f"{type(exc).__name__}: {exc}")
+            self.failed.emit(self.session, f"{type(exc).__name__}: {exc}")
             return
-        self.finished.emit(books)
+        self.finished.emit(self.session, books)
 
 
 class RebuildJob(_Job):
     """Rebuild the chosen books, reporting each one as it lands."""
 
-    book_finished = Signal(int, object)  # index, BookItem
-    finished = Signal(object)  # BatchOutcome
+    book_finished = Signal(str, int, object)  # session, index, BookItem
+    finished = Signal(str, object)  # session, BatchOutcome
 
     def __init__(self, backend, plan, books, resolver=None) -> None:
-        super().__init__()
+        # The plan already says whose it is, and the outcome carries it back:
+        # one token from the page's request to the engine's answer.
+        super().__init__(getattr(plan, "session_id", ""))
         self._backend = backend
         self._plan = plan
         # A copy: the page keeps drawing its own list while this one is worked
@@ -80,13 +90,15 @@ class RebuildJob(_Job):
                 self._books,
                 progress=self._report,
                 cancelled=lambda: self._cancelled,
-                book_done=lambda index, book: self.book_finished.emit(index, copy.deepcopy(book)),
+                book_done=lambda index, book: self.book_finished.emit(
+                    self.session, index, copy.deepcopy(book)
+                ),
                 resolver=self._resolver,
             )
         except Exception as exc:  # noqa: BLE001 — surfaced in the window
-            self.failed.emit(f"{type(exc).__name__}: {exc}")
+            self.failed.emit(self.session, f"{type(exc).__name__}: {exc}")
             return
-        self.finished.emit(outcome)
+        self.finished.emit(self.session, outcome)
 
 
 class ToolJob(_Job):
@@ -97,26 +109,26 @@ class ToolJob(_Job):
     the way. Both windows run the same functions; only this side differs.
     """
 
-    finished = Signal(object)  # ToolAnswer
+    finished = Signal(str, object)  # session, ToolAnswer
 
-    def __init__(self, work) -> None:
-        super().__init__()
+    def __init__(self, work, session: str = "") -> None:
+        super().__init__(session)
         self._work = work
 
     def run(self) -> None:
         from .models import Progress
 
         def tick(done: int, total: int, name: str) -> None:
-            self.progress.emit(Progress(done, total, name, "tool"))
+            self.progress.emit(self.session, Progress(done, total, name, "tool"))
 
         try:
             answer = self._work(tick)
         except Exception as exc:  # noqa: BLE001 — a tool that fails says so
             # These read whole shelves of somebody else's books. A broken one is
             # a message in the result area, not a window that closes.
-            self.failed.emit(f"{type(exc).__name__}: {exc}")
+            self.failed.emit(self.session, f"{type(exc).__name__}: {exc}")
             return
-        self.finished.emit(answer)
+        self.finished.emit(self.session, answer)
 
 
 class Runner(QObject):
@@ -192,6 +204,15 @@ class Runner(QObject):
         thread = QThread()
         job.moveToThread(thread)
         thread.started.connect(job.run)
+        # Qt's own idiom, and the reason it is Qt's own idiom: `deleteLater`
+        # posts a deferred-delete event **to the object's thread**, and this
+        # object lives on `thread`. Connected here, the call happens while that
+        # thread is still winding down and Qt delivers the event as part of its
+        # teardown. Called later from the window's thread — which is what
+        # `_thread_ended` used to do — the event is posted to a thread whose
+        # loop has already ended, and nothing ever delivers it: the job simply
+        # stayed alive (F10).
+        thread.finished.connect(job.deleteLater)
         thread.finished.connect(self._thread_ended, Qt.QueuedConnection)
         for signal in (getattr(job, "finished", None), getattr(job, "failed", None)):
             if signal is not None:
@@ -215,13 +236,14 @@ class Runner(QObject):
             self.thread.quit()
 
     def _thread_ended(self) -> None:
-        """The thread really has stopped. Now everything can go."""
-        thread, job = self.thread, self.job
+        """The thread really has stopped. Now everything can go.
+
+        The job is already gone by here — `thread.finished` deleted it on its
+        own thread, where a deferred delete can still be delivered. This drops
+        the runner's references and the thread, which lives on this one.
+        """
+        thread = self.thread
         self.thread = self.job = None
-        # The job first: it lives on the thread, and deleting a thread that
-        # still owns a live object is the crash this order avoids.
-        if job is not None:
-            job.deleteLater()
         if thread is not None:
             thread.deleteLater()
         done, self._on_done = self._on_done, None

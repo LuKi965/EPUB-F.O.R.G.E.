@@ -78,6 +78,43 @@ STATUS_LOOK = {
 }
 
 
+class Operation(Enum):
+    """What kind of job a result belongs to.
+
+    One of the four axes the handoff of 2026-09-09 asks not to be folded into a
+    single `DONE`: *what was asked for* is not *how it went*. A trial run and a
+    rebuild can both finish, and only one of them writes a book.
+    """
+
+    EPUB_REBUILD = "epub_rebuild"
+    EPUB_DRY_RUN = "epub_dry_run"
+    PDF_CONVERSION = "pdf_conversion"
+
+    @property
+    def is_a_trial(self) -> bool:
+        """Whether this kind of job publishes nothing by design."""
+        return self is Operation.EPUB_DRY_RUN
+
+    @property
+    def is_a_conversion(self) -> bool:
+        return self is Operation.PDF_CONVERSION
+
+
+class Severity(Enum):
+    """How clean a finished book is — the axis `DONE` used to swallow.
+
+    A book that was published and warned is not a failure and must not look
+    like a result with nothing to read: `_absorb` counted the warnings and then
+    raised attention only on an error, so the row said done and the count said
+    two (F03 of the handoff, reproduced on the engine in
+    `tests/test_shell_real_backend.py`).
+    """
+
+    CLEAN = "clean"
+    WARNING = "warning"
+    ERROR = "error"
+
+
 @dataclass
 class ChangeCategory:
     """One plain-language group of what a rebuild did to a book."""
@@ -113,6 +150,34 @@ class BookItem:
     #: True while the person keeps it in the batch. Unticking a row removes it
     #: from the run without removing it from the list.
     chosen: bool = True
+    #: How clean the finished book is, kept apart from whether it was written.
+    severity: Severity = Severity.CLEAN
+    #: Every file this book actually published. Usually one, and then it is
+    #: `output` again; a book with more than one rendition publishes one file
+    #: per rendition and the adapter used to keep only the first (F06/R03).
+    published_outputs: tuple[Path, ...] = ()
+
+    @property
+    def publications(self) -> "tuple[Path, ...]":
+        """The files this book left behind, whichever way it was filled in.
+
+        `output` is the one a row shows and the one older code sets; the tuple
+        is the whole truth. Reading them through one property means a caller
+        cannot accidentally ask the poorer question.
+        """
+        if self.published_outputs:
+            return self.published_outputs
+        return (self.output,) if self.output is not None else ()
+
+    @property
+    def published(self) -> bool:
+        """Whether a file of this book now exists somewhere a person can open.
+
+        Not the same question as "did the run finish": a trial run finishes and
+        publishes nothing, and a temporary file thrown away at the end of it is
+        not a publication.
+        """
+        return bool(self.publications)
 
     @property
     def rebuildable(self) -> bool:
@@ -150,6 +215,12 @@ class RebuildPlan:
     #: Whether questions may interrupt. A batch nobody is sitting in front of
     #: answers nothing and changes nothing it cannot justify.
     ask: bool = True
+    #: Which session asked. It travels to the outcome and back, so a job that
+    #: finishes after the person has started a second one can be recognised as
+    #: belonging to the first and dropped instead of overwriting the new list
+    #: (F05). Empty means "nobody is keeping sessions", which is every caller
+    #: outside the window.
+    session_id: str = ""
 
     @property
     def changed_count(self) -> int:
@@ -178,10 +249,33 @@ class BatchOutcome:
     books: tuple[BookItem, ...] = ()
     cancelled: bool = False
     destination: Path | None = None
+    #: What was asked for. Without it a trial run and a rebuild are told apart
+    #: by whether a path happens to be set, which is how a dry run came to be
+    #: counted as "written" (F04).
+    operation: Operation = Operation.EPUB_REBUILD
+    #: The session this outcome belongs to. A job that finishes after the
+    #: person has started another one must not write into the new session's
+    #: list (F05); the page compares this with its own.
+    session_id: str = ""
+
+    @property
+    def published(self) -> int:
+        """How many books actually left a file behind. **Publications, not
+        statuses** — the number the summary is allowed to say out loud."""
+        return sum(1 for book in self.books if book.published)
+
+    @property
+    def published_outputs(self) -> "tuple[Path, ...]":
+        """Every file this batch published, in the order the books ran. One
+        book may publish several (many renditions), and a folder is not a
+        substitute for the list (F06)."""
+        return tuple(path for book in self.books for path in book.publications)
 
     @property
     def written(self) -> int:
-        return sum(1 for book in self.books if book.status.wrote_a_file)
+        """Kept for the pages that still ask this way; it now means the same
+        thing as `published` rather than "a status that would have written"."""
+        return self.published
 
     @property
     def attention(self) -> int:
@@ -213,10 +307,8 @@ class BatchOutcome:
         folders and none of them is "the destination".
         """
         seen: list[str] = []
-        for book in self.books:
-            if book.output is None:
-                continue
-            place = str(Path(book.output).parent)
+        for path in self.published_outputs:
+            place = str(Path(path).parent)
             if place not in seen:
                 seen.append(place)
         return tuple(seen)
@@ -236,6 +328,10 @@ class JobRecord:
     attention: int
     failed: int
     preset: str
+    #: Which kind of job this was, as `Operation`'s own value. A record written
+    #: before there was more than one kind carries "", and is shown as an older
+    #: job rather than guessed at from its titles.
+    operation: str = ""
     destination: str = ""
     #: Every folder the run actually wrote into. A batch left to write beside
     #: its sources lands in as many folders as the books came from, and the old
@@ -258,6 +354,19 @@ class JobRecord:
         return tuple(seen)
 
     @property
+    def kind_key(self) -> str:
+        """The string key naming this job's kind, for the line history shows.
+
+        A record from before there were several kinds says nothing about which
+        it was, and it is shown as an older job — never guessed at from its
+        titles, which is how a book called *Skan.pdf* would be filed as a
+        conversion it never was.
+        """
+        known = {operation.value for operation in Operation}
+        return f"shell.history.kind.{self.operation}" if self.operation in known \
+            else "shell.history.kind.older"
+
+    @property
     def status(self) -> BookStatus:
         if self.cancelled:
             return BookStatus.CANCELLED
@@ -275,6 +384,7 @@ class JobRecord:
             "attention": self.attention,
             "failed": self.failed,
             "preset": self.preset,
+            "operation": self.operation,
             "destination": self.destination,
             "destinations": list(self.destinations),
             "titles": list(self.titles),
@@ -290,6 +400,7 @@ class JobRecord:
             attention=int(data.get("attention", 0)),
             failed=int(data.get("failed", 0)),
             preset=str(data.get("preset", "")),
+            operation=str(data.get("operation", "")),
             destination=str(data.get("destination", "")),
             destinations=tuple(str(place) for place in data.get("destinations", ())),
             titles=tuple(str(title) for title in data.get("titles", ())),

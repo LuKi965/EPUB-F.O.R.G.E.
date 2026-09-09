@@ -1197,6 +1197,18 @@ PL: dict[str, str] = {
     "shell.run.plan": "Pokaż plan bez zapisu",
     "shell.run.plan.tip": "Przechodzi cały przebieg i pokazuje, co zostałoby zrobione, nie zapisując żadnego pliku.",
     "shell.time.note": "Czas zależy od wielkości książek.",
+    "shell.busy.title": "Trwa inne zadanie",
+    "shell.busy.body": (
+        "Dodano {count} {count:plik|pliki|plików}, ale bieżące zadanie jeszcze się nie skończyło."
+    ),
+    "shell.busy.hint": (
+        "Nic nie zostanie skasowane. Nowe pliki mogą poczekać albo możesz najpierw "
+        "zatrzymać to, co trwa."
+    ),
+    "shell.busy.wait": "Poczekaj na koniec",
+    "shell.busy.stop": "Zatrzymaj bieżące i zacznij te",
+    "shell.busy.forget": "Pomiń nowe pliki",
+
     "shell.nothing.title": "Nie wybrano żadnej książki",
     "shell.nothing.body": "Zaznacz przynajmniej jedną pozycję albo dodaj pliki.",
     "shell.overwrite.title": "To nadpisałoby oryginał",
@@ -1213,7 +1225,12 @@ PL: dict[str, str] = {
     "shell.results.banner.failed.body": "Udane przebudowy zostają; przy nieudanych napisano powód.",
     "shell.results.banner.cancelled": "Przebudowa przerwana",
     "shell.results.banner.cancelled.body": "To, co zdążyło powstać, zostało zapisane. Reszta nie została ruszona.",
-    "shell.results.metric.done": "Gotowe",
+    "shell.results.banner.dry": "Próba zakończona",
+    "shell.results.banner.dry.body": (
+        "Nie zapisano plików wynikowych. Poniżej widać, co przebudowa by zmieniła."
+    ),
+    "shell.results.metric.done": "Zapisane książki",
+    "shell.results.metric.files": "Pliki wynikowe",
     "shell.results.metric.fixed": "Naprawione problemy",
     "shell.results.metric.attention": "Wymagają uwagi",
     "shell.results.metric.failed": "Niepowodzenia",
@@ -1230,13 +1247,16 @@ PL: dict[str, str] = {
     "shell.results.next": "Co dalej?",
     "shell.results.next.body": "Wybierz następną czynność.",
     "shell.results.open.folder": "Otwórz folder z plikami",
+    "shell.results.open.many": "Otwórz jedną z {count} lokalizacji",
     "shell.results.save": "Zapisz raport",
     "shell.results.save.batch": "Zapisz raport zbiorczy",
     "shell.results.again": "Przebuduj kolejne",
     "shell.results.files": "Pliki wynikowe",
-    "shell.results.files.at": "Zapisano w lokalizacji:",
+    "shell.results.files.at": "Zapisano w lokalizacjach:",
+    "shell.results.files.more": "…i jeszcze {count} {count:plik|pliki|plików}",
     "shell.results.extension": "Utworzone pliki mają końcówkę .forged.epub. Twoje oryginalne pliki nie zostały nadpisane.",
     "shell.results.none": "Nie zapisano żadnego pliku.",
+    "shell.results.dry": "To była próba — nie zapisano żadnego pliku wynikowego.",
 
     "shell.changes.navigation": "Nawigacja i spis treści",
     "shell.changes.style": "Style i typografia",
@@ -1308,6 +1328,10 @@ PL: dict[str, str] = {
     "shell.history.subtitle": "Wróć do wyników, raportów i folderów docelowych.",
     "shell.history.empty": "Historia jest pusta. Pierwsze zakończone zadanie pojawi się tutaj.",
     "shell.history.entry": "{count} {count:książka|książki|książek} · {preset}",
+    "shell.history.kind.epub_rebuild": "Przebudowa EPUB",
+    "shell.history.kind.epub_dry_run": "Próba przebudowy",
+    "shell.history.kind.pdf_conversion": "PDF → EPUB",
+    "shell.history.kind.older": "Starsze zadanie",
     "shell.history.open.many": "{count} lokalizacji",
     "shell.history.open": "Otwórz folder",
     "shell.history.forget": "Wyczyść historię",
@@ -2501,6 +2525,18 @@ EN: dict[str, str] = {
     "shell.run.plan": "Show the plan without writing",
     "shell.run.plan.tip": "Runs the whole pipeline and reports what would happen, writing no file.",
     "shell.time.note": "How long it takes depends on the size of the books.",
+    "shell.busy.title": "Another job is running",
+    "shell.busy.body": (
+        "{count} file(s) arrived, but the current job has not finished yet."
+    ),
+    "shell.busy.hint": (
+        "Nothing will be discarded. The new files can wait, or you can stop what "
+        "is running first."
+    ),
+    "shell.busy.wait": "Wait for it to finish",
+    "shell.busy.stop": "Stop the current job and start these",
+    "shell.busy.forget": "Skip the new files",
+
     "shell.nothing.title": "No book selected",
     "shell.nothing.body": "Tick at least one item, or add files.",
     "shell.overwrite.title": "That would overwrite the original",
@@ -2517,7 +2553,12 @@ EN: dict[str, str] = {
     "shell.results.banner.failed.body": "Successful rebuilds stand; the failures say why.",
     "shell.results.banner.cancelled": "Rebuild cancelled",
     "shell.results.banner.cancelled.body": "What was finished has been written. The rest was not touched.",
-    "shell.results.metric.done": "Written",
+    "shell.results.banner.dry": "Trial run finished",
+    "shell.results.banner.dry.body": (
+        "No output files were written. Below is what a rebuild would change."
+    ),
+    "shell.results.metric.done": "Books written",
+    "shell.results.metric.files": "Output files",
     "shell.results.metric.fixed": "Problems repaired",
     "shell.results.metric.attention": "Need a look",
     "shell.results.metric.failed": "Failures",
@@ -2534,13 +2575,16 @@ EN: dict[str, str] = {
     "shell.results.next": "What next?",
     "shell.results.next.body": "Choose what to do now.",
     "shell.results.open.folder": "Open the output folder",
+    "shell.results.open.many": "Open one of {count} locations",
     "shell.results.save": "Save the report",
     "shell.results.save.batch": "Save a batch report",
     "shell.results.again": "Rebuild more",
     "shell.results.files": "Output files",
     "shell.results.files.at": "Written to:",
+    "shell.results.files.more": "…and {count} more file(s)",
     "shell.results.extension": "New files carry the .forged.epub suffix. Your originals were not overwritten.",
     "shell.results.none": "No file was written.",
+    "shell.results.dry": "This was a trial — no output file was written.",
 
     "shell.changes.navigation": "Navigation and contents",
     "shell.changes.style": "Styles and typography",
@@ -2612,6 +2656,10 @@ EN: dict[str, str] = {
     "shell.history.subtitle": "Go back to results, reports and destination folders.",
     "shell.history.empty": "History is empty. Your first finished job will appear here.",
     "shell.history.entry": "{count} book(s) · {preset}",
+    "shell.history.kind.epub_rebuild": "EPUB rebuild",
+    "shell.history.kind.epub_dry_run": "Rebuild trial",
+    "shell.history.kind.pdf_conversion": "PDF → EPUB",
+    "shell.history.kind.older": "Older job",
     "shell.history.open.many": "{count} locations",
     "shell.history.open": "Open folder",
     "shell.history.forget": "Clear history",

@@ -41,6 +41,7 @@ class HistoryRow(QFrame):
         names.addWidget(Eliding(title, "cardTitle"))
         names.addWidget(
             Eliding(
+                f"{tr(record.kind_key)}  ·  "
                 f"{tr('shell.history.entry', count=record.count, preset=record.preset)}"
                 f"  ·  {record.when}",
                 "muted",

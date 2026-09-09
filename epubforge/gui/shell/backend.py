@@ -25,9 +25,11 @@ from .models import (
     BookItem,
     BookStatus,
     ChangeCategory,
+    Operation,
     Preset,
     Progress,
     RebuildPlan,
+    Severity,
 )
 from .options import OPTIONS
 
@@ -361,6 +363,8 @@ class EngineBackend:
             books=tuple(chosen),
             cancelled=stopped or bool(cancelled is not None and cancelled()),
             destination=plan.destination,
+            operation=Operation.EPUB_DRY_RUN if plan_only else Operation.EPUB_REBUILD,
+            session_id=plan.session_id,
         )
 
     def _target_for(self, book: BookItem, run: "_Run") -> "str | None":
@@ -420,7 +424,7 @@ class EngineBackend:
                         ),
                     },
                 )
-            self._absorb(book, result, plan_only=run.plan_only)
+            self._absorb(book, produced, plan_only=run.plan_only)
         except Exception as exc:  # noqa: BLE001 — surfaced in the window
             report = Report(source=str(book.source), output=destination)
             report.add(
@@ -435,28 +439,51 @@ class EngineBackend:
     def destination_for(source: pathlib.Path, folder: "pathlib.Path | None", kepub: bool) -> str:
         return destination_for(source, folder, kepub)
 
-    def _absorb(self, book: BookItem, result, *, plan_only: bool) -> None:
-        """Turn one `Result` into the row a person reads."""
+    def _absorb(self, book: BookItem, produced, *, plan_only: bool) -> None:
+        """Turn what the pipeline made into the row a person reads.
+
+        Four questions, not one (02-UI-DESIGN §3): did the run finish, was a
+        file published, how clean is it, and — on the batch — what was asked
+        for. They used to be folded into `DONE`, which is how a book with two
+        warnings came out looking like a book with none (F03) and a trial run
+        came out counted as a publication (F04).
+
+        `produced` is the whole list because a book with several renditions
+        publishes one file each, and keeping `produced[0]` alone hid the rest
+        (F06/R03).
+        """
         from ...pipeline import Status
         from ...report import Level
 
+        results = list(produced)
+        result = results[0]
         report = result.report
         self._reports[str(book.source)] = report
         status = getattr(result, "status", None)
         book.fixed = report.count(Level.FIX)
         book.kept = report.count(Level.PRESERVED)
-        book.issues = report.count(Level.ERROR) + report.count(Level.WARN)
+        errors, warnings = report.count(Level.ERROR), report.count(Level.WARN)
+        book.issues = errors + warnings
+        book.severity = (
+            Severity.ERROR if errors else Severity.WARNING if warnings else Severity.CLEAN
+        )
         book.report_text = report.to_text(self.language)
         book.categories = self._categories(report)
         if status is not None and not status.wrote_a_file:
             book.status = BookStatus.BLOCKED if status is Status.BLOCKED else BookStatus.FAILED
             book.error = self._first_problem(report)
             book.output = None
+            book.published_outputs = ()
             return
-        book.output = None if plan_only else (
-            pathlib.Path(result.output_path) if result.output_path else None
+        # A trial writes into a directory that is deleted when the run ends.
+        # Those bytes are not a publication and may not be offered as one.
+        book.published_outputs = () if plan_only else tuple(
+            pathlib.Path(one.output_path) for one in results if one.output_path
         )
-        book.status = BookStatus.ATTENTION if report.count(Level.ERROR) else BookStatus.DONE
+        book.output = book.published_outputs[0] if book.published_outputs else None
+        book.status = (
+            BookStatus.ATTENTION if book.severity is not Severity.CLEAN else BookStatus.DONE
+        )
         if book.status is BookStatus.ATTENTION:
             book.error = self._first_problem(report)
 
@@ -603,22 +630,30 @@ class DemoBackend:
             if cancelled is not None and cancelled():
                 for rest in chosen[index:]:
                     rest.status = BookStatus.CANCELLED
-                return BatchOutcome(tuple(chosen), cancelled=True, destination=plan.destination)
+                return BatchOutcome(tuple(chosen), cancelled=True,
+                                    destination=plan.destination,
+                                    session_id=plan.session_id)
             if progress is not None:
                 progress(Progress(index, len(chosen), book.title, "rebuild"))
             book.fixed = 4 + index * 3
             book.kept = index
             book.issues = 2 if index == 1 else 0
+            book.severity = Severity.WARNING if book.issues else Severity.CLEAN
             book.status = BookStatus.ATTENTION if book.issues else BookStatus.DONE
             folder = plan.destination or book.source.parent
-            book.output = pathlib.Path(folder) / f"{book.source.stem}.forged.epub"
+            # Both fields, and by the same rule the engine uses: the demo and
+            # the engine disagreeing about what a result means is how F03 came
+            # to be tested green on one and broken on the other.
+            book.published_outputs = (pathlib.Path(folder) / f"{book.source.stem}.forged.epub",)
+            book.output = book.published_outputs[0]
             book.report_text = f"{book.title}\n{'-' * len(book.title)}\n(demo)"
             book.categories = (
                 ChangeCategory("book", tr("shell.changes.navigation"), (tr("shell.changes.none"),)),
             )
             if book_done is not None:
                 book_done(index, book)
-        return BatchOutcome(tuple(chosen), destination=plan.destination)
+        return BatchOutcome(tuple(chosen), destination=plan.destination,
+                            session_id=plan.session_id)
 
     @staticmethod
     def destination_for(source: pathlib.Path, folder: "pathlib.Path | None", kepub: bool) -> str:

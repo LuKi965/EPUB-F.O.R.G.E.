@@ -215,6 +215,9 @@ class MainWindow(QMainWindow):
             self.tools.show_index()
         self.router.setCurrentWidget(page)
         self.sidebar.set_active(route)
+        # Which report Ctrl+S means depends on where the person is, and this is
+        # the moment that changes.
+        self._refresh_shortcuts()
 
     def _open_tool(self, name: str) -> None:
         self.navigate("tools")
@@ -269,6 +272,7 @@ class MainWindow(QMainWindow):
             attention=outcome.attention,
             failed=outcome.failed,
             preset=tr(f"shell.preset.{self.rebuild.preset.name.lower()}"),
+            operation=outcome.operation.value,
             destination=folders[0] if folders else "",
             destinations=folders,
             titles=tuple(book.title for book in outcome.books[:3]),
@@ -313,8 +317,8 @@ class MainWindow(QMainWindow):
         self.actions_by_key = {}
         for key, text, slot in (
             ("open", tr("toolbar.add"), self._open_files),
-            ("save", tr("action.save"), lambda: self.rebuild.save_report()),
-            ("save-batch", tr("action.save.batch"), lambda: self.rebuild.save_batch_report()),
+            ("save", tr("action.save"), lambda: self._export("save_report")),
+            ("save-batch", tr("action.save.batch"), lambda: self._export("save_batch_report")),
             ("merge", tr("menu.merge"), self._merge_copies),
             ("settings", tr("shell.nav.settings"), lambda: self.navigate("settings")),
             ("quit", tr("menu.quit"), self.close),
@@ -328,21 +332,37 @@ class MainWindow(QMainWindow):
             action.triggered.connect(slot)
             self.addAction(action)
             self.actions_by_key[key] = action
-        self._stage_changed(self.rebuild.stage)
+        self._refresh_shortcuts()
 
-    def _stage_changed(self, stage) -> None:
-        """Saving a report means nothing until there is a report.
+    def _reporting_page(self):
+        """The page whose report the save shortcuts mean, or `None`.
 
-        The acceptance list asks for the two save shortcuts to be inactive
-        outside the results, and this is the whole of it: the flow says where
-        it stands, and the keys follow.
+        *The* report is the report of the module being looked at. Bound to the
+        rebuild flow alone, Ctrl+S stayed live after walking from the results
+        into Settings or Tools and exported a report that was no longer on the
+        screen (F09) — and with a second module having results of its own, it
+        would have exported the other one's.
         """
-        from .models import Stage
+        page = self.router.currentWidget()
+        asked = getattr(page, "can_export_report", None)
+        return page if callable(asked) and asked() else None
 
+    def _export(self, what: str) -> None:
+        page = self._reporting_page()
+        if page is not None:
+            getattr(page, what)()
+
+    def _refresh_shortcuts(self) -> None:
+        """Recompute what the keyboard offers for the page now showing."""
+        page = self._reporting_page()
         for key in ("save", "save-batch"):
             action = self.actions_by_key.get(key)
             if action is not None:
-                action.setEnabled(stage is Stage.RESULTS)
+                action.setEnabled(page is not None)
+
+    def _stage_changed(self, _stage) -> None:
+        """The flow moved. What the keyboard offers may have moved with it."""
+        self._refresh_shortcuts()
 
     def _open_files(self) -> None:
         self.navigate("rebuild")

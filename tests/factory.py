@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import zipfile
 
 from PIL import Image
@@ -34,6 +35,10 @@ def bmp_bytes(size=(40, 40), color=(200, 120, 10)) -> bytes:
 
 
 def write_zip(path: str, entries: dict[str, bytes], *, mimetype: bool = True) -> str:
+    # A test that wants two books in two folders should say so by naming them,
+    # not by making the folders first: every factory here goes through this one
+    # function, so this is the only place that has to know.
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         if mimetype:
             info = zipfile.ZipInfo("mimetype")
