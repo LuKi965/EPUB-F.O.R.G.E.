@@ -13,6 +13,54 @@ from ..references import Answers, Decision, Resolver, Unresolved
 from ..report import Action, Automation, Level, Report, Risk
 
 
+#: Where a pass that takes text out writes down *what* it took, per document.
+#: `pdfconv.gate` spends it; the name lives here because this is where it is
+#: earned. A list of `{"rule", "document", "text"}`.
+REMOVAL_LEDGER = "text_removed"
+
+
+def _account_for_what_left(ctx, path: str, rule: str, before: bytes, after: bytes) -> None:
+    """Enter the characters this change took out of this document.
+
+    Q08 of the quality roadmap (2026-09-09): a consented pass used to excuse
+    a loss by its *name*, so an answer about running heads covered a paragraph
+    that went missing somewhere else entirely. The gate now spends a ledger
+    instead, and this is where the ledger is written — for every rule that
+    reports a text change, in one place, because a per-stage description of
+    what a stage removed is a second account of the same event and the two
+    would drift.
+
+    It is **computed, not described**: the difference between the prose the
+    document had and the prose it has, through the same reading and the same
+    fold the gate measures in. A stage cannot overstate what it removed here
+    any more than it can under `text_changed`'s digest.
+    """
+    from collections import Counter
+
+    from .. import fidelity
+    from ..typography import canonical
+    from ..xmlchars import legal
+
+    was, now = fidelity.document_text(before), fidelity.document_text(after)
+    if was is None or now is None:
+        # A document that will not parse has no prose to account with. Said by
+        # omission on purpose: no entry means no excuse, and the gate refuses
+        # a consent it cannot account for.
+        return
+
+    def folded(text: str) -> Counter:
+        return Counter(c for c in canonical(legal(text)) if not c.isspace())
+
+    gone = folded(was) - folded(now)
+    if not gone:
+        return
+    ctx.report.stats.setdefault(REMOVAL_LEDGER, []).append({
+        "rule": rule,
+        "document": path,
+        "text": "".join(character * count for character, count in sorted(gone.items())),
+    })
+
+
 def machinery_nav(book: Book, resource) -> bool:
     """Whether *resource* is the navigation document and nothing more.
 
@@ -349,6 +397,7 @@ class Stage:
             "before": fidelity.prose_digest(before),
             "after": fidelity.prose_digest(after),
         })
+        _account_for_what_left(ctx, path, rule, before, after)
 
     def changed(
         self,

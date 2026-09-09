@@ -179,6 +179,13 @@ class PdfStage(Stage):
                 rejoined += joined
                 orphaned += lost
             resource.data = xhtml.serialize(root)
+            # The heads are gone from this document; say what went, so the
+            # gate can account for this removal instead of reading the rule's
+            # name as a licence for whatever else is missing (Q08). Through
+            # the same call every other text-changing pass uses, so there is
+            # one account of the event and not two.
+            self.text_changed(ctx, resource.path, "pdf.running-heads-removed",
+                              before=snapshot, after=resource.data)
         if orphaned:
             # Two pages beginning inside one paragraph is the only shape where
             # the anchor cannot travel, and it is said rather than swallowed:

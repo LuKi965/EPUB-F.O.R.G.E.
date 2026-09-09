@@ -968,8 +968,15 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
         if check.ok:
             return ""
         if importer is not None:
-            # An imported source has no documents to pair the output's with, so
-            # the consent here is still by rule name over the whole report.
+            # An imported source has no documents to pair the output's with,
+            # so this cannot go through `_paired_divergences`. It used to go
+            # by rule *name* over the whole report instead, which is the same
+            # defect the note beside `REMOVES_TEXT_ON_PURPOSE` records for the
+            # core and Q08 of the quality roadmap records for the converter: a
+            # consented pass that removed one thing excusing the loss of
+            # another. The importer accounts for it or the book is refused —
+            # and an importer with nothing to account with refuses, because
+            # absent accounting is not consent.
             consented = sorted(
                 {
                     finding.rule
@@ -977,13 +984,22 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
                     if finding.rule in _removes_text_on_purpose()
                 }
             )
-            if consented:
-                report.add(
-                    "package",
-                    Level.WARN,
-                    "package.text-changed-on-request",
-                    values={"rules": ", ".join(consented), "detail": check.detail},
-                )
+            if (
+                consented
+                and importer.second_opinion is not None
+                and importer.note_second_opinion is not None
+            ):
+                # Accounted against the importer's *character* count, not
+                # against the subsequence check that failed here: this check
+                # knows that the order broke and not which characters are
+                # gone, and a ledger cannot be spent against a verdict. When
+                # the two disagree — order broken, nothing missing — that is a
+                # removal that closed up behind itself, which is what
+                # rejoining a cut paragraph does.
+                second = importer.second_opinion(source, candidate)
+                refusal = importer.note_second_opinion(report, second, consented)
+                if refusal:
+                    return refusal
                 return ""
         else:
             # Text did leave the book. Excused only where somebody asked for it

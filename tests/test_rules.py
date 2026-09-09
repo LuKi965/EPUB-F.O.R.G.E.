@@ -176,7 +176,14 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: went when the behaviour it described stopped being possible. A number that
 #: could only ever rise would make deleting a dead rule look like a regression,
 #: which is how dead rules survive.
-TEMPLATED_TODAY = 318
+#: 319 since `package.pdf-characters-lost-beyond-consent`: the refusal a PDF
+#: conversion gets when the passes somebody consented to do not account for
+#: everything the book is missing (Q08 of the quality roadmap, 2026-09-09).
+#: A rule of its own rather than a longer `detail` on the existing refusal,
+#: because the two are different answers — "nobody asked for this loss" and
+#: "somebody asked for a different one" — and a person reading the report has
+#: a different next step for each.
+TEMPLATED_TODAY = 319
 
 
 class TestTheTranslationCannotStall:
