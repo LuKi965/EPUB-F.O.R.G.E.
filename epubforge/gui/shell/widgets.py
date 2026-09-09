@@ -8,7 +8,7 @@ colour alone and because that is simply true for the person reading it.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -26,7 +26,7 @@ from ..strings import tr
 from . import icons
 from .models import STATUS_LOOK, BookItem, BookStatus, Preset, Stage
 from .responsive import LayoutMode
-from .tokens import (CONTENT_MARGIN, SCROLL_BAR_WIDTH, SIDEBAR_COMPACT_WIDTH,
+from .tokens import (CONTENT_MARGIN, SIDEBAR_COMPACT_WIDTH,
                      SIDEBAR_WIDTH,
                      Tokens)
 
@@ -237,16 +237,6 @@ class BoundedList(QScrollArea):
         if not rows:
             self._tallest = 0
             return
-        # How narrow this list may be made, said out loud. A row is a cover, a
-        # sentence that elides, a badge and a button; only the sentence gives
-        # way, so below the width of the rest the row cannot be drawn and the
-        # list has to scroll sideways — which this shell refuses to do. A
-        # scroll area's own minimum is nearly nothing, so without this the
-        # composition beside it takes what it likes and the list is starved
-        # (0.4.4, build 70: 290 px for rows that needed 405). Measured, not
-        # written: the badge is as wide as its words in the font in use.
-        self.setMinimumWidth(max(row.minimumSizeHint().width() for row in rows)
-                             + SCROLL_BAR_WIDTH)
         one = max(row.sizeHint().height() for row in rows)
         spacing = self.rows.spacing()
         self._tallest = self.ROWS * one + (self.ROWS - 1) * spacing
@@ -507,7 +497,28 @@ class StatusBadge(QWidget):
     Sized to its text and no wider: an earlier version let the chip stretch,
     and a warning badge beside a heading ate two thirds of the row, wrapping
     the name of the setting into a column four words deep.
+
+    **No wider, and — since 0.4.4 — narrower when it has to be.** "Must not
+    stretch" was written as `Fixed`, which also means *must not shrink*, and
+    that turned out to be the widest-reaching defect of the release. The badge
+    is as wide as its word in the font in use; on Windows, which draws in Segoe
+    UI, it is wider than on the machine this is written on. A widget that
+    cannot shrink sets the floor of every column it stands in, so one badge in
+    a results row and one in a history row between them starved the converter's
+    list (290 px for rows needing 405) and pushed the start page's aside past
+    what a third of the page can give. Both were failures of the release build,
+    on the same widget, from opposite sides of the interface.
+
+    So the word elides when the room is short, keeping the glyph and the
+    colour, and the whole word stays in the tooltip and the accessible name.
+    All three ways of stating the status survive — that rule is what this class
+    is for — and none of them decides how wide a column must be.
     """
+
+    #: What the chip cannot go below: the glyph, its padding and enough of the
+    #: word to be an ellipsis with a letter or two in front of it. Measured
+    #: from the font rather than written down, in `_shorten`.
+    LEAST_WORD = 3
 
     def __init__(self, text: str, role: str, tokens: Tokens, glyph: str = "check") -> None:
         super().__init__()
@@ -515,17 +526,79 @@ class StatusBadge(QWidget):
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(0)
-        chip = QLabel(f'{icons.rich(glyph, colour, 14)}&nbsp; {text}')
+        self._word = text
+        self._mark = icons.rich(glyph, colour, 14)
+        chip = QLabel(f"{self._mark}&nbsp; {text}")
         chip.setTextFormat(Qt.RichText)
         chip.setStyleSheet(
             f"color:{colour}; background:{_wash(tokens, role)}; border:1px solid {colour};"
             " border-radius:11px; padding:4px 10px; font-weight:650;"
         )
         chip.setAccessibleName(text)
-        chip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        chip.setToolTip(text)
+        # Maximum, not Fixed: the size hint stays the ceiling — the badge never
+        # grows to fill a row, which is the behaviour the paragraph above is
+        # about — while the floor comes from `minimumSizeHint`, which the
+        # eliding below brings down to the glyph and a shortened word.
+        chip.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         row.addWidget(chip)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._chip = chip
+        self._shown = text
+        self._busy = False
+        # What the chip spends on everything but the word — its padding and
+        # border from the stylesheet, and the glyph with the space after it —
+        # taken **now**, from the whole word. Asking again later would ask
+        # about the shortened text and answer a different question every pass.
+        self._spent = max(
+            0, chip.sizeHint().width() - chip.fontMetrics().horizontalAdvance(text)
+        )
+        self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.setAccessibleName(text)
+        self.setToolTip(text)
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt casing
+        """The glyph, the padding and the least of the word it will show."""
+        size = super().minimumSizeHint()
+        metrics = self._chip.fontMetrics()
+        shortest = metrics.horizontalAdvance(self._word[: self.LEAST_WORD] + "…")
+        widest = metrics.horizontalAdvance(self._word)
+        size.setWidth(max(0, size.width() - max(0, widest - shortest)))
+        return size
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().resizeEvent(event)
+        # Out of the resize, not inside it. Changing a child's text while Qt is
+        # in the middle of laying the row out re-enters the layout from inside
+        # itself, and at a display scale of 2 that recursed until the C++ stack
+        # was gone — a segmentation fault with no Python traceback to read.
+        # Deferred to the next turn of the event loop it converges instead:
+        # each pass either settles the text or finds it already right.
+        QTimer.singleShot(0, self._shorten)
+
+    def _shorten(self) -> None:
+        """Fit the word to the room, keeping the glyph and the colour.
+
+        Guarded against itself, and it needed to be: setting the text changes
+        what the chip asks for, which lays the row out again, which resizes
+        this, which shortens the text. The first version of this recursed
+        until the process died — a segmentation fault, not an exception, which
+        is what a blown C++ stack looks like from Python.
+        """
+        if self._busy:
+            return
+        metrics = self._chip.fontMetrics()
+        room = max(0, self.width() - self._spent)
+        shown = metrics.elidedText(self._word, Qt.ElideRight, room) if room else self._word
+        if not shown:
+            shown = self._word[: self.LEAST_WORD] + "…"
+        if shown == self._shown:
+            return
+        self._busy = True
+        try:
+            self._shown = shown
+            self._chip.setText(f"{self._mark}&nbsp; {shown}")
+        finally:
+            self._busy = False
 
 
 def _wash(tokens: Tokens, role: str) -> str:

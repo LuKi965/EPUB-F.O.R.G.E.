@@ -435,9 +435,7 @@ class TestTheConverterIsLaidOutToo:
         finally:
             finish(page)
 
-    def test_the_results_survive_being_narrowed_and_widened_again(
-        self, qt_app, host, wider_face
-    ):
+    def test_the_results_survive_being_narrowed_and_widened_again(self, qt_app, host):
         """Both directions, on one page, because the shape has a memory.
 
         The test above walks the sizes downwards and that is not an accident
@@ -451,6 +449,11 @@ class TestTheConverterIsLaidOutToo:
 
         So: down, then up, then down again, and the layout has to be whole at
         every step — not merely whole the first time it reaches a width.
+
+        At the ordinary font on purpose. A first version ran this under a
+        wider one and failed on the Windows runner — on `Stepper`, which is
+        neither this test's subject nor fixed (EF-101). A direction test that
+        fails for an unrelated reason stops being a direction test.
         """
         page = self._page(qt_app)
         try:
