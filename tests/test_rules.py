@@ -76,7 +76,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 422 on 2026-09-10 with A02: `pdf.text-shown-by-the-picture`. A fixed page
 # stops painting the words a photographed region already shows, and a page
 # that quietly stops drawing part of its text owes the reader a sentence.
-TAGGED_TODAY = 422
+# 423 on 2026-09-10 with A14: `package.document-changed-unrecorded`. A
+# converted document held to its own chain of recorded changes, so a
+# fragment moved between documents cannot hide behind a balanced count.
+TAGGED_TODAY = 423
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -210,7 +213,10 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: 322 → 323 (2026-09-10, A02): `pdf.text-shown-by-the-picture` in both
 #: languages — the duplication control the recovery plan asks for, said in
 #: the report rather than left to somebody comparing two layers by eye.
-TEMPLATED_TODAY = 323
+#:
+#: 323 → 324 (2026-09-10, A14): `package.document-changed-unrecorded` in
+#: both languages — the refusal names the document and the link that broke.
+TEMPLATED_TODAY = 324
 
 
 class TestTheTranslationCannotStall:

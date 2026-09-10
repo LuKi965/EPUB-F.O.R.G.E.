@@ -975,7 +975,7 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
                 if refusal:
                     return refusal
         if check.ok:
-            return ""
+            return _per_document_refusal(candidate, report) if importer is not None else ""
         if importer is not None:
             # An imported source has no documents to pair the output's with,
             # so this cannot go through `_paired_divergences`. It used to go
@@ -1009,7 +1009,7 @@ def _text_gate(source: str, policy: Policy, report: Report, book=None):
                 refusal = importer.note_second_opinion(report, second, consented)
                 if refusal:
                     return refusal
-                return ""
+                return _per_document_refusal(candidate, report)
         else:
             # Text did leave the book. Excused only where somebody asked for it
             # in the very document it left (EF-083): the diverging documents
@@ -1555,6 +1555,7 @@ def _produce_inside_budget(
     book, refused = _read_or_refuse(source, report, budget, read, policy)
     if refused:
         return refused
+    _record_prose_as_read(source, book, report)
 
     # Counted here, before a single stage has touched the book: the balance is
     # between what the *source* had and what is about to be written, and taking
@@ -1597,6 +1598,105 @@ def _produce_inside_budget(
         return refused
 
     return _final_result(destination, ctx, queue, report)
+
+
+#: Where the prose of every document stood the moment the book was read, for
+#: a source that has no documents of its own to pair the output's with.
+PROSE_AS_READ = "prose_as_read"
+
+
+def _record_prose_as_read(source: str, book, report: Report) -> None:
+    """The digest of every document's prose as the reader emitted it (A14).
+
+    An EPUB's K1 pairs each output document with its source document and
+    asks whether the recorded text changes lead from one to the other
+    (EF-083a). A converted source has no such pairing — a PDF is one text
+    layer — and its gate held the book to a *global* count of characters
+    instead. A count says how much left, not where: a paragraph that moved
+    from one document into another, on a run where somebody consented to
+    removing running heads, balanced the count and was published. So for an
+    imported source the emitted documents are the *before*, taken here before
+    a single stage has touched them, and `_changes_nobody_recorded` holds
+    each document to its own chain from this digest to the written file.
+    """
+    if sources.for_source(source) is None:
+        return
+    from . import fidelity
+
+    report.stats[PROSE_AS_READ] = {
+        item.path: fidelity.prose_digest(book.resources[item.path].data)
+        for item in book.spine
+        if item.path in book.resources
+    }
+
+
+def _changes_nobody_recorded(candidate: str, report: Report) -> "list[tuple[str, str]]":
+    """Every emitted document whose prose changed after it was read without a
+    consented pass recording the change — (document, why) — or none.
+
+    The same chain rule as `_consent_by_document`, from the digest taken at
+    the read rather than from a source document: a document that changed
+    with no entry, an entry by a rule nobody consented to, a change between
+    entries, or a change after the last one all break the chain, and a
+    broken chain is refused whatever a global count of characters says.
+    """
+    from . import fidelity
+
+    as_read = report.stats.get(PROSE_AS_READ) or {}
+    if not as_read:
+        return []
+    accounted = _removes_text_on_purpose() | CHANGES_TEXT_SHAPE_ON_PURPOSE
+    recorded = report.stats.get("text_changes") or {}
+    # The structure stage renames documents after the converter's own pass
+    # has recorded its changes under the old name, and later passes record
+    # theirs under the new one — the same ledger the render gate reads.
+    moved = {
+        change.before: change.after
+        for change in report.changes
+        if change.rule == "structure.relaid-out" and change.before and change.after
+    }
+    broken = []
+    with zipfile.ZipFile(candidate) as after:
+        for path, was in sorted(as_read.items()):
+            written = moved.get(path, path)
+            now = _prose_digest_in(after, written, fidelity)
+            chain = list(recorded.get(path) or [])
+            if written != path:
+                chain += recorded.get(written) or []
+            if not chain and was == now:
+                continue
+            why = _chain_breaks(chain, accounted, was, now)
+            if why is not None:
+                broken.append((written, why))
+    return broken
+
+
+def _per_document_refusal(candidate: str, report: Report) -> str:
+    """A14 of the 0.4.4 recovery audit: the last word on an imported book
+    that both global halves of K1 would let through.
+
+    A subsequence and a count of characters are global for a converted
+    source, and neither knows *where* a change happened. A paragraph moved
+    from one document into another balances the count, and on a run with
+    any consented removal the broken order was excused as "a removal that
+    closed up behind itself". Each emitted document is held to its own
+    chain of recorded changes instead, and a document that changed without
+    one is named and refused — whatever the totals say. Asked after the
+    global halves, so a loss they can see keeps the refusal that says what
+    is missing.
+    """
+    unrecorded = _changes_nobody_recorded(candidate, report)
+    if not unrecorded:
+        return ""
+    path, why = unrecorded[0]
+    report.add(
+        "package",
+        Level.ERROR,
+        "package.document-changed-unrecorded",
+        values={"document": path, "why": why, "count": len(unrecorded)},
+        location=path,
+    )
+    return f"K1: {path}: {why}"
 
 
 def _refuse_when_memory_is_short(source, policy, report) -> "Result | None":

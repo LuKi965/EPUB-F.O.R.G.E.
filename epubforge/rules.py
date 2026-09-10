@@ -326,6 +326,7 @@ CATALOGUE: dict[str, str] = {
     "package.text-check-per-rendition": "the container holds more than one publication, so the text invariant was not checked across the whole of it",
     "hyphens.no-dictionary": "no {language} dictionary was available, so hyphens were judged on this book's own vocabulary alone",
     "package.text-changed-on-request": "text left the book because you asked for it ({rules}), so the character-for-character invariant no longer holds",
+    "package.document-changed-unrecorded": "the prose of {document} changed after it was read and no consented pass recorded the change ({why}); {count} document(s) are in that state, so nothing was written",
     "package.text-check-failed": "the text invariant could not be measured on this book, so nothing was written: {detail}",
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
     "xhtml.image-paragraph-kept": "{count} image paragraph(s) were left as the publisher styled them",
@@ -728,6 +729,7 @@ CATALOGUE_PL: dict[str, str] = {
     'package.text-check-per-rendition': 'kontener zawiera więcej niż jedną publikację, więc niezmiennik tekstu nie był sprawdzany na całości',
     'hyphens.no-dictionary': 'nie było słownika {language}, więc łączniki oceniono wyłącznie na podstawie słownictwa tej książki',
     'package.text-changed-on-request': 'tekst ubył z książki, bo o to poprosiłeś ({rules}), więc niezmiennik znak w znak już nie obowiązuje',
+    'package.document-changed-unrecorded': 'tekst dokumentu {document} zmienił się po wczytaniu, a żaden etap ze zgodą tego nie zapisał ({why}); w takim stanie {count:jest|są|jest} {count} {count:dokument|dokumenty|dokumentów}, więc nic nie zostało zapisane',
     'package.text-check-failed': 'nie udało się zmierzyć niezmiennika tekstu na tej książce, więc nic nie zostało zapisane: {detail}',
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
     'xhtml.image-paragraph-kept': '{count} {count:akapit z obrazem zostawiono|akapity z obrazem zostawiono|akapitów z obrazem zostawiono} tak, jak {count:ostylował go|ostylował je|ostylował je} wydawca',
@@ -1004,6 +1006,8 @@ DETAILS: dict[str, str] = {
         "Not a spell check. Each word here fails on both sides — the dictionary does not know it as written and does know it once the letter is put back — and on top of that the book itself writes the correct form elsewhere. A word this book uses often is left alone even when it looks wrong, because a book's own frequent spelling is its vocabulary and not its mistake; that rule is what keeps a character's name out of this list. One book in a hundred and sixty on the shelf this was measured against has such a pattern, so finding one here is unusual rather than routine.",
     "package.text-changed-on-request":
         "K1 is a statement about losses nobody asked for. Removing a watermark and joining a word a conversion cut in half both take characters out, both happen only after you say so, and both are in the change ledger — so they are named here rather than refused. What the gate still refuses is text going missing with nothing accounting for it.",
+    "package.document-changed-unrecorded":
+        "K1 for a converted source, per document. A PDF has no source documents to pair the output's with, so its gate held the book to two global measures — the order of the text and a count of its characters — and neither knows where a change happened: a paragraph moved from one document into another balances the count, and a consented removal elsewhere excused the broken order. Each emitted document is now held to its own chain of recorded changes, from the prose the reader produced to the prose that was about to be written, every link a pass somebody consented to. The link that broke is named. The file was built, checked and refused before it took its name.",
     "package.text-check-failed":
         "The comparison itself raised. Nothing was written: this check is mandatory, and a file produced while nobody knows whether the book is whole would carry the same word — succeeded — as one that was actually measured. The two cases where there is legitimately nothing to compare (several renditions, a PDF source) are recognised by name and are not this.",
     "xhtml.cover-sized-in-pixels":
@@ -1163,6 +1167,8 @@ DETAILS_PL: dict[str, str] = {
         "To nie jest sprawdzanie pisowni. Każde słowo z tej listy przechodzi próbę z dwóch stron — słownik nie zna go tak, jak stoi, i zna po odwróceniu litery — a do tego ta sama książka pisze poprawną formę w innych miejscach. Słowo, którego książka używa często, zostaje nietknięte nawet jeżeli wygląda źle, bo częsta pisownia w książce jest jej słownictwem, a nie jej pomyłką; to właśnie ta zasada trzyma imię bohatera poza listą. Na półce, na której to zmierzono, taki wzorzec ma jedna książka na sto sześćdziesiąt — więc znalezienie go tutaj jest rzadkie, a nie zwyczajne.",
     "package.text-changed-on-request":
         "K1 mówi o stratach, o które nikt nie prosił. Usunięcie znaku wodnego i złączenie słowa przeciętego przez konwersję zabierają znaki, oba dzieją się dopiero za zgodą czytelnika i oba są w rejestrze zmian — więc są tutaj nazwane, a nie odrzucone. Brama nadal odmawia, gdy tekst znika i nic tego nie tłumaczy.",
+    "package.document-changed-unrecorded":
+        "K1 dla źródła konwertowanego, dokument po dokumencie. PDF nie ma dokumentów źródłowych, z którymi dałoby się sparować wynik, więc jego brama trzymała książkę na dwóch miarach globalnych — kolejności tekstu i liczbie znaków — a żadna z nich nie wie, gdzie zaszła zmiana: akapit przeniesiony z jednego dokumentu do drugiego bilansuje rachunek, a zgoda na usunięcie czegoś innego tłumaczyła złamaną kolejność. Każdy wyemitowany dokument jest teraz rozliczany własnym łańcuchem zapisanych zmian: od tekstu, który dał czytnik, do tekstu, który miał zostać zapisany, każde ogniwo za czyjąś zgodą. Nazwane jest ogniwo, które pękło. Plik został zbudowany, sprawdzony i odrzucony, zanim wziął swoją nazwę.",
     "package.text-check-failed":
         "Samo porównanie rzuciło wyjątkiem. Nic nie zostało zapisane: ta kontrola jest obowiązkowa, a plik zrobiony wtedy, gdy nikt nie wie, czy książka jest cała, nosiłby to samo słowo — „udało się” — co plik faktycznie zmierzony. Dwa przypadki, w których naprawdę nie ma czego porównywać (wiele renditions, źródło PDF), są rozpoznawane po nazwie i to nie jest ten przypadek.",
     "xhtml.cover-sized-in-pixels":

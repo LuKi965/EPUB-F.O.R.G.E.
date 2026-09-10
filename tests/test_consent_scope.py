@@ -300,7 +300,7 @@ class TestTheSevenCasesOfConsentScope:
         assert entries[0]["rule"] == "xhtml.watermark-relocated"
         assert entries[0]["text"] == "", entries
 
-    def test_7_an_ordinary_epub_rebuild_is_untouched(self, tmp_path):
+    def test_7_an_ordinary_epub_rebuild_is_untouched_by_the_scope_rule(self, tmp_path):
         """The change is in the importer's path. A book that was never a PDF
         goes through the gate it always did, and still comes out."""
         from tests.factory import make_legacy_epub
@@ -315,3 +315,129 @@ class TestTheSevenCasesOfConsentScope:
         assert result.output_path, result.report.to_text("pl")
         with zipfile.ZipFile(out) as archive:
             assert archive.namelist()
+
+
+#: The chapters of a manual, each on its own page and each named in the
+#: outline, so the reflowable book comes out as one document per chapter —
+#: which is what "the same fragment in two documents" needs (AC09).
+CHAPTERS = ("Zbiornik na wode", "Tacka ociekowa", "Pojemnik na fusy",
+            "Dysze pary", "Panel sterowania", "Odkamienianie")
+
+
+def chaptered(tmp_path: pathlib.Path, name: str = "chapters.pdf") -> pathlib.Path:
+    pages, outline = [], []
+    for number, (chapter, sentence) in enumerate(zip(CHAPTERS, BODY), start=1):
+        pages.append([
+            (72, 760, 10.0, HEAD),
+            (72, 720, 18.0, chapter),
+            (72, 690, 12.0, sentence),
+            (72, 670, 12.0, f"Akapit {number} ciagnie sie dalej w tej samej linii."),
+            (300, 40, 10.0, str(number)),
+        ])
+        outline.append((chapter, number - 1))
+    return make_pdf(tmp_path / name, pages, title="Instrukcja", language="pl", outline=outline)
+
+
+class MovesAParagraph(Stage):
+    """A converter defect, stood in for: a paragraph leaves its document and
+    turns up at the end of the one before it. Nothing is lost — every
+    character is still in the book — and nothing is where it was.
+
+    The shape matters: a *global* count of characters balances, and the
+    subsequence check that notices the broken order is excused, on a run with
+    any consented removal, as "a removal that closed up behind itself".
+    """
+
+    name = "test-moves-a-paragraph"
+    mutates = True
+
+    def __init__(self, marker: str = "Akapit 2") -> None:
+        self.marker = marker
+
+    def run(self, ctx) -> None:
+        docs = list(ctx.book.content_docs())
+        for index, resource in enumerate(docs):
+            root = ctx.take(resource).root
+            for element in list(xhtml.iter_elements(root)):
+                if element.tag.rsplit("}", 1)[-1] != "p":
+                    continue
+                if self.marker in "".join(element.itertext()) and index > 0:
+                    element.getparent().remove(element)
+                    resource.data = xhtml.serialize(root)
+                    previous = docs[index - 1]
+                    home = ctx.take(previous).root
+                    body = next(
+                        node for node in xhtml.iter_elements(home)
+                        if node.tag.rsplit("}", 1)[-1] == "body"
+                    )
+                    body.append(element)
+                    previous.data = xhtml.serialize(home)
+                    return
+
+
+class TestConsentIsPerDocumentAndOccurrenceA14:
+    """A14 of the 0.4.4 recovery audit, AC09: *the same fragment in two
+    places; consent covers the document it was given for, and a change in
+    the other one is detected.* The audit's probe fed `account_for` an entry
+    from one page and a loss described as another and was not refused; that
+    was a fact about one function. These are the whole gate.
+
+    The defect stood in for is a **move**, because a loss the count can see
+    is already refused (case 3 above): a paragraph that changes documents
+    balances every total this gate had, and only a record per document says
+    that neither document is what it was.
+    """
+
+    def test_a_paragraph_moved_between_documents_is_refused_under_a_consent(self, tmp_path):
+        """Heads removed on a standing answer — a consented removal in every
+        document — and a body paragraph moved from chapter 2 into chapter 1.
+        Before the fix this was published with `pdf-characters-changed-on-
+        request`: the count balanced and the consent excused the order."""
+        source = chaptered(tmp_path)
+        out = tmp_path / "out.epub"
+        result, report = convert(source, out, heads="remove", extra=(MovesAParagraph,))
+        assert not result.output_path, "zgoda na naglowki przepuscila akapit przeniesiony do innego dokumentu"
+        assert not out.exists()
+        assert "package.document-changed-unrecorded" in refusals(report)
+        named = next(f for f in report.findings if f.rule == "package.document-changed-unrecorded")
+        assert named.location and named.location.endswith(".xhtml"), "odmowa nie nazywa dokumentu"
+        assert "bez wpisu" in (named.values.get("why") or "")
+
+    def test_the_same_move_with_nothing_consented_is_still_refused(self, tmp_path):
+        """No consent at all. The subsequence half refuses this first — the
+        order broke and nothing excused it — and the per-document check is
+        asked only behind the global halves, so a loss they can see keeps
+        the refusal that says what is missing. The point here is the
+        negative: the fix did not move the bar for a book nobody consented
+        about."""
+        source = chaptered(tmp_path)
+        out = tmp_path / "out.epub"
+        result, report = convert(source, out, heads="keep", extra=(MovesAParagraph,))
+        assert not result.output_path
+        assert {"package.text-lost", "package.document-changed-unrecorded"} & set(refusals(report))
+
+    def test_the_consented_removal_alone_still_publishes_every_chapter(self, tmp_path):
+        """The positive case, so the fix cannot be "refuse every converted
+        book": heads removed in six documents, each with its entry, and the
+        book comes out with all six."""
+        source = chaptered(tmp_path)
+        out = tmp_path / "out.epub"
+        result, report = convert(source, out, heads="remove")
+        assert result.output_path, report.to_text("pl")
+        assert "package.document-changed-unrecorded" not in refusals(report)
+        with zipfile.ZipFile(out) as archive:
+            chapters = [n for n in archive.namelist() if "/text/" in n and n.endswith(".xhtml")]
+        assert len(chapters) == len(CHAPTERS), chapters
+        recorded = report.stats.get("text_changes") or {}
+        assert len(recorded) == len(CHAPTERS), "nie kazdy dokument ma wpis o usunieciu paginy"
+
+    def test_the_record_is_taken_before_any_stage_runs(self, tmp_path):
+        """`prose_as_read` is the *before* every chain starts from. It has
+        to be the reader's output and nothing later — a record taken after
+        the heads were removed would make the removal invisible."""
+        source = chaptered(tmp_path)
+        result, report = convert(source, tmp_path / "out.epub", heads="remove")
+        as_read = report.stats.get(pipeline.PROSE_AS_READ) or {}
+        assert set(as_read) == set(report.stats.get("text_changes") or {})
+        for path, chain in (report.stats.get("text_changes") or {}).items():
+            assert chain[0]["before"] == as_read[path], path

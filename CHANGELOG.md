@@ -60,6 +60,22 @@ czeka. Wiersz książki w oknie pokazuje to samo zdanie, a książka z pytaniem
 bez odpowiedzi ląduje w „wymaga uwagi”, nie w „zapisano” — w obu adapterach.
 Półka liczy takie książki osobno, nie jako zdrowe.
 
+### A14 / W09 — zgoda rozliczana dokument po dokumencie
+
+Brama K1 książki z PDF-a trzymała ją na dwóch miarach globalnych: kolejności
+tekstu i liczbie znaków. Żadna nie wie, *gdzie* zaszła zmiana — akapit
+przeniesiony z rozdziału 2 na koniec rozdziału 1 bilansuje rachunek, a zgoda
+na usunięcie żywej paginy tłumaczyła złamaną kolejność jako „usunięcie, po
+którym tekst się domknął”. Odtworzone testem przez całą bramę publikacji:
+książka wychodziła z `pdf-characters-changed-on-request`. Teraz potok
+zapisuje skrót tekstu każdego dokumentu **w chwili wczytania**
+(`prose_as_read`), a brama rozlicza każdy dokument własnym łańcuchem
+zapisanych zmian — od tego skrótu do pliku, każde ogniwo za czyjąś zgodą
+(ta sama reguła, którą przebudowa EPUB ma od EF-083a). Ogniwo, które
+pękło, jest nazwane razem z dokumentem: `package.document-changed-unrecorded`.
+Pytane dopiero za miarami globalnymi, więc utrata, którą one widzą,
+zachowuje odmowę mówiącą, czego brakuje.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki
