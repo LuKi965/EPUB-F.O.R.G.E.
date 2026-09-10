@@ -26,6 +26,7 @@ import pytest
 
 from epubforge import fidelity, render
 from epubforge.pdfconv import gate as pdfgate
+from epubforge.pdfconv import draw
 from epubforge.pdfconv import reader as pdf
 from epubforge.cli import EXIT_OK, main
 from epubforge.decisions import KEEP, Answer
@@ -1031,6 +1032,179 @@ class TestTheReader:
 # --------------------------------------------------------------------------
 # The stage, through the whole pipeline.
 # --------------------------------------------------------------------------
+
+
+class TestTheFixedPageDrawsEachThingOnceA02:
+    """A02 of the 0.4.4 recovery plan: *fixed dubluje zawartość renderowanych
+    regionów.*
+
+    A drawing that this reader cannot draw is carried as a **photograph of the
+    region it occupies** (Q01), and that photograph contains everything that
+    stood in the region — the callout labels included. The fixed-layout page
+    then prints those same labels again, as positioned text, at the very
+    coordinates the photograph already shows them at. On the owner's manual
+    that is `A1`–`A11` printed twice, one on top of the other.
+
+    The audit is explicit that *„jeżeli drawn, usuń wszystkie napisy"* is not
+    the fix: the text has to stay for search, for selection and for a screen
+    reader. What has to be settled is **which layer is responsible for the
+    visible image** — and for a region that was photographed, it is the
+    photograph. So the words stay exactly where they are, and stop being
+    painted a second time.
+
+    What this asserts is that contract and not a technique: no *visible* text
+    stands inside a region the page also shows a picture of.
+    """
+
+    @staticmethod
+    def _drawn_page(tmp_path):
+        """One page: line art dense enough to be a drawing, with callouts on
+        it, and one line of ordinary prose well below it.
+
+        The prose is the control. It is outside the drawing, so it must stay
+        visible whatever happens to the labels — a fix that hides text by the
+        page rather than by the region would take it too.
+        """
+        strokes = [
+            (150, 560, 450, 560), (150, 560, 150, 700), (450, 560, 450, 700),
+            (150, 700, 450, 700), (150, 630, 450, 630), (300, 560, 300, 700),
+            (300, 700, 300, 730), (300, 730, 290, 720), (300, 730, 310, 720),
+        ]
+        for step in range(24):
+            offset = 150 + step * 12
+            strokes.append((offset, 560, offset, 700))
+            strokes.append((150, 560 + step * 6, 450, 560 + step * 6))
+        lines = [(200.0, 600.0, 9.0, "A1"), (380.0, 660.0, 9.0, "A2")]
+        lines += column(["Prose set well below the drawing, which is not in it."], top=400)
+        return make_pdf(tmp_path / "drawn-fixed.pdf", [lines], strokes={0: strokes})
+
+    @staticmethod
+    def _boxes(markup: str):
+        """`(left, top, text, transparent)` for every positioned line, and the
+        box of every picture — read out of the style attributes, which is the
+        only place a fixed page's geometry exists.
+
+        Parsed rather than matched with a regular expression. The first
+        version of this used one and the page's own wrapper `div` swallowed
+        the first line inside it, so a test about doubled text reported a
+        line missing instead. A tree is what this document is.
+        """
+        import re
+
+        from lxml import etree
+
+        def number(style: str, name: str, fallback: float = 0.0) -> float:
+            found = re.search(rf"{name}: ([\d.]+)px", style)
+            return float(found.group(1)) if found else fallback
+
+        root = etree.fromstring(markup.encode("utf-8"))
+        lines, pictures = [], []
+        for node in root.iter():
+            tag = etree.QName(node).localname
+            classes = node.get("class") or ""
+            style = node.get("style") or ""
+            if pdf.FIXED_LINE_CLASS in classes.split():
+                # Marked by class, not by an inline colour: what the page says
+                # is *which layer shows this line*, and the stylesheet decides
+                # what that looks like. A test that grepped for `transparent`
+                # would be testing the paint rather than the contract.
+                lines.append((number(style, "left"), number(style, "top"),
+                              " ".join("".join(node.itertext()).split()),
+                              pdf.FIXED_UNDER_ART_CLASS in classes.split()))
+            elif tag == "img" and pdf.FIXED_ART_CLASS in classes.split():
+                pictures.append((number(style, "left"), number(style, "top"),
+                                 number(style, "width"), number(style, "height")))
+        return lines, pictures
+
+    def test_no_visible_words_stand_on_a_region_the_page_photographs(self, tmp_path):
+        if not draw.available():
+            pytest.skip(f"brak renderera ({draw.why_not()})")
+        book = fixed(self._drawn_page(tmp_path))
+        markup = "".join(pages_of(book))
+        lines, pictures = self._boxes(markup)
+        assert pictures, "nie narysowano obszaru — ten test nie ma czego sprawdzać"
+
+        doubled = []
+        for left, top, text, invisible in lines:
+            for x, y, width, height in pictures:
+                inside = x <= left <= x + width and y <= top <= y + height
+                if inside and not invisible:
+                    doubled.append((text, (left, top), (x, y, width, height)))
+        assert not doubled, (
+            "widoczny tekst stoi na obszarze, który strona już fotografuje — "
+            f"czytelnik widzi go dwa razy: {doubled}"
+        )
+
+    def test_and_the_words_are_still_there_to_search_and_to_read_aloud(self, tmp_path):
+        """The half that `if drawn: drop the text` would break. Every character
+        the PDF draws is still in the book — that is K1-PDF — and the labels
+        keep their place on the page for a screen reader to find."""
+        if not draw.available():
+            pytest.skip(f"brak renderera ({draw.why_not()})")
+        source = self._drawn_page(tmp_path)
+        book = fixed(source)
+        said = " ".join(fidelity.document_text(book.resources[item.path].data) or ""
+                        for item in book.spine)
+        for label in ("A1", "A2"):
+            assert label in said, f"etykieta {label} zniknęła z tekstu"
+        assert fidelity.first_character_lost(pdf.text_of(str(source)), said) == -1
+
+    def test_the_report_says_the_page_stopped_painting_some_words(self, tmp_path):
+        """A page that quietly stops drawing part of its text is a page whose
+        report is missing a sentence. The count is the duplication control the
+        audit asks for: it is how anybody notices the arrangement at all."""
+        if not draw.available():
+            pytest.skip(f"brak renderera ({draw.why_not()})")
+        report = Report()
+        fixed(self._drawn_page(tmp_path), report)
+        said = [f for f in report.findings if f.rule == "pdf.text-shown-by-the-picture"]
+        assert said, {f.rule for f in report.findings}
+        assert said[0].values["count"] == 2, said[0].values
+
+    def test_a_page_with_nothing_photographed_says_nothing_about_it(self, tmp_path):
+        """The line appears when there is something to say and not otherwise —
+        a report that prints a zero for every arrangement that did not happen
+        is a report nobody finishes reading."""
+        report = Report()
+        fixed(make_pdf(tmp_path / "plain.pdf", [column(THREE_PARAGRAPHS)]), report)
+        assert "pdf.text-shown-by-the-picture" not in {f.rule for f in report.findings}
+
+    def test_prose_outside_the_drawing_stays_visible(self, tmp_path):
+        """The negative case, and the reason this is done by region rather
+        than by page: text the photograph does not show has to go on being
+        shown by the page."""
+        if not draw.available():
+            pytest.skip(f"brak renderera ({draw.why_not()})")
+        book = fixed(self._drawn_page(tmp_path))
+        lines, _ = self._boxes("".join(pages_of(book)))
+        prose = [one for one in lines if "Prose set well below" in one[2]]
+        assert prose, [one[2] for one in lines]
+        assert not prose[0][3], "zwykły tekst poza rysunkiem został ukryty"
+
+    def test_a_picture_the_pdf_carried_itself_keeps_its_words_visible(self, tmp_path):
+        """A photographed region and an embedded image are not the same thing.
+
+        A raster the PDF already contained does **not** have the page's text
+        baked into it — the typesetter drew that text over the image, and the
+        image knows nothing about it. Hiding those words would hide them for
+        good, so the rule is about regions this program photographed and not
+        about pictures in general.
+        """
+        pytest.importorskip("PIL.Image")
+        red = bytes([200, 30, 30]) * (60 * 40)
+        lines = [(120.0, 500.0, 9.0, "B1")]
+        lines += column(["A caption under the photograph."], top=430)
+        source = make_pdf(tmp_path / "embedded.pdf", [lines],
+                          images={0: [(100, 460, 180, 120, 60, 40, red)]})
+        report = Report()
+        book = fixed(source, report)
+        assert "pdf.drawing-carried" not in {f.rule for f in report.findings}, (
+            "ten fixture ma nieść obraz z PDF-a, nie narysowany obszar"
+        )
+        lines, _pictures = self._boxes("".join(pages_of(book)))
+        labels = [one for one in lines if one[2] == "B1"]
+        assert labels, [one[2] for one in lines]
+        assert not labels[0][3], "napis na obrazie z PDF-a został ukryty i przepadł"
 
 
 def book_with_heads(tmp_path: pathlib.Path) -> pathlib.Path:

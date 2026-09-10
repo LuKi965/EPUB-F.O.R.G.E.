@@ -297,6 +297,11 @@ class Layout:
     #: Drawings carried into the book as a rendered picture of their region
     #: (Q01). A page may hold several; this counts the pictures, not the pages.
     drawings_carried: int = 0
+    #: Lines a photographed region already shows, so the page does not paint
+    #: them a second time. They are in the book, in their place and in order —
+    #: found, selected and read aloud like any other — and this is the count
+    #: that keeps that arrangement visible instead of silent (A02).
+    text_under_art: int = 0
     images: int = 0
     images_skipped: int = 0
     running_heads: int = 0
@@ -655,6 +660,14 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             "pdf.drawing-carried",
             values={"count": layout.drawings_carried, "scale": draw.SCALE,
                     "labelled": layout.labelled_drawings},
+            location=source,
+        )
+    if layout.text_under_art:
+        report.add(
+            "pdf",
+            Level.PRESERVED,
+            "pdf.text-shown-by-the-picture",
+            values={"count": layout.text_under_art},
             location=source,
         )
     if layout.drawing_pages and not layout.drawings_carried:
@@ -2616,6 +2629,21 @@ FIXED = "fixed"
 FIXED_PAGE_CLASS = "ef-pdf-page"
 FIXED_LINE_CLASS = "ef-pdf-line"
 FIXED_ART_CLASS = "ef-pdf-art"
+#: A line that stands inside a region the page shows a **photograph** of.
+#:
+#: A drawing this reader cannot draw is carried as a picture of the area it
+#: occupies, and that picture contains every word that stood in the area. The
+#: page used to print those words a second time, at the coordinates the picture
+#: already shows them at — on the owner's manual, `A1`–`A11` printed on top of
+#: themselves (A02 of the 0.4.4 recovery plan).
+#:
+#: So the layers get a contract, which is what the audit asked for rather than
+#: a rule that deletes text: **the photograph is what the reader sees; the text
+#: is what the reader searches.** A line marked with this keeps its place, its
+#: order and its characters — selection, find and a screen reader all still
+#: reach it — and stops being painted over the picture that already shows it.
+#: This is the arrangement a searchable scan of a page has always used.
+FIXED_UNDER_ART_CLASS = "ef-pdf-in-art"
 FIXED_STYLESHEET_PATH = "styles/pdf-fixed.css"
 #: Everything here is either a position the source measured or a rule without
 #: which a position means nothing. There is no design in it, because there is
@@ -2634,7 +2662,14 @@ div.ef-pdf-page { position: relative; overflow: hidden; margin: 0; padding: 0; }
 #: Written only into a book that has a picture in it. A rule no selector in the
 #: book can reach is what the style stage calls an unreachable rule, and it is
 #: right to: this program should not be writing the junk it removes elsewhere.
-FIXED_ART_STYLE = "img.ef-pdf-art { position: absolute; margin: 0; padding: 0; }\n"
+FIXED_ART_STYLE = (
+    "img.ef-pdf-art { position: absolute; margin: 0; padding: 0; }\n"
+    "/* The words the picture above already shows. They are here to be found,\n"
+    "   selected and read aloud — not to be drawn a second time on top of the\n"
+    "   picture that shows them. `transparent` and not `display: none`: a line\n"
+    "   that is not laid out is a line a reading system cannot find. */\n"
+    "div.ef-pdf-in-art { color: transparent; }\n"
+)
 
 
 def _pt(value: float) -> str:
@@ -2690,7 +2725,31 @@ def _fixed_line(line: Line, page: Page, tag: str, extra: str, body_face: str) ->
     return f'      <{tag} class="{classes}" style="{style}">{inner}</{tag}>'
 
 
-def _fixed_picture(picture: Picture, page: Page, body_face: str) -> str:
+def _photographed(page: Page, items: list) -> "list[tuple[float, float, float, float]]":
+    """The boxes on this page that the book shows a **photograph** of.
+
+    Only regions this program drew itself. A raster the PDF already carried is
+    a different thing entirely: the typesetter drew the page's text *over* it,
+    so that text is not in the image and hiding it would lose it for good.
+    """
+    boxes = []
+    for block, _lines in items:
+        if block.kind != "image":
+            continue
+        picture = block.picture
+        if getattr(picture, "drawn", False):
+            boxes.append((picture.x0, picture.y0, picture.x1, picture.y1))
+    return boxes
+
+
+def _stands_in(line: Line, boxes: list) -> bool:
+    """Whether a line begins inside one of *boxes*, in the PDF's own axes."""
+    return any(x0 <= line.x0 <= x1 and y0 <= line.y0 <= y1
+               for x0, y0, x1, y1 in boxes)
+
+
+def _fixed_picture(picture: Picture, page: Page, body_face: str,
+                   boxes: "list | None" = None, counted: "dict | None" = None) -> str:
     """The picture in its box, and the words that stand on it where they stand.
 
     This is what the labels kept their lines for. In a reflowable book a
@@ -2707,18 +2766,25 @@ def _fixed_picture(picture: Picture, page: Page, body_face: str) -> str:
     # The name first and then the labels, which is the order `_figure` prints
     # them in and therefore the order the left side of K1 reads them in.
     for line in ([picture.caption] if picture.caption is not None else []) + list(picture.labels):
-        out.append(_fixed_line(line, page, "div", "", body_face))
+        under = FIXED_UNDER_ART_CLASS if _stands_in(line, boxes or []) else ""
+        if under and counted is not None:
+            counted["under_art"] += 1
+        out.append(_fixed_line(line, page, "div", under, body_face))
     return "\n".join(out)
 
 
 def _fixed_document(page: Page, items: list, title: str, body_face: str) -> "tuple[str, dict]":
     """One PDF page as one document, and what went onto it."""
-    counts: dict = {"lines": 0, "headings": 0, "images": 0, "emphasis": 0}
+    counts: dict = {"lines": 0, "headings": 0, "images": 0, "emphasis": 0,
+                    "under_art": 0}
     body: list[str] = []
+    # Worked out before anything is written, because whether a line is painted
+    # depends on a picture that may be emitted after it (A02).
+    boxes = _photographed(page, items)
     for block, lines in items:
         if block.kind == "image":
             counts["images"] += 1
-            body.append(_fixed_picture(block.picture, page, body_face))
+            body.append(_fixed_picture(block.picture, page, body_face, boxes, counts))
             continue
         # A heading is still a heading: a page laid out in absolute positions
         # has no structure a reading system can follow, and the one or two
@@ -2726,11 +2792,19 @@ def _fixed_document(page: Page, items: list, title: str, body_face: str) -> "tup
         # line of the heading only — two `h1`s are two headings, and a title
         # set over two lines is one.
         tag = block.kind if block.kind in ("h1", "h2") else "div"
-        extra = RUNNING_HEAD_CLASS if block.kind == "head" else ""
+        head = RUNNING_HEAD_CLASS if block.kind == "head" else ""
         for index, line in enumerate(lines):
             counts["lines"] += 1
             if index == 0 and tag != "div":
                 counts["headings"] += 1
+            # Not only the labels a picture gathered: a photographed region on
+            # a dense page contains ordinary prose too — a step of a procedure
+            # printed across the artwork — and that is the half the owner's
+            # page 80 showed, with the reconstruction laid over the picture.
+            extra = head
+            if _stands_in(line, boxes):
+                extra = f"{head} {FIXED_UNDER_ART_CLASS}".strip()
+                counts["under_art"] += 1
             body.append(_fixed_line(line, page, tag if index == 0 else "div", extra, body_face))
     # Whole numbers: `rendition:viewport` and the `meta` that stands for it are
     # read as a page size in pixels, and half a pixel of page is not a thing.
@@ -2781,6 +2855,7 @@ def _fill_the_pages(book: Book, pages: "list[Page]", blocks: "list[Block]",
             titles.get(page.number) or book.metadata.title, layout.body_face,
         )
         layout.headings += counts["headings"]
+        layout.text_under_art += counts["under_art"]
         layout.emphasis += markup.count("<strong>") + markup.count("<em>")
         book.add(Resource(path=path, media_type="application/xhtml+xml",
                           data=markup.encode("utf-8")))

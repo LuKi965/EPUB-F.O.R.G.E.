@@ -73,7 +73,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 421 on 2026-09-10 with A01 of the recovery plan: `pdf.running-heads-unanswered`,
 # which exists so that a question nobody was asked cannot be reported as an
 # answer somebody gave.
-TAGGED_TODAY = 421
+# 422 on 2026-09-10 with A02: `pdf.text-shown-by-the-picture`. A fixed page
+# stops painting the words a photographed region already shows, and a page
+# that quietly stops drawing part of its text owes the reader a sentence.
+TAGGED_TODAY = 422
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -203,7 +206,11 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: languages. `UNANSWERED.option` is `keep`, so a stage reading the option
 #: alone printed every silence as a decision — the line exists to keep those
 #: two apart in the report.
-TEMPLATED_TODAY = 322
+#:
+#: 322 → 323 (2026-09-10, A02): `pdf.text-shown-by-the-picture` in both
+#: languages — the duplication control the recovery plan asks for, said in
+#: the report rather than left to somebody comparing two layers by eye.
+TEMPLATED_TODAY = 323
 
 
 class TestTheTranslationCannotStall:
