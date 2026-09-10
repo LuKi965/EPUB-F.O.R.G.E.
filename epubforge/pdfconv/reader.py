@@ -2658,6 +2658,12 @@ div.ef-pdf-page { position: relative; overflow: hidden; margin: 0; padding: 0; }
    paragraph, and the source already decided where it ends. */
 .ef-pdf-line { position: absolute; margin: 0; padding: 0; line-height: 1;
                white-space: pre; }
+/* The line's text is SVG, so that `textLength` can set it into exactly the
+   width the source measured whatever face the reading system draws it in
+   (A03). The box is the line's; the text fills it; its colour is the line's
+   colour, so a line the page stops painting (`ef-pdf-in-art`) stops here too. */
+.ef-pdf-line svg { display: block; overflow: visible; }
+.ef-pdf-line text { fill: currentColor; white-space: pre; }
 """
 #: Written only into a book that has a picture in it. A rule no selector in the
 #: book can reach is what the style stage calls an unreachable rule, and it is
@@ -2707,22 +2713,84 @@ def _fixed_items(blocks: "list[Block]") -> "dict[int, list]":
     return items
 
 
+#: What a run's face becomes inside SVG text, where `<strong>` and `<em>` are
+#: not allowed. The emphasis count reads these back (`_fill_the_pages`).
+SVG_BOLD = 'font-weight="bold"'
+SVG_ITALIC = 'font-style="italic"'
+
+
 def _fixed_line(line: Line, page: Page, tag: str, extra: str, body_face: str) -> str:
-    """One line of the page, where the page had it.
+    """One line of the page, where the page had it — **and as wide as it was**.
 
     The y axis is turned over: a PDF measures from the foot of the page and CSS
     from its head. The face the run was set in is marked as it is in a
     reflowable book — what differs from the body face is a mark the typesetter
     made — and it draws the same way, so the mark and the look agree.
+
+    The width is the part that was missing, and it is A03 of the 0.4.4
+    recovery plan. This emitter wrote where a line began and how large its
+    type was, and left the reading system to set it in whatever face it had —
+    the book carries no fonts. A face that is not the typesetter's has other
+    advances, and a line that ended inside the margin on the page ran past
+    the edge of the same page in the book and was cut off by `overflow:
+    hidden`. Measured in the browser this program uses for its appearance
+    check: a line the source sets 440 pt wide from x = 72, set 685 px wide by
+    the fallback, ending 145 px past a 612 px page. Not reproducible with
+    Helvetica, because Liberation Sans and Arial are metric-compatible with
+    it and the widths agree to a tenth of a pixel — which is why it took a
+    designer's condensed face on the owner's manual to show.
+
+    No stylesheet property fits text to a width without knowing the face's
+    metrics, and the metrics are the one thing this book does not know. SVG
+    has the primitive: `textLength` with `lengthAdjust="spacingAndGlyphs"`
+    makes the reading system set the glyphs into exactly the width the source
+    measured, whatever face it draws them in. The text stays text — in the
+    document, selectable, found by search, read by a screen reader — and the
+    heading tag stays on the outside, so a heading is still a heading.
     """
+    width, height = line.x1 - line.x0, line.y1 - line.y0
     style = (f"left: {_pt(line.x0)}px; top: {_pt(page.height - line.y1)}px; "
+             f"width: {_pt(max(width, 0.0))}px; height: {_pt(max(height, 0.0))}px; "
              f"font-size: {_pt(line.size)}px;")
     if line.family:
         style += f" font-family: {line.family};"
     runs = _trimmed(line.runs) if line.runs else _trimmed([(line.text, "")])
-    inner = _faced_runs(runs, body_face)
+    inner = _svg_runs(runs, body_face)
     classes = f"{FIXED_LINE_CLASS} {extra}" if extra else FIXED_LINE_CLASS
-    return f'      <{tag} class="{classes}" style="{style}">{inner}</{tag}>'
+    fit = (f' textLength="{_pt(width)}" lengthAdjust="spacingAndGlyphs"'
+           if width > 0 else "")
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_pt(max(width, 0.0))} '
+           f'{_pt(max(height, 0.0))}" width="{_pt(max(width, 0.0))}" '
+           f'height="{_pt(max(height, 0.0))}"><text x="0" y="0" '
+           f'dominant-baseline="text-before-edge"{fit}>{inner}</text></svg>')
+    return f'      <{tag} class="{classes}" style="{style}">{svg}</{tag}>'
+
+
+def _svg_runs(runs: list, body_face: str) -> str:
+    """`_faced_runs`, for SVG: the same runs, the same marks, in `tspan`s."""
+    out: list = []
+    for run, style in runs:
+        mark = "".join(letter for letter in style if letter not in body_face)
+        if out and out[-1][1] == mark:
+            out[-1][0] += run
+        else:
+            out.append([run, mark])
+    return "".join(_svg_faced(escape(run), mark) for run, mark in out)
+
+
+def _svg_faced(text: str, mark: str) -> str:
+    """*text* in a `tspan` carrying its face, spaces left outside as `_faced`
+    leaves them — whitespace inside SVG text is collapsed by default, and the
+    `white-space: pre` this needs is set on the page's stylesheet."""
+    if not mark or not text.strip():
+        return text
+    body = text.strip()
+    before = text[:len(text) - len(text.lstrip())]
+    after = text[len(text.rstrip()):]
+    attributes = " ".join(
+        attribute for letter, attribute in (("b", SVG_BOLD), ("i", SVG_ITALIC)) if letter in mark
+    )
+    return f"{before}<tspan {attributes}>{body}</tspan>{after}"
 
 
 def _photographed(page: Page, items: list) -> "list[tuple[float, float, float, float]]":
@@ -2856,7 +2924,7 @@ def _fill_the_pages(book: Book, pages: "list[Page]", blocks: "list[Block]",
         )
         layout.headings += counts["headings"]
         layout.text_under_art += counts["under_art"]
-        layout.emphasis += markup.count("<strong>") + markup.count("<em>")
+        layout.emphasis += markup.count(SVG_BOLD) + markup.count(SVG_ITALIC)
         book.add(Resource(path=path, media_type="application/xhtml+xml",
                           data=markup.encode("utf-8")))
         book.spine.append(SpineItem(path=path))

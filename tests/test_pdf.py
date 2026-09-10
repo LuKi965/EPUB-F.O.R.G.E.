@@ -73,10 +73,30 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
     font = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
     # A line may carry a fifth item, the face: "" (roman), "b" or "i". The
     # reader reads the face from the font's *name*, as it does in a real file.
+    # And "n", a **narrow** face: a font that is not one of the fourteen every
+    # reader knows and is not embedded either — which is the owner's manual
+    # exactly, set in a designer's condensed face that the EPUB does not carry
+    # (A03 of the 0.4.4 recovery plan). It declares its own glyph widths, 340
+    # per thousand — Helvetica averages about 450 — so pdfminer measures every line in it as narrow, while a
+    # reading system that has never heard of it falls back to a face that is
+    # not. Helvetica cannot stand in for this: Liberation Sans and Arial are
+    # metric-compatible with it, so a Helvetica line is the same width in the
+    # browser as on the page and the defect never shows.
+    descriptor = add(
+        b"<< /Type /FontDescriptor /FontName /CondensedSans /Flags 32 "
+        b"/FontBBox [-100 -220 800 900] /ItalicAngle 0 /Ascent 900 /Descent -200 "
+        b"/CapHeight 700 /StemV 80 >>"
+    )
+    widths = " ".join(["340"] * (255 - 32 + 1))
     faces = {
         "": font,
         "b": add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"),
         "i": add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>"),
+        "n": add(
+            f"<< /Type /Font /Subtype /TrueType /BaseFont /CondensedSans /FirstChar 32 "
+            f"/LastChar 255 /Widths [{widths}] /Encoding /WinAnsiEncoding "
+            f"/FontDescriptor {descriptor} 0 R >>".encode()
+        ),
     }
     page_ids: list[int] = []
     for index, lines in enumerate(pages):
@@ -110,12 +130,12 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
             f"{x0} {y0} m {x1} {y1} l S\n" for x0, y0, x1, y1 in (strokes or {}).get(index, ())
         )
         stream = ("".join(drawn) + painted + "".join(
-            f"BT /F{'123'['bi'.find(line[4]) + 1] if len(line) > 4 else 1} {line[2]} Tf "
+            f"BT /F{'1234'['bin'.find(line[4]) + 1] if len(line) > 4 else 1} {line[2]} Tf "
             f"{line[0]} {line[1]} Td ({_escape(line[3])}) Tj ET\n" for line in lines
         )).encode("cp1252")
         content = add(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
         resources = (f"/Font << /F1 {font} 0 R /F2 {faces['b']} 0 R "
-                     f"/F3 {faces['i']} 0 R >>")
+                     f"/F3 {faces['i']} 0 R /F4 {faces['n']} 0 R >>")
         if xobjects:
             resources += f" /XObject << {' '.join(xobjects)} >>"
         page_ids.append(add(
@@ -1600,13 +1620,39 @@ def pages_of(book) -> list[str]:
 
 
 def style_of(markup: str, needle: str) -> dict:
-    """The declarations of the first element whose text contains *needle*."""
-    element = re.search(rf'<[^>]*style="([^"]*)"[^>]*>[^<]*{re.escape(needle)}', markup)
-    assert element, f"{needle!r} is not in an element with a style: {markup}"
-    return dict(
-        (part.split(":", 1)[0].strip(), part.split(":", 1)[1].strip())
-        for part in element.group(1).split(";") if ":" in part
-    )
+    """The declarations of the nearest styled element around *needle*.
+
+    Walked as a tree, not matched as a string. The first version required
+    the text to sit directly inside the styled element, and it stopped being
+    true the day a fixed line's text moved into `<svg><text>` so that the
+    reading system could fit it to its width (A03): the line's box still
+    carries the style, the words are two elements down. Where a line *is* is
+    a property of the line; how its text is set is not.
+    """
+    from lxml import etree
+
+    root = etree.fromstring(markup.encode("utf-8"))
+    for node in root.iter():
+        if not isinstance(node.tag, str):
+            continue
+        if needle not in "".join(node.itertext()):
+            continue
+        # The deepest element holding the needle, then up to the first with
+        # a style — the line's box.
+        holder = node
+        for child in node.iter():
+            if child is not node and needle in "".join(child.itertext()):
+                holder = child
+        styled = holder
+        while styled is not None and not styled.get("style"):
+            styled = styled.getparent()
+        if styled is None:
+            continue
+        return dict(
+            (part.split(":", 1)[0].strip(), part.split(":", 1)[1].strip())
+            for part in styled.get("style").split(";") if ":" in part
+        )
+    raise AssertionError(f"{needle!r} is not in an element with a style: {markup}")
 
 
 class TestThePageKeptAsAPage:
@@ -1725,7 +1771,17 @@ class TestThePageKeptAsAPage:
             (72.0, 685.0, 11.0, "and a second line of it."),
         ]])
         markup = pages_of(fixed(source))[0]
-        assert "<strong>button</strong>" in markup
+        # The property, not the tag: the word the typesetter set in bold is
+        # still marked bold, and its neighbours are not. In a reflowable book
+        # that mark is `<strong>`; on a fixed page the text is SVG, where the
+        # mark is a `tspan` carrying the face (A03).
+        from lxml import etree
+
+        root = etree.fromstring(markup.encode("utf-8"))
+        bold = [node for node in root.iter()
+                if isinstance(node.tag, str) and node.get("font-weight") == "bold"]
+        assert ["".join(node.itertext()) for node in bold] == ["button"], markup
+        assert "<strong>" not in markup, "SVG text cannot hold <strong>; the mark must be a tspan"
 
     def test_the_outline_names_pages_and_needs_no_anchors(self, tmp_path):
         source = make_pdf(tmp_path / "outlined.pdf", [
@@ -1902,3 +1958,124 @@ def test_chromiums_own_running_heads_are_found_and_removed_on_the_answer(tmp_pat
     assert "file://" not in prose
     original = folded(fidelity.spine_text_of(epub)).replace(" ", "")
     assert fidelity.first_character_lost(original, folded(prose).replace(" ", "")) == -1
+
+
+class TestTheFixedLineIsAsWideAsItWasA03:
+    """A03 of the 0.4.4 recovery plan: *fixed ucina tekst i zmienia metryki.*
+
+    The book carries no fonts. A reading system sets each line in whatever
+    face it has, and a face that is not the typesetter's has other advances:
+    a line that ended inside the margin on the page ran past the edge of the
+    same page in the book, and `overflow: hidden` cut it off. On the owner's
+    manual the long callouts of page 6 lost their ends; on page 80 whole
+    procedures did.
+
+    It does not show with Helvetica — Liberation Sans and Arial are
+    metric-compatible with it, so the browser's width agrees with pdfminer's
+    to a tenth of a pixel. It took a face the reading system has never heard
+    of, set narrow: `make_pdf`'s "n" face declares 340/1000 em where
+    Helvetica averages 450, and the fallback sets its lines a third wider.
+    Measured before the fix, in the browser the appearance gate uses: a line
+    the source ends at x = 610 was set 685 px wide and ended at 757 on a
+    612 px page.
+
+    The fix is the width. Every fixed line now carries the width the source
+    measured and its text is SVG, so `textLength` makes the reading system fit
+    the glyphs into that width whatever face it draws them in. What is
+    asserted here is the property — the line ends where the page's line
+    ended — in the markup always, and in the browser when there is one.
+    """
+
+    @staticmethod
+    def _narrow_page(tmp_path):
+        long = ("This description runs across the whole page almost to the margin, "
+                "as a manual's longer callouts do, and it fits there in the source.")
+        lines = [
+            (72.0, 700.0, 12.0, long, "n"),
+            (72.0, 680.0, 12.0, "A short line for comparison.", "n"),
+            (72.0, 660.0, 12.0, "A word set ", "n"),
+            # There is no narrow bold face; the bold one is enough for the
+            # question this fixture asks of it — does the face travel?
+            (140.0, 660.0, 12.0, "apart", "b"),
+        ]
+        return make_pdf(tmp_path / "narrow.pdf", [lines], title="Narrow")
+
+    def test_every_line_is_told_how_wide_it_was(self, tmp_path):
+        source = self._narrow_page(tmp_path)
+        page = pdf._read(str(source))[0][0]
+        book = fixed(source)
+        markup = pages_of(book)[0]
+        from lxml import etree
+
+        root = etree.fromstring(markup.encode("utf-8"))
+        told = {}
+        for node in root.iter():
+            if not isinstance(node.tag, str):
+                continue
+            if etree.QName(node).localname == "text" and node.get("textLength"):
+                told["".join(node.itertext())] = float(node.get("textLength"))
+        assert told, markup
+        for line in page.lines:
+            width = round(line.x1 - line.x0, 1)
+            assert abs(told[line.text.strip()] - width) < 0.15, (line.text, told)
+            # And the box the width describes ends inside the page it is on.
+            assert line.x0 + width <= page.width + 0.5
+
+    def test_the_words_the_typesetter_set_apart_are_still_apart(self, tmp_path):
+        """Faces travel into the SVG text as `tspan`s, and the count the report
+        gives for emphasis reads them back — a feature that silently stopped
+        being counted is the defect EF-099 already was once."""
+        report = Report()
+        book = fixed(self._narrow_page(tmp_path), report)
+        markup = pages_of(book)[0]
+        assert 'font-weight="bold"' in markup
+        assert "apart" in markup
+        assert fidelity.first_character_lost(
+            pdf.text_of(str(self._narrow_page(tmp_path))),
+            " ".join(fidelity.document_text(book.resources[item.path].data) or ""
+                     for item in book.spine),
+        ) == -1
+
+    @engine
+    def test_in_the_browser_the_line_ends_inside_the_page(self, tmp_path):
+        """The render the recovery plan asks for. Skipped where there is no
+        named engine, for the reason every render test gives: an unpinned
+        engine measures the machine."""
+        import json
+        import shutil
+        import subprocess
+        from html import unescape
+
+        browser = _printer_or_skip()
+        source = self._narrow_page(tmp_path)
+        book = fixed(source)
+        where = tmp_path / "book"
+        for path, resource in book.resources.items():
+            target = where / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(resource.data)
+        page = where / book.spine[0].path
+        probe = page.with_name("probe.xhtml")
+        probe.write_text(page.read_text(encoding="utf-8").replace("</body>", """
+<script>(function () {
+  var page = document.querySelector('.ef-pdf-page');
+  var out = {page: page.getBoundingClientRect().width, lines: []};
+  document.querySelectorAll('.ef-pdf-line').forEach(function (el) {
+    var r = el.getBoundingClientRect();
+    out.lines.push({text: el.textContent.slice(0, 30), right: r.right});
+  });
+  var pre = document.createElement('pre'); pre.id = 'measured';
+  pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
+})();</script>
+</body>"""), encoding="utf-8")
+        dom = subprocess.run(
+            [str(browser), "--headless", "--no-sandbox", "--disable-gpu", "--dump-dom",
+             "--window-size=612,792", "--virtual-time-budget=2000", probe.as_uri()],
+            check=True, capture_output=True, text=True, timeout=120,
+        ).stdout
+        start = dom.index('id="measured">') + len('id="measured">')
+        got = json.loads(unescape(dom[start:dom.index("</pre>", start)]))
+        past = [(line["text"], line["right"] - got["page"])
+                for line in got["lines"] if line["right"] > got["page"] + 0.5]
+        assert not past, f"wiersze wychodzą za prawą krawędź strony: {past}"
+        shutil.rmtree(where, ignore_errors=True)
