@@ -28,7 +28,7 @@ from epubforge import fidelity, render
 from epubforge.pdfconv import gate as pdfgate
 from epubforge.pdfconv import reader as pdf
 from epubforge.cli import EXIT_OK, main
-from epubforge.decisions import Answer
+from epubforge.decisions import KEEP, Answer
 from epubforge.pipeline import Status, rebuild
 from epubforge.pdfconv.settings import RUNNING_HEADS as PDF_RUNNING_HEADS
 from epubforge.policy import Policy
@@ -1232,9 +1232,16 @@ class TestThePipeline:
         assert "Page 3 carries ordinary prose" in prose_of(result.output_path)
 
     def test_without_an_answer_the_running_heads_stay(self, tmp_path):
+        """The safe half of the bargain, unchanged: nothing leaves the book.
+
+        The line this used to assert was `pdf.running-heads-kept`, which says
+        *as chosen*. It was asserting the defect — a silence read back as a
+        decision — and is now `pdf.running-heads-unanswered` (A01). What the
+        book contains is the same; what the report says about it is not.
+        """
         recorder = Recorder()
         result = rebuilt(book_with_heads(tmp_path), tmp_path, asker=recorder)
-        assert "pdf.running-heads-kept" in rules_of(result)
+        assert "pdf.running-heads-unanswered" in rules_of(result)
         assert "pdf.running-heads-removed" not in rules_of(result)
         prose = prose_of(result.output_path)
         assert prose.count("THE BOOK OF PAGES") == 6
@@ -1245,6 +1252,42 @@ class TestThePipeline:
         assert pdf.RUNNING_HEAD_CLASS not in markup and pdf.CONTINUED_CLASS not in markup
         assert "pdf:running-heads" in recorder.groups()
         assert result.report.stats["questions_unanswered"] >= 1
+
+    def test_a_silence_is_not_reported_as_a_choice(self, tmp_path):
+        """A01, second half. Both roads leave the heads in the book, and the
+        report has to be able to tell them apart.
+
+        `UNANSWERED.option` is `keep` — the safe default of the protocol — so
+        a stage reading only the option turns every question that reached
+        nobody into a decision somebody made. The line then read *stay in the
+        text as ordinary paragraphs, **as chosen***, about a book where the
+        choice was never put to anyone. That is worse than no line: it is the
+        report agreeing that a broken dialog worked.
+        """
+        recorder = Recorder()
+        result = rebuilt(book_with_heads(tmp_path), tmp_path, asker=recorder)
+        rules = rules_of(result)
+        assert "pdf.running-heads-unanswered" in rules
+        assert "pdf.running-heads-kept" not in rules, (
+            "milczenie zapisane jako świadomy wybór"
+        )
+        # The heads still stay: the safe answer is the right one, and it is
+        # only the *account* of it that was wrong.
+        assert prose_of(result.output_path).count("THE BOOK OF PAGES") == 6
+        # And it is news, not a footnote: a question that reached nobody is
+        # something to go and fix.
+        said = next(f for f in result.report.findings
+                    if f.rule == "pdf.running-heads-unanswered")
+        assert said.level is Level.WARN
+
+    def test_a_deliberate_keep_still_says_it_was_chosen(self, tmp_path):
+        """The other road, so the line above cannot be got by deleting the
+        distinction: somebody who chooses to keep them gets told they chose."""
+        standing = {"pdf:running-heads": Answer(option=KEEP)}
+        result = rebuilt(book_with_heads(tmp_path), tmp_path, standing=standing)
+        rules = rules_of(result)
+        assert "pdf.running-heads-kept" in rules
+        assert "pdf.running-heads-unanswered" not in rules
 
     def test_the_answer_remove_takes_them_out_and_the_gate_still_holds(self, tmp_path):
         standing = {"pdf:running-heads": Answer(option="remove")}

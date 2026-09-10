@@ -188,7 +188,13 @@ class MainWindow(QMainWindow):
 
         self.home = HomePage(tokens, self.history)
         self.rebuild = RebuildPage(tokens, self.backend, resolver_factory=self._resolver)
-        self.pdf = PdfConversionPage(tokens, pdf_backend or PdfBackend(language()))
+        # The same factory the rebuild gets, and for the same reason: the
+        # converter offers `running_heads = ask` and had nobody to ask, so the
+        # option was on the screen and dead behind it (A01). A *factory*, not
+        # a shared object — each run gets its own asker, and the two pages
+        # never share a session.
+        self.pdf = PdfConversionPage(tokens, pdf_backend or PdfBackend(language()),
+                                     resolver_factory=self._resolver)
         self.tools = ToolsPage(tokens)
         self.history_page = HistoryPage(tokens, self.history)
         self.settings_page = SettingsPage(
@@ -636,6 +642,7 @@ class MainWindow(QMainWindow):
                 # dialog would otherwise hold the thread — and the close — for
                 # as long as nobody answers it.
                 self.rebuild.stop_asking()
+                self.pdf.stop_asking()
             event.ignore()
             return
         super().closeEvent(event)

@@ -70,7 +70,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # "there is no renderer installed here, and here is its name" and "the
 # renderer refused this region" stop being one sentence. The first is a thing
 # the owner can act on and the second is not.
-TAGGED_TODAY = 420
+# 421 on 2026-09-10 with A01 of the recovery plan: `pdf.running-heads-unanswered`,
+# which exists so that a question nobody was asked cannot be reported as an
+# answer somebody gave.
+TAGGED_TODAY = 421
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -195,7 +198,12 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: the sentence it was cut out of said "this reader carries pictures and
 #: cannot draw" — true when it was written, and a lie the moment a renderer
 #: became installable. A missing optional part is news the owner can act on.
-TEMPLATED_TODAY = 321
+#:
+#: 321 → 322 (2026-09-10, A01): `pdf.running-heads-unanswered` in both
+#: languages. `UNANSWERED.option` is `keep`, so a stage reading the option
+#: alone printed every silence as a decision — the line exists to keep those
+#: two apart in the report.
+TEMPLATED_TODAY = 322
 
 
 class TestTheTranslationCannotStall:

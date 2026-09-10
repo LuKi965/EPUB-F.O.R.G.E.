@@ -53,7 +53,7 @@ class PdfStage(Stage):
             return
         choice, automation = self._answer(ctx, found, examples, count)
         if choice != "remove":
-            self._keep(ctx, found, count)
+            self._keep(ctx, found, count, answered=automation is not None)
             return
         self._take_out(ctx, found, automation)
 
@@ -114,13 +114,30 @@ class PdfStage(Stage):
                 group="pdf:running-heads",
                 subject=f"{count} lines",
             )
-            choice = "remove" if ctx.decide(question).option == "remove" else "keep"
+            answer = ctx.decide(question)
+            if answer.source == "unanswered":
+                # Nobody said. The heads stay — the safe half of the bargain —
+                # but this is **not** the answer `keep`, and the report must
+                # not print it as one. `UNANSWERED.option` happens to be
+                # `keep`, so reading only the option turned every silence into
+                # a decision somebody made (A01 of the 0.4.4 recovery plan).
+                # `None` here means exactly that: no automation, because
+                # nothing was automated and nobody was asked.
+                return "keep", None
+            choice = "remove" if answer.option == "remove" else "keep"
             return choice, Automation.ASKED
         return choice, Automation.DETERMINISTIC
 
-    def _keep(self, ctx: Context, found: list, count: int) -> None:
+    def _keep(self, ctx: Context, found: list, count: int, *,
+              answered: bool = True) -> None:
         """Nothing leaves the book: only the marks the reader put on, which have
-        done their work."""
+        done their work.
+
+        *answered* says whether a person chose this. Both roads end here — the
+        heads stay either way — and they are not the same news: one is a
+        decision and the other is a question that never reached anybody, which
+        is a thing to go and fix rather than a thing to be satisfied with.
+        """
         for resource, root, heads in found:
             for element in heads:
                 # The mark has done its work; the text stays as ordinary prose.
@@ -130,7 +147,12 @@ class PdfStage(Stage):
             for element in _continuations(root):
                 _drop_class(element, pdf.CONTINUED_CLASS)
             resource.data = xhtml.serialize(root)
-        self.note(ctx, Level.PRESERVED, "pdf.running-heads-kept", values={"count": count})
+        if answered:
+            self.note(ctx, Level.PRESERVED, "pdf.running-heads-kept",
+                      values={"count": count})
+        else:
+            self.note(ctx, Level.WARN, "pdf.running-heads-unanswered",
+                      values={"count": count})
 
     def _take_out(self, ctx: Context, found: list, automation) -> None:
         rejoined = orphaned = 0

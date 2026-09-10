@@ -12,6 +12,7 @@ plan, does it refuse an EPUB, and does the rebuild refuse a PDF.
 from __future__ import annotations
 
 import os
+import pathlib
 
 import pytest
 
@@ -21,10 +22,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from epubforge.gui.shell import tokens as tokens_module  # noqa: E402
+from epubforge.decisions import KEEP  # noqa: E402
 from epubforge.gui.shell.backend import DemoBackend  # noqa: E402
 from epubforge.gui.shell.models import BookStatus, Severity, Stage  # noqa: E402
 from epubforge.gui.shell.pages.pdf_conversion import PdfConversionPage  # noqa: E402
 from epubforge.gui.shell.pdf_backend import DemoPdfBackend  # noqa: E402
+from epubforge.gui.shell import window as window_module  # noqa: E402
 from epubforge.gui.shell.window import MainWindow  # noqa: E402
 from epubforge.gui.strings import tr  # noqa: E402
 
@@ -63,6 +66,255 @@ def settle(app, page, until, tries: int = 200) -> None:
             return
         time.sleep(0.01)
     raise AssertionError(f"nie doczekano się stanu; etap = {page.stage}")
+
+
+class TestTheQuestionReachesAPersonA01:
+    """A01 of the 0.4.4 recovery plan: *„pytaj" w PDF nie dociera do
+    użytkownika.*
+
+    The screen offers `running_heads = ask`, and the owner's whole position is
+    that the program should ask where it does not know. Four links stand
+    between that choice and a person, and **each one alone is enough** to
+    break it:
+
+    1. `PdfConversionPage` is built without a `resolver_factory` — the rebuild
+       next door is given one (`window.py`);
+    2. `PdfConversionPage.plan()` writes `ask=False` into the plan;
+    3. `ConversionJob.run` calls `backend.convert(...)` with no `resolver=`;
+    4. `service._convert_one` then computes `asker=resolver if plan.ask
+       else None`, which is `None` either way.
+
+    So the queue answers `UNANSWERED`, whose `option` defaults to `keep`, and
+    the stage writes `pdf.running-heads-kept` — a line that says *as chosen*.
+    Nobody chose. That last part is a separate defect from the wiring and is
+    asserted separately: a report that cannot tell a decision from a silence
+    is worse than one that does not report at all.
+
+    These tests go through the real page, the real plan, the real worker and
+    the real backend. A probe of the plan alone would only prove that one
+    number is `False`.
+    """
+
+    @staticmethod
+    def _asked_about(page, qt_app, source, tmp_path) -> "tuple[list, object]":
+        """Run one conversion through the page and return what was asked."""
+        put = []
+
+        class Responder:
+            """Somebody to ask. Answers `remove`, so that an answer that
+            arrives is visible in the result and cannot be confused with the
+            silence that also produces `keep`."""
+
+            def ask(self, question):
+                from epubforge.decisions import Answer
+
+                put.append(question)
+                return Answer(option="remove", apply_to_group=True)
+
+        page.set_resolver_factory(Responder)
+        page.start([str(source)])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        page.settings.running_heads = "ask"
+        page.destination = tmp_path / "out"
+        page.destination.mkdir(exist_ok=True)
+        page.run()
+        settle(qt_app, page, lambda: page.stage is Stage.RESULTS, tries=3000)
+        return put, page
+
+    def test_choosing_ask_puts_the_question_to_somebody(self, qt_app, tmp_path):
+        from epubforge.gui.shell.pdf_backend import PdfBackend
+        from tests.test_pdf import book_with_heads
+
+        page = PdfConversionPage(tokens_module.DARK, PdfBackend("pl"))
+        try:
+            put, page = self._asked_about(page, qt_app, book_with_heads(tmp_path), tmp_path)
+            assert put, (
+                "nikogo nie zapytano, choć na ekranie wybrano „pytaj” — "
+                "wybór nie dociera do respondera (A01)"
+            )
+            assert any(q.group == "pdf:running-heads" for q in put), [q.group for q in put]
+        finally:
+            page.runner.stop()
+            page.runner.wait_for_idle()
+            page.close()
+
+    def test_the_plan_carries_the_choice_instead_of_a_written_false(self, qt_app):
+        page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+        try:
+            page.settings.running_heads = "ask"
+            assert page.plan().ask is True, (
+                "plan mówi ask=False, choć ekran pyta — to drugie z czterech ogniw"
+            )
+            page.settings.running_heads = "keep"
+            assert page.plan().ask is False, (
+                "plan ma pytać tylko wtedy, gdy człowiek o to poprosił"
+            )
+        finally:
+            page.close()
+
+    def test_the_answer_reaches_the_book_and_not_only_the_recorder(self, qt_app, tmp_path):
+        """Asking is half of it. The answer has to change the result, or the
+        dialog is decoration."""
+        from epubforge.gui.shell.pdf_backend import PdfBackend
+        from tests.test_pdf import book_with_heads
+
+        page = PdfConversionPage(tokens_module.DARK, PdfBackend("pl"))
+        try:
+            put, page = self._asked_about(page, qt_app, book_with_heads(tmp_path), tmp_path)
+            assert put
+            written = [item.output for item in page.documents if item.output]
+            assert written, [item.status for item in page.documents]
+            import zipfile
+
+            with zipfile.ZipFile(written[0]) as archive:
+                prose = " ".join(
+                    archive.read(name).decode("utf-8", "replace")
+                    for name in archive.namelist() if name.endswith(".xhtml")
+                )
+            assert "THE BOOK OF PAGES" not in prose, (
+                "odpowiedziano „usuń”, a żywa pagina została w książce"
+            )
+        finally:
+            page.runner.stop()
+            page.runner.wait_for_idle()
+            page.close()
+
+    def test_nobody_is_asked_when_nobody_asked_to_be(self, qt_app, tmp_path):
+        """`keep` and `remove` are answers already given. Putting a question
+        anyway would be the opposite defect: a program that interrupts a
+        person who has already decided."""
+        from epubforge.gui.shell.pdf_backend import PdfBackend
+        from tests.test_pdf import book_with_heads
+
+        put = []
+
+        class Responder:
+            def ask(self, question):
+                from epubforge.decisions import Answer
+
+                put.append(question)
+                return Answer(option="remove", apply_to_group=True)
+
+        page = PdfConversionPage(tokens_module.DARK, PdfBackend("pl"))
+        try:
+            page.set_resolver_factory(Responder)
+            page.start([str(book_with_heads(tmp_path))])
+            settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+            page.settings.running_heads = "remove"
+            page.destination = tmp_path / "out2"
+            page.destination.mkdir(exist_ok=True)
+            page.run()
+            settle(qt_app, page, lambda: page.stage is Stage.RESULTS, tries=3000)
+            assert not put, "zapytano, choć człowiek już odpowiedział w ustawieniach"
+        finally:
+            page.runner.stop()
+            page.runner.wait_for_idle()
+            page.close()
+
+    def test_a_cancelled_run_stops_asking(self, qt_app, tmp_path):
+        """Cancel means stop, including stop asking. A queue that keeps
+        putting questions after the person cancelled is a window they cannot
+        close."""
+        from epubforge.gui.shell.pdf_backend import PdfBackend
+        from tests.test_pdf import book_with_heads
+
+        put = []
+
+        class Responder:
+            """Cancels the batch the first time it is asked anything."""
+
+            def __init__(self, page) -> None:
+                self._page = page
+
+            def ask(self, question):
+                from epubforge.decisions import Answer
+
+                put.append(question)
+                self._page.runner.stop()
+                return Answer(option=KEEP)
+
+        # Three documents, because the running-head question is put once per
+        # document: with one there is one question either way and the test
+        # would pass without cancelling anything.
+        first = book_with_heads(tmp_path)
+        sources = [str(first)]
+        for number in (2, 3):
+            copy = tmp_path / f"heads{number}.pdf"
+            copy.write_bytes(first.read_bytes())
+            sources.append(str(copy))
+
+        page = PdfConversionPage(tokens_module.DARK, PdfBackend("pl"))
+        try:
+            page.set_resolver_factory(lambda: Responder(page))
+            page.start(sources)
+            settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+            page.settings.running_heads = "ask"
+            page.destination = tmp_path / "out3"
+            page.destination.mkdir(exist_ok=True)
+            page.run()
+            settle(qt_app, page, lambda: page.stage is Stage.RESULTS, tries=6000)
+            assert len(put) == 1, f"pytano dalej po anulowaniu: {len(put)}"
+        finally:
+            page.runner.stop()
+            page.runner.wait_for_idle()
+            page.close()
+
+    def test_closing_the_window_takes_the_question_back(self, qt_app):
+        """A question is a blocking call from the worker into this thread, so
+        a conversion waiting for an answer holds the close until somebody
+        answers it. The rebuild has been taken back on close since questions
+        were wired to it; the converter had no questions to take back, and now
+        that it has, it has to be taken back too."""
+        window = MainWindow(tokens_module.DARK, backend=DemoBackend(),
+                            pdf_backend=DemoPdfBackend())
+        try:
+            taken = []
+
+            class Resolver:
+                def stop(self):
+                    taken.append(True)
+
+            window.pdf._resolver = Resolver()
+            window.pdf.stop_asking()
+            assert taken, "pytania konwersji nie da się odwołać"
+            # And the window knows to do it: the close path names both pages.
+            source = pathlib.Path(window_module.__file__).read_text(encoding="utf-8")
+            assert "self.pdf.stop_asking()" in source
+            assert "self.rebuild.stop_asking()" in source
+        finally:
+            window.close()
+
+    def test_each_run_gets_its_own_asker(self, qt_app, tmp_path):
+        """A fresh one per run, like the rebuild's. An asker kept across runs
+        carries the standing answers of a batch nobody is looking at any more
+        (F05)."""
+        made = []
+
+        class Responder:
+            def __init__(self) -> None:
+                made.append(self)
+
+            def ask(self, question):
+                from epubforge.decisions import Answer
+
+                return Answer(option=KEEP)
+
+        page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+        try:
+            page.set_resolver_factory(Responder)
+            page.settings.running_heads = "ask"
+            for number in range(2):
+                page.start([str(tmp_path / f"a{number}.pdf")])
+                settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+                page.destination = tmp_path
+                page.run()
+                settle(qt_app, page, lambda: page.stage is Stage.RESULTS, tries=2000)
+            assert len(made) == 2, f"respondentów: {len(made)}"
+            assert made[0] is not made[1]
+        finally:
+            page.runner.stop()
+            page.runner.wait_for_idle()
+            page.close()
 
 
 class TestItIsItsOwnPageAndNotALabelOnTheRebuild:

@@ -80,12 +80,15 @@ class ConversionJob(_Job):
     document_finished = Signal(str, int, object)  # session, index, BookItem
     finished = Signal(str, object)  # session, list[BookItem]
 
-    def __init__(self, backend, plan, documents) -> None:
+    def __init__(self, backend, plan, documents, resolver=None) -> None:
         import copy
 
         super().__init__(getattr(plan, "session_id", ""))
         self._backend = backend
         self._plan = plan
+        #: Somebody on the window's thread to put a question to. Not copied
+        #: and not owned: this job calls it and the page keeps it alive.
+        self._resolver = resolver
         # A copy, for the reason the rebuild's job takes one: the page keeps
         # drawing its own list while this one is worked on.
         self._documents = copy.deepcopy(list(documents))
@@ -96,6 +99,7 @@ class ConversionJob(_Job):
         try:
             done = self._backend.convert(
                 self._plan, self._documents,
+                resolver=self._resolver,
                 progress=lambda step: self.progress.emit(self.session, step),
                 cancelled=lambda: self._cancelled,
                 document_done=lambda index, item: self.document_finished.emit(
@@ -119,10 +123,19 @@ class PdfConversionPage(Responsive, QWidget):
     #: EPUBs the person asked to send on to the rebuild, explicitly.
     handover = Signal(list)
 
-    def __init__(self, tokens: Tokens, backend) -> None:
+    def __init__(self, tokens: Tokens, backend, resolver_factory=None) -> None:
         super().__init__()
         self.tokens = tokens
         self.backend = backend
+        #: Somebody to ask, made fresh per run and living on this thread.
+        #: The rebuild has had one since the shell was written; this page was
+        #: built without one, so `running_heads = ask` — an option the screen
+        #: offers — reached nobody (A01 of the 0.4.4 recovery plan). The two
+        #: pages share the *protocol* and not a session: a question about a
+        #: PDF being converted has nothing to do with a book being rebuilt,
+        #: and D-057 is about keeping the two modules apart.
+        self._resolver_factory = resolver_factory
+        self._resolver = None
         self.stage = Stage.FILES
         self.documents: list[BookItem] = []
         self.destination: pathlib.Path | None = None
@@ -524,8 +537,22 @@ class PdfConversionPage(Responsive, QWidget):
             session_id=self.session_id,
             validate=self.publication["validate"],
             render_gate=self.publication["render_gate"],
-            ask=False,
+            # What the person chose, not a written `False`. `ask` was pinned
+            # shut here while the screen went on offering the option, so the
+            # queue answered `UNANSWERED` and the report called it a choice
+            # (A01). It asks when — and only when — somebody asked it to.
+            ask=self.wants_to_be_asked,
         )
+
+    @property
+    def wants_to_be_asked(self) -> bool:
+        """Whether any setting on this screen is set to `ask`."""
+        return any(getattr(self.settings, name, None) == "ask"
+                   for name, _label, _choices in CHOICES)
+
+    def set_resolver_factory(self, factory) -> None:
+        """Say who to ask. The window does this; a test may do it too."""
+        self._resolver_factory = factory
 
     def run(self) -> None:
         if self.runner.working:
@@ -556,7 +583,15 @@ class PdfConversionPage(Responsive, QWidget):
         self.body.addWidget(SafetyNote(self.tokens))
         self.body.addStretch(1)
 
-        job = ConversionJob(self.backend, self.plan(), chosen)
+        # Made here, on this thread, and only when there is something to ask:
+        # the object is a window's dialog behind a blocking signal, so it has
+        # to belong to the thread that can open one.
+        plan = self.plan()
+        self._resolver = (
+            self._resolver_factory() if self._resolver_factory is not None and plan.ask
+            else None
+        )
+        job = ConversionJob(self.backend, plan, chosen, self._resolver)
         job.progress.connect(self._on_progress, Qt.QueuedConnection)
         job.failed.connect(self._on_failed, Qt.QueuedConnection)
         job.document_finished.connect(self._document_finished, Qt.QueuedConnection)
@@ -571,8 +606,23 @@ class PdfConversionPage(Responsive, QWidget):
     def _ours(self, session: str) -> bool:
         return session == self.session_id
 
+    def stop_asking(self) -> None:
+        """Take back the question on screen and put no more.
+
+        A question is a **blocking** call from the worker into this thread:
+        the run emits and waits. Without this, cancelling a conversion that is
+        waiting for an answer cancels nothing until somebody answers, and
+        closing the window waits on the same dialog. The rebuild has had this
+        since questions were wired to it; this page had no questions at all
+        until now, so it had nothing to take back either (A01).
+        """
+        stop = getattr(self._resolver, "stop", None)
+        if callable(stop):
+            stop()
+
     def _cancel(self) -> None:
         self.runner.cancel()
+        self.stop_asking()
         if hasattr(self, "cancel_button"):
             self.cancel_button.setEnabled(False)
             self.cancel_button.setText(tr("shell.cancelling"))
