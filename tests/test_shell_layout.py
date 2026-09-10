@@ -469,6 +469,66 @@ class TestTheConverterIsLaidOutToo:
             finish(page)
 
 
+class TestNothingSetsAColumnsWidthByItself:
+    """The defect behind both failures of the 0.4.4 release build.
+
+    Neither was reproducible here: the Windows runner draws in Segoe UI, wider
+    than this machine's face, and the pages fitted at every size measured
+    locally. What went wrong is not really about width, though — it is about a
+    widget declaring that it *cannot* be narrower, which is a statement about
+    the widget and true on every machine. So these ask that, and not how many
+    pixels anything happens to take here.
+
+    Two widgets said it. `StatusBadge` was `Fixed`, which forbids growing —
+    the behaviour that was wanted — and shrinking, which was not. A
+    `QPushButton` has no way at all to be narrower than its label, which on a
+    secondary action with a long sentence on it decided how wide the whole
+    results page had to be.
+    """
+
+    def test_a_status_badge_can_be_narrower_than_its_word(self, qt_app):
+        from PySide6.QtGui import QFontMetrics
+
+        from epubforge.gui.shell.widgets import StatusBadge
+
+        badge = StatusBadge("Nie sprawdzono", "warning", tokens_module.DARK)
+        whole = QFontMetrics(badge.font()).horizontalAdvance("Nie sprawdzono")
+        assert badge.minimumSizeHint().width() < badge.sizeHint().width(), (
+            "plakietka nie umie byc wezsza niz jest — to ustawia podloge "
+            "kazdej kolumny, w ktorej stoi"
+        )
+        # And the word is still worth something: it may shorten, not vanish.
+        assert badge.minimumSizeHint().width() > 0
+        assert whole > 0
+
+    def test_and_still_says_the_status_three_ways(self, qt_app):
+        """Colour, glyph and word — the rule the class exists for. Shortening
+        the word must not be a way round it, so the whole of it stays where a
+        person and a screen reader can both reach it."""
+        from epubforge.gui.shell.widgets import StatusBadge
+
+        badge = StatusBadge("Nie sprawdzono", "warning", tokens_module.DARK)
+        assert badge.accessibleName() == "Nie sprawdzono"
+        assert badge.toolTip() == "Nie sprawdzono"
+
+    def test_a_long_secondary_label_does_not_decide_the_page_width(self, qt_app):
+        from PySide6.QtGui import QFontMetrics
+
+        from epubforge.gui.shell.widgets import button
+
+        said = "Przekaż utworzony EPUB do przebudowy"
+        plain = button(said)
+        eliding = button(said, elides=True)
+        whole = QFontMetrics(eliding.font()).horizontalAdvance(said)
+        assert plain.minimumSizeHint().width() >= whole, (
+            "zwykly przycisk mial nie umiec sie zwezic — jesli umie, ten "
+            "test przestal o cokolwiek pytac"
+        )
+        assert eliding.minimumSizeHint().width() < whole
+        assert eliding.toolTip() == said
+        assert eliding.accessibleName() == said
+
+
 class TestBothThemes:
     """The light theme shipped and nothing ever laid it out.
 

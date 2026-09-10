@@ -51,10 +51,70 @@ def label(text: str, object_name: str = "", *, wrap: bool = True,
     return item
 
 
+class ElidingButton(QPushButton):
+    """A button whose label shortens rather than widening the column it is in.
+
+    A `QPushButton` reports the width of its whole label as its minimum and
+    has no way to be narrower, so a long label on a secondary action decides
+    how wide the block holding it must be — and, through the block, the page.
+    *Przekaż utworzony EPUB do przebudowy* is 317 px on the machine this is
+    written on and 480 at half again the type; on the Windows runner it was
+    what kept the converter's results 64 px wider than the page they sit in
+    (0.4.4, the run after build 70).
+
+    The whole label stays in the tooltip and the accessible name, so nothing
+    is unreachable — the same bargain `Eliding` makes for a title or a path.
+    For a **main** action this would be the wrong bargain and it is not
+    offered by default: a person has to be able to read what the button they
+    are about to press does.
+    """
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self._full = text
+        self._shown = text
+        self._busy = False
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt casing
+        """As wide as the frame, the glyph and a few letters — not the label."""
+        size = super().minimumSizeHint()
+        metrics = self.fontMetrics()
+        spare = metrics.horizontalAdvance(self._full) - metrics.horizontalAdvance("…")
+        size.setWidth(max(0, size.width() - max(0, spare)))
+        return size
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().resizeEvent(event)
+        # Deferred for the reason `StatusBadge._shorten` gives: setting the
+        # text from inside a resize re-enters the layout from within itself.
+        QTimer.singleShot(0, self._shorten)
+
+    def _shorten(self) -> None:
+        if self._busy:
+            return
+        metrics = self.fontMetrics()
+        spent = self.sizeHint().width() - metrics.horizontalAdvance(self._shown)
+        room = max(0, self.width() - spent)
+        shown = metrics.elidedText(self._full, Qt.ElideRight, room) if room else self._full
+        if not shown or shown == self._shown:
+            return
+        self._busy = True
+        try:
+            self._shown = shown
+            self.setText(shown)
+        finally:
+            self._busy = False
+
+
 def button(text: str, *, kind: str = "", glyph: str = "", tokens: Tokens | None = None,
-           tip: str = "") -> QPushButton:
-    """A button with an optional glyph, an accessible name and a tooltip."""
-    item = QPushButton(text)
+           tip: str = "", elides: bool = False) -> QPushButton:
+    """A button with an optional glyph, an accessible name and a tooltip.
+
+    `elides` is for a secondary action with a long label standing in a column
+    that has to be able to be narrow. Never for the main action of a page.
+    """
+    item = ElidingButton(text) if elides else QPushButton(text)
     if kind:
         item.setObjectName(kind)
     if glyph and tokens is not None:
@@ -65,6 +125,9 @@ def button(text: str, *, kind: str = "", glyph: str = "", tokens: Tokens | None 
     if tip:
         item.setToolTip(tip)
         item.setAccessibleDescription(tip)
+    elif elides:
+        # The whole label has to stay reachable when the button may shorten it.
+        item.setToolTip(text)
     item.setCursor(Qt.PointingHandCursor)
     return item
 

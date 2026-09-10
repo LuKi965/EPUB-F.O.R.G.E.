@@ -736,8 +736,12 @@ class PdfConversionPage(Responsive, QWidget):
         # Optional and explicit, and it starts nothing (03-PDF-MODULE §3D):
         # only the files that were actually written, only when asked.
         written = [path for path in outcome.published_outputs]
+        # `elides` because this label is the longest on the page and this card
+        # is one of two columns: a secondary offer must not be what decides how
+        # wide the results have to be. The whole sentence is in the tooltip and
+        # the accessible name either way.
         send_on = button(tr("pdf.results.handover"), glyph="rebuild", tokens=self.tokens,
-                         tip=tr("pdf.results.handover.tip"))
+                         tip=tr("pdf.results.handover.tip"), elides=True)
         send_on.setEnabled(bool(written))
         send_on.clicked.connect(lambda: self.handover.emit([str(path) for path in written]))
         card.body.addWidget(send_on)
