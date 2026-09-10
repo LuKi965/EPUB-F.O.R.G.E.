@@ -210,6 +210,8 @@ def _read_the_result(result, outcome: PdfConversionResult, language: str) -> Pdf
     """
     report = result.report
     outcome.report_text = report.to_text(language)
+    outcome.verdict = report.summary(language)[1].strip()
+    outcome.undecided = int(report.stats.get("questions_unanswered") or 0)
     outcome.text_checked = any(
         finding.rule and finding.rule.startswith("package.prose-check")
         for finding in report.findings

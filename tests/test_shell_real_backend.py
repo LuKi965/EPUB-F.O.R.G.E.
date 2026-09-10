@@ -92,6 +92,89 @@ class TestWhatAResultMeans:
         # directly for the case where nothing is wrong.
         assert (book.status is BookStatus.DONE) == (book.issues == 0)
 
+    @staticmethod
+    def _absorbed(report, *, wrote: bool = True):
+        """`_absorb` on a fabricated result: the rule is the adapter's, and
+        neither fixture on this shelf is clean enough to reach it with a
+        question and nothing else."""
+        from types import SimpleNamespace
+
+        from epubforge.gui.shell.models import BookItem
+        from epubforge.pipeline import Status
+
+        backend = EngineBackend("pl")
+        book = BookItem(source=pathlib.Path("/nowhere/book.epub"), title="Book")
+        produced = [SimpleNamespace(
+            report=report, status=Status.SUCCEEDED if wrote else Status.BLOCKED,
+            output_path="/nowhere/out.epub" if wrote else None,
+        )]
+        backend._absorb(book, produced, plan_only=False)
+        return book
+
+    def test_a13_a_question_nobody_answered_is_not_shown_as_done(self):
+        """A13 of the 0.4.4 audit: the row said *Zapisano* and the summary
+        said healthy about a book with one question unanswered. `_absorb`
+        read the status off the findings alone."""
+        from epubforge.report import PASSED, Report
+
+        report = Report(source="in.epub", output="out.epub")
+        report.checks.update({"render": PASSED, "validation": PASSED})
+        report.stats["questions_unanswered"] = 1
+        book = self._absorbed(report)
+        assert book.issues == 0, "fixture: nic nie jest źle, tylko nie zdecydowano"
+        assert book.status is BookStatus.ATTENTION
+        assert "1 pytanie czeka na Twoją decyzję" in book.summary
+        assert book.error == book.summary
+
+    def test_a13_the_row_carries_the_reports_verdict_not_its_own(self):
+        """With both gates off the report says what it did not check; the
+        row says the same sentence rather than the analysis line it showed
+        before the run. And with every check passed and nothing owed, the
+        adapter still lands in DONE — the fix is not "everything ATTENTION"."""
+        from epubforge.report import PASSED, Report
+
+        unchecked = self._absorbed(Report(source="in.epub", output="out.epub"))
+        assert unchecked.status is BookStatus.DONE
+        assert "nie sprawdzono" in unchecked.summary
+        looked_at = Report(source="in.epub", output="out.epub")
+        looked_at.checks.update({"render": PASSED, "validation": PASSED})
+        book = self._absorbed(looked_at)
+        assert book.status is BookStatus.DONE
+        assert "zdrowa" in book.summary
+
+
+class TestTheConverterAdapterKeepsTheSameRule:
+    """`PdfBackend._absorb` reads the converter's own DTO; it has to land on
+    the same statuses for the same facts, or the window shows two truths."""
+
+    @staticmethod
+    def _absorbed(**fields):
+        from epubforge.gui.shell.models import BookItem
+        from epubforge.gui.shell.pdf_backend import PdfBackend
+        from epubforge.pdfconv.models import PdfConversionResult
+
+        item = BookItem(source=pathlib.Path("/nowhere/one.pdf"), title="One")
+        outcome = PdfConversionResult(
+            source=pathlib.Path("/nowhere/one.pdf"),
+            published_outputs=(pathlib.Path("/nowhere/one.epub"),), **fields,
+        )
+        PdfBackend("pl")._absorb(item, outcome)
+        return item
+
+    def test_a13_a_decision_still_owed_is_attention_and_the_row_says_so(self):
+        verdict = "1 pytanie czeka na Twoją decyzję — bez niej nic się przy nich nie zmienia."
+        item = self._absorbed(verdict=verdict, undecided=1)
+        assert item.status is BookStatus.ATTENTION
+        assert item.summary == verdict and item.error == verdict
+        assert item.issues == 0
+
+    def test_a13_the_verdict_replaces_the_analysis_line_and_done_survives(self):
+        item = self._absorbed(verdict="Książka jest zdrowa — nic nie wymaga Twojej uwagi.")
+        assert item.status is BookStatus.DONE
+        assert "zdrowa" in item.summary
+        warned = self._absorbed(verdict="Książka jest sprawna, ale…", warnings=("uwaga",))
+        assert warned.status is BookStatus.ATTENTION and warned.error == "uwaga"
+
     def test_r02_a_dry_run_publishes_nothing_and_says_so(self, tmp_path):
         """`written` counted statuses that "wrote a file"; a dry-run writes to
         a temporary directory that is thrown away, so the summary said a book

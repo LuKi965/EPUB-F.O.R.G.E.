@@ -126,10 +126,21 @@ class PdfBackend:
             item.status = BookStatus.BLOCKED if not outcome.error else BookStatus.FAILED
             item.severity = Severity.ERROR
             return
+        # The row's line is the report's verdict (A13): it names the checks
+        # that did not run and the decision still owed, and says "healthy"
+        # only when the report would. A question nobody answered is worth a
+        # person's eye the way a warning is — the file was written and
+        # nothing about that question changed.
+        if outcome.verdict:
+            item.summary = outcome.verdict
         item.severity = Severity.WARNING if outcome.warnings else Severity.CLEAN
-        item.status = BookStatus.ATTENTION if outcome.warnings else BookStatus.DONE
+        item.status = (
+            BookStatus.ATTENTION if outcome.warnings or outcome.undecided else BookStatus.DONE
+        )
         if outcome.warnings:
             item.error = outcome.warnings[0]
+        elif outcome.undecided:
+            item.error = outcome.verdict
 
     @staticmethod
     def _what_happened(outcome) -> tuple:

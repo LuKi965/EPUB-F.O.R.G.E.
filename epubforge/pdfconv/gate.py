@@ -13,7 +13,7 @@ from collections import Counter
 
 from ..fidelity import Check, spine_text_of
 from ..stages import base as base_stage
-from ..report import Level, Report
+from ..report import FAILED, PASSED, Level, Report
 from ..typography import canonical
 from ..xmlchars import legal
 
@@ -217,6 +217,7 @@ def render_gate(candidate: str, policy, report: Report, queue, cannot_verify) ->
         return cannot_verify(policy, report, queue)
     if not measured.completed:
         return cannot_verify(policy, report, queue, why=measured.reason)
+    report.check("render", PASSED if measured.ok else FAILED)
     for page in measured.problems:
         report.add(
             "render", Level.ERROR, "render.page-blank",

@@ -21,7 +21,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from . import resources, spawn
-from .report import Level, Report
+from .report import FAILED, PASSED, UNSUPPORTED, Level, Report
 
 ENV_JAR = "EPUBCHECK_JAR"
 
@@ -537,6 +537,7 @@ def validate(
     command = find_epubcheck()
     if command is None:
         if report:
+            report.check("validation", UNSUPPORTED)
             report.add(
                 "epubcheck",
                 Level.WARN,
@@ -553,6 +554,7 @@ def validate(
             payload = json.load(handle)
     except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as exc:
         if report:
+            report.check("validation", UNSUPPORTED)
             _note_no_verdict(report, epub_path, exc)
         return ValidationResult(available=False)
     finally:
@@ -563,6 +565,9 @@ def validate(
 
     result = _tally_messages(payload)
     if report:
+        # The one place the validator's state is written (A13): the gates in
+        # `pipeline` record only that they were switched off or had no jar.
+        report.check("validation", PASSED if result.clean else FAILED)
         if result.clean:
             report.add(
                 "epubcheck",

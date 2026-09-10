@@ -112,6 +112,14 @@ class PdfConversionResult:
     epub_validated: bool = False
     #: The technical report, rendered once.
     report_text: str = ""
+    #: The report's own first sentence (A13): whether a decision is still
+    #: owed, which checks did not run, or — only when every check passed and
+    #: nothing is owed — that the book is healthy. The row shows this rather
+    #: than composing a verdict of its own out of `warnings`.
+    verdict: str = ""
+    #: Questions the run asked and nobody answered. Not a warning and not a
+    #: failure: a decision the person still has to make.
+    undecided: int = 0
 
     @property
     def published(self) -> bool:

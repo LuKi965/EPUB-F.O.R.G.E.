@@ -21,7 +21,9 @@ from .policy import Policy
 from .question_texts import say
 from .reader import EpubReadError, read_epub
 from .references import Resolver
-from .report import Action, Automation, Level, Report, Risk
+from .report import (
+    FAILED, NOT_CHECKED, PASSED, UNSUPPORTED, Action, Automation, Level, Report, Risk,
+)
 from .stages import DEFAULT_STAGES, Context
 from .writer import ArchiveVerificationError, PublicationRefused, write_epub
 
@@ -272,6 +274,9 @@ def _cannot_verify(policy: Policy, report: Report, queue, why: str = "") -> str:
     # test that keeps it honest — `test_rules` parses these call sites rather
     # than running them, and an id it cannot see is an id nothing checks.
     values = {"detail": why} if why else {"variable": render_module().ENV_BROWSER}
+    # Whatever is decided below, the check did not run on this machine (A13):
+    # the summary may say the book is unchecked, never that it looked right.
+    report.check("render", UNSUPPORTED)
 
     def accepted() -> None:
         if why:
@@ -349,6 +354,9 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
     part this got wrong for a release.
     """
     if policy.render_gate == "off":
+        # A setting, not a finding — but a fact the summary has to carry
+        # (A13): a book nobody looked at is not known to look right.
+        report.check("render", NOT_CHECKED)
         return None
 
     from . import render, render_fidelity
@@ -387,6 +395,7 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
             # no browser at all (EF-082).
             return _cannot_verify(policy, report, queue, why=measured.reason)
 
+        report.check("render", PASSED if measured.ok else FAILED)
         for page in measured.pages:
             if page.problems:
                 report.add(
@@ -1131,12 +1140,14 @@ def _publication_gate(source: str, policy: Policy, report: Report):
     at which "the same complaint" means something.
     """
     if policy.validate_before_publish == "off":
+        report.check("validation", NOT_CHECKED)
         return None
 
     from .validate import find_epubcheck, validate
 
     def gate(candidate: str) -> str:
         if find_epubcheck() is None:
+            report.check("validation", UNSUPPORTED)
             # Asymmetric on purpose; the reasoning is in `Policy`. "clean" is an
             # absolute claim about the file and an unchecked claim is not one;
             # "no-new-errors" is a comparison, and there is nothing to compare.

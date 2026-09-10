@@ -96,6 +96,19 @@ _SUMMARY_WORDS_PL = {
         "{count} {count:pytanie czeka|pytania czekają|pytań czeka} na Twoją odpowiedź — "
         "bez niej nic się przy nich nie zmienia."
     ),
+    # A13. The verdict when nothing is wrong *and* something is undecided or
+    # unmeasured: neither is "healthy", and each says which it is.
+    "deciding": (
+        "{count} {count:pytanie czeka|pytania czekają|pytań czeka} na Twoją decyzję — "
+        "bez niej nic się przy nich nie zmienia, a książka nie jest jeszcze odebrana."
+    ),
+    "unchecked": (
+        "Nic, co program sprawdził, nie wymaga Twojej uwagi — ale {what}."
+    ),
+    "not_checked": "nie sprawdzono: {names}",
+    "unsupported": "nie dało się sprawdzić: {names}",
+    "check.render": "wyglądu stron",
+    "check.validation": "zgodności z EPUBCheck",
 }
 _SUMMARY_WORDS_EN = {
     "heading": "In short",
@@ -124,12 +137,29 @@ _SUMMARY_WORDS_EN = {
         "{count} question(s) are waiting for your answer — until it comes, nothing "
         "about them changes."
     ),
+    "deciding": (
+        "{count} question(s) are waiting for your decision — until it comes, nothing "
+        "about them changes, and the book is not accepted yet."
+    ),
+    "unchecked": "Nothing the program checked needs your attention — but {what}.",
+    "not_checked": "not checked: {names}",
+    "unsupported": "could not be checked: {names}",
+    "check.render": "how the pages look",
+    "check.validation": "EPUBCheck validation",
 }
 
 #: Version of the JSON shape written by :meth:`Report.to_dict`. The moment
 #: anything outside this project reads ``--report`` output, that shape is an
 #: interface; stamping it costs one field and means a change can be announced
 #: instead of guessed at.
+#:
+#: **6** — one field added: `checks`, the state of each check the run could
+#: have made on the published file (`render`, `validation`), as one of
+#: `passed`, `failed`, `not_checked`, `unsupported`. A13 of the 0.4.4
+#: recovery audit: the summary called a book healthy on the absence of
+#: errors alone, with the appearance and validation gates switched off and a
+#: question unanswered. The verdict now stays inside what was measured, and
+#: this field is the record it reads that from. Nothing was removed.
 #:
 #: **5** — one field added: `in_short`, the summary sentences the text report
 #: opens with (pillar C), so a front end shows the same words rather than
@@ -148,7 +178,22 @@ _SUMMARY_WORDS_EN = {
 #: were added: `description`, the finding in the language asked for, and
 #: `detail_description`, the same for the paragraph beneath it. Nothing was
 #: removed.
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
+
+#: The checks a run makes on the file it publishes, and the four states each
+#: can be in. `render` is the appearance gate; `validation` is EPUBCheck.
+#:
+#: The vocabulary is the recovery plan's own (`RepairOutcome.checks`): a check
+#: either ran and passed, ran and failed, was not run because nobody asked for
+#: it (`not_checked` — the gate switched off, or never reached), or could not
+#: run on this machine (`unsupported` — no browser, no Java, an engine that
+#: fell over). The last two are different facts to the person reading: one
+#: is a setting, the other is a missing tool.
+CHECKS = ("render", "validation")
+PASSED = "passed"
+FAILED = "failed"
+NOT_CHECKED = "not_checked"
+UNSUPPORTED = "unsupported"
 
 
 class Action(str, Enum):
@@ -293,6 +338,27 @@ class Report:
     #: `epubcheck.clean` line twice. Measured at about four and a half seconds
     #: per book, spent to learn a thing already known.
     validated: object = None
+    #: What each check in `CHECKS` came to — see the constants beside them.
+    #: Set by the gates and by the validator; read by the summary, which may
+    #: call the book healthy only when every check here passed. A check that
+    #: is absent was never reached, and counts as `not_checked`.
+    checks: dict[str, str] = field(default_factory=dict)
+
+    def check(self, name: str, state: str) -> None:
+        """Record the state of one check. A gate that ran records what it
+        found; a gate that was switched off records that it was."""
+        self.checks[name] = state
+
+    def unchecked(self) -> "list[tuple[str, str]]":
+        """The checks that did not pass — (name, state) — in `CHECKS` order.
+
+        Every one of them is a claim the summary may not make: a book whose
+        appearance nobody looked at is not known to look right."""
+        return [
+            (name, self.checks.get(name, NOT_CHECKED))
+            for name in CHECKS
+            if self.checks.get(name, NOT_CHECKED) != PASSED
+        ]
 
     def add(
         self,
@@ -409,12 +475,28 @@ class Report:
         kept = self.count(Level.PRESERVED)
         notes = self.count(Level.INFO)
 
+        # From the queue's own record (`pipeline` puts it here), never guessed
+        # from the shape of a rule name: telling somebody their book waits on
+        # them when it does not is the same kind of untruth as saying nothing.
+        unanswered = self.stats.get("questions_unanswered") or 0
+        unmeasured = self._unchecked_said(words) if self.output else ""
+        # A13 of the 0.4.4 recovery audit. This verdict was read off the
+        # findings alone — no ERROR, no WARN, "healthy" — on a book whose
+        # appearance and validation gates were both switched off and which
+        # carried a question nobody had answered. Healthy is a claim about
+        # the whole book, and it may be made only inside what was measured:
+        # a decision still owed is not health, and a check that did not run
+        # is a thing the person is told rather than a thing they are spared.
         if not self.output:
             verdict = say("refused")
         elif errors:
             verdict = say("errors", count=errors)
         elif warnings:
             verdict = say("warned", count=warnings)
+        elif unanswered:
+            verdict = say("deciding", count=unanswered)
+        elif unmeasured:
+            verdict = say("unchecked", what=unmeasured)
         else:
             verdict = say("healthy")
         lines = [words["heading"], f"  {verdict}"]
@@ -442,13 +524,30 @@ class Report:
         )
         if asked:
             lines.append(f"  {say('answered', count=asked)}")
-        # From the queue's own record (`pipeline` puts it here), never guessed
-        # from the shape of a rule name: telling somebody their book waits on
-        # them when it does not is the same kind of untruth as saying nothing.
-        unanswered = self.stats.get("questions_unanswered") or 0
-        if unanswered:
+        # Only when the verdict was spent on something worse; when the wait
+        # *is* the verdict the first line already said it.
+        if unanswered and (errors or warnings or not self.output):
             lines.append(f"  {say('waiting', count=unanswered)}")
+        # And what was not measured, whatever the verdict was spent on: a
+        # book with a warning and no render check has two things to know.
+        if unmeasured and (errors or warnings or unanswered):
+            lines.append(f"  {unmeasured[:1].upper()}{unmeasured[1:]}.")
         return lines
+
+    def _unchecked_said(self, words: dict) -> str:
+        """The checks that did not run, in words: what was switched off and
+        what could not run, each with the names of the checks it covers.
+
+        A check that ran and *failed* is not in this sentence — it already
+        put an ERROR in the findings, and the verdict counted that."""
+        from . import rules
+
+        parts = []
+        for state in (NOT_CHECKED, UNSUPPORTED):
+            names = [words[f"check.{name}"] for name, found in self.unchecked() if found == state]
+            if names:
+                parts.append(rules.fill(words[state], {"names": ", ".join(names)}))
+        return "; ".join(parts)
 
     @property
     def ok(self) -> bool:
@@ -494,6 +593,9 @@ class Report:
             # changing what an existing one means is how a consumer breaks
             # without a message.
             "in_short": self.summary(language)[1:],
+            # A13. Absent means never reached, which is `not_checked`; the
+            # summary reads the same record, so the two cannot disagree.
+            "checks": {name: self.checks.get(name, NOT_CHECKED) for name in CHECKS},
             "balance": self.balance.as_dict() if self.balance is not None else None,
             "summary": {level.value: self.count(level) for level in Level},
             "findings": findings,
@@ -662,32 +764,14 @@ def batch_summary(reports: "list[Report]", language: str = "en") -> "list[str]":
     if not total:
         return [words["heading"], f"  {say('nothing')}"]
 
-    refused = sum(1 for report in reports if not report.output)
-    with_errors = sum(
-        1 for report in reports if report.output and report.count(Level.ERROR)
-    )
-    with_warnings = sum(
-        1 for report in reports
-        if report.output and not report.count(Level.ERROR) and report.count(Level.WARN)
-    )
-    healthy = total - refused - with_errors - with_warnings
+    buckets = _shelf_buckets(reports)
+    lines = [words["heading"], f"  {say('books', count=total, healthy=buckets['healthy'])}"]
+    for bucket in ("refused", "errors", "warnings", "unchecked"):
+        if buckets[bucket]:
+            lines.append(f"  {say(bucket, count=buckets[bucket])}")
 
-    lines = [words["heading"], f"  {say('books', count=total, healthy=healthy)}"]
-    if refused:
-        lines.append(f"  {say('refused', count=refused)}")
-    if with_errors:
-        lines.append(f"  {say('errors', count=with_errors)}")
-    if with_warnings:
-        lines.append(f"  {say('warnings', count=with_warnings)}")
-
-    repaired: dict[str, int] = {}
-    for report in reports:
-        for stage in {f.stage for f in report.findings if f.level is Level.FIX}:
-            name = stages.get(stage, stage)
-            repaired[name] = repaired.get(name, 0) + 1
-    if repaired:
-        biggest = sorted(repaired.items(), key=lambda pair: (-pair[1], pair[0]))[:3]
-        where = ", ".join(f"{name} ({count})" for name, count in biggest)
+    where = _most_repaired(reports, stages)
+    if where:
         lines.append(f"  {say('repaired', where=where)}")
 
     waiting = sum(
@@ -696,6 +780,44 @@ def batch_summary(reports: "list[Report]", language: str = "en") -> "list[str]":
     if waiting:
         lines.append(f"  {say('waiting', count=waiting)}")
     return lines
+
+
+def _shelf_buckets(reports: "list[Report]") -> "dict[str, int]":
+    """Every book in exactly one bucket, worst first, so the numbers add up
+    to the total and the summary cannot lie quietly.
+
+    A13: a book nobody has answered for (`deciding`), or one the run did not
+    finish measuring (`unchecked`), is not one of the healthy ones.
+    """
+    counted = {"refused": 0, "errors": 0, "warnings": 0, "deciding": 0, "unchecked": 0,
+               "healthy": 0}
+    for report in reports:
+        if not report.output:
+            bucket = "refused"
+        elif report.count(Level.ERROR):
+            bucket = "errors"
+        elif report.count(Level.WARN):
+            bucket = "warnings"
+        elif report.stats.get("questions_unanswered"):
+            bucket = "deciding"
+        elif report.unchecked():
+            bucket = "unchecked"
+        else:
+            bucket = "healthy"
+        counted[bucket] += 1
+    return counted
+
+
+def _most_repaired(reports: "list[Report]", stages: dict) -> str:
+    """The three areas repaired in the most books, in words — counted by
+    book, not by finding (`survey.py`'s rule)."""
+    repaired: dict[str, int] = {}
+    for report in reports:
+        for stage in {f.stage for f in report.findings if f.level is Level.FIX}:
+            name = stages.get(stage, stage)
+            repaired[name] = repaired.get(name, 0) + 1
+    biggest = sorted(repaired.items(), key=lambda pair: (-pair[1], pair[0]))[:3]
+    return ", ".join(f"{name} ({count})" for name, count in biggest)
 
 
 #: The shelf summary's sentences. Separate from the single-book table because
@@ -724,6 +846,10 @@ _BATCH_WORDS_PL = {
     "waiting": (
         "W {count} {count:książce|książkach|książkach} pytania czekają na Twoją odpowiedź."
     ),
+    "unchecked": (
+        "{count} {count:książki nie sprawdzono|książek nie sprawdzono|książek nie sprawdzono} "
+        "do końca — raport każdej mówi, której kontroli zabrakło."
+    ),
 }
 _BATCH_WORDS_EN = {
     "heading": "In short — the whole shelf",
@@ -737,6 +863,10 @@ _BATCH_WORDS_EN = {
     "warnings": "{count} book(s) have things worth a look.",
     "repaired": "Most often repaired (in how many books): {where}.",
     "waiting": "{count} book(s) have questions waiting for your answer.",
+    "unchecked": (
+        "{count} book(s) were not checked all the way — each report says which "
+        "check was missing."
+    ),
 }
 
 

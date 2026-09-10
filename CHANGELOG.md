@@ -40,7 +40,25 @@ written; only the current version was reset.
 
 ## Unreleased
 
-(Nic jeszcze nie czeka — 0.4.4 wyszło 2026-09-09.)
+Paczka naprawcza właściciela po 0.4.4 (`EPUB-FORGE-044-RECOVERY-PLAN`,
+2026-09-10): audyt A01–A16 i pakiety W00–W11. Każdy wpis niżej jest jedną
+iteracją paczki, ze statusem najwyżej `FIXED_UNVERIFIED` — werdykt należy do
+audytora.
+
+### A13 / W02 — raport nie mówi „zdrowa” ponad zakres pomiaru
+
+„Książka jest zdrowa — nic nie wymaga Twojej uwagi” padało o książce, której
+wyglądu nikt nie oglądał, której EPUBCheck nie czytał i o którą czekało
+pytanie bez odpowiedzi: werdykt czytał same wyniki (brak ERROR/WARN), przed
+pytaniami i przed bramami. Teraz każda brama zapisuje, co się z jej kontrolą
+stało — `checks` w raporcie i w JSON (schemat 5 → 6): `passed`, `failed`,
+`not_checked` (wyłączona), `unsupported` (nie było czym) — a werdykt zostaje
+w granicach pomiaru: pytanie bez odpowiedzi to „czeka na Twoją decyzję”,
+brama wyłączona to „nie sprawdzono: …”, brakujące narzędzie to „nie dało
+się sprawdzić: …”. „Zdrowa” tylko, gdy obie kontrole przeszły i nic nie
+czeka. Wiersz książki w oknie pokazuje to samo zdanie, a książka z pytaniem
+bez odpowiedzi ląduje w „wymaga uwagi”, nie w „zapisano” — w obu adapterach.
+Półka liczy takie książki osobno, nie jako zdrowe.
 
 ## 0.4.4 — alpha — 2026-09-09
 

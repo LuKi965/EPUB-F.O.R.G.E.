@@ -16,14 +16,20 @@ from __future__ import annotations
 
 import json
 
-from epubforge.report import Level, Report
+from epubforge.report import FAILED, NOT_CHECKED, PASSED, UNSUPPORTED, Level, Report
+
+#: Both checks passed — the only state in which "healthy" is a true sentence
+#: (A13). Tests about *other* sentences build on it so they say what they mean.
+LOOKED_AT = {"render": PASSED, "validation": PASSED}
 
 
-def report_with(*findings, output="out.epub", **stats) -> Report:
+def report_with(*findings, output="out.epub", checks=None, **stats) -> Report:
     report = Report(source="in.epub", output=output)
     for stage, level, message in findings:
         report.add(stage, level, message)
     report.stats.update(stats)
+    if checks is not None:
+        report.checks.update(checks)
     return report
 
 
@@ -31,7 +37,8 @@ class TestTheFirstSentenceAnswersTheFirstQuestion:
     """Whatever else it says, a person learns whether the book is all right."""
 
     def test_a_clean_book_is_called_healthy(self):
-        lines = report_with(("css", Level.FIX, "css.empty-noise-removed")).summary("pl")
+        lines = report_with(("css", Level.FIX, "css.empty-noise-removed"),
+                            checks=LOOKED_AT).summary("pl")
         assert "zdrowa" in lines[1]
 
     def test_a_warning_is_not_hidden_behind_the_word_healthy(self):
@@ -54,6 +61,88 @@ class TestTheFirstSentenceAnswersTheFirstQuestion:
         findings alone fails here: this report has none."""
         lines = report_with(output="").summary("pl")
         assert "Plik nie powstał" in lines[1]
+
+
+class TestTheVerdictStaysInsideWhatWasMeasuredA13:
+    """A13 of the 0.4.4 recovery audit, reproduced on a book of the owner's
+    shelf: *„Książka jest zdrowa — nic nie wymaga Twojej uwagi"*, and three
+    lines down, one question nobody had answered — in a run with the render
+    and validation gates switched off. The verdict was read off the findings
+    alone, before the questions and before the checks. AC08: the report shows
+    the decision still owed and the checks that were not made, and never says
+    "healthy" unconditionally.
+    """
+
+    def test_a_question_without_an_answer_is_not_called_healthy(self):
+        lines = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT,
+                            questions_unanswered=1).summary("pl")
+        assert "zdrowa" not in lines[1]
+        assert "1 pytanie czeka na Twoją decyzję" in lines[1]
+        assert "nie jest jeszcze odebrana" in lines[1]
+
+    def test_a_check_that_was_switched_off_is_named_in_the_verdict(self):
+        lines = report_with(
+            ("css", Level.FIX, "a"), checks={"render": NOT_CHECKED, "validation": PASSED},
+        ).summary("pl")
+        assert "zdrowa" not in lines[1]
+        assert "nie sprawdzono: wyglądu stron" in lines[1]
+        assert "EPUBCheck" not in lines[1], "walidacja przeszła, więc nie ma jej w zdaniu"
+
+    def test_a_check_that_could_not_run_is_told_apart_from_one_switched_off(self):
+        """A missing browser and a setting are two different things to the
+        person reading — one is a tool to install, the other a box to tick."""
+        lines = report_with(
+            ("css", Level.FIX, "a"),
+            checks={"render": UNSUPPORTED, "validation": NOT_CHECKED},
+        ).summary("pl")
+        assert "nie dało się sprawdzić: wyglądu stron" in lines[1]
+        assert "nie sprawdzono: zgodności z EPUBCheck" in lines[1]
+
+    def test_a_report_that_records_no_checks_claims_nothing_about_them(self):
+        """Absent is not passed. A report that never reached a gate — or a
+        version of the program that never wrote the record — must not read as
+        a book that was looked at."""
+        lines = report_with(("css", Level.FIX, "a")).summary("pl")
+        assert "zdrowa" not in lines[1]
+        assert "wyglądu stron" in lines[1] and "EPUBCheck" in lines[1]
+
+    def test_a_check_that_ran_and_failed_is_in_the_findings_not_in_this_sentence(self):
+        """A failed check already put its ERROR below; the verdict counted
+        it. Saying "not checked" about it as well would be untrue."""
+        lines = report_with(
+            ("render", Level.ERROR, "render.page-lost-content"),
+            checks={"render": FAILED, "validation": PASSED},
+        ).summary("pl")
+        assert "ERROR" in lines[1]
+        assert not [line for line in lines if "nie sprawdzono" in line]
+
+    def test_a_warning_and_an_unchecked_gate_are_both_said(self):
+        """The verdict is spent on the warning; the missing check still has
+        to reach the person, on the line below."""
+        lines = report_with(
+            ("xhtml", Level.WARN, "xhtml.alt-missing"),
+            checks={"render": PASSED, "validation": NOT_CHECKED},
+        ).summary("pl")
+        assert "WARN" in lines[1]
+        assert any("Nie sprawdzono: zgodności z EPUBCheck" in line for line in lines[2:])
+
+    def test_only_a_book_with_every_check_passed_and_nothing_owed_is_healthy(self):
+        lines = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT,
+                            questions_unanswered=0).summary("pl")
+        assert "zdrowa" in lines[1]
+
+    def test_english_says_the_same_things(self):
+        deciding = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT,
+                               questions_unanswered=2).summary("en")
+        assert "healthy" not in deciding[1] and "2 question(s) are waiting for your decision" in deciding[1]
+        unchecked = report_with(("css", Level.FIX, "a")).summary("en")
+        assert "not checked: how the pages look, EPUBCheck validation" in unchecked[1]
+
+    def test_the_json_carries_the_record_the_summary_read(self):
+        report = report_with(("css", Level.FIX, "a"), checks={"render": UNSUPPORTED})
+        data = json.loads(report.to_json("pl"))
+        assert data["schema"] >= 6
+        assert data["checks"] == {"render": UNSUPPORTED, "validation": NOT_CHECKED}
 
 
 class TestWhatWasRepairedIsSaidByArea:
@@ -111,9 +200,15 @@ class TestNothingIsClaimedThatIsNotCounted:
         )
         assert not [line for line in quiet.summary("pl") if "czeka" in line]
 
-        asked = report_with(("css", Level.FIX, "a"), questions_unanswered=3)
+        asked = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT, questions_unanswered=3)
         waiting = next(line for line in asked.summary("pl") if "czeka" in line)
         assert "3 pytania czekają" in waiting
+        # And when the verdict was spent on something worse, the wait is
+        # still said — on its own line, so neither fact hides the other.
+        both = report_with(("x", Level.WARN, "w"), checks=LOOKED_AT, questions_unanswered=3)
+        lines = both.summary("pl")
+        assert "WARN" in lines[1]
+        assert any("3 pytania czekają" in line for line in lines[2:])
 
 
 class TestBothLanguagesAndBothConsumers:
@@ -126,7 +221,7 @@ class TestBothLanguagesAndBothConsumers:
         )
 
     def test_english_says_the_same_things(self):
-        lines = report_with(("css", Level.FIX, "a")).summary("en")
+        lines = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT).summary("en")
         assert lines[0] == "In short"
         assert "healthy" in lines[1]
         assert "stylesheets (1)" in lines[2]
@@ -136,7 +231,7 @@ class TestBothLanguagesAndBothConsumers:
         "5 pytań czeka" agree here exactly as they do in every finding."""
         for count, expected in ((1, "1 pytanie czeka"), (3, "3 pytania czekają"),
                                 (7, "7 pytań czeka")):
-            lines = report_with(("css", Level.FIX, "a"),
+            lines = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT,
                                 questions_unanswered=count).summary("pl")
             assert expected in " ".join(lines)
 
@@ -159,11 +254,11 @@ class TestTheWholeShelfGetsTheSameTreatment:
 
     @staticmethod
     def shelf():
-        healthy = report_with(("css", Level.FIX, "a"))
+        healthy = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT)
         warned = report_with(("xhtml", Level.WARN, "w"), ("css", Level.FIX, "a"))
         broken = report_with(("fonts", Level.ERROR, "e"))
         refused = report_with(output="")
-        asking = report_with(("css", Level.FIX, "a"), questions_unanswered=2)
+        asking = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT, questions_unanswered=2)
         return [healthy, warned, broken, refused, asking]
 
     def test_it_counts_books_not_findings(self):
@@ -186,15 +281,25 @@ class TestTheWholeShelfGetsTheSameTreatment:
 
         lines = " ".join(batch_summary(self.shelf(), "pl"))
         assert "Przebudowano 5 książek" in lines
-        # Two: the plain one and the one with questions waiting. A book nobody
-        # has answered yet has nothing *wrong* with it — S-05 means nothing
-        # about it changed — so it is healthy and it is also on the waiting
-        # line below. Those are two different facts about one book.
-        assert "2 z nich są zdrowe" in lines
+        # One. This used to say two, counting the book with questions
+        # waiting as healthy on the argument that nothing about it had
+        # changed. A13 of the 0.4.4 audit is the answer to that argument: a
+        # book nobody has decided about is not accepted, and "healthy" is
+        # the word for accepted. It is on the waiting line below instead.
+        assert "1 z nich jest zdrowa" in lines
         assert "1 książka nie powstała" in lines
         assert "1 książka ma błąd" in lines
         assert "W 1 książce są sprawy warte obejrzenia" in lines
         assert "W 1 książce pytania czekają" in lines
+
+    def test_a_book_the_run_did_not_finish_measuring_is_not_healthy_either(self):
+        from epubforge.report import batch_summary
+
+        unchecked = report_with(("css", Level.FIX, "a"))
+        looked_at = report_with(("css", Level.FIX, "a"), checks=LOOKED_AT)
+        lines = " ".join(batch_summary([unchecked, looked_at], "pl"))
+        assert "1 z nich jest zdrowa" in lines
+        assert "1 książki nie sprawdzono do końca" in lines
 
     def test_a_book_with_an_error_is_not_also_counted_as_merely_worth_a_look(self):
         """Each book lands in exactly one bucket, or the numbers stop adding

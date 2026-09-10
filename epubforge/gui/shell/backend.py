@@ -523,11 +523,23 @@ class EngineBackend:
             pathlib.Path(one.output_path) for one in results if one.output_path
         )
         book.output = book.published_outputs[0] if book.published_outputs else None
+        # The row's one line is the report's own verdict (A13), not the
+        # analysis sentence it showed before the run: it says whether a
+        # decision is still owed and which checks did not run, and it says
+        # "healthy" only when the report itself would.
+        book.summary = report.summary(self.language)[1].strip()
+        # A question nobody answered is worth a person's eye as much as a
+        # warning is: the file was written, and nothing about that question
+        # changed. It used to land in DONE, because DONE was read off the
+        # findings alone (A13).
+        undecided = bool(report.stats.get("questions_unanswered"))
         book.status = (
-            BookStatus.ATTENTION if book.severity is not Severity.CLEAN else BookStatus.DONE
+            BookStatus.ATTENTION
+            if book.severity is not Severity.CLEAN or undecided
+            else BookStatus.DONE
         )
         if book.status is BookStatus.ATTENTION:
-            book.error = self._first_problem(report)
+            book.error = self._first_problem(report) or book.summary
 
     def _first_problem(self, report) -> str:
         from ...report import Level
