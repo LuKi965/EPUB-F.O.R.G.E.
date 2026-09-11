@@ -76,6 +76,23 @@ pękło, jest nazwane razem z dokumentem: `package.document-changed-unrecorded`.
 Pytane dopiero za miarami globalnymi, więc utrata, którą one widzą,
 zachowuje odmowę mówiącą, czego brakuje.
 
+### A05 / W04 — każdy region rysunku rozliczony
+
+`_carry_the_drawings` pomijał region przy każdym przecięciu z obrazem —
+ramka wokół zdjęcia i złożona ilustracja z rastrem w środku to nie to samo,
+a druga przepadała bez słowa — i `pdf.drawing-not-drawn` padało tylko, gdy
+nie przeniesiono *żadnego* rysunku, więc jeden przeniesiony ukrywał każdy
+odmówiony obok. Teraz każdy wykryty region ma wpis w `pdf_layout.drawings`:
+strona, ramka, wynik (`carried` / `merged` / `skipped`) i powód, a liczniki
+`drawings_detected`, `drawings_merged`, `drawings_skipped` sumują się do
+przeniesionych. Ramka wokół obrazu (region sięgający najwyżej dwie komórki
+detektora poza obraz — zmierzone na fixture: 12 pt) to `merged`, obraz
+zostaje raz, raport mówi `pdf.drawing-merged`. Kompozyt z rastrem w środku
+jest przenoszony jako obraz obszaru — render pokazuje raster, więc raster
+nie trafia do książki drugi raz. Sam dotyk to obie rzeczy w książce.
+`pdf.drawing-not-drawn` liczy odmowy wobec wykrytych, także gdy inne
+regiony przeszły.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki

@@ -2079,3 +2079,137 @@ class TestTheFixedLineIsAsWideAsItWasA03:
                 for line in got["lines"] if line["right"] > got["page"] + 0.5]
         assert not past, f"wiersze wychodzą za prawą krawędź strony: {past}"
         shutil.rmtree(where, ignore_errors=True)
+
+
+class TestEveryRegionIsAccountedForA05:
+    """A05 of the 0.4.4 recovery plan: *niepełne przeniesienie ilustracji
+    może zniknąć z raportu.*
+
+    Two holes, both in `_carry_the_drawings`. A region that overlapped a
+    picture the page already carried was skipped on the bare fact of the
+    overlap — a frame round a photograph and a composite illustration with
+    a raster in the middle are not the same thing, and the second was lost.
+    And `pdf.drawing-not-drawn` was said only when *no* drawing at all had
+    been carried, so one success hid every partial failure beside it.
+
+    What the audit asks for is a balance per region — detected, carried,
+    merged, skipped, with the reason — and these read it back.
+    """
+
+    @staticmethod
+    def _raster(width: int, height: int) -> bytes:
+        return bytes((200, 40, 40)) * (width * height)
+
+    def _two_drawings(self, tmp_path):
+        first = column(["Page one carries a drawing."], top=700)
+        second = column(["Page two carries another."], top=700)
+        return make_pdf(tmp_path / "two.pdf", [first, second],
+                        strokes={0: _spiral(200, 450, 80), 1: _spiral(200, 450, 80)})
+
+    def test_one_region_refused_is_said_even_when_another_was_carried(self, tmp_path, monkeypatch):
+        """Before: page 1 carried, page 2 refused, the report said `drawing-
+        carried: 1` and nothing else. The balance has to show the refusal."""
+        source = self._two_drawings(tmp_path)
+        real = draw.Sheet.region
+
+        def refuses_the_second(self, page, box, height, scale=draw.SCALE):
+            return None if page == 2 else real(self, page, box, height, scale)
+
+        monkeypatch.setattr(draw.Sheet, "region", refuses_the_second)
+        report = Report(source=str(source))
+        pdf.read_pdf(str(source), report)
+        layout = report.stats["pdf_layout"]
+        assert layout["drawings_detected"] == 2
+        assert layout["drawings_carried"] == 1
+        assert layout["drawings_skipped"] == 1
+        assert [entry["outcome"] for entry in layout["drawings"]] == ["carried", "skipped"]
+        assert layout["drawings"][1]["page"] == 2
+        said = next(f for f in report.findings if f.rule == "pdf.drawing-not-drawn")
+        assert said.level is Level.WARN
+        assert said.values["count"] == 1 and said.values["detected"] == 2
+
+    def test_the_balance_closes_when_everything_was_carried(self, tmp_path):
+        source = self._two_drawings(tmp_path)
+        report = Report(source=str(source))
+        pdf.read_pdf(str(source), report)
+        layout = report.stats["pdf_layout"]
+        assert layout["drawings_detected"] == layout["drawings_carried"] == 2
+        assert "pdf.drawing-not-drawn" not in {f.rule for f in report.findings}
+        assert all(entry["outcome"] == "carried" for entry in layout["drawings"])
+
+    def test_a_frame_round_a_picture_is_merged_and_said(self, tmp_path):
+        """Dense strokes in a band round a raster: one illustration. The
+        raster stays, the region is not carried as a second picture, and the
+        ledger says why. The frame's box, measured here, reaches 12 pt past
+        the picture on each side — one detector cell — which is what
+        `FRAME_REACH` (two cells) was set against."""
+        picture = (240, 500, 120, 90)  # x, y, w, h in PDF points
+        x, y, w, h = picture
+        strokes = []
+        for step in range(0, 12, 1):  # a 12 pt hatched border, all four sides
+            strokes.append((x - 12 + step, y - 12, x - 12 + step, y + h + 12))
+            strokes.append((x + w + step, y - 12, x + w + step, y + h + 12))
+            strokes.append((x - 12, y - 12 + step, x + w + 12, y - 12 + step))
+            strokes.append((x - 12, y + h + step, x + w + 12, y + h + step))
+        for step in range(0, w + 24, 4):
+            strokes.append((x - 12 + step, y - 12, x - 12 + step, y - 1))
+            strokes.append((x - 12 + step, y + h + 1, x - 12 + step, y + h + 12))
+        for step in range(0, h + 24, 4):
+            strokes.append((x - 12, y - 12 + step, x - 1, y - 12 + step))
+            strokes.append((x + w + 1, y - 12 + step, x + w + 12, y - 12 + step))
+        lines = column(["A photograph with a border drawn round it."], top=700)
+        source = make_pdf(tmp_path / "framed.pdf", [lines], strokes={0: strokes},
+                          images={0: [(x, y, w, h, 12, 9, self._raster(12, 9))]})
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        layout = report.stats["pdf_layout"]
+        assert layout["drawings_detected"] == 1, layout["drawings"]
+        assert layout["drawings_merged"] == 1
+        assert layout["drawings_carried"] == 0
+        entry = layout["drawings"][0]
+        assert entry["outcome"] == "merged" and entry["pictures"]
+        box = entry["box"]
+        assert max(x - box[0], y - box[1], box[2] - (x + w), box[3] - (y + h)) <= pdf.FRAME_REACH
+        images = [r for r in book.resources.values() if r.media_type == "image/png"]
+        assert len(images) == 1, "obraz miał być w książce raz"
+        assert "pdf.drawing-merged" in {f.rule for f in report.findings}
+
+    def test_a_composite_with_a_raster_inside_is_carried_once(self, tmp_path):
+        """A large drawing with a small raster in the middle. Before: skipped
+        for the overlap, drawing lost, nothing said. Now the region is
+        carried — the render shows the raster too — and the raster is not
+        emitted a second time on its own."""
+        x, y, w, h = 280, 470, 40, 30
+        lines = column(["An illustration of curves with a photograph set in it."], top=700)
+        source = make_pdf(tmp_path / "composite.pdf", [lines], strokes={0: _spiral(300, 485, 120)},
+                          images={0: [(x, y, w, h, 8, 6, self._raster(8, 6))]})
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        layout = report.stats["pdf_layout"]
+        assert layout["drawings_detected"] == 1
+        assert layout["drawings_carried"] == 1, layout["drawings"]
+        entry = layout["drawings"][0]
+        assert entry["outcome"] == "carried" and entry["pictures"], entry
+        images = [r for r in book.resources.values() if r.media_type == "image/png"]
+        assert len(images) == 1, "raster w środku rysunku miał nie trafić do książki drugi raz"
+        assert "pdf.drawing-carried" in {f.rule for f in report.findings}
+
+    def test_a_drawing_that_only_touches_a_picture_is_carried_beside_it(self, tmp_path):
+        """The overlap alone is not a reason. A raster at the corner of a
+        drawing, partly inside it: both are in the book, and the ledger says
+        the region was carried beside the picture it touches."""
+        x, y, w, h = 150, 400, 60, 40  # its top-right corner reaches into the spiral
+        lines = column(["A drawing and a photograph that share a corner."], top=700)
+        source = make_pdf(tmp_path / "touching.pdf", [lines], strokes={0: _spiral(260, 480, 90)},
+                          images={0: [(x, y, w, h, 6, 4, self._raster(6, 4))]})
+        report = Report(source=str(source))
+        book = pdf.read_pdf(str(source), report)
+        layout = report.stats["pdf_layout"]
+        assert layout["drawings_detected"] == 1
+        entry = layout["drawings"][0]
+        assert entry["outcome"] == "carried", entry
+        assert "beside" in entry["reason"], entry
+        images = [r for r in book.resources.values() if r.media_type == "image/png"]
+        assert len(images) == 2, "rysunek i zdjęcie miały być w książce oba"
+
+

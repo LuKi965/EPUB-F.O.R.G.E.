@@ -186,6 +186,9 @@ class Page:
     #: Boxes of the vector drawings on the page. Not carried into the book —
     #: this reader has no way to draw them — but the text standing on them is.
     drawings: list = field(default_factory=list)
+    #: What became of each drawing on this page — one entry per region the
+    #: detector found, written by `_carry_the_drawings` (A05).
+    drawing_ledger: list = field(default_factory=list)
     #: The callouts printed on those drawings, taken out of the prose and
     #: printed together where the first of them stood.
     callouts: list = field(default_factory=list)
@@ -297,6 +300,18 @@ class Layout:
     #: Drawings carried into the book as a rendered picture of their region
     #: (Q01). A page may hold several; this counts the pictures, not the pages.
     drawings_carried: int = 0
+    #: The rest of the balance (A05 of the 0.4.4 recovery audit): every
+    #: region the detector found, and what became of each. `detected` is the
+    #: total; `merged` are frames round a picture the page already carries,
+    #: which would be the same illustration twice; `skipped` are regions the
+    #: renderer would not draw. Carried + merged + skipped = detected, and
+    #: `drawings` is the entry for each — page, box, outcome, reason — so a
+    #: partial failure has somewhere to be said rather than hiding behind
+    #: one success.
+    drawings_detected: int = 0
+    drawings_merged: int = 0
+    drawings_skipped: int = 0
+    drawings: list = field(default_factory=list)
     #: Lines a photographed region already shows, so the page does not paint
     #: them a second time. They are in the book, in their place and in order —
     #: found, selected and read aloud like any other — and this is the count
@@ -416,6 +431,13 @@ def _lay_out_all(pages: list[Page], layout: "Layout") -> float:
     layout.drawings_carried = sum(
         1 for page in pages for picture in page.pictures if picture.drawn
     )
+    # The balance per region (A05). Each page kept its own ledger while its
+    # drawings were carried; the book's is the concatenation, and the counts
+    # are read off it rather than kept beside it so the two cannot disagree.
+    layout.drawings = [entry for page in pages for entry in page.drawing_ledger]
+    layout.drawings_detected = len(layout.drawings)
+    layout.drawings_merged = sum(1 for entry in layout.drawings if entry["outcome"] == "merged")
+    layout.drawings_skipped = sum(1 for entry in layout.drawings if entry["outcome"] == "skipped")
     layout.body_size = _body_size(pages)
     layout.body_face = _body_face(pages)
     return layout.body_size
@@ -670,32 +692,47 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             values={"count": layout.text_under_art},
             location=source,
         )
-    if layout.drawing_pages and not layout.drawings_carried:
+    if layout.drawings_merged:
+        # A frame round a picture the page already carries: one illustration,
+        # not two. Said, because a region the detector found and the book
+        # does not show as a picture of its own is a thing to account for.
+        report.add(
+            "pdf",
+            Level.INFO,
+            "pdf.drawing-merged",
+            values={"count": layout.drawings_merged},
+            location=source,
+        )
+    if layout.drawing_pages and not draw.available():
         # Said because the alternative is a book that quietly lacks every
         # diagram its source had. Two sentences and not one, because the two
         # reasons ask different things of the reader: a missing optional
         # library is something he can install, and a renderer that refused
         # the region is not. Telling him the first as though it were the
         # second would be telling him a fixable thing is impossible.
-        if draw.available():
-            report.add(
-                "pdf",
-                Level.WARN,
-                "pdf.drawing-not-drawn",
-                values={"pages": layout.drawing_pages,
-                        "labelled": layout.labelled_drawings},
-                location=source,
-            )
-        else:
-            report.add(
-                "pdf",
-                Level.WARN,
-                "pdf.drawing-not-carried",
-                values={"pages": layout.drawing_pages,
-                        "labelled": layout.labelled_drawings,
-                        "missing": draw.why_not()},
-                location=source,
-            )
+        report.add(
+            "pdf",
+            Level.WARN,
+            "pdf.drawing-not-carried",
+            values={"pages": layout.drawing_pages,
+                    "labelled": layout.labelled_drawings,
+                    "missing": draw.why_not()},
+            location=source,
+        )
+    elif layout.drawings_skipped:
+        # Any region the renderer refused, not only the case where it
+        # refused them all (A05): one drawing carried used to hide five
+        # that were not. The count is of regions, against the total found.
+        report.add(
+            "pdf",
+            Level.WARN,
+            "pdf.drawing-not-drawn",
+            values={"count": layout.drawings_skipped,
+                    "detected": layout.drawings_detected,
+                    "pages": layout.drawing_pages,
+                    "labelled": layout.labelled_drawings},
+            location=source,
+        )
     if layout.images_skipped:
         report.add(
             "pdf",
@@ -1297,32 +1334,106 @@ CELLS_ACROSS_A_DRAWING = 3
 DRAWING_DENSITY = 2.0
 
 
+#: How far beyond a picture's box a drawing may reach and still be the frame
+#: round that picture rather than an illustration of its own. Two cells:
+#: the detector reports boxes on the `DRAWING_CELL` grid, so a border drawn
+#: hard against the picture's edge already lands up to one cell out on each
+#: side, and a rule a stroke's width beyond that is still a border. Measured
+#: on the frame fixture in `tests/test_pdf.py`: its box reaches 12 pt past
+#: the picture on every side, one cell exactly.
+FRAME_REACH = 2 * DRAWING_CELL
+
+
 def _carry_the_drawings(sheet, page: "Page", seen: int) -> int:
-    """Turn each of this page's drawings into a picture of itself (Q01).
+    """Turn each of this page's drawings into a picture of itself (Q01), and
+    enter every one of them in the page's ledger whatever became of it (A05).
 
     Returns the running picture count, because the names come off it and a
     drawing is numbered in the same sequence as a raster — one namespace for
     the images of one book.
 
-    A region that overlaps a picture the page already carries is skipped: a
-    photograph with a frame drawn round it is one illustration, and carrying
-    both would put it in the book twice.
+    Three outcomes, and each is written down with its reason:
+
+    * **merged** — the region is the frame round a picture the page already
+      carries: a photograph with a border drawn round it is one illustration,
+      and carrying both would put it in the book twice. The picture stays.
+    * **carried** — the region is rendered. When it *contains* a picture —
+      a composite illustration with a raster in the middle — the render
+      shows the raster too, so the raster is not emitted a second time on
+      its own; the entry names it. A region that merely touches a picture
+      is carried beside it: this used to skip the region on the bare fact
+      of an overlap, and a diagram that shared a corner with a photograph
+      was not in the book and nothing said so.
+    * **skipped** — the renderer would not draw it. Reported by count, not
+      only when every region on every page was refused.
     """
     if not page.drawings:
         return seen
     for box in page.drawings:
-        if any(_overlaps(box, (p.x0, p.y0, p.x1, p.y1)) for p in page.pictures):
+        touching = [p for p in page.pictures if not p.drawn and _overlaps(box, (p.x0, p.y0, p.x1, p.y1))]
+        framed = [p for p in touching if _is_a_frame_round(box, p)]
+        if framed:
+            page.drawing_ledger.append(_ledger_entry(
+                page, box, "merged", "frame round a picture the page carries",
+                pictures=[p.name for p in framed],
+            ))
             continue
         data = sheet.region(page.number, box, page.height)
         if data is None:
+            page.drawing_ledger.append(_ledger_entry(
+                page, box, "skipped", "the renderer would not draw the region",
+            ))
             continue
+        inside = [p for p in touching if _contains(box, (p.x0, p.y0, p.x1, p.y1))]
+        for picture in inside:
+            # Shown by the render of the region, which is what the composite
+            # illustration is; on its own it would be the same pixels twice.
+            page.pictures.remove(picture)
         seen += 1
         x0, y0, x1, y1 = box
         page.pictures.append(Picture(
             f"images/pdf-{seen:04d}.png", data, "image/png",
             page.number, y1, x0=x0, x1=x1, y0=y0, drawn=True,
         ))
+        beside = [p.name for p in touching if p not in inside]
+        page.drawing_ledger.append(_ledger_entry(
+            page, box, "carried",
+            "rendered" + (" with the picture(s) it contains" if inside else "")
+            + (" beside a picture it touches" if beside else ""),
+            pictures=[p.name for p in inside] + beside,
+        ))
     return seen
+
+
+def _ledger_entry(page: "Page", box, outcome: str, reason: str, pictures=()) -> dict:
+    """One region's line in the balance: where it is, what became of it, why."""
+    entry = {
+        "page": page.number,
+        "box": [round(v, 1) for v in box],
+        "outcome": outcome,
+        "reason": reason,
+    }
+    if pictures:
+        entry["pictures"] = list(pictures)
+    return entry
+
+
+def _contains(outer, inner) -> bool:
+    """Whether *outer* holds the whole of *inner*."""
+    ox0, oy0, ox1, oy1 = outer
+    ix0, iy0, ix1, iy1 = inner
+    return ox0 <= ix0 and oy0 <= iy0 and ix1 <= ox1 and iy1 <= oy1
+
+
+def _is_a_frame_round(box, picture: "Picture") -> bool:
+    """Whether *box* is a border drawn round *picture*: it holds the picture
+    and reaches no further than `FRAME_REACH` beyond it on any side."""
+    x0, y0, x1, y1 = box
+    return (
+        _contains(box, (picture.x0, picture.y0, picture.x1, picture.y1))
+        and picture.x0 - x0 <= FRAME_REACH and x1 - picture.x1 <= FRAME_REACH
+        and picture.y0 - y0 <= FRAME_REACH and y1 - picture.y1 <= FRAME_REACH
+    )
 
 
 def _overlaps(one, other) -> bool:

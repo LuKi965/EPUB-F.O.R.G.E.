@@ -79,7 +79,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 423 on 2026-09-10 with A14: `package.document-changed-unrecorded`. A
 # converted document held to its own chain of recorded changes, so a
 # fragment moved between documents cannot hide behind a balanced count.
-TAGGED_TODAY = 423
+# 424 on 2026-09-10 with A05: `pdf.drawing-merged`. Every region the
+# drawing detector finds is accounted for — carried, merged into the
+# picture it frames, or refused — and a frame is a thing to say.
+TAGGED_TODAY = 424
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -216,7 +219,9 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #:
 #: 323 → 324 (2026-09-10, A14): `package.document-changed-unrecorded` in
 #: both languages — the refusal names the document and the link that broke.
-TEMPLATED_TODAY = 324
+#:
+#: 324 → 325 (2026-09-10, A05): `pdf.drawing-merged` in both languages.
+TEMPLATED_TODAY = 325
 
 
 class TestTheTranslationCannotStall:
