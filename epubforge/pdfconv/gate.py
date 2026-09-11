@@ -332,7 +332,9 @@ def _compare_page(sheet, page_path, index: int, shots, browser):
         return check
     try:
         shot = render.shoot(page_path, shots / f"{index}.png", viewport=viewport, browser=browser)
-    except render.RenderError as exc:
+    except (render.RenderError, OSError) as exc:
+        # `OSError`: a browser that is named and not there. The page is
+        # then a problem of the gate's, said as one, not a crash of the run.
         check.problems.append(f"nie udało się narysować: {exc}")
         return check
     before = ink_blocks(Image.open(io.BytesIO(original)).resize(viewport))

@@ -15,10 +15,14 @@ from .factory import ENCRYPTION_XML, fake_ttf, make_legacy_epub
 #: drawing can be handed the genuine functions back.
 from epubforge import render as _render
 from epubforge import render_fidelity as _render_fidelity
+from epubforge.pdfconv import gate as _pdf_gate
 
 _REAL_FIND_RENDERER = _render.find_renderer
 _REAL_COMPARE = _render_fidelity.compare
 _REAL_DRAWN = _render_fidelity.drawn
+#: The fixed book's page-for-page comparison with the PDF (A06): the third
+#: check that draws pages, and it needs the same stand-in for the same reason.
+_REAL_COMPARE_FIXED = _pdf_gate.compare_fixed
 #: `Policy.preset` before WP-12 wraps it. A classmethod, so the underlying
 #: function is what gets stored and re-bound.
 _REAL_PRESET = Policy.preset.__func__
@@ -86,6 +90,7 @@ def no_browser_anywhere():
     patch.setattr(render, "describe", lambda: "silnik rysujący: podstawiony")
     patch.setattr(render_fidelity, "compare", _stand_in)
     patch.setattr(render_fidelity, "drawn", _stand_in_drawn)
+    patch.setattr(_pdf_gate, "compare_fixed", _stand_in_fixed)
     yield
     patch.undo()
 
@@ -129,6 +134,10 @@ def _stand_in_drawn(output, sample=0, browser=None, **rest):
         pages=[_one_clean_page()],
         completed=True,
     )
+
+
+def _stand_in_fixed(source, candidate, *, sample=0, browser=None, **rest):
+    return _stand_in_drawn(candidate, sample=sample, browser=browser)
 
 
 @pytest.fixture(autouse=True)
@@ -178,6 +187,7 @@ def without_the_renderer(request, monkeypatch):
         monkeypatch.setattr(render, "find_renderer", _REAL_FIND_RENDERER)
         monkeypatch.setattr(render_fidelity, "compare", _REAL_COMPARE)
         monkeypatch.setattr(render_fidelity, "drawn", _REAL_DRAWN)
+        monkeypatch.setattr(_pdf_gate, "compare_fixed", _REAL_COMPARE_FIXED)
 
 #: Files whose subject *is* validation. They get the real lookup back, and skip
 #: on their own when there is no validator — the same arrangement the render
