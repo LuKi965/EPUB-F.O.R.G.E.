@@ -103,7 +103,7 @@ def convert(source, destination, *, heads="remove", extra=(), policy=None):
     """
     settings = PdfSettings(running_heads=heads)
     report = Report(source=str(source), output=str(destination))
-    stages = (partial(PdfStage, settings),) + pipeline.DEFAULT_STAGES + tuple(extra)
+    stages = (partial(PdfStage, settings),) + service.PDF_STAGES + tuple(extra)
     result = pipeline.produce(
         str(source), str(destination),
         policy or Policy.preset("preserve", validate_before_publish="off",
@@ -198,7 +198,7 @@ class TestTheSevenCasesOfConsentScope:
 
         settings = PdfSettings(running_heads="remove")
         report = Report(source=str(source), output=str(out))
-        stages = ((lambda: ForgetsToAccount(settings)),) + pipeline.DEFAULT_STAGES
+        stages = ((lambda: ForgetsToAccount(settings)),) + service.PDF_STAGES
         result = pipeline.produce(
             str(source), str(out),
             Policy.preset("preserve", validate_before_publish="off",

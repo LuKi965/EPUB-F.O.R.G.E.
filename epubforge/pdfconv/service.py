@@ -23,10 +23,46 @@ import os
 import pathlib
 from functools import partial
 
+from .. import stages as core
 from ..policy import Policy
 from ..report import Level, Report
 from .models import PdfConversionPlan, PdfConversionResult, PdfDocumentInfo
 from .settings import PdfSettings
+
+#: The core's stages a book this module *made* goes through, named one by
+#: one (A15 of the 0.4.4 recovery audit). This used to be
+#: `pipeline.DEFAULT_STAGES` whole, which meant that a stage added to the
+#: EPUB rebuild started running over every converted book without anybody
+#: deciding it should: a converted book is a new publication, and which
+#: repairs make sense for it is this module's decision, taken here.
+#:
+#: The list is the rebuild's list today, in the rebuild's order, so that
+#: naming it changes nothing about the output (a refactoring keeps the
+#: characteristics of the result). Each entry says why it applies to a
+#: book that was never an EPUB; an entry that turns out not to would be
+#: taken out here, and the test beside this list keeps the two lists from
+#: drifting back into one.
+PDF_STAGES = (
+    core.FontStage,           # no fonts to carry, and it says nothing when there are none
+    core.ImageStage,          # the pictures the reader cut out and the regions it drew
+    core.StructureStage,      # the layout the writer expects, portable names
+    core.MetadataStage,       # title, language, identifier from the PDF's own info
+    core.ProfileStage,        # what the body text is, for the stages after it
+    core.ContentStage,        # language against the prose, encodings, entities
+    core.ParagraphStage,      # runs of empty paragraphs, behind its setting
+    core.StyleStage,          # the stylesheets this reader wrote
+    core.TypographyStage,     # quotes, ellipses, conjunctions — behind switches
+    core.HyphenStage,         # words the typesetter broke at line ends, on the ledger
+    core.SubstitutionStage,   # one letter written for another, behind its switch
+    core.FootnoteStage,       # a manual's notes, when the reader found any
+    core.AltTextStage,        # the pictures have no alternative until somebody writes one
+    core.TableStage,          # the grids the reader rebuilt as tables
+    core.NavigationStage,     # the outline into a navigation document
+    core.AccessibilityStage,  # the metadata every book gets
+    core.CompatibilityStage,  # the older readers' NCX beside the nav
+    core.FontSubsetStage,     # nothing to cut; kept in its place for the order's sake
+    core.KepubStage,          # off unless asked for, like everywhere else
+)
 
 #: What a converted document is called when nobody says otherwise. The source's
 #: own name, because that is what the person will look for.
@@ -179,9 +215,10 @@ def convert_document(source, destination, settings=None, policy=None, *, report=
         report if report is not None else Report(source=str(source), output=str(destination)),
         # This module's reader, named here and nowhere in the core.
         read=partial(_read, settings),
-        # This module's composition: its own stage in front of the core's list,
-        # for the documents it read and for no others.
-        stages=(partial(PdfStage, settings),) + pipeline.DEFAULT_STAGES,
+        # This module's composition: its own stage in front of the stages it
+        # chose from the core (`PDF_STAGES`), for the documents it read and
+        # for no others.
+        stages=(partial(PdfStage, settings),) + PDF_STAGES,
         resolver=resolver, asker=asker, cancelled=cancellation, standing=standing,
     )
 

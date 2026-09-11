@@ -126,6 +126,19 @@ dwa stosy o odległych lewych krawędziach, bez wiersza w poprzek, po co
 najmniej trzy wiersze każdy. Cztery testy: wąski margines, szeroki (sąsiad),
 własność „akapit legendy nazywa jeden element”, zgoda źródłowej strony K1.
 
+### A15 / W10 — konwerter sam wybiera swoje etapy
+
+`service.convert_document` składał `PdfStage` + `pipeline.DEFAULT_STAGES` —
+każda reguła dopisana do przebudowy EPUB zaczynała biec po każdej książce
+z PDF-a, bez niczyjej decyzji. Lista jest teraz własna: `service.PDF_STAGES`,
+etap po etapie, z powodem przy każdym, dziś równa liście przebudowy w jej
+kolejności (refaktoring nie zmienia wyniku); test trzyma obie listy osobno
+i sprawdza, że etap dopisany do `DEFAULT_STAGES` biegnie po EPUB-ie, a nie
+po książce z PDF-a. Ochrona `source_hash`: odpowiedzi zapisane obok pliku są
+kluczowane jego skrótem od BA-2026-002 — sprawdzone teraz także drogą
+konwertera: zmieniony PDF dostaje `decisions.store-unusable`, nic nie jest
+odtwarzane.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki
