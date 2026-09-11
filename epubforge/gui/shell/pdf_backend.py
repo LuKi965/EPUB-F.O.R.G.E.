@@ -36,12 +36,13 @@ class PdfBackend:
 
     # -- looking at the documents ------------------------------------------
     def analyse(self, paths, *, progress=None, cancelled=None) -> "list[BookItem]":
-        """Say what each file is. Nothing is opened and nothing is written.
+        """Say what each file is. Nothing is written.
 
-        The screen this feeds shows "Nie sprawdzono" where nothing was checked,
-        because reading a PDF's structure costs what the conversion's own first
-        phase costs. A preflight that pretended otherwise would be inventing
-        a number (03-PDF-MODULE §3B).
+        Each file is opened and measured (`service.look_at`, A10): pages,
+        a text layer on a sample of pages, encryption, the renderer, links
+        and bookmarks. The row says those numbers, and "Nie sprawdzono"
+        only for what was not measured; a preflight that invents a number
+        is worse than one that says it did not look (03-PDF-MODULE §3B).
         """
         from ..strings import tr
 
@@ -57,13 +58,33 @@ class PdfBackend:
             item = BookItem(
                 source=source, title=info.title or source.stem, kind="PDF",
                 size=info.size, status=BookStatus.READY,
-                summary=tr("pdf.analysis.unchecked"),
+                summary=self._measured(info),
             )
             if info.refusal:
                 item.status = BookStatus.FAILED
-                item.error = info.refusal
+                item.error = (
+                    tr(f"pdf.analysis.{info.refusal_code}", detail=info.refusal)
+                    if info.refusal_code else info.refusal
+                )
             documents.append(item)
         return documents
+
+    @staticmethod
+    def _measured(info) -> str:
+        """The row's line for a document the preflight looked at (A10): the
+        numbers it measured, and "not checked" for the one it did not."""
+        from ..strings import tr
+
+        if not info.checked:
+            return tr("pdf.analysis.unchecked")
+        return tr(
+            "pdf.analysis.checked",
+            pages=info.pages,
+            text=tr("pdf.analysis.text.yes", sampled=info.sampled_pages) if info.has_text
+            else tr("pdf.analysis.text.no"),
+            links=info.links,
+            renderer=tr("pdf.analysis.renderer.yes") if info.renderer else tr("pdf.analysis.renderer.no"),
+        )
 
     def destination_for(self, source: pathlib.Path, folder: "pathlib.Path | None") -> str:
         return service.destination_for(source, folder)

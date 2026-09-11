@@ -69,23 +69,91 @@ PDF_STAGES = (
 EXTENSION = ".epub"
 
 
-def look_at(source) -> PdfDocumentInfo:
-    """What can be said about one PDF without converting it.
+#: How many pages the preflight reads for a text layer. A budget, not a
+#: threshold: the layout analysis of a page is what the conversion itself
+#: pays per page, and three of them cost a manual of a hundred a fraction of
+#: a second while a text layer that exists shows on the first.
+PREFLIGHT_PAGES = 3
 
-    Cheap on purpose, and honest about being cheap: it reads the file's size
-    and whether it is a PDF at all, and leaves `has_text` unset — *not
-    checked*, never `False` — because finding out costs the same as the
-    conversion's own first phase. A screen showing "Nie sprawdzono" is telling
-    the truth; one showing a confident "Gotowe" it did not measure is not
-    (03-PDF-MODULE §3B).
+
+def look_at(source) -> PdfDocumentInfo:
+    """What can be said about one PDF before converting it.
+
+    It used to read the file's size and nothing else, and the screen said
+    "Nie sprawdzono" — honestly, but the stepper beside it said the reading
+    was done (A10 of the 0.4.4 recovery audit). What is measured now is
+    what a person decides on before converting: how many pages, whether
+    there is a text layer to read (on a sample of `PREFLIGHT_PAGES`),
+    whether the file is encrypted, whether a renderer is installed for its
+    drawings, and how many links and bookmarks it declares. Each answer is
+    the file's own; nothing here is a guess about quality, and `READY`
+    still means ready to run, not good.
     """
     path = pathlib.Path(source)
     info = PdfDocumentInfo(source=path, title=path.stem)
     try:
         info.size = path.stat().st_size
     except OSError as exc:
+        info.refusal_code = "not-a-file"
         info.refusal = f"{type(exc).__name__}: {exc}"
+        return info
+    _preflight(info)
     return info
+
+
+def _preflight(info: PdfDocumentInfo) -> None:
+    """The measurements behind `look_at`, on the file's structure alone."""
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LTChar, LTTextContainer
+    from pdfminer.pdfdocument import PDFDocument, PDFNoOutlines
+    from pdfminer.pdfpage import PDFPage
+    from pdfminer.pdfparser import PDFParser
+    from pdfminer.pdftypes import resolve1
+    from pdfminer.psparser import PSException
+
+    from . import draw
+    from .reader import MIN_CHARACTERS_PER_PAGE
+
+    try:
+        with open(info.source, "rb") as handle:
+            document = PDFDocument(PDFParser(handle))
+            info.encrypted = bool(document.encryption) and not document.is_extractable
+            pages = list(PDFPage.create_pages(document))
+            info.pages = len(pages)
+            for page in pages:
+                for annotation in resolve1(page.annots) or ():
+                    annotation = resolve1(annotation)
+                    subtype = annotation.get("Subtype") if isinstance(annotation, dict) else None
+                    if getattr(subtype, "name", subtype) == "Link":
+                        info.links += 1
+            try:
+                info.outline_entries = sum(1 for _ in document.get_outlines())
+            except PDFNoOutlines:
+                info.outline_entries = 0
+        if info.encrypted:
+            info.refusal_code = "encrypted"
+            info.refusal = "the document is encrypted and its text cannot be read"
+            return
+        for page in extract_pages(str(info.source), maxpages=PREFLIGHT_PAGES):
+            info.sampled_pages += 1
+            for element in page:
+                if isinstance(element, LTTextContainer):
+                    info.characters += sum(
+                        1 for line in element for char in line
+                        if isinstance(char, LTChar) and not char.get_text().isspace()
+                    )
+    except (OSError, ValueError, TypeError, KeyError, PSException) as exc:
+        # Not a PDF, a truncated one, or one pdfminer will not parse: the
+        # refusal names the error, the counts stay at what was read, and
+        # `has_text` stays *not checked* rather than `False`.
+        info.refusal_code = "unreadable"
+        info.refusal = f"{type(exc).__name__}: {exc}"
+        return
+    info.has_text = info.characters >= MIN_CHARACTERS_PER_PAGE * max(1, info.sampled_pages)
+    info.renderer = draw.available()
+    if info.needs_ocr:
+        info.refusal_code = "no-text"
+        info.refusal = "the sampled pages carry no text layer; scanning them would need OCR"
 
 
 def destination_for(source, folder=None) -> str:

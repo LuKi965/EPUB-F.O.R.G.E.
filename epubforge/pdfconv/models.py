@@ -41,6 +41,21 @@ class PdfDocumentInfo:
     title: str = ""
     #: Why this document cannot be converted, in the person's language.
     refusal: str = ""
+    #: What the preflight established (A10 of the 0.4.4 recovery audit). Each
+    #: is measured on the file's own structure — the page tree, a sample of
+    #: pages, the annotations — and each may still be "not checked":
+    #: `encrypted` and `renderer` are `None` until asked, `sampled_pages` says
+    #: over how many pages `characters` were counted, and `links` and
+    #: `outline_entries` are what the file declares, not what will be carried.
+    encrypted: "bool | None" = None
+    renderer: "bool | None" = None
+    sampled_pages: int = 0
+    characters: int = 0
+    links: int = 0
+    outline_entries: int = 0
+    #: A short code for the refusal, for a front end to say in its language:
+    #: `encrypted`, `no-text`, `unreadable`, `not-a-file`.
+    refusal_code: str = ""
 
     @property
     def checked(self) -> bool:

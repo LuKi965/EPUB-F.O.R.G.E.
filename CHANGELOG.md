@@ -181,6 +181,18 @@ stała niesie się po książce). Raport odróżnia milczenie od wyboru:
 / `-kept` / `-aligned`. Lokalnego dowodu per element nie ma — w zależnościach
 brak dopasowania selektorów CSS — pytanie zastępuje dowód i mówi to wprost.
 
+### A10 — analiza PDF mierzy plik, nie tylko jego rozmiar
+
+`look_at` czytał `stat` pliku i nic więcej; wiersz mówił „Nie sprawdzono”,
+a stepper obok pokazywał ukończone wczytanie. Preflight mierzy teraz na
+strukturze pliku: liczbę stron, warstwę tekstową na próbce trzech stron
+(budżet, nie próg), szyfrowanie, obecność renderera rysunków, liczbę
+odsyłaczy i pozycji konspektu. Odmowa ma kod tłumaczony w powłoce
+(zaszyfrowany, brak tekstu — skan bez OCR, nieczytelny, brak pliku);
+`has_text` zostaje „nie sprawdzono”, nigdy `False` z braku spojrzenia.
+Wiersz w oknie mówi zmierzone liczby; `READY` nadal znaczy „gotowe do
+uruchomienia”, nie „dobre”. Nie zrobione: złożone regiony w preflight.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki
