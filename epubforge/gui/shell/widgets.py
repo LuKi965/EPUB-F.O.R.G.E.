@@ -69,12 +69,33 @@ class ElidingButton(QPushButton):
     are about to press does.
     """
 
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, elide: str = "right") -> None:
         super().__init__(text)
         self._full = text
         self._shown = text
         self._busy = False
-        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        # Where the label gives way. A path gives way in the middle (A08 of
+        # the 0.4.4 recovery audit): the folder a person chose is the last
+        # segment, and a path elided on the right shows every folder but it.
+        self._elide = Qt.ElideMiddle if elide == "middle" else Qt.ElideRight
+        self._tip = ""
+        # Preferred, not Ignored: the button asks for its whole label and
+        # gives way down to `minimumSizeHint` only when the row has no room.
+        # Ignored let a row with a stretch beside it hand the button no width
+        # at all — 0 × 44 px on the plan page, the moment the destination
+        # button began to elide (A08).
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+    def set_tip(self, tip: str) -> None:
+        """The tooltip the button carries anyway; the full label is put in
+        front of it whenever the label is shortened."""
+        self._tip = tip
+        self._retell()
+
+    def _retell(self) -> None:
+        shortened = self._shown != self._full
+        parts = ([self._full] if shortened or not self._tip else []) + ([self._tip] if self._tip else [])
+        self.setToolTip("\n".join(parts))
 
     def minimumSizeHint(self):  # noqa: N802 - Qt casing
         """As wide as the frame, the glyph and a few letters — not the label."""
@@ -96,25 +117,28 @@ class ElidingButton(QPushButton):
         metrics = self.fontMetrics()
         spent = self.sizeHint().width() - metrics.horizontalAdvance(self._shown)
         room = max(0, self.width() - spent)
-        shown = metrics.elidedText(self._full, Qt.ElideRight, room) if room else self._full
+        shown = metrics.elidedText(self._full, self._elide, room) if room else self._full
         if not shown or shown == self._shown:
             return
         self._busy = True
         try:
             self._shown = shown
             self.setText(shown)
+            self._retell()
         finally:
             self._busy = False
 
 
 def button(text: str, *, kind: str = "", glyph: str = "", tokens: Tokens | None = None,
-           tip: str = "", elides: bool = False) -> QPushButton:
+           tip: str = "", elides: bool = False, elide: str = "right") -> QPushButton:
     """A button with an optional glyph, an accessible name and a tooltip.
 
     `elides` is for a secondary action with a long label standing in a column
     that has to be able to be narrow. Never for the main action of a page.
+    `elide` says where the label gives way: "right" for a sentence, "middle"
+    for a path, whose last segment is the part that names the choice.
     """
-    item = ElidingButton(text) if elides else QPushButton(text)
+    item = ElidingButton(text, elide) if elides else QPushButton(text)
     if kind:
         item.setObjectName(kind)
     if glyph and tokens is not None:
@@ -122,12 +146,15 @@ def button(text: str, *, kind: str = "", glyph: str = "", tokens: Tokens | None 
         item.setIcon(icons.icon(glyph, colour))
         item.setIconSize(QSize(16, 16))
     item.setAccessibleName(text)
-    if tip:
+    if elides:
+        # The whole label has to stay reachable when the button may shorten
+        # it: it goes into the tooltip, in front of whatever the tip says.
+        item.set_tip(tip)
+        if tip:
+            item.setAccessibleDescription(tip)
+    elif tip:
         item.setToolTip(tip)
         item.setAccessibleDescription(tip)
-    elif elides:
-        # The whole label has to stay reachable when the button may shorten it.
-        item.setToolTip(text)
     item.setCursor(Qt.PointingHandCursor)
     return item
 

@@ -1048,3 +1048,72 @@ def _checked_in_its_own_process(scale: str) -> dict:
     )
     assert finished.returncode == 0, finished.stderr[-2000:]
     return json.loads(finished.stdout.strip().splitlines()[-1])
+
+
+class TestALongPathDoesNotWidenThePlanA08:
+    """A08 of the 0.4.4 recovery audit, reproduced with Qt: at 800×520 with
+    a long destination folder the plan needed 231 px of sideways scrolling —
+    viewport 726, content 957 — because the destination was an ordinary
+    `QPushButton` carrying the whole path in a `QHBoxLayout`, and a button
+    is as wide as its label. The layout check passed because it was never
+    given a long path; the acceptance data has to be the person's data.
+
+    The audit names both task pages' button; both are asked. The path gives
+    way in the middle, so the folder a person chose stays readable, and the
+    whole path is in the tooltip.
+    """
+
+    LONG = pathlib.Path("/" + "/".join(["bardzo-dluga-nazwa-folderu"] * 8) + "/wybrany")
+
+    @staticmethod
+    def _pages(qt_app):
+        yield "przebudowa", rebuild_page(qt_app), ["Powiesc.epub"]
+        yield "konwersja", PdfConversionPage(tokens_module.DARK, DemoPdfBackend()), ["Instrukcja.pdf"]
+
+    @pytest.mark.parametrize("size", [(800, 520), (900, 600), (1440, 900)])
+    def test_the_plan_is_whole_with_a_long_destination(self, qt_app, host, size):
+        for name, page, files in self._pages(qt_app):
+            try:
+                page.destination = self.LONG
+                page.start(files)
+                settle(qt_app, lambda: page.stage is Stage.PLAN)
+                laid_out(qt_app, page, host, size)
+                for _ in range(6):
+                    qt_app.processEvents()
+                assert not problems_with(page), (name, size)
+                button = page.destination_button
+                assert button.width() > 0 and button.isVisibleTo(page), (name, size)
+                assert str(self.LONG) in button.toolTip(), (name, "pelna sciezka ma byc w podpowiedzi")
+                # Elided in the middle: the chosen folder is what shows.
+                assert button.text().endswith("wybrany"), (name, button.text())
+            finally:
+                finish(page)
+
+    def test_a_short_destination_is_shown_whole(self, qt_app, host):
+        """The negative: a path that fits is not shortened, and the tooltip
+        is the button's own tip, not the path repeated."""
+        for name, page, files in self._pages(qt_app):
+            try:
+                page.destination = pathlib.Path("/home/kto/polka")
+                page.start(files)
+                settle(qt_app, lambda: page.stage is Stage.PLAN)
+                laid_out(qt_app, page, host, (1440, 900))
+                for _ in range(6):
+                    qt_app.processEvents()
+                assert page.destination_button.text() == "/home/kto/polka", name
+                assert "…" not in page.destination_button.text(), name
+            finally:
+                finish(page)
+
+    def test_a_wider_face_does_not_change_the_answer(self, qt_app, host, wider_face):
+        for name, page, files in self._pages(qt_app):
+            try:
+                page.destination = self.LONG
+                page.start(files)
+                settle(qt_app, lambda: page.stage is Stage.PLAN)
+                laid_out(qt_app, page, host, (800, 520))
+                for _ in range(6):
+                    qt_app.processEvents()
+                assert not problems_with(page), name
+            finally:
+                finish(page)

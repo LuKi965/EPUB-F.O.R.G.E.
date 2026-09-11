@@ -139,6 +139,19 @@ kluczowane jego skrótem od BA-2026-002 — sprawdzone teraz także drogą
 konwertera: zmieniony PDF dostaje `decisions.store-unusable`, nic nie jest
 odtwarzane.
 
+### A08 / W06 — długa ścieżka folderu nie decyduje o szerokości strony
+
+Przycisk folderu docelowego na obu stronach zadań był zwykłym `QPushButton`
+z całą ścieżką, a przycisk jest tak szeroki jak jego etykieta: w oknie
+800×520 z długą ścieżką plan potrzebował 231 px przewijania poziomego. Test
+układu przechodził, bo nigdy nie dostał długiej ścieżki. Oba przyciski są
+teraz `ElidingButton` z elizją w środku — wybrany folder, ostatni segment,
+zostaje czytelny — a pełna ścieżka jest w podpowiedzi. `ElidingButton` ma
+politykę `Preferred` zamiast `Ignored` (Ignored obok rozciągacza dawało
+przyciskowi 0 px). Trzy testy na obu stronach, w trzech rozmiarach i przy
+szerszym kroju. Z A09 nie zrobiono reszty: nagłówek i stepper w 900×600,
+licznik w stopce, lista w liście — zmierzone przez audyt, tu nieodtworzone.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki

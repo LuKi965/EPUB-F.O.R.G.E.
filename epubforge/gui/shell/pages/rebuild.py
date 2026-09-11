@@ -487,9 +487,11 @@ class RebuildPage(Responsive, QWidget):
         add = button(tr("shell.files.add"), glyph="plus", tokens=self.tokens)
         add.clicked.connect(self.add_files)
         actions.addWidget(add)
+        # Elided in the middle for the reason the converter's page gives
+        # (A08): a long path must not decide the width of the page.
         self.destination_button = button(
             self._destination_text(), glyph="folder", tokens=self.tokens,
-            tip=tr("shell.plan.destination.tip"),
+            tip=tr("shell.plan.destination.tip"), elides=True, elide="middle",
         )
         self.destination_button.clicked.connect(self._choose_destination)
         actions.addWidget(self.destination_button)

@@ -363,9 +363,15 @@ class PdfConversionPage(Responsive, QWidget):
         add = button(tr("pdf.add"), glyph="plus", tokens=self.tokens)
         add.clicked.connect(self.add_files)
         actions.addWidget(add)
+        # A path a person chose can be any length, and a button that must be
+        # as wide as its label decided the width of the whole page: 231 px of
+        # sideways scrolling at 800×520 (A08 of the 0.4.4 recovery audit). It
+        # gives way in the middle, so the folder chosen stays readable, and
+        # the whole path is in the tooltip.
         self.destination_button = button(
             str(self.destination) if self.destination else tr("pdf.where.beside"),
             glyph="folder", tokens=self.tokens, tip=tr("pdf.where.body"),
+            elides=True, elide="middle",
         )
         self.destination_button.clicked.connect(self._choose_destination)
         actions.addWidget(self.destination_button)
