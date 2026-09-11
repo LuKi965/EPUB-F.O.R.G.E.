@@ -142,7 +142,13 @@ class ElidingButton(QPushButton):
         # The frame, the glyph and the padding: the hint less the whole label.
         spent = self.sizeHint().width() - self._advance(self._full)
         room = max(0, self.width() - spent)
-        shown = metrics.elidedText(self._full, self._elide, room) if room else self._full
+        # A label that fits is shown whole. `elidedText` asked for exactly the
+        # advance of the text can still come back with an ellipsis, face by
+        # face; it is only asked when there is less room than the label.
+        if not room or room >= metrics.horizontalAdvance(self._full):
+            shown = self._full
+        else:
+            shown = metrics.elidedText(self._full, self._elide, room)
         if not shown or shown == self._shown:
             return
         self._busy = True
@@ -337,9 +343,14 @@ class ActionFooter(QWidget):
         self._row = QHBoxLayout(self)
         self._row.setContentsMargins(CONTENT_MARGIN, 10, CONTENT_MARGIN, 12)
         self._row.setSpacing(12)
-        self.count = label("", "cardTitle")
-        self._row.addWidget(self.count)
-        self._row.addStretch(1)
+        # One line that gives way, not a wrapping label: a word-wrapped
+        # `QLabel` picks its own width for its size hint, and picked 108 px
+        # for *1 dokument gotowy do konwersji* in a footer 736 px wide — three
+        # lines in a column (A09 of the 0.4.4 recovery audit). The count
+        # takes what the action leaves, so the action keeps its whole width
+        # first (03-UI-UX), and shortens rather than breaking words.
+        self.count = Eliding("", "cardTitle")
+        self._row.addWidget(self.count, 1)
         self.hide()
 
     def carry(self, action: QWidget, said: str) -> None:
@@ -383,6 +394,8 @@ class BoundedList(QScrollArea):
     #: And never taller than this share of the page, so a short window does not
     #: give the whole of itself to the list.
     SHARE_OF_THE_PAGE = 0.55
+    #: What "no bound" is spelled as in Qt.
+    UNBOUNDED = 16777215
 
     def __init__(self, spacing: int = 8) -> None:
         super().__init__()
@@ -396,6 +409,51 @@ class BoundedList(QScrollArea):
         self.rows.setSpacing(spacing)
         self.setWidget(holder)
         self._tallest = 0
+        self._room = 0
+        self._mode = LayoutMode.WIDE
+
+    def _wanted(self) -> int:
+        """As tall as its rows, up to the bound.
+
+        `QScrollArea` caps its own hint at twenty-four line heights and asks
+        for almost nothing as a minimum, so on a page whose surface is
+        sized by minimums a list of twelve rows was handed a strip and
+        scrolled inside it — inside the page's own scroll (A09). The rows
+        are what the list is; it asks for them, and the bound is the only
+        thing that cuts the request short.
+        """
+        inner = self.widget().sizeHint().height() + 2 * self.frameWidth()
+        return min(inner, self.maximumHeight())
+
+    def sizeHint(self):  # noqa: N802 - Qt casing
+        return QSize(super().sizeHint().width(), self._wanted())
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt casing
+        return QSize(super().minimumSizeHint().width(), self._wanted())
+
+    def set_mode(self, mode: LayoutMode) -> None:
+        """Bounded beside a summary column; the page's own height under one.
+
+        The bound exists so the main action is not under four hundred rows
+        (F08). In every composition but `WIDE` that action is in the footer,
+        outside everything that scrolls, and the bound then only puts a
+        scroll inside a scroll — the list moving under a finger that meant
+        to move the page (03-UI-UX, A09). So a narrow page scrolls as one
+        surface, and the list is as tall as its rows.
+        """
+        self._mode = mode
+        self._bound()
+
+    def _bound(self) -> None:
+        if not self._tallest:
+            return
+        if self._mode.narrow:
+            self.setMaximumHeight(self.UNBOUNDED)
+            return
+        tallest = self._tallest
+        if self._room:
+            tallest = max(140, min(self._tallest, int(self._room * self.SHARE_OF_THE_PAGE)))
+        self.setMaximumHeight(tallest)
 
     def add(self, widget: QWidget) -> None:
         self.rows.addWidget(widget)
@@ -422,16 +480,16 @@ class BoundedList(QScrollArea):
         wanted = len(rows) * one + max(0, len(rows) - 1) * spacing
         if wanted <= self._tallest:
             # Short enough to show whole; no bound, no scroll bar, no hole.
-            self.setMaximumHeight(16777215)
+            self._tallest = 0
+            self.setMaximumHeight(self.UNBOUNDED)
             self.setMinimumHeight(0)
             return
-        self.setMaximumHeight(self._tallest)
+        self._bound()
 
     def fit_within(self, height: int) -> None:
         """Take at most a share of *height*, whatever the row count says."""
-        if not self._tallest:
-            return
-        self.setMaximumHeight(max(140, min(self._tallest, int(height * self.SHARE_OF_THE_PAGE))))
+        self._room = height
+        self._bound()
 
 
 def scrolling_body(spacing: int = 14):
@@ -724,23 +782,32 @@ class StatusBadge(QWidget):
         self._chip = chip
         self._shown = text
         self._busy = False
-        # What the chip spends on everything but the word — its padding and
-        # border from the stylesheet, and the glyph with the space after it —
-        # taken **now**, from the whole word. Asking again later would ask
-        # about the shortened text and answer a different question every pass.
-        self._spent = max(
-            0, chip.sizeHint().width() - chip.fontMetrics().horizontalAdvance(text)
-        )
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.setAccessibleName(text)
         self.setToolTip(text)
 
+    def _advance(self, text: str) -> int:
+        return self._chip.fontMetrics().horizontalAdvance(text)
+
+    def sizeHint(self):  # noqa: N802 - Qt casing
+        """The whole word's, whatever the chip is showing.
+
+        The same loop `ElidingButton` had (A08): with the hint following the
+        shown word and the policy `Maximum`, the layout handed a shortened
+        chip its smaller hint as its width, and the word was shortened again
+        to fit — *gotowa* came out as `g…` in a row with 190 px to spare
+        (A09). The hint is what the word costs, and the width the row gives
+        decides the word, never the other way round.
+        """
+        size = super().sizeHint()
+        size.setWidth(size.width() + self._advance(self._word) - self._advance(self._shown))
+        return size
+
     def minimumSizeHint(self):  # noqa: N802 - Qt casing
         """The glyph, the padding and the least of the word it will show."""
         size = super().minimumSizeHint()
-        metrics = self._chip.fontMetrics()
-        shortest = metrics.horizontalAdvance(self._word[: self.LEAST_WORD] + "…")
-        widest = metrics.horizontalAdvance(self._word)
+        shortest = self._advance(self._word[: self.LEAST_WORD] + "…")
+        widest = self._advance(self._word)
         size.setWidth(max(0, size.width() - max(0, widest - shortest)))
         return size
 
@@ -766,8 +833,13 @@ class StatusBadge(QWidget):
         if self._busy:
             return
         metrics = self._chip.fontMetrics()
-        room = max(0, self.width() - self._spent)
-        shown = metrics.elidedText(self._word, Qt.ElideRight, room) if room else self._word
+        # The padding, the border and the glyph: the hint less the whole word.
+        spent = self.sizeHint().width() - self._advance(self._word)
+        room = max(0, self.width() - spent)
+        if not room or room >= self._advance(self._word):
+            shown = self._word
+        else:
+            shown = metrics.elidedText(self._word, Qt.ElideRight, room)
         if not shown:
             shown = self._word[: self.LEAST_WORD] + "…"
         if shown == self._shown:

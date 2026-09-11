@@ -150,6 +150,8 @@ class RebuildPage(Responsive, QWidget):
             # Three tall cards in one column is the "kilometrowy formularz" the
             # design names; stacked, they say the same thing shorter.
             card.set_compact(mode.narrow)
+        for listing in self._listings():
+            listing.set_mode(mode)
         self._settle_footer()
         if self.drawer.isVisible():
             self.drawer.set_mode(mode)
@@ -186,14 +188,22 @@ class RebuildPage(Responsive, QWidget):
         Each state draws itself from scratch, so the containers it makes are
         new and have never been told how much room they have.
         """
-        for name in ("book_list", "result_list"):
-            listing = getattr(self, name, None)
-            if listing is not None and listing.parent() is not None:
-                # The share of the *page* a list may take, measured on the page
-                # rather than assumed: a threshold in pixels is a threshold
-                # that is wrong on the next window size (F08).
-                listing.fit_within(self.height())
+        for listing in self._listings():
+            # The share of the *page* a list may take, measured on the page
+            # rather than assumed: a threshold in pixels is a threshold
+            # that is wrong on the next window size (F08). And no bound at
+            # all in a single column, where the action is in the footer.
+            listing.fit_within(self.height())
+            listing.set_mode(self.layout_mode)
         spread(self, self.layout_mode)
+
+    def _listings(self) -> list:
+        return [
+            listing for listing in (
+                getattr(self, name, None) for name in ("book_list", "result_list")
+            )
+            if listing is not None and listing.parent() is not None
+        ]
 
     def _go(self, stage: Stage) -> None:
         self.stage = stage

@@ -190,7 +190,17 @@ class PdfConversionPage(Responsive, QWidget):
     def reflow(self, mode: LayoutMode) -> None:
         spread(self, mode)
         self.stepper.set_compact(mode is LayoutMode.COMPACT)
+        for listing in self._listings():
+            listing.set_mode(mode)
         self._settle_footer()
+
+    def _listings(self) -> list:
+        return [
+            listing for listing in (
+                getattr(self, name, None) for name in ("document_list", "result_list")
+            )
+            if listing is not None and listing.parent() is not None
+        ]
 
     def _settle_footer(self) -> None:
         """Put the conversion where this width can reach it.
@@ -213,10 +223,9 @@ class PdfConversionPage(Responsive, QWidget):
 
     def _settle(self) -> None:
         spread(self, self.layout_mode)
-        for name in ("document_list", "result_list"):
-            listing = getattr(self, name, None)
-            if listing is not None and listing.parent() is not None:
-                listing.fit_within(self.height())
+        for listing in self._listings():
+            listing.fit_within(self.height())
+            listing.set_mode(self.layout_mode)
         # Each state builds its own widgets, so the action the footer should be
         # holding is a different object after every one of them.
         self._settle_footer()
@@ -387,8 +396,12 @@ class PdfConversionPage(Responsive, QWidget):
             self.document_list.add(row)
         self.document_list.finish()
         documents_card.body.addWidget(self.document_list)
-        left.addWidget(documents_card)
+        # The decision this step is for comes first. Under the documents
+        # card the two choices sat 532 px down a surface 515 px tall at
+        # 900×600 with one document (A09): a person scrolled past the list
+        # they had already chosen to reach the one thing the page asks.
         left.addWidget(self._settings_card())
+        left.addWidget(documents_card)
         left.addWidget(self._limits_card())
         columns.add(left_side, 2)
         columns.add(self._summary_card(), 1)

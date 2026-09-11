@@ -184,6 +184,45 @@ planu przy 16 pt spadła tu z 467 do 338 px. Test na stronie konwersji:
 minimum każdego wyboru węższe niż jego zdanie, minimum każdego pola węższe
 niż jego najszersza pozycja, naciśnięcie zdania zmienia ustawienie.
 
+### A09 / W06 — małe okno zachowuje informację, nie tylko prostokąty
+
+Cztery rzeczy, które audyt widział w 900×600, zmierzone tu na planie
+konwersji z jednym dokumentem przed zmianą: plakietka statusu w wierszu
+pokazywała „g…” zamiast „gotowa” (w 1024×720 tak samo jak w 800×520, w
+wierszu 632 px ze 190 px luzu); wybór układu leżał 532 px w głąb powierzchni
+przewijanej o wysokości 515 px, pod nagłówkiem, stepperem i całą kartą
+dokumentów; licznik w stopce, „1 dokument gotowy do konwersji”, zawijał się na
+trzy wiersze w kolumnie 108 px w stopce szerokiej na 736 px; lista przewijała
+się w sobie wewnątrz przewijanej strony.
+
+- **Plakietka** miała tę samą pętlę co `ElidingButton` (A08): podpowiedź
+  rozmiaru szła za pokazanym słowem, polityka `Maximum` oddawała jej tę
+  mniejszą szerokość, słowo skracało się jeszcze raz. Podpowiedź jest teraz
+  szerokością całego słowa, a słowo, które się mieści, jest pokazywane w
+  całości bez pytania `elidedText` (który przy dokładnie swojej szerokości
+  potrafi odpowiedzieć wielokropkiem — stąd też ta sama osłona w
+  `ElidingButton`). Po zmianie: „gotowa”, 108 px, w każdym rozmiarze.
+- **Wybór układu** idzie w kolumnie pierwszy: to decyzja, o którą ten krok
+  prosi; dokumenty, wybrane krok wcześniej, są listą pod nim. Po zmianie oba
+  wybory leżą na 281 i 359 px — widoczne bez przewijania w 800×520 (448 px)
+  i w 900×600 (528 px).
+- **Licznik w stopce** jest jedną linią z elizją (`Eliding`), nie zawijaną
+  etykietą, i bierze to, co zostawi główna akcja — przycisk najpierw ma swoją
+  pełną szerokość (03-UI-UX). Po zmianie: 474 px, jedna linia.
+- **Lista** w układzie jednokolumnowym nie ma własnego ograniczenia: powód
+  ograniczenia (F08 — akcja pod czterystoma wierszami) nie zachodzi tam, gdzie
+  akcja stoi w stopce poza wszystkim, co się przewija. `BoundedList` prosi o
+  wysokość swoich wierszy (dotąd `QScrollArea` prosiła o co najwyżej 24
+  wysokości linii i o prawie nic jako minimum, więc dwanaście wierszy dostawało
+  pasek 456 px i przewijało się w środku strony). W układzie szerokim, obok
+  kolumny podsumowania, ograniczenie zostaje jak było. Obie strony zadań.
+
+Sześć testów na stronie konwersji i na samej plakietce; wszystkie czerwone
+przed zmianą. Jeden stary test (długa partia w 900×600) zmienił oczekiwanie:
+w wąskim układzie lista nie ma udziału strony, ma brak własnego scrolla, a
+udział strony sprawdza się w 1440×900. Nie zrobione z A09: „zwarty wskaźnik etapu” — stepper ma
+nadal 44 px w każdym rozmiarze; nagłówek nadal powtarza zdanie o zadaniu.
+
 ### A11 / W07 — okładka z wysokością w procentach niczego dostaje ograniczenia strony
 
 `img { height: 97% }` bez wysokości na niczym nad obrazem był zostawiany

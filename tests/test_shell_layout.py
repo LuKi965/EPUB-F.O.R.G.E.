@@ -362,8 +362,19 @@ class TestTheConverterIsLaidOutToo:
                 return
             page.start(documents)
             settle(qt_app, lambda: page.stage is Stage.PLAN)
+            # Since A09 the expectation differs by composition. At 900×600
+            # the column is single and the action is in the footer, outside
+            # everything that scrolls: the list is then as tall as its rows
+            # and the page scrolls as one surface — a list scrolling inside
+            # the page was the audit's own finding. Wide, beside the summary
+            # column, the list keeps its share of the page as before (F08).
             laid_out(qt_app, page, host, (900, 600))
             listing = page.document_list
+            assert listing.verticalScrollBar().maximum() == 0, (count, "lista przewija sie w srodku strony")
+            assert not problems_with(page, main_action=page.convert_button), count
+            laid_out(qt_app, page, host, (1440, 900))
+            for _ in range(6):
+                qt_app.processEvents()
             assert listing.height() <= int(page.height() * listing.SHARE_OF_THE_PAGE) + 2, (
                 count, listing.height(), page.height()
             )
@@ -1218,6 +1229,147 @@ class TestALongPathDoesNotWidenThePlanA08:
                 assert combo.minimumSizeHint().width() < widest, (
                     combo.accessibleName(), combo.minimumSizeHint().width(), widest
                 )
+        finally:
+            finish(page)
+
+
+class TestTheSmallWindowKeepsTheDecisionInSightA09:
+    """A09 of the 0.4.4 recovery audit: *scaling keeps the rectangles and
+    loses the information*. Four things the audit saw at 900×600, each
+    measured here on the conversion plan with one document before anything
+    was changed:
+
+    - the status badge in the row showed `g…` for *gotowa* — at 1024×720 as
+      much as at 800×520, in a row 632 px wide with 190 px of slack;
+    - the layout choice sat 532 px down a scroll surface 515 px tall, under
+      the header, the stepper and the whole documents card;
+    - the footer's count, *1 dokument gotowy do konwersji*, wrapped into
+      three lines in a column 108 px wide, in a footer 736 px wide;
+    - the list scrolled inside itself inside the scrolling page.
+    """
+
+    @staticmethod
+    def _plan(qt_app, host, size, documents=1):
+        page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+        page.start([f"Dokument-{index}.pdf" for index in range(documents)])
+        settle(qt_app, lambda: page.stage is Stage.PLAN)
+        laid_out(qt_app, page, host, size)
+        for _ in range(8):
+            qt_app.processEvents()
+        return page
+
+    @staticmethod
+    def _surface(page):
+        """The page's own scroll area — not the list's."""
+        from PySide6.QtWidgets import QScrollArea
+
+        return next(
+            area for area in page.findChildren(QScrollArea)
+            if area.objectName() != "boundedList" and area.isVisibleTo(page)
+        )
+
+    def test_the_status_word_is_whole_when_the_row_has_room(self, qt_app, host):
+        """The badge shortened itself the way `ElidingButton` did (A08):
+        its size hint followed the shown word, its policy is `Maximum`, so
+        the layout handed the smaller hint straight back as its width, and
+        the word was elided again to fit — down to one letter and an
+        ellipsis in a row with room for the whole of it."""
+        from PySide6.QtWidgets import QLabel
+
+        from epubforge.gui.shell.widgets import StatusBadge
+
+        for size in ((800, 520), (1024, 720)):
+            page = self._plan(qt_app, host, size)
+            try:
+                badges = [one for one in page.findChildren(StatusBadge) if one.isVisibleTo(page)]
+                assert badges, size
+                for badge in badges:
+                    word = badge.accessibleName()
+                    chip = badge.findChild(QLabel)
+                    assert chip.text().endswith(word), (size, chip.text(), badge.width())
+            finally:
+                finish(page)
+
+    def test_the_badges_hint_does_not_follow_the_shown_word(self, qt_app):
+        """The invariant under the test above, on the widget alone: in a row
+        with room to spare the badge keeps the hint it asked for and shows
+        the whole word after the event loop has had its turns."""
+        from PySide6.QtWidgets import QHBoxLayout, QLabel
+
+        from epubforge.gui.shell.widgets import Eliding, StatusBadge
+
+        row = QWidget()
+        lane = QHBoxLayout(row)
+        lane.setContentsMargins(0, 0, 0, 0)
+        lane.addWidget(Eliding("Instrukcja", "cardTitle"), 3)
+        badge = StatusBadge("gotowa", "success", tokens_module.DARK)
+        lane.addWidget(badge)
+        row.setFixedWidth(600)
+        row.show()
+        try:
+            asked = badge.sizeHint().width()
+            for _ in range(10):
+                qt_app.processEvents()
+            assert badge.sizeHint().width() == asked, (badge.sizeHint().width(), asked)
+            assert badge.findChild(QLabel).text().endswith("gotowa"), badge.findChild(QLabel).text()
+        finally:
+            row.close()
+
+    @pytest.mark.parametrize("size", [(800, 520), (900, 600)])
+    def test_the_layout_choice_is_in_sight_with_one_document(self, qt_app, host, size):
+        """03-UI-UX: at 900×600 with one PDF the basic choice has to be
+        visible without scrolling past repeated instructions. The decision
+        this step is for comes first in the column; the documents, chosen a
+        step earlier, are listed under it."""
+        from epubforge.gui.shell.widgets import Choice
+
+        page = self._plan(qt_app, host, size)
+        try:
+            surface = self._surface(page)
+            assert surface.verticalScrollBar().value() == 0
+            room = surface.viewport().height()
+            choices = page.findChildren(Choice)
+            assert len(choices) == 2
+            for choice in choices:
+                bottom = choice.mapTo(surface.widget(), choice.rect().bottomLeft()).y()
+                assert bottom <= room, (size, choice.text(), bottom, room)
+        finally:
+            finish(page)
+
+    def test_the_footer_count_stays_on_one_line(self, qt_app, host):
+        """The count is one short sentence beside the main action, not a
+        column of three words; the action keeps its whole width first."""
+        page = self._plan(qt_app, host, (800, 520))
+        try:
+            assert not page.footer.isHidden()
+            count = page.footer.count
+            assert count.text() == tr("pdf.plan.count", count=1)
+            # One line's worth of height asked for — the row is as tall as
+            # the button beside it, so the height it gets is not the measure.
+            assert count.sizeHint().height() < 1.6 * count.fontMetrics().lineSpacing(), (
+                count.sizeHint().height(), count.width()
+            )
+            assert count.width() >= count.fontMetrics().horizontalAdvance(count.text())
+            assert page.convert_button.width() >= page.convert_button.sizeHint().width()
+        finally:
+            finish(page)
+
+    def test_a_narrow_page_scrolls_as_one_surface(self, qt_app, host):
+        """03-UI-UX: in the narrow composition, no list scroll inside the
+        page scroll. The reason the list was bounded — the main action under
+        four hundred rows (F08) — does not hold there: the action is in the
+        footer, outside everything that scrolls. Wide, the list stays
+        bounded beside the summary column, as before."""
+        page = self._plan(qt_app, host, (800, 520), documents=12)
+        try:
+            listing = page.document_list
+            assert listing.verticalScrollBar().maximum() == 0, "lista przewija sie w srodku strony"
+            assert self._surface(page).verticalScrollBar().maximum() > 0
+            laid_out(qt_app, page, host, (1440, 900))
+            for _ in range(8):
+                qt_app.processEvents()
+            assert page.layout_mode is LayoutMode.WIDE
+            assert listing.verticalScrollBar().maximum() > 0, "szeroka strona: lista ma byc ograniczona"
         finally:
             finish(page)
 
