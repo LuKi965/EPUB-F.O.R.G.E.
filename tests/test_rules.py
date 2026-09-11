@@ -85,7 +85,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 426 on 2026-09-10 with A07: `pdf.links-carried` and `pdf.links-not-carried`.
 # The source's link annotations reach the book, or the report says which
 # did not and why.
-TAGGED_TODAY = 426
+# 427 on 2026-09-11 with A11: `xhtml.cover-height-unresolved`. A cover sized
+# in per cent of a containing block with no height is unsized, and the
+# report says which declaration it was rather than "nothing sized it".
+TAGGED_TODAY = 427
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -226,7 +229,9 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: 324 → 325 (2026-09-10, A05): `pdf.drawing-merged` in both languages.
 #:
 #: 325 → 327 (2026-09-10, A07): the two link rules in both languages.
-TEMPLATED_TODAY = 327
+#:
+#: 327 → 328 (2026-09-11, A11): `xhtml.cover-height-unresolved` in both languages.
+TEMPLATED_TODAY = 328
 
 
 class TestTheTranslationCannotStall:

@@ -152,6 +152,19 @@ przyciskowi 0 px). Trzy testy na obu stronach, w trzech rozmiarach i przy
 szerszym kroju. Z A09 nie zrobiono reszty: nagłówek i stepper w 900×600,
 licznik w stopce, lista w liście — zmierzone przez audyt, tu nieodtworzone.
 
+### A11 / W07 — okładka z wysokością w procentach niczego dostaje ograniczenia strony
+
+`img { height: 97% }` bez wysokości na niczym nad obrazem był zostawiany
+jako okładka, którą wydawca wymiarował. Procent bloku zawierającego bez
+wysokości to `auto` (CSS 2 §10.5): deklaracja prawdziwa i martwa, a wysoka
+okładka w 600×800 wymagała przewijania. Procentowa wysokość liczy się teraz
+jako wymiar tylko, gdy każdy przodek aż do `html` ma wysokość; inaczej
+okładka dostaje te same ograniczenia co niewymiarowana, a raport nazywa
+deklarację (`xhtml.cover-height-unresolved`) zamiast mówić, że nic jej nie
+skalowało. Render w Chromium na 600×800 i 390×640: cały obraz w oknie,
+w proporcji. Dopasowanie okładki wolno zmienić jej render — kryterium to
+cały obraz na jednej stronie, nie powtórzone przepełnienie źródła (02 §1).
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki

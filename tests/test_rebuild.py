@@ -952,6 +952,59 @@ class TestTheCoverFitsThePage:
         assert "max-height: 100%" not in markup
         assert not any("page-fitting" in f.message for f in result.report.findings)
 
+    def test_a_percentage_height_with_nothing_to_resolve_against_is_not_sizing(self, tmp_path):
+        """A11 of the 0.4.4 recovery audit, on the shape of a book of the
+        owner's shelf: `img { height: 97% }` and no height on anything
+        above the image. A percentage of `auto` is `auto` — the declaration
+        is real and inert, and the cover scrolled at 600×800. It used to be
+        "left alone" as a cover the publisher sized. It gets the limits, and
+        the report names the declaration rather than saying nothing sized
+        the cover."""
+        markup, result = self.cover_markup(tmp_path, sheet="img { height: 97%; }")
+        assert "max-height: 100vh" in markup
+        assert "html, body { margin: 0; padding: 0; height: 100%; }" in markup
+        rules = {f.rule for f in result.report.findings}
+        assert "xhtml.cover-height-unresolved" in rules
+        assert "xhtml.cover-fitted" not in rules, "nie wolno mowic, ze nic nie skalowalo okladki"
+        said = next(f for f in result.report.findings if f.rule == "xhtml.cover-height-unresolved")
+        assert "97%" in said.values["value"]
+
+    def test_a_percentage_height_with_a_chain_to_the_viewport_is_sizing(self, tmp_path):
+        """The neighbour: the same 97 %, with every ancestor given a height
+        — `html`, `body` and the `div` round the image — resolves, and is
+        left alone as it was. Every ancestor, because a percentage of a
+        `div` whose height is `auto` is `auto` (CSS 2, §10.5): `html` and
+        `body` alone would not do, and that case is the one below."""
+        markup, result = self.cover_markup(
+            tmp_path, sheet="html, body, div { height: 100%; } img { height: 97%; }"
+        )
+        assert "max-height: 100vh" not in markup
+        rules = {f.rule for f in result.report.findings}
+        assert not rules & {"xhtml.cover-height-unresolved", "xhtml.cover-fitted"}
+
+    def test_a_chain_broken_by_an_ancestor_without_a_height_is_not_sizing(self, tmp_path):
+        """`html`, `body` and the outer `div` sized, the image inside a
+        wrapper that is `auto`: the percentage is of the wrapper's `auto`,
+        and the cover is unsized however tall everything above it is."""
+        original = self.COVER_PAGE
+        try:
+            type(self).COVER_PAGE = original.replace(
+                '<div><img src="picture.png"', '<div><div class="wrap"><img src="picture.png"'
+            ).replace('</div></body>', '</div></div></body>', 1)
+            assert type(self).COVER_PAGE.count("</div>") == 2, "fixture: brak owijki"
+            markup, result = self.cover_markup(
+                tmp_path,
+                sheet="html, body, div { height: 100%; } .wrap { height: auto; } img { height: 97%; }",
+            )
+            assert "xhtml.cover-height-unresolved" in {f.rule for f in result.report.findings}
+        finally:
+            type(self).COVER_PAGE = original
+
+    def test_a_length_height_is_sizing_whatever_the_ancestors_say(self, tmp_path):
+        markup, result = self.cover_markup(tmp_path, sheet="img { max-height: 600px; }")
+        rules = {f.rule for f in result.report.findings}
+        assert not rules & {"xhtml.cover-height-unresolved", "xhtml.cover-fitted"}
+
     def test_a_width_attribute_counts_as_sizing(self, tmp_path):
         """Old books size images in HTML, and that is still a decision."""
         original = self.COVER_PAGE

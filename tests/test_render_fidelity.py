@@ -464,11 +464,12 @@ class TestTheCoverRepairMeasuredInInk:
     """
 
     @staticmethod
-    def tall_cover_book(tmp_path, tall: bytes) -> str:
+    def tall_cover_book(tmp_path, tall: bytes, sheet: str = "") -> str:
         cover_page = (
             '<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html>'
             '<html xmlns="http://www.w3.org/1999/xhtml" lang="pl"><head>'
-            '<meta charset="utf-8"/><title>Cover</title></head>'
+            '<meta charset="utf-8"/><title>Cover</title>'
+            + (f'<style>{sheet}</style>' if sheet else '') + '</head>'
             '<body><div style="text-align:center">'
             '<img src="cover.png" alt="Okładka"/></div></body></html>'
         ).encode()
@@ -614,6 +615,34 @@ class TestTheCoverRepairMeasuredInInk:
         assert check.refit_marked, "the fixture no longer exercises the marker"
         assert not check.ok, str(check)
         assert any("pusta" in problem for problem in check.problems), check.problems
+
+    def test_a_cover_sized_in_per_cent_of_nothing_loses_no_ink(self, tmp_path):
+        """A11 of the 0.4.4 recovery audit, in the browser: `img { height:
+        97% }` with no height above it is a percentage of nothing, and the
+        cover it was meant to keep on one page scrolled at 600×800. Fitted
+        as an unsized cover is, the whole image is inside the window in
+        proportion — which is the criterion, not the source's overflow
+        repeated."""
+        from tests.factory import png_bytes
+
+        from epubforge.pipeline import rebuild
+        from epubforge.policy import Policy
+
+        tall = png_bytes(size=(390, 1300), color=(160, 40, 40))
+        source = self.tall_cover_book(tmp_path, tall, sheet="img { height: 97%; }")
+        result = rebuild(source, str(tmp_path / "out.epub"), Policy.preset("preserve", render_gate="off"))
+        assert result.status.wrote_a_file, result.report.to_text()
+        assert "xhtml.cover-height-unresolved" in {f.rule for f in result.report.findings}
+        measured = render_fidelity.compare(
+            source, result.output_path, viewports=((600, 800), (390, 640)), sample=0
+        )
+        assert measured.available, measured.reason
+        checks = [c for c in measured.pages if "cover" in c.document.lower()]
+        assert checks, [c.document for c in measured.pages]
+        for check in checks:
+            assert check.refit_marked, "fixture przestala cwiczyc znacznik dopasowania"
+            assert check.ok, str(check)
+            assert check.output_ink is not None and not check.output_ink.blank
 
     def test_an_unsized_tall_cover_loses_no_ink(self, tmp_path):
         from tests.factory import png_bytes

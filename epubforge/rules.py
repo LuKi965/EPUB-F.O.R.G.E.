@@ -331,6 +331,7 @@ CATALOGUE: dict[str, str] = {
     "xhtml.image-paragraph-unindented": "a running-text indent was removed from {count} image paragraph(s)",
     "xhtml.image-paragraph-kept": "{count} image paragraph(s) were left as the publisher styled them",
     "xhtml.cover-fitted": "the cover image was given page-fitting limits, because nothing in the book set any",
+    "xhtml.cover-height-unresolved": "the cover image was given page-fitting limits: the book sized it as {value}, a percentage of a containing block with no height, which is a percentage of nothing",
     "xhtml.inline-promoted": "{count} inline element(s) containing block-level content were promoted",
     "xhtml.cover-described": "the cover image was described with the book title",
     "xhtml.empty-alt-added": "an empty alt attribute was added to {count} image(s)",
@@ -734,6 +735,7 @@ CATALOGUE_PL: dict[str, str] = {
     'xhtml.image-paragraph-unindented': 'usunięto wcięcie tekstu bieżącego z {count} {count:akapitu z obrazem|akapitów z obrazem|akapitów z obrazem}',
     'xhtml.image-paragraph-kept': '{count} {count:akapit z obrazem zostawiono|akapity z obrazem zostawiono|akapitów z obrazem zostawiono} tak, jak {count:ostylował go|ostylował je|ostylował je} wydawca',
     'xhtml.cover-fitted': 'obrazowi okładki nadano ograniczenia dopasowujące go do strony, bo nic w książce ich nie ustawiało',
+    'xhtml.cover-height-unresolved': 'obraz okładki dostał ograniczenia dopasowujące do strony: książka określiła jego wysokość jako {value}, procent bloku zawierającego bez wysokości, czyli procent niczego',
     'xhtml.inline-promoted': '{count} {count:element liniowy zawierający treść blokową|elementy liniowe zawierające treść blokową|elementów liniowych zawierających treść blokową} zamieniono na blokowe',
     'xhtml.cover-described': 'obraz okładki opisano tytułem książki',
     'xhtml.empty-alt-added': 'dodano pusty atrybut alt do {count} {count:obrazu|obrazów|obrazów}',
@@ -952,6 +954,8 @@ DETAILS: dict[str, str] = {
         "{renamed} file(s) needed a new name; every reference was rewritten to match",
     "xhtml.cover-fitted":
         "No stylesheet rule and no attribute sized this image, so a reader would show it at its own pixel dimensions.",
+    "xhtml.cover-height-unresolved":
+        "A11 of the 0.4.4 recovery audit. A percentage height resolves against the containing block's height, and when nothing above the image — its parents, body, html — has one, the percentage is auto (CSS 2, §10.5): the declaration is real and does nothing, and the tall cover it was meant to keep on one page scrolls instead. The limits added are the ones an unsized cover gets; with html and body given a height the publisher's own percentage resolves as well, and max-height: 100vh keeps the image inside the window whatever it says. Fitting a cover is allowed to change its render: the criterion is the whole image, in proportion, on one page — not the source's overflow repeated.",
     "profile.paragraphs-mixed":
         "A book from one source does not mix the two. When it does, somebody glued two files together or ran one through two tools — which is worth knowing before any rule tries to normalise the paragraphs.",
     "profile.body-text-inconsistent":
@@ -1179,6 +1183,8 @@ DETAILS_PL: dict[str, str] = {
         "Reguła celująca w te akapity — albo w element, który je zawiera — ustawia ich wyrównanie lub wcięcie.",
     "xhtml.cover-fitted":
         "Żadna reguła arkusza ani żaden atrybut nie nadał temu obrazowi rozmiaru, więc czytnik pokazałby go w jego własnych pikselach.",
+    "xhtml.cover-height-unresolved":
+        "A11 audytu naprawczego 0.4.4. Wysokość w procentach rozwiązuje się względem wysokości bloku zawierającego, a gdy nic nad obrazem — jego rodzice, body, html — jej nie ma, procent jest auto (CSS 2, §10.5): deklaracja jest prawdziwa i nic nie robi, a wysoka okładka, którą miała trzymać na jednej stronie, zamiast tego się przewija. Dodane ograniczenia są tymi, które dostaje okładka bez wymiarów; gdy html i body mają wysokość, procent wydawcy też się rozwiązuje, a max-height: 100vh trzyma obraz w oknie, cokolwiek on mówi. Dopasowanie okładki wolno zmienić jej render: kryterium to cały obraz, w proporcji, na jednej stronie — nie powtórzone przepełnienie źródła.",
     "xhtml.inline-promoted":
         "Pudełko blokowe wewnątrz liniowego łamie wiersz i sprawia, że marginesy oraz środkowanie zachowują się nieprzewidywalnie — różnie na różnych czytnikach.",
     "xhtml.empty-alt-added":

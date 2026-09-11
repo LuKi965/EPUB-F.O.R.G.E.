@@ -252,6 +252,31 @@ def _css_length(value: str) -> str | None:
     return None
 
 
+def _is_percentage(value: str) -> bool:
+    return value.strip().endswith("%")
+
+
+def _percentage_height_resolves(cascade, ancestors) -> bool:
+    """Whether a percentage height on an element has something to resolve
+    against: every ancestor up to `html` carries a height, each a length or
+    itself a percentage of the next one, so the chain ends at the viewport.
+
+    *ancestors* is the element's ancestry without the element, nearest
+    first. `html` closes the chain — its percentage is of the viewport —
+    and an ancestor with no height, or an `auto` one, breaks it: from there
+    down every percentage is a percentage of nothing (CSS 2 §10.5).
+    """
+    for index, (tag, _classes, _id) in enumerate(ancestors):
+        value, _targeted, _distance = cascade.resolve("height", ancestors[index:index + 1])
+        if value is None or value.strip().lower() == "auto":
+            return False
+        if not _is_percentage(value):
+            return True
+        if tag == "html":
+            return True
+    return False
+
+
 def _ancestry(element) -> list[tuple[str, frozenset[str], str | None]]:
     """The element and its ancestors, as the cascade wants to see them.
 
@@ -2768,13 +2793,29 @@ class ContentStage(Stage):
 
         cascade = self._document_cascade(ctx, root, resource)
         still_wanted = []
+        unresolved = []
         for element in wanted:
             chain = _ancestry(element)
-            if any(
-                cascade.resolve(prop, chain[:1])[0] is not None
+            sizing = {
+                prop: cascade.resolve(prop, chain[:1])[0]
                 for prop in ("width", "height", "max-width", "max-height")
-            ):
+            }
+            if any(sizing[prop] is not None for prop in ("width", "max-width")):
                 continue
+            heights = [value for value in (sizing["height"], sizing["max-height"]) if value is not None]
+            if heights and not all(_is_percentage(value) for value in heights):
+                continue
+            if heights and _percentage_height_resolves(cascade, chain[1:]):
+                continue
+            # No sizing, or a height in per cent of a containing block that
+            # has no height (A11 of the 0.4.4 recovery audit): the publisher
+            # wrote `height: 97%`, nothing above the image has a height, and
+            # a percentage of `auto` is `auto`. The declaration is real and
+            # inert, and the cover it was meant to keep on one page needed a
+            # scroll at 600×800. Treated as unsized — and said so by name,
+            # because "nothing in the book sized it" would be untrue.
+            if heights:
+                unresolved.append(", ".join(heights))
             still_wanted.append(element)
 
         if not still_wanted:
@@ -2805,7 +2846,13 @@ class ContentStage(Stage):
             style = etree.SubElement(head, xhtml.qname("style"))
             style.text = covers.COVER_STYLE_ADDED
 
-        self.note(ctx, Level.FIX, "xhtml.cover-fitted", location=resource.path)
+        if unresolved:
+            self.note(
+                ctx, Level.FIX, "xhtml.cover-height-unresolved",
+                location=resource.path, values={"value": "; ".join(unresolved)},
+            )
+        else:
+            self.note(ctx, Level.FIX, "xhtml.cover-fitted", location=resource.path)
 
     #: What replaces `position: absolute; bottom: 0` on a one-block page.
     #:
