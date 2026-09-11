@@ -1169,12 +1169,74 @@ class TestALongPathDoesNotWidenThePlanA08:
             finally:
                 finish(page)
 
+    def test_a_choice_worded_as_a_sentence_does_not_set_the_floor(self, qt_app, host):
+        """What the Windows runner named once the diagnostics named more than
+        the container (Tests (Windows) #73 on b72a8b0): at the wider face the
+        plan of the conversion scrolled sideways by 70 px, and the widest
+        thing in it was the radio button *Tekst dopasowujący się do ekranu*,
+        reaching 749 px in a viewport 726 wide. A `QRadioButton` is as wide
+        as its label and cannot be narrower; measured here at 16 pt its
+        minimum was 389 px for a sentence 358 px wide, and on the runner's
+        face about 700. The choice is therefore a `Choice`: a button with the
+        sentence in a wrapping label beside it, whose floor is the longest
+        word and not the sentence.
+        """
+        from PySide6.QtGui import QFontMetrics
+        from PySide6.QtWidgets import QComboBox
+
+        from epubforge.gui.shell.widgets import Choice
+
+        page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+        try:
+            page.start(["Instrukcja.pdf"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (800, 520))
+            choices = page.findChildren(Choice)
+            assert len(choices) == 2, [one.text() for one in choices]
+            for choice in choices:
+                sentence = QFontMetrics(choice.sentence.font()).horizontalAdvance(choice.text())
+                assert choice.minimumSizeHint().width() < sentence, (
+                    choice.text(), choice.minimumSizeHint().width(), sentence
+                )
+                assert choice.button.accessibleName() == choice.text()
+            # The sentence is still the way to choose: pressing it presses.
+            second = next(one for one in choices if not one.isChecked())
+            second.sentence.pressed.emit()
+            assert second.isChecked()
+            assert page.settings.layout == "fixed"
+            # And the combo boxes beside them are the next floor down: by
+            # default a box is as wide as its widest choice (373 px at 16 pt
+            # here for *Pytaj przy każdym dokumencie*), which on the runner's
+            # face is over the same 726 px. They ask for a few characters.
+            combos = page.findChildren(QComboBox)
+            assert len(combos) == 2, [one.accessibleName() for one in combos]
+            for combo in combos:
+                widest = max(
+                    QFontMetrics(combo.font()).horizontalAdvance(combo.itemText(index))
+                    for index in range(combo.count())
+                )
+                assert combo.minimumSizeHint().width() < widest, (
+                    combo.accessibleName(), combo.minimumSizeHint().width(), widest
+                )
+        finally:
+            finish(page)
+
 
 def face_of(widget) -> str:
     """The face a widget is actually drawn in, for a failure that has to be
     read from another machine's log: the family Qt resolved (not the one the
-    stylesheet asked for), its size, and the logical DPI it is scaled by."""
-    from PySide6.QtGui import QFontInfo
+    stylesheet asked for), its size both ways, the DPI it is scaled by, and
+    the width of one Polish sentence in it — the number the Windows runner's
+    first answers left out, when its face came out about 1.9 times wider
+    than this machine's and nothing said why."""
+    from PySide6.QtGui import QFontInfo, QFontMetrics
 
-    info = QFontInfo(widget.font())
-    return f"{info.family()} {info.pointSize()}pt @ {widget.logicalDpiX()} dpi"
+    font = widget.font()
+    info = QFontInfo(font)
+    sentence = "Tekst dopasowujący się do ekranu"
+    return (
+        f"{info.family()!r} (asked {font.family()!r}) {info.pointSize()}pt/{info.pixelSize()}px "
+        f"(asked {font.pointSizeF()}pt/{font.pixelSize()}px) @ {widget.logicalDpiX()} dpi, "
+        f"ratio {widget.devicePixelRatio()}, {sentence!r} = "
+        f"{QFontMetrics(font).horizontalAdvance(sentence)} px"
+    )

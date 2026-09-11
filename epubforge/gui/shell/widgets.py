@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -181,6 +182,70 @@ def button(text: str, *, kind: str = "", glyph: str = "", tokens: Tokens | None 
         item.setAccessibleDescription(tip)
     item.setCursor(Qt.PointingHandCursor)
     return item
+
+
+class _ClickableLabel(QLabel):
+    """The sentence of a `Choice`: pressing it presses the button beside it,
+    the way pressing a radio button's own label does."""
+
+    pressed = Signal()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        if event.button() == Qt.LeftButton:
+            self.pressed.emit()
+        super().mousePressEvent(event)
+
+
+class Choice(QWidget):
+    """A radio button whose sentence wraps instead of setting the column's floor.
+
+    A `QRadioButton` is as wide as its label and cannot be narrower, so a
+    choice worded as a sentence — *Tekst dopasowujący się do ekranu* — decides
+    how narrow the card holding it can be, and through the card the page.
+    On the Windows runner at the wider face it reached 749 px in a plan 726 px
+    wide, and the page scrolled sideways by 70 px (A08 / Tests (Windows) #73).
+    A label wraps; a radio button does not. So the button here carries no text
+    of its own and the sentence stands beside it in a wrapping label, pressing
+    which presses the button. The sentence is the button's accessible name,
+    the button is what the keyboard reaches, and a `QButtonGroup` takes
+    `button` as it would any other.
+    """
+
+    toggled = Signal(bool)
+
+    def __init__(self, text: str, tip: str = "") -> None:
+        super().__init__()
+        self._text = text
+        self.button = QRadioButton()
+        self.button.setAccessibleName(text)
+        self.sentence = _ClickableLabel(text)
+        self.sentence.setWordWrap(True)
+        self.sentence.setObjectName("choiceSentence")
+        self.sentence.pressed.connect(self.button.click)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        row.addWidget(self.button, 0, Qt.AlignTop)
+        row.addWidget(self.sentence, 1)
+        self.setFocusProxy(self.button)
+        self.button.toggled.connect(self.toggled)
+        if tip:
+            self.setToolTip(tip)
+
+    def text(self) -> str:
+        return self._text
+
+    def isChecked(self) -> bool:  # noqa: N802 - Qt casing
+        return self.button.isChecked()
+
+    def setChecked(self, checked: bool) -> None:  # noqa: N802 - Qt casing
+        self.button.setChecked(checked)
+
+    def setToolTip(self, tip: str) -> None:  # noqa: N802 - Qt casing
+        super().setToolTip(tip)
+        self.button.setToolTip(tip)
+        self.button.setAccessibleDescription(tip)
+        self.sentence.setToolTip(tip)
 
 
 def separator() -> QFrame:

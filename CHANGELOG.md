@@ -167,6 +167,23 @@ Diagnostyka przewijania poziomego nazywa cztery najdalej sięgające elementy,
 nie jeden (pierwsza odpowiedź z Windowsa nazwała kontener `Panels`, a nie
 blok w nim).
 
+Drugi bieg (Tests (Windows) #73) nazwał ostatnią przyczynę: przy szerszym
+kroju plan konwersji w 800×520 przewijał się o 70 px, a najdalej sięgał
+przycisk opcji „Tekst dopasowujący się do ekranu” — do 749 px w widoku
+726 px. `QRadioButton` jest tak szeroki jak jego etykieta i nie umie być
+węższy; zmierzone tu przy 16 pt: minimum 389 px dla zdania szerokiego na
+358 px, na kroju biegacza około 700. Wybór układu to teraz `Choice`:
+przycisk bez własnego tekstu i zdanie w zawijanej etykiecie obok niego —
+naciśnięcie zdania naciska przycisk, zdanie jest nazwą dostępnościową
+przycisku, a podłogą karty jest najdłuższe słowo, nie zdanie. Następną
+podłogą w dół były dwa pola wyboru w tej samej karcie — `QComboBox` jest
+domyślnie tak szeroki jak najszersza pozycja listy (373 px przy 16 pt tutaj,
+na kroju biegacza, zmierzonym jako około 1,9 raza szerszy, ponad te same
+726 px) — więc proszą o dwanaście znaków, a do karty się rozciągają. Podłoga
+planu przy 16 pt spadła tu z 467 do 338 px. Test na stronie konwersji:
+minimum każdego wyboru węższe niż jego zdanie, minimum każdego pola węższe
+niż jego najszersza pozycja, naciśnięcie zdania zmienia ustawienie.
+
 ### A11 / W07 — okładka z wysokością w procentach niczego dostaje ograniczenia strony
 
 `img { height: 97% }` bez wysokości na niczym nad obrazem był zostawiany

@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QProgressBar,
-    QRadioButton,
     QVBoxLayout,
     QWidget,
 )
@@ -43,6 +42,7 @@ from ..widgets import (
     BookRow,
     BoundedList,
     Card,
+    Choice,
     MetricCard,
     Notice,
     PageHeader,
@@ -412,20 +412,20 @@ class PdfConversionPage(Responsive, QWidget):
                 # radio buttons with their sentences rather than a combo box.
                 group = QButtonGroup(self)
                 for value in values:
-                    option = QRadioButton(tr(f"{key}.{value}"))
-                    option.setToolTip(tr(f"{key}.{value}.tip"))
+                    # A `Choice`, not a `QRadioButton`: the sentence wraps
+                    # rather than setting the floor of the card (A08).
+                    option = Choice(tr(f"{key}.{value}"), tip=tr(f"{key}.{value}.tip"))
                     option.setChecked(getattr(self.settings, name) == value)
                     option.toggled.connect(
                         lambda on, field=name, chosen=value: self._chose(field, chosen, on)
                     )
-                    group.addButton(option)
+                    group.addButton(option.button)
                     card.body.addWidget(option)
                     hint = label(tr(f"{key}.{value}.tip"), "muted")
                     card.body.addWidget(hint)
                 self._groups[name] = group
                 continue
-            combo = QComboBox()
-            combo.setAccessibleName(tr(key))
+            combo = self._combo(tr(key))
             for value in values:
                 combo.addItem(tr(f"{key}.{value}"), value)
                 combo.setItemData(combo.count() - 1, tr(f"{key}.{value}.tip"), Qt.ToolTipRole)
@@ -439,8 +439,7 @@ class PdfConversionPage(Responsive, QWidget):
             self._groups[name] = combo
         for name, key, values in PUBLICATION:
             card.body.addWidget(label(tr(key), "cardTitle"))
-            combo = QComboBox()
-            combo.setAccessibleName(tr(key))
+            combo = self._combo(tr(key))
             for value in values:
                 combo.addItem(tr(f"{key}.{value}"), value)
                 combo.setItemData(combo.count() - 1, tr(f"{key}.{value}.tip"), Qt.ToolTipRole)
@@ -453,6 +452,28 @@ class PdfConversionPage(Responsive, QWidget):
             card.body.addWidget(combo)
             self._groups[name] = combo
         return card
+
+    #: How many characters a settings combo asks for as its minimum. The box
+    #: takes the card's whole width anyway; this is only what it insists on.
+    COMBO_LENGTH = 12
+
+    @classmethod
+    def _combo(cls, name: str) -> QComboBox:
+        """A combo box that does not set the card's floor at its longest item.
+
+        By default a `QComboBox` is at least as wide as the widest choice in
+        it, and *Pytaj przy każdym dokumencie* at the wider face is 373 px
+        here — on the Windows runner's face, which measured about 1.9 times
+        wider than this machine's (A08 / Tests (Windows) #73), that is the
+        next thing over a plan 726 px wide once the radio buttons stop
+        being it. The box asks for `COMBO_LENGTH` characters and stretches
+        to the card; the choices are read in the list, which sizes itself.
+        """
+        combo = QComboBox()
+        combo.setAccessibleName(name)
+        combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        combo.setMinimumContentsLength(cls.COMBO_LENGTH)
+        return combo
 
     def _chose(self, field: str, value: str, on: bool) -> None:
         if on:
