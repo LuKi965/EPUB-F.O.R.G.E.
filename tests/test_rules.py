@@ -82,7 +82,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 424 on 2026-09-10 with A05: `pdf.drawing-merged`. Every region the
 # drawing detector finds is accounted for — carried, merged into the
 # picture it frames, or refused — and a frame is a thing to say.
-TAGGED_TODAY = 424
+# 426 on 2026-09-10 with A07: `pdf.links-carried` and `pdf.links-not-carried`.
+# The source's link annotations reach the book, or the report says which
+# did not and why.
+TAGGED_TODAY = 426
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -221,7 +224,9 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: both languages — the refusal names the document and the link that broke.
 #:
 #: 324 → 325 (2026-09-10, A05): `pdf.drawing-merged` in both languages.
-TEMPLATED_TODAY = 325
+#:
+#: 325 → 327 (2026-09-10, A07): the two link rules in both languages.
+TEMPLATED_TODAY = 327
 
 
 class TestTheTranslationCannotStall:

@@ -113,6 +113,31 @@ class Line:
     family: str = ""
 
 
+@dataclass
+class Link:
+    """One link annotation of the source: where it stands on its page and
+    where it leads (A07 of the 0.4.4 recovery audit).
+
+    *target* is `page:N` for a destination inside the document, `uri:…` for
+    an address outside it, or `""` when the destination could not be
+    resolved — the annotation is then counted, reported, and carried as
+    nothing, because a link that leads nowhere is worse than plain text.
+    """
+
+    page: int
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    target: str = ""
+    #: Whether any character of the page stood inside the rectangle: a link
+    #: with no text under it has nothing to be wrapped round.
+    texted: bool = False
+
+    def holds(self, x: float, y: float) -> bool:
+        return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
+
+
 #: How far past a picture's own edges its name may reach and still be its name.
 #: A caption is usually centred under the picture and narrower than it; a couple
 #: of points of slack allow for the one that is set flush and rounds outwards.
@@ -189,6 +214,8 @@ class Page:
     #: What became of each drawing on this page — one entry per region the
     #: detector found, written by `_carry_the_drawings` (A05).
     drawing_ledger: list = field(default_factory=list)
+    #: The link annotations standing on this page (A07).
+    links: list = field(default_factory=list)
     #: The callouts printed on those drawings, taken out of the prose and
     #: printed together where the first of them stood.
     callouts: list = field(default_factory=list)
@@ -335,6 +362,19 @@ class Layout:
     median_paragraph: int = 0
     #: How many areas the pages were cut into. One per page is prose.
     regions: int = 0
+    #: The source's link annotations, and what became of them (A07): carried
+    #: into the book as `<a>`, unresolved (a destination the file does not
+    #: define), without text (a rectangle no character stands in), or dropped
+    #: (a page the book has no place for). Carried + the three = links.
+    links: int = 0
+    links_carried: int = 0
+    links_unresolved: int = 0
+    links_without_text: int = 0
+    links_dropped: int = 0
+    #: Of the carried ones, those that lead inside the book.
+    links_internal: int = 0
+    #: The pages links lead to, so the reflowable book puts an anchor there.
+    link_targets: list = field(default_factory=list)
 
 
 # ----------------------------------------------------------------- reading
@@ -373,12 +413,13 @@ def read_pdf(source: str, report: Report, budget=None, page_layout: str = "reflo
         # differs is that here they are printed where they were drawn.
         blocks = _blocks(pages, body_size)
         sections = len(pages)
-        _fill_the_pages(book, pages, blocks, layout, outline)
+        placed = _fill_the_pages(book, pages, blocks, layout, outline)
     else:
         parts = _sections(pages, outline, body_size)
         blocks = [block for _, blocks_of in parts for block in blocks_of]
         sections = len(parts)
-        _fill_the_book(book, parts, layout, outline)
+        placed = _fill_the_book(book, parts, layout, outline)
+    _resolve_links(book, placed, layout)
     quality = measure_quality(blocks)
     layout.torn_paragraphs = quality.torn
     layout.fragment_paragraphs = quality.fragments
@@ -479,7 +520,10 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout",
     without reading the chapter. Each entry points at an anchor on the page it
     named, which is the position the PDF itself recorded.
     """
-    anchored = {entry.page for entry in outline}
+    # The pages links lead to get an anchor as the outline's do (A07): a
+    # link has to land somewhere, and "the paragraph that page begins in"
+    # is where.
+    anchored = {entry.page for entry in outline} | set(layout.link_targets)
     placed: dict[int, str] = {}
     spans: list = []
     for index, (title, blocks) in enumerate(sections, 1):
@@ -498,6 +542,7 @@ def _fill_the_book(book: Book, sections: list, layout: "Layout",
     if outline:
         book.toc.extend(_navigation(outline, placed))
     layout.navigation_entries = sum(len(list(node.walk())) for node in book.toc)
+    return placed
 
 
 def _add_section(book: Book, path: str, label: str, blocks: list, layout: "Layout",
@@ -690,6 +735,32 @@ def _say_what_was_noticed(report: Report, source: str, layout: "Layout") -> None
             Level.PRESERVED,
             "pdf.text-shown-by-the-picture",
             values={"count": layout.text_under_art},
+            location=source,
+        )
+    if layout.links_carried:
+        report.add(
+            "pdf",
+            Level.INFO,
+            "pdf.links-carried",
+            values={"count": layout.links_carried,
+                    "internal": layout.links_internal,
+                    "external": layout.links_carried - layout.links_internal},
+            location=source,
+        )
+    not_carried = layout.links - layout.links_carried
+    if not_carried:
+        # Every link the source had and the book has not, with the reason
+        # for each kind (A07): a book that quietly lost its cross-references
+        # is a manual nobody can follow, and its own table of contents does
+        # not stand in for them.
+        report.add(
+            "pdf",
+            Level.WARN,
+            "pdf.links-not-carried",
+            values={"count": not_carried, "total": layout.links,
+                    "unresolved": layout.links_unresolved,
+                    "without_text": layout.links_without_text,
+                    "dropped": layout.links_dropped},
             location=source,
         )
     if layout.drawings_merged:
@@ -955,9 +1026,13 @@ def _read(source: str):
     # nothing (EF-087). The inventory below is the second opinion — walked
     # here, over the same parse, so that it does not cost a second one.
     sheet = draw.Sheet(source)
+    # The link annotations first, because a character learns which link it
+    # stands in while the line is being cut into runs (A07).
+    links_by_page, links_unresolved = _links_of(source)
     for number, lt_page in enumerate(extract_pages(source, laparams=LAParams(all_texts=True)), 1):
         _walk_characters(lt_page, drawn)
         page = Page(number=number, width=lt_page.width, height=lt_page.height)
+        page.links = links_by_page.get(number, [])
         strokes: list = []
         stack = list(lt_page)
         while stack:
@@ -967,22 +1042,7 @@ def _read(source: str):
                 # this reader wants from them is where the drawing *is*.
                 strokes.append((element.x0, element.y0, element.x1, element.y1))
             elif isinstance(element, LTTextContainer):
-                for line in element:
-                    if isinstance(line, LTTextLine):
-                        chars = [c for c in line if isinstance(c, LTChar)]
-                        text = line.get_text().replace("\n", "")
-                        if not chars or not text.strip():
-                            continue
-                        common = Counter(c.fontname for c in chars).most_common(1)[0][0]
-                        page.lines.append(Line(
-                            text=text,
-                            x0=line.x0, x1=line.x1, y0=line.y0, y1=line.y1,
-                            size=round(sum(c.size for c in chars) / len(chars), 1),
-                            page=number,
-                            bold="bold" in common.lower(),
-                            runs=_runs(line),
-                            family=_family(common),
-                        ))
+                page.lines.extend(_lines_of(element, page))
             elif isinstance(element, LTFigure):
                 stack[:0] = list(element)
             elif isinstance(element, LTImage):
@@ -1032,7 +1092,47 @@ def _read(source: str):
         except Exception:  # noqa: BLE001 — no outline is not an error; a broken one is reported by count
             pass
     layout = Layout(outline_unresolved=unresolved, images_skipped=skipped)
+    _count_links(layout, links_by_page, links_unresolved)
     return pages, info, outline, layout
+
+
+def _lines_of(element, page: "Page") -> "list[Line]":
+    """The text lines of one layout container, as this reader holds them."""
+    from pdfminer.layout import LTChar, LTTextLine
+
+    found = []
+    for line in element:
+        if not isinstance(line, LTTextLine):
+            continue
+        chars = [c for c in line if isinstance(c, LTChar)]
+        text = line.get_text().replace("\n", "")
+        if not chars or not text.strip():
+            continue
+        common = Counter(c.fontname for c in chars).most_common(1)[0][0]
+        found.append(Line(
+            text=text,
+            x0=line.x0, x1=line.x1, y0=line.y0, y1=line.y1,
+            size=round(sum(c.size for c in chars) / len(chars), 1),
+            page=page.number,
+            bold="bold" in common.lower(),
+            runs=_runs(line, page.links),
+            family=_family(common),
+        ))
+    return found
+
+
+def _count_links(layout: "Layout", links_by_page: dict, unresolved: int) -> None:
+    """What the link annotations came to before the book is built (A07):
+    how many there were, how many led nowhere, how many stood on no text,
+    and which pages the rest lead to."""
+    every_link = [link for links in links_by_page.values() for link in links]
+    layout.links = len(every_link)
+    layout.links_unresolved = unresolved
+    layout.links_without_text = sum(1 for link in every_link if link.target and not link.texted)
+    layout.link_targets = sorted({
+        int(link.target[5:]) for link in every_link
+        if link.target.startswith("page:") and link.texted
+    })
 
 
 #: What the font's name says about the face it draws. A name like
@@ -1076,12 +1176,18 @@ def _family(fontname: str) -> str:
     return ""
 
 
-def _runs(line) -> list:
-    """One line cut into runs of a single face, in order.
+def _runs(line, links: "list[Link] | None" = None) -> list:
+    """One line cut into runs of a single face — and of a single link — in
+    order.
 
     Per character and not per line: a manual sets one word of a sentence in
     bold — the name of a button, a warning — and a line measured as a whole
-    loses exactly that.
+    loses exactly that. The same goes for a link (A07): "see 6.6.4" is three
+    words of a sentence, and the sentence is not the link.
+
+    A run's style is the face — "", "b", "i", "bi" — and, after a `|`, the
+    target of the link the characters stand in, when they stand in one:
+    `"b|page:12"`. `_face_of` and `_link_of` read the two halves back.
     """
     from pdfminer.layout import LTChar
 
@@ -1090,12 +1196,101 @@ def _runs(line) -> list:
         text = char.get_text()
         if text == "\n":
             continue
-        style = _face(char.fontname) if isinstance(char, LTChar) else (runs[-1][1] if runs else "")
+        if isinstance(char, LTChar):
+            style = _face(char.fontname)
+            linked = _link_at(links, (char.x0 + char.x1) / 2, (char.y0 + char.y1) / 2)
+            if linked is not None:
+                linked.texted = True
+                style += "|" + linked.target
+        else:
+            style = runs[-1][1] if runs else ""
         if runs and runs[-1][1] == style:
             runs[-1][0] += text
         else:
             runs.append([text, style])
     return [(text, style) for text, style in runs if text]
+
+
+def _link_at(links, x: float, y: float) -> "Link | None":
+    """The resolvable link whose rectangle holds the point, or none."""
+    for link in links or ():
+        if link.target and link.holds(x, y):
+            return link
+    return None
+
+
+def _face_of(style: str) -> str:
+    """The face half of a run's style."""
+    return style.partition("|")[0]
+
+
+def _link_of(style: str) -> str:
+    """The link half of a run's style: `page:N`, `uri:…`, or empty."""
+    return style.partition("|")[2]
+
+
+def _href(target: str) -> str:
+    """What a link target is written as before the book knows its anchors:
+    an address as itself, a page as `pdf-page:N` for `_resolve_links`."""
+    if target.startswith("uri:"):
+        return escape(target[4:]).replace('"', "&quot;")
+    return "pdf-" + target
+
+
+def _links_of(source: str) -> "tuple[dict[int, list[Link]], int]":
+    """Every link annotation in the file, by page, and how many led nowhere.
+
+    Read from the page tree rather than from the layout: pdfminer's layout
+    analysis does not carry annotations, and a link is an annotation — a
+    rectangle on a page with an action or a destination. The destination is
+    resolved the way the outline's are (`_outline_page`): a GoTo action, a
+    named destination through the catalogue, an explicit array.
+    """
+    from pdfminer.pdfdocument import PDFDocument
+    from pdfminer.pdfpage import PDFPage
+    from pdfminer.pdfparser import PDFParser
+    from pdfminer.pdftypes import resolve1
+
+    found: dict = {}
+    unresolved = 0
+    try:
+        with open(source, "rb") as handle:
+            document = PDFDocument(PDFParser(handle))
+            pages = list(PDFPage.create_pages(document))
+            page_index = {page.pageid: index for index, page in enumerate(pages, 1)}
+            for number, page in enumerate(pages, 1):
+                for annotation in resolve1(page.annots) or ():
+                    annotation = resolve1(annotation)
+                    if not isinstance(annotation, dict):
+                        continue
+                    if _decode(annotation.get("Subtype")) != "Link":
+                        continue
+                    rect = resolve1(annotation.get("Rect"))
+                    if not isinstance(rect, list) or len(rect) != 4:
+                        continue
+                    x0, y0, x1, y1 = (float(resolve1(v)) for v in rect)
+                    target = _link_target(document, annotation, page_index)
+                    if not target:
+                        unresolved += 1
+                    found.setdefault(number, []).append(Link(
+                        number, min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1), target,
+                    ))
+    except Exception:  # noqa: BLE001 — a file whose annotations will not parse has no links to carry; the count says so
+        return found, unresolved
+    return found, unresolved
+
+
+def _link_target(document, annotation: dict, page_index: dict) -> str:
+    """`page:N`, `uri:…`, or "" when the annotation leads nowhere this
+    reader can name."""
+    from pdfminer.pdftypes import resolve1
+
+    action = resolve1(annotation.get("A"))
+    if isinstance(action, dict) and _decode(action.get("S")) == "URI":
+        uri = _decode(action.get("URI"))
+        return f"uri:{uri}" if uri else ""
+    page = _outline_page(document, annotation.get("Dest"), annotation.get("A"), page_index)
+    return f"page:{page}" if page else ""
 
 
 def _decode(value) -> str:
@@ -1865,7 +2060,7 @@ def _body_face(pages: list[Page]) -> str:
     for page in pages:
         for line in page.lines:
             for text, style in line.runs:
-                weight[style] += len(text)
+                weight[_face_of(style)] += len(text)
     return weight.most_common(1)[0][0] if weight else ""
 
 
@@ -2566,18 +2761,20 @@ def _faced_runs(runs: list, body_face: str) -> str:
     left unmarked. Neighbours that mean the same thing are one element."""
     out: list = []
     for run, style in runs:
-        mark = "".join(letter for letter in style if letter not in body_face)
-        if out and out[-1][1] == mark:
+        mark = "".join(letter for letter in _face_of(style) if letter not in body_face)
+        key = (mark, _link_of(style))
+        if out and out[-1][1] == key:
             out[-1][0] += run
         else:
-            out.append([run, mark])
-    return "".join(_faced(escape(run), mark) for run, mark in out)
+            out.append([run, key])
+    return "".join(_faced(escape(run), mark, link) for run, (mark, link) in out)
 
 
-def _faced(text: str, mark: str) -> str:
+def _faced(text: str, mark: str, link: str = "") -> str:
     """*text* wrapped in what its face means, with the spaces left outside it:
-    a legend's "A1.  " is set in bold, and the two spaces after it are not."""
-    if not mark or not text.strip():
+    a legend's "A1.  " is set in bold, and the two spaces after it are not.
+    A link goes round the outside of the face (A07)."""
+    if not (mark or link) or not text.strip():
         return text
     body = text.strip()
     before = text[:len(text) - len(text.lstrip())]
@@ -2586,6 +2783,8 @@ def _faced(text: str, mark: str) -> str:
         body = f"<strong>{body}</strong>"
     if "i" in mark:
         body = f"<em>{body}</em>"
+    if link:
+        body = f'<a href="{_href(link)}">{body}</a>'
     return before + body + after
 
 
@@ -2881,19 +3080,21 @@ def _svg_runs(runs: list, body_face: str) -> str:
     """`_faced_runs`, for SVG: the same runs, the same marks, in `tspan`s."""
     out: list = []
     for run, style in runs:
-        mark = "".join(letter for letter in style if letter not in body_face)
-        if out and out[-1][1] == mark:
+        mark = "".join(letter for letter in _face_of(style) if letter not in body_face)
+        key = (mark, _link_of(style))
+        if out and out[-1][1] == key:
             out[-1][0] += run
         else:
-            out.append([run, mark])
-    return "".join(_svg_faced(escape(run), mark) for run, mark in out)
+            out.append([run, key])
+    return "".join(_svg_faced(escape(run), mark, link) for run, (mark, link) in out)
 
 
-def _svg_faced(text: str, mark: str) -> str:
+def _svg_faced(text: str, mark: str, link: str = "") -> str:
     """*text* in a `tspan` carrying its face, spaces left outside as `_faced`
     leaves them — whitespace inside SVG text is collapsed by default, and the
-    `white-space: pre` this needs is set on the page's stylesheet."""
-    if not mark or not text.strip():
+    `white-space: pre` this needs is set on the page's stylesheet. A link is
+    SVG's own `a`, round the outside (A07)."""
+    if not (mark or link) or not text.strip():
         return text
     body = text.strip()
     before = text[:len(text) - len(text.lstrip())]
@@ -2901,7 +3102,11 @@ def _svg_faced(text: str, mark: str) -> str:
     attributes = " ".join(
         attribute for letter, attribute in (("b", SVG_BOLD), ("i", SVG_ITALIC)) if letter in mark
     )
-    return f"{before}<tspan {attributes}>{body}</tspan>{after}"
+    if attributes:
+        body = f"<tspan {attributes}>{body}</tspan>"
+    if link:
+        body = f'<a href="{_href(link)}">{body}</a>'
+    return f"{before}{body}{after}"
 
 
 def _photographed(page: Page, items: list) -> "list[tuple[float, float, float, float]]":
@@ -3060,6 +3265,7 @@ def _fill_the_pages(book: Book, pages: "list[Page]", blocks: "list[Block]",
         # already have, so it says the one thing that is true: here is the book.
         book.toc = [NavPoint(label=book.metadata.title or "1", target=book.spine[0].path)]
     layout.navigation_entries = sum(len(list(node.walk())) for node in book.toc)
+    return placed
 
 
 def _say_the_page_was_kept(report: Report, source: str, layout: "Layout",
@@ -3108,3 +3314,52 @@ def _read_metadata(book: Book, source: str, info: dict) -> None:
         book.metadata.extra_meta.append(("pdf:producer", info["Producer"]))
     if info.get("Creator"):
         book.metadata.extra_meta.append(("pdf:creator", info["Creator"]))
+
+
+#: A link written before the book knew where its pages landed: `_resolve_links`
+#: turns it into the anchor of the document that page begins in.
+_UNRESOLVED_HREF = re.compile(r'href="pdf-page:(\d+)"')
+_DROPPED_LINK = re.compile(r'<a href="pdf-page:\d+">(.*?)</a>', re.S)
+
+
+def _resolve_links(book: Book, placed: "dict[int, str]", layout: "Layout") -> None:
+    """Point every internal link at the place its page got, and unwrap the
+    ones whose page got none (A07).
+
+    Links are written while the documents are rendered, before the book
+    knows which document — and which anchor in it — each page landed in.
+    So they are written as `pdf-page:N` and finished here: the reflowable
+    book's `placed` maps a page to `document#anchor`, the fixed book's to
+    the page's own document. A page nothing reached and no anchor was placed
+    for is a link the book cannot honour, and an unhonoured link is unwrapped
+    rather than left pointing at nothing — and counted, so the report says.
+    """
+    carried = internal = dropped = 0
+    for item in book.spine:
+        resource = book.resources.get(item.path)
+        if resource is None or resource.media_type != "application/xhtml+xml":
+            continue
+        markup = resource.data.decode("utf-8")
+        if "<a href=" not in markup:
+            continue
+        here = posixpath.dirname(item.path)
+
+        def landed(match) -> str:
+            nonlocal internal
+            page = int(match.group(1))
+            target = placed.get(page)
+            if target is None:
+                return match.group(0)
+            path, _, anchor = target.partition("#")
+            href = posixpath.relpath(path, here) if here else path
+            internal += 1
+            return f'href="{href}#{anchor}"' if anchor else f'href="{href}"'
+
+        markup = _UNRESOLVED_HREF.sub(landed, markup)
+        markup, gone = _DROPPED_LINK.subn(r"\1", markup)
+        dropped += gone
+        carried += markup.count("<a href=")
+        resource.data = markup.encode("utf-8")
+    layout.links_carried = carried
+    layout.links_internal = internal
+    layout.links_dropped = dropped

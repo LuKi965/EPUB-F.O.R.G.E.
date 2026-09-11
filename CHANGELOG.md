@@ -93,6 +93,24 @@ nie trafia do książki drugi raz. Sam dotyk to obie rzeczy w książce.
 `pdf.drawing-not-drawn` liczy odmowy wobec wykrytych, także gdy inne
 regiony przeszły.
 
+### A07 / W03 — odsyłacze PDF-a trafiają do książki, albo raport mówi, które nie
+
+Źródło instrukcji ma 824 adnotacje odsyłaczy; książka stała nie miała ani
+jednego `<a>`, płynna też nie. Własna nawigacja EPUB nie zastępuje odsyłaczy,
+z których instrukcja jest zrobiona. Czytnik PDF czyta teraz adnotacje
+`/Link` z drzewa stron — akcję GoTo, nazwane miejsce docelowe przez katalog,
+jawną tablicę, adres URI — tą samą drogą, którą rozwiązuje konspekt. Każdy
+znak wiersza wie, w prostokącie którego odsyłacza stoi, więc odsyłacz owija
+**słowa**, które go niosły, nie cały wiersz: „zob. 6.6.4” to trzy słowa
+zdania. W książce płynnej to `<a href="dokument#kotwica-strony">` — strona
+docelowa dostaje kotwicę tak jak strona z konspektu — w stałej `<a>` wewnątrz
+tekstu SVG, `page-NNNN.xhtml`. Adnotacja prowadząca donikąd (miejsce, którego
+plik nie definiuje; prostokąt bez tekstu; strona, dla której książka nie ma
+miejsca) zostaje zwykłym tekstem i jest policzona: `pdf.links-carried`
+i `pdf.links-not-carried` z rozbiciem na powody. Prostokąty w fixture są
+mierzone pdfminerem, nie zgadywane; obie postaci książki z odsyłaczami
+przechodzą EPUBCheck 5.3.0.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki

@@ -56,14 +56,21 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
              images: dict[int, list[tuple]] | None = None,
              outline: list[tuple[str, int]] | None = None,
              forms: dict[int, list[list[tuple[float, float, float, str]]]] | None = None,
-             strokes: dict[int, list[tuple[float, float, float, str]]] | None = None) -> pathlib.Path:
+             strokes: dict[int, list[tuple[float, float, float, str]]] | None = None,
+             links: dict[int, list[tuple]] | None = None,
+             dests: dict[str, int] | None = None) -> pathlib.Path:
     """Write *pages*, each a list of ``(x, y, size, text)`` lines, y from the
     page bottom as PDF counts it. *images* puts Flate-compressed RGB pictures
     on a page (by index): ``(x, y, width, height, pixel_width, pixel_height,
     rgb_bytes)``. *outline* is the PDF's bookmarks: ``(title, page_index)``.
     *strokes* draws lines on a page: ``(x0, y0, x1, y1)`` each — vector artwork,
     which the reader sees as a drawing and, since Q01, carries as a picture of
-    the region it occupies when a renderer is installed."""
+    the region it occupies when a renderer is installed. *links* puts link
+    annotations on a page (by index): ``(x0, y0, x1, y1, target)``, the target
+    an ``int`` page index (a GoTo with an explicit destination), a ``str``
+    beginning ``http`` (a URI action) or any other ``str`` (a named
+    destination, looked up in *dests*, ``name -> page_index``, written into the
+    catalogue's ``/Dests``) — the three shapes AC10 of the recovery plan names."""
     objects: list[bytes] = []
 
     def add(body: bytes) -> int:
@@ -138,14 +145,40 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
                      f"/F3 {faces['i']} 0 R /F4 {faces['n']} 0 R >>")
         if xobjects:
             resources += f" /XObject << {' '.join(xobjects)} >>"
+        # Link annotations. A GoTo names its page by object id, and a page
+        # later in the file has none yet — so the reference is a placeholder
+        # patched once every page is in, the way `/Parent` is.
+        annots = []
+        for x0, y0, x1, y1, target in (links or {}).get(index, ()):
+            if isinstance(target, int):
+                action = f"/A << /S /GoTo /D [PAGEREF_{target} 0 R /XYZ 0 {PAGE[1]} 0] >>"
+            elif target.startswith("http"):
+                action = f"/A << /S /URI /URI ({_escape(target)}) >>"
+            else:
+                action = f"/Dest /{target}"
+            annots.append(add(
+                f"<< /Type /Annot /Subtype /Link /Rect [{x0} {y0} {x1} {y1}] "
+                f"/Border [0 0 0] {action} >>".encode("cp1252")
+            ))
+        annotated = f" /Annots [{' '.join(f'{a} 0 R' for a in annots)}]" if annots else ""
         page_ids.append(add(
             f"<< /Type /Page /Parent PAGES 0 R /MediaBox [0 0 {PAGE[0]} {PAGE[1]}] "
-            f"/Resources << {resources} >> /Contents {content} 0 R >>".encode()
+            f"/Resources << {resources} >> /Contents {content} 0 R{annotated} >>".encode()
         ))
     kids = " ".join(f"{i} 0 R" for i in page_ids)
     pages_id = add(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode())
     for number in page_ids:
         objects[number - 1] = objects[number - 1].replace(b"PAGES 0 R", f"{pages_id} 0 R".encode())
+    for position, body in enumerate(objects):
+        if b"PAGEREF_" in body:
+            for target, page_id in enumerate(page_ids):
+                body = body.replace(f"PAGEREF_{target} 0 R".encode(), f"{page_id} 0 R".encode())
+            objects[position] = body
+    named = ""
+    if dests:
+        named = " /Dests << " + " ".join(
+            f"/{name} [{page_ids[page]} 0 R /Fit]" for name, page in dests.items()
+        ) + " >>"
     lang = f" /Lang ({language})" if language else ""
     outlines = ""
     if outline:
@@ -181,7 +214,7 @@ def make_pdf(path: pathlib.Path, pages: list[list[tuple[float, float, float, str
             add((f"<< /Title ({_escape(label)}) /Parent {parent_id} 0 R{links} "
                  f"/Dest [{page_ids[page_index]} 0 R /XYZ 0 {PAGE[1]} 0] >>").encode("cp1252"))
         outlines = f" /Outlines {root_id} 0 R"
-    catalog = add(f"<< /Type /Catalog /Pages {pages_id} 0 R{lang}{outlines} >>".encode())
+    catalog = add(f"<< /Type /Catalog /Pages {pages_id} 0 R{lang}{outlines}{named} >>".encode())
     info = add((
         "<< " + (f"/Title ({_escape(title)}) " if title else "")
         + (f"/Author ({_escape(author)}) " if author else "") + ">>"
@@ -2211,5 +2244,174 @@ class TestEveryRegionIsAccountedForA05:
         assert "beside" in entry["reason"], entry
         images = [r for r in book.resources.values() if r.media_type == "image/png"]
         assert len(images) == 2, "rysunek i zdjęcie miały być w książce oba"
+
+
+class TestTheLinksOfTheSourceReachTheBookA07:
+    """A07 of the 0.4.4 recovery plan: *PDF traci odsyłacze.* The owner's
+    manual carries 824 link annotations — 823 to named destinations, one to
+    an address — and the fixed book carried none; the reflowable one none
+    either. The book's own navigation is not a substitute for the
+    cross-references a manual is made of.
+
+    AC10 names the three shapes: a link to a page, a named destination, an
+    address outside the document. Each is carried as `<a>` round the words
+    that carried it on the page — the words, not the line, because "see
+    6.6.4" is three words of a sentence — or reported as not carried, with
+    the reason.
+    """
+
+    PAGES = [
+        [(72, 700, 12.0, "For the water tank see page two."),
+         (72, 680, 12.0, "For descaling see the named part."),
+         (72, 660, 12.0, "More is online at the site.")],
+        # Each later page opens with a heading, so its prose is a block of
+        # its own and the anchor a link lands on is that page's, not the
+        # paragraph that happens to run over the fold from the page before.
+        [(72, 720, 18.0, "Water tank"), (72, 690, 12.0, "Page two is about the water tank.")],
+        [(72, 720, 18.0, "Descaling"), (72, 690, 12.0, "Page three is about descaling.")],
+    ]
+
+    @staticmethod
+    def _box_of(source, page_number: int, phrase: str) -> tuple:
+        """The rectangle the characters of *phrase* occupy on the page —
+        measured with pdfminer rather than guessed (D-012), because a link's
+        rectangle drawn a few points off wraps "age two." instead of "page
+        two", and the test would then be measuring the guess."""
+        from pdfminer.high_level import extract_pages
+        from pdfminer.layout import LTChar, LTTextContainer, LTTextLine
+
+        for number, page in enumerate(extract_pages(str(source)), 1):
+            if number != page_number:
+                continue
+            for element in page:
+                if not isinstance(element, LTTextContainer):
+                    continue
+                for line in element:
+                    if not isinstance(line, LTTextLine):
+                        continue
+                    chars = [c for c in line if isinstance(c, LTChar)]
+                    text = "".join(c.get_text() for c in chars)
+                    at = text.find(phrase)
+                    if at >= 0:
+                        span = chars[at:at + len(phrase)]
+                        return (min(c.x0 for c in span), min(c.y0 for c in span),
+                                max(c.x1 for c in span), max(c.y1 for c in span))
+        raise AssertionError(f"{phrase!r} is not on page {page_number}")
+
+    @classmethod
+    def _manual(cls, tmp_path, *, broken=False):
+        """Two passes: the pages once to measure where the linked words
+        stand, then again with the link rectangles drawn round exactly them."""
+        plain = make_pdf(tmp_path / "unlinked.pdf", cls.PAGES, title="Linked")
+        links = {0: [
+            cls._box_of(plain, 1, "page two") + (1,),
+            cls._box_of(plain, 1, "the named part") + ("missing" if broken else "descaling",),
+            cls._box_of(plain, 1, "the site") + ("https://example.org/manual",),
+        ]}
+        return make_pdf(tmp_path / "linked.pdf", cls.PAGES, title="Linked", links=links,
+                        dests={"descaling": 2})
+
+    @staticmethod
+    def _anchors(markup: str) -> list:
+        import re
+
+        return re.findall(r'<a href="([^"]+)">(.*?)</a>', markup, re.S)
+
+    def test_the_three_shapes_are_carried_round_their_words_in_the_reflowable_book(self, tmp_path):
+        report = Report()
+        book = pdf.read_pdf(str(self._manual(tmp_path)), report)
+        first = book.resources[book.spine[0].path].data.decode()
+        found = self._anchors(first)
+        texts = [re.sub(r"<[^>]+>", "", text) for _, text in found]
+        assert texts == ["page two", "the named part", "the site"], found
+        hrefs = [href for href, _ in found]
+        assert hrefs[2] == "https://example.org/manual"
+        # Internal targets point at the anchor of the page they name, in
+        # the document that page landed in — and that anchor exists there.
+        for href, page in ((hrefs[0], 2), (hrefs[1], 3)):
+            path, _, anchor = href.partition("#")
+            assert anchor == pdf._anchor(page), href
+            target = book.resources[f"text/{path}"].data.decode()
+            assert f'id="{anchor}"' in target, (href, target)
+        layout = report.stats["pdf_layout"]
+        assert layout["links"] == 3 and layout["links_carried"] == 3
+        assert layout["links_internal"] == 2
+        assert "pdf.links-carried" in {f.rule for f in report.findings}
+        assert "pdf.links-not-carried" not in {f.rule for f in report.findings}
+
+    def test_the_words_around_a_link_are_not_swallowed_by_it(self, tmp_path):
+        """The negative of the wrap: the sentence stays prose and the link is
+        exactly the words under the rectangle."""
+        book = pdf.read_pdf(str(self._manual(tmp_path)), Report())
+        first = book.resources[book.spine[0].path].data.decode()
+        assert "For the water tank see <a href=" in first, first
+        assert "</a>.</p>" in first
+
+    def test_the_fixed_book_carries_them_inside_the_svg_text(self, tmp_path):
+        source = self._manual(tmp_path)
+        report = Report()
+        book = fixed(source, report)
+        first = pages_of(book)[0]
+        found = self._anchors(first)
+        assert [href for href, _ in found] == [
+            "page-0002.xhtml", "page-0003.xhtml", "https://example.org/manual",
+        ], found
+        assert '<a href="page-0002.xhtml">page two</a>' in first
+        assert report.stats["pdf_layout"]["links_carried"] == 3
+        # And K1's reading of the page is unchanged by the wrapping.
+        assert fidelity.first_character_lost(
+            pdf.text_of(str(source)),
+            " ".join(fidelity.document_text(book.resources[item.path].data) or ""
+                     for item in book.spine),
+        ) == -1
+
+    def test_a_destination_the_file_does_not_define_is_reported_not_invented(self, tmp_path):
+        report = Report()
+        book = pdf.read_pdf(str(self._manual(tmp_path, broken=True)), report)
+        first = book.resources[book.spine[0].path].data.decode()
+        texts = [re.sub(r"<[^>]+>", "", text) for _, text in self._anchors(first)]
+        assert texts == ["page two", "the site"], texts
+        assert "the named part" in first, "słowa zostają, tylko bez odsyłacza"
+        layout = report.stats["pdf_layout"]
+        assert layout["links"] == 3 and layout["links_carried"] == 2
+        assert layout["links_unresolved"] == 1
+        said = next(f for f in report.findings if f.rule == "pdf.links-not-carried")
+        assert said.level is Level.WARN
+        assert said.values["count"] == 1 and said.values["unresolved"] == 1
+
+    def test_a_link_on_no_text_is_counted_and_not_drawn_from_nothing(self, tmp_path):
+        pages = [[(72, 700, 12.0, "A page whose link rectangle covers only blank paper.")],
+                 [(72, 700, 12.0, "Page two.")]]
+        source = make_pdf(tmp_path / "blank-link.pdf", pages, links={0: [(300, 300, 400, 340, 1)]})
+        report = Report()
+        book = pdf.read_pdf(str(source), report)
+        assert "<a href=" not in book.resources[book.spine[0].path].data.decode()
+        layout = report.stats["pdf_layout"]
+        assert layout["links_without_text"] == 1 and layout["links_carried"] == 0
+        said = next(f for f in report.findings if f.rule == "pdf.links-not-carried")
+        assert said.values["without_text"] == 1
+
+    def test_a_book_without_links_says_nothing_about_them(self, tmp_path):
+        source = make_pdf(tmp_path / "plain.pdf", [column(THREE_PARAGRAPHS, top=700)])
+        report = Report()
+        pdf.read_pdf(str(source), report)
+        rules = {f.rule for f in report.findings}
+        assert not rules & {"pdf.links-carried", "pdf.links-not-carried"}
+
+    def test_the_converted_book_is_valid_with_links_in_both_layouts(self, tmp_path):
+        """EPUBCheck, when it is here: an `<a>` inside SVG text and an `<a>`
+        in prose are both allowed, and this is the check that says so rather
+        than a belief."""
+        from epubforge.validate import find_epubcheck, validate
+
+        if find_epubcheck() is None:
+            pytest.skip("EPUBCheck is not on this machine")
+        source = self._manual(tmp_path)
+        for layout in ("reflowable", "fixed"):
+            (tmp_path / layout).mkdir()
+            result = rebuilt(source, tmp_path / layout, pdf_layout=layout)
+            assert result.output_path, result.report.to_text("pl")
+            verdict = validate(result.output_path)
+            assert verdict.available and verdict.clean, (layout, verdict.lines[:5])
 
 
