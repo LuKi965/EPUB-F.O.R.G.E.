@@ -1,6 +1,6 @@
 {
   "source": "sha256:764911a243ca988002c728941817e643fcca685d33dc13022e5e0245e6069e9a",
-  "version": "0.3.1",
+  "version": "0.4.4",
   "minimal": {
     "written": true,
     "report": {
@@ -74,7 +74,7 @@
       "typography.conjunctions-left-alone": 1,
       "typography.ellipsis-left-alone": 1,
       "typography.quotes-left-alone": 1,
-      "xhtml.document-language-kept": 3,
+      "xhtml.document-language-undecided": 3,
       "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1
@@ -122,7 +122,7 @@
       "typography.conjunctions-left-alone": 1,
       "typography.ellipsis-left-alone": 1,
       "typography.quotes-left-alone": 1,
-      "xhtml.document-language-kept": 3,
+      "xhtml.document-language-undecided": 3,
       "xhtml.entities-rewritten": 2,
       "xhtml.image-paragraph-kept": 3,
       "xhtml.presentational-markup-converted": 1

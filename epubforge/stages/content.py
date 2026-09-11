@@ -256,6 +256,39 @@ def _is_percentage(value: str) -> bool:
     return value.strip().endswith("%")
 
 
+def _covers_left_unsized(cascade, wanted) -> "tuple[list, list]":
+    """Which of the cover images nothing sizes, and which of those the
+    publisher *tried* to size with a percentage of nothing.
+
+    A width, or a height in a length, is sizing. A height in per cent is
+    sizing only when every ancestor up to `html` has a height (A11 of the
+    0.4.4 recovery audit): the publisher wrote `height: 97%`, nothing above
+    the image had a height, and a percentage of `auto` is `auto`. The
+    declaration is real and inert, and the cover it was meant to keep on
+    one page needed a scroll at 600×800. Such a cover is treated as unsized
+    — and named as such, because "nothing in the book sized it" would be
+    untrue.
+    """
+    still_wanted, unresolved = [], []
+    for element in wanted:
+        chain = _ancestry(element)
+        sizing = {
+            prop: cascade.resolve(prop, chain[:1])[0]
+            for prop in ("width", "height", "max-width", "max-height")
+        }
+        if any(sizing[prop] is not None for prop in ("width", "max-width")):
+            continue
+        heights = [value for value in (sizing["height"], sizing["max-height"]) if value is not None]
+        if heights and not all(_is_percentage(value) for value in heights):
+            continue
+        if heights and _percentage_height_resolves(cascade, chain[1:]):
+            continue
+        if heights:
+            unresolved.append(", ".join(heights))
+        still_wanted.append(element)
+    return still_wanted, unresolved
+
+
 def _percentage_height_resolves(cascade, ancestors) -> bool:
     """Whether a percentage height on an element has something to resolve
     against: every ancestor up to `html` carries a height, each a length or
@@ -2855,32 +2888,7 @@ class ContentStage(Stage):
             return
 
         cascade = self._document_cascade(ctx, root, resource)
-        still_wanted = []
-        unresolved = []
-        for element in wanted:
-            chain = _ancestry(element)
-            sizing = {
-                prop: cascade.resolve(prop, chain[:1])[0]
-                for prop in ("width", "height", "max-width", "max-height")
-            }
-            if any(sizing[prop] is not None for prop in ("width", "max-width")):
-                continue
-            heights = [value for value in (sizing["height"], sizing["max-height"]) if value is not None]
-            if heights and not all(_is_percentage(value) for value in heights):
-                continue
-            if heights and _percentage_height_resolves(cascade, chain[1:]):
-                continue
-            # No sizing, or a height in per cent of a containing block that
-            # has no height (A11 of the 0.4.4 recovery audit): the publisher
-            # wrote `height: 97%`, nothing above the image has a height, and
-            # a percentage of `auto` is `auto`. The declaration is real and
-            # inert, and the cover it was meant to keep on one page needed a
-            # scroll at 600×800. Treated as unsized — and said so by name,
-            # because "nothing in the book sized it" would be untrue.
-            if heights:
-                unresolved.append(", ".join(heights))
-            still_wanted.append(element)
-
+        still_wanted, unresolved = _covers_left_unsized(cascade, wanted)
         if not still_wanted:
             return
 
