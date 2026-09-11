@@ -237,7 +237,11 @@ class TestF009ADocumentKeepsItsOwnLanguage:
     """
 
     def test_the_document_is_believed(self, tmp_path):
-        result = rebuild(simple(tmp_path / "in.epub", body="<p>Bonjour</p>", lang="fr"),
+        """A page of French in an English book: believed, no question. The
+        body is long enough to be evidence of *something*, which is the line
+        A12 draws — the short-document cases are in the class below."""
+        body = "<p>" + " ".join(["Bonjour, dit-il, et il continua de parler longuement."] * 12) + "</p>"
+        result = rebuild(simple(tmp_path / "in.epub", body=body, lang="fr"),
                          str(tmp_path / "out.epub"), Policy.preset("preserve"))
         found = re.findall(r'\b(?:xml:)?lang="([^"]+)"', read(result.output_path, "chapter.xhtml"))
         assert set(found[:2]) == {"fr"}
@@ -476,3 +480,67 @@ class TestF009TheTextStillGetsAVote:
         """A 90-character wrapper page is what those three Gutenberg books
         actually declare `en` on."""
         assert self.language_of(tmp_path, "<p>Litwo, ojczyzno moja</p>", "en") == "en"
+
+
+class TestAShortDocumentInAnotherLanguageIsAQuestionA12:
+    """A12 of the 0.4.4 recovery audit, AC07: a document too short for the
+    text to prove anything — a note, a dedication — that says a language
+    other than its book's used to keep it silently, as though believed. It
+    is put to the person with the text in front of them, grouped so one
+    answer carries across the book; the default is still to keep, because a
+    real quotation in another language must not lose its language to a rule.
+    """
+
+    def _rebuilt(self, tmp_path, **kw):
+        return rebuild(simple(tmp_path / "in.epub", body="<p>Bonjour</p>", lang="fr"),
+                       str(tmp_path / "out.epub"), Policy.preset("preserve"), **kw)
+
+    def test_nobody_there_keeps_it_and_says_nobody_decided(self, tmp_path):
+        result = self._rebuilt(tmp_path)
+        assert 'lang="fr"' in read(result.output_path, "chapter.xhtml")
+        assert "xhtml.document-language-undecided" in rules_of(result)
+        assert "xhtml.document-language-kept" not in rules_of(result)
+
+    def test_the_question_shows_the_text_and_both_languages(self, tmp_path):
+        from epubforge.decisions import Answer
+
+        seen = []
+
+        class Asker:
+            def ask(self, question):
+                seen.append(question)
+                return Answer(option="keep", source="person")
+
+        asker = Asker()
+
+        result = self._rebuilt(tmp_path, asker=asker)
+        asked = [q for q in seen if q.group == "content:short-document-language"]
+        assert asked, [q.group for q in seen]
+        assert "Bonjour" in asked[0].detail
+        assert "fr" in asked[0].summary and "en" in asked[0].summary
+        assert "xhtml.document-language-kept" in rules_of(result)
+
+    def test_a_standing_answer_aligns_it_with_the_book(self, tmp_path):
+        from epubforge.decisions import Answer
+
+        result = self._rebuilt(
+            tmp_path, standing={"content:short-document-language": Answer(option="publication")}
+        )
+        found = re.findall(r'\b(?:xml:)?lang="([^"]+)"', read(result.output_path, "chapter.xhtml"))
+        assert set(found[:2]) == {"en"}
+        assert "xhtml.document-language-aligned" in rules_of(result)
+
+    def test_a_document_in_the_books_own_language_is_not_asked_about(self, tmp_path):
+        seen = []
+
+        class Recorder:
+            def ask(self, question):
+                seen.append(question)
+                return None
+
+        result = rebuild(simple(tmp_path / "in.epub", body="<p>Hello</p>", lang="en-GB"),
+                         str(tmp_path / "out.epub"), Policy.preset("preserve"),
+                         asker=Recorder())
+        assert result.output_path
+        assert not [q for q in seen if q.group == "content:short-document-language"]
+

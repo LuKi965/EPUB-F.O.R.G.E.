@@ -276,3 +276,68 @@ class TestTheTextIsNeverAtRisk:
             name = next(n for n in archive.namelist() if n.endswith("chapter.xhtml"))
             page = archive.read(name).decode("utf-8")
         assert "Tekst rozdziału." in page
+
+
+class TestAnUncertainCorrectionIsAQuestionWithItsEvidenceA12:
+    """A12 of the 0.4.4 recovery audit: five `regular` declarations were left
+    on one book of the owner's shelf because italic existed *somewhere* in
+    the sheet. A conservative global rule is not a local proof and not a
+    decision. The case is now a question — which rules say `regular`, which
+    could put an emphasis above them — and the report tells a person's
+    answer from nobody's.
+    """
+
+    CSS = ".list { font-style: italic; } .list .name { font-style: regular; } .foot { font-weight: regular; }"
+
+    def _rebuilt(self, tmp_path, **kw):
+        return rebuild(book(tmp_path / "in.epub", self.CSS), str(tmp_path / "out.epub"),
+                       Policy.preset("preserve"), **kw)
+
+    def test_nobody_asked_leaves_it_and_says_nobody_was_asked(self, tmp_path):
+        result = self._rebuilt(tmp_path)
+        assert "font-style: regular" in stylesheet_of(result)
+        assert "css.invalid-value-inherited" in rules_of(result)
+        assert "css.invalid-value-kept" not in rules_of(result)
+
+    def test_the_question_carries_the_selectors_as_evidence(self, tmp_path):
+        from epubforge.decisions import Answer
+
+        seen = []
+
+        class Asker:
+            def ask(self, question):
+                seen.append(question)
+                return Answer(option="keep", source="person")
+
+        asker = Asker()
+
+        result = self._rebuilt(tmp_path, asker=asker)
+        asked = [q for q in seen if q.group == "style:regular"]
+        assert asked, [q.group for q in seen]
+        assert ".list .name" in asked[0].detail and ".list" in asked[0].detail
+        assert "css.invalid-value-kept" in rules_of(result)
+        assert "css.invalid-value-inherited" not in rules_of(result)
+
+    def test_a_standing_answer_corrects_the_sheet(self, tmp_path):
+        from epubforge.decisions import Answer
+
+        result = self._rebuilt(tmp_path, standing={"style:regular": Answer(option="normal")})
+        sheet = stylesheet_of(result)
+        assert "regular" not in sheet
+        assert sheet.count("normal") == 2
+        assert "css.invalid-value-corrected" in rules_of(result)
+
+    def test_a_sheet_with_no_emphasis_is_still_corrected_without_asking(self, tmp_path):
+        seen = []
+
+        class Recorder:
+            def ask(self, question):
+                seen.append(question)
+                return None
+
+        result = rebuild(book(tmp_path / "in.epub", ".name { font-style: regular; }"),
+                         str(tmp_path / "out.epub"), Policy.preset("preserve"),
+                         asker=Recorder())
+        assert not [q for q in seen if q.group == "style:regular"]
+        assert "css.invalid-value-corrected" in rules_of(result)
+

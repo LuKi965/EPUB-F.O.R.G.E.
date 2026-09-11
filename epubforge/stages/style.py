@@ -498,6 +498,21 @@ def _css1_safe(prop: str, value: str) -> bool:
         return False
     return True
 
+def _selectors_of(css_text: str, pattern: "re.Pattern") -> "list[str]":
+    """The selectors of the rules whose declarations *pattern* matches, in
+    order, once each — the evidence a question about them shows."""
+    found: list = []
+    for match in pattern.finditer(css_text):
+        opened = css_text.rfind("{", 0, match.start())
+        if opened < 0:
+            continue
+        closed = css_text.rfind("}", 0, opened)
+        selector = " ".join(css_text[closed + 1:opened].split())
+        if selector and selector not in found:
+            found.append(selector)
+    return found
+
+
 #: What the element would have to be inheriting for correcting `regular` to
 #: change the page (EF-033). `regular` is dropped, so the element inherits; the
 #: correction says `normal`, which *overrides*. Those two agree everywhere the
@@ -3001,14 +3016,49 @@ class StyleStage(Stage):
         if not found:
             return css_text
         if _INHERITABLE_EMPHASIS_RE.search(css_text):
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                "css.invalid-value-inherited",
-                values={"count": found},
-                location=resource.path,
+            # The sheet-level proof failed, and that is where this used to
+            # stop: five `regular` declarations left on one book of the
+            # owner's shelf because italic existed *somewhere* in the sheet
+            # (A12 of the 0.4.4 recovery audit). A conservative global rule
+            # is not a local proof and not a decision either. So the case
+            # becomes a question with its evidence: which rules say
+            # `regular`, which rules could put an emphasis above them, and
+            # what each answer does. Keeping stays the default and the
+            # recommendation — the declaration is being ignored today and
+            # leaving it costs nothing.
+            regular = _selectors_of(css_text, _REGULAR_VALUE_RE)
+            emphasis = _selectors_of(css_text, _INHERITABLE_EMPHASIS_RE)
+            shown = "\n".join(
+                [f"regular:  {selector}" for selector in regular[:3]]
+                + [f"{'italic/bold'}:  {selector}" for selector in emphasis[:3]]
             )
-            return css_text
+            question = Question(
+                kind=STYLE,
+                where=resource.path,
+                summary=say("style.regular.summary", count=found),
+                detail=say("style.regular.detail", where=resource.path, count=found,
+                           shown=shown),
+                options=(
+                    Option(KEEP, say("style.regular.keep"), say("style.regular.keep.why")),
+                    Option("normal", say("style.regular.normal"),
+                           say("style.regular.normal.why", count=found)),
+                ),
+                recommended=KEEP,
+                reversible=False,
+                risk=Risk.APPEARANCE,
+                group="style:regular",
+                subject=f"{found} declarations",
+            )
+            answer = ctx.decide(question)
+            if answer.option != "normal":
+                # Silence and a choice are two different facts (EF-074).
+                if answer.source == "unanswered":
+                    self.note(ctx, Level.PRESERVED, "css.invalid-value-inherited",
+                              values={"count": found}, location=resource.path)
+                else:
+                    self.note(ctx, Level.PRESERVED, "css.invalid-value-kept",
+                              values={"count": found}, location=resource.path)
+                return css_text
         self.note(
             ctx,
             Level.FIX,

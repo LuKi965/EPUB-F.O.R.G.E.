@@ -165,6 +165,22 @@ skalowało. Render w Chromium na 600×800 i 390×640: cały obraz w oknie,
 w proporcji. Dopasowanie okładki wolno zmienić jej render — kryterium to
 cały obraz na jednej stronie, nie powtórzone przepełnienie źródła (02 §1).
 
+### A12 / W08 — zachowane niepewności są pytaniami z dowodem
+
+`font-style: regular` było zostawiane w całym arkuszu, gdy kursywa albo
+pogrubienie stały gdziekolwiek w nim — reguła konserwatywna, ale ani lokalny
+dowód, ani decyzja. Krótki dokument (poniżej 500 znaków) deklarujący inny
+język niż książka zachowywał go po cichu jako „uwierzono dokumentowi”, choć
+program niczego nie zmierzył. Obie niepewności są teraz pytaniami z dowodem:
+dla arkusza — które reguły piszą `regular`, które mogłyby postawić nad nimi
+wyróżnienie, opcje zostaw / `normal` (domyślnie zostaw); dla dokumentu —
+ścieżka, liczba znaków, początek tekstu, opcje zostaw / język książki
+(domyślnie zostaw, bo cytat w obcym języku ma prawo do swojego; odpowiedź
+stała niesie się po książce). Raport odróżnia milczenie od wyboru:
+`css.invalid-value-inherited` / `-kept`, `xhtml.document-language-undecided`
+/ `-kept` / `-aligned`. Lokalnego dowodu per element nie ma — w zależnościach
+brak dopasowania selektorów CSS — pytanie zastępuje dowód i mówi to wprost.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki

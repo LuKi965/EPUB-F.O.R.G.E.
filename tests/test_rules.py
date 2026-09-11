@@ -88,7 +88,11 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # 427 on 2026-09-11 with A11: `xhtml.cover-height-unresolved`. A cover sized
 # in per cent of a containing block with no height is unsized, and the
 # report says which declaration it was rather than "nothing sized it".
-TAGGED_TODAY = 427
+# 431 on 2026-09-11 with A12: `css.invalid-value-kept`,
+# `xhtml.document-language-aligned`, `xhtml.document-language-undecided`.
+# Two uncertainties became questions with their evidence, and a report
+# tells a person's answer from nobody's.
+TAGGED_TODAY = 431
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -231,7 +235,9 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: 325 → 327 (2026-09-10, A07): the two link rules in both languages.
 #:
 #: 327 → 328 (2026-09-11, A11): `xhtml.cover-height-unresolved` in both languages.
-TEMPLATED_TODAY = 328
+#:
+#: 328 → 331 (2026-09-11, A12): the three rules above in both languages.
+TEMPLATED_TODAY = 331
 
 
 class TestTheTranslationCannotStall:

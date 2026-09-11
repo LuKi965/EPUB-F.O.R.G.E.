@@ -485,6 +485,47 @@ TEXTS_PL: dict[str, str] = {
         "{count} deklaracji zacznie działać — książka może zmienić wygląd w "
         "miejscach, których nikt wcześniej nie widział z tym formatowaniem"
     ),
+    "style.regular.summary": (
+        "{count} deklaracji CSS z wartością „regular”, której czytniki nie znają"
+    ),
+    "style.regular.detail": (
+        "W arkuszu {where} {count} deklaracji pisze `regular` zamiast `normal`. "
+        "Żaden czytnik nie zna tej wartości, więc odrzuca całą deklarację, a element "
+        "dziedziczy krój po rodzicu. Ten sam arkusz ustawia gdzie indziej kursywę albo "
+        "pogrubienie:\n\n{shown}\n\n"
+        "Wpisanie `normal` nie przywraca intencji wydawcy, tylko nadpisuje: tam, gdzie "
+        "element dziedziczy kursywę, wyprostuje go. Program nie umie udowodnić, "
+        "że żaden element objęty tymi regułami nie dziedziczy wyróżnienia, więc pyta."
+    ),
+    "style.regular.keep": "Zostaw jak jest",
+    "style.regular.keep.why": (
+        "Nic się nie zmienia; deklaracje dalej są ignorowane przez czytniki, "
+        "a książka wygląda tak, jak wyglądała"
+    ),
+    "style.regular.normal": "Popraw na `normal`",
+    "style.regular.normal.why": (
+        "{count} deklaracji zacznie działać: elementy, które dziedziczyły kursywę "
+        "albo pogrubienie, zostaną wyprostowane"
+    ),
+    "content.language.summary": (
+        "Krótki dokument mówi, że jest po {document}, a książka jest po {publication}"
+    ),
+    "content.language.detail": (
+        "Dokument {where} deklaruje język {document}, publikacja — {publication}. "
+        "Ma {count} znaków, za mało, żeby program sam ocenił, w jakim jest języku "
+        "(próg to 500). Jego początek:\n\n{sample}\n\n"
+        "Cytat w obcym języku ma prawo do swojego języka; przypis albo dedykacja "
+        "z odziedziczonym `{document}` — nie. Program tego nie rozstrzyga."
+    ),
+    "content.language.keep": "Zostaw {document}",
+    "content.language.keep.why": (
+        "Dokument zachowuje zadeklarowany język — słusznie, jeśli naprawdę jest "
+        "w nim napisany"
+    ),
+    "content.language.publication": "Ustaw {publication}, jak reszta książki",
+    "content.language.publication.why": (
+        "Czytnik ekranu i dzielenie wyrazów dostaną język książki; odwracalne"
+    ),
     "encoding.mojibake.summary": (
         "{count} znaków przestankowych zamienionych przez konwersję w kody bez kształtu"
     ),
@@ -1055,6 +1096,49 @@ TEXTS_EN: dict[str, str] = {
     "style.typo.fix.why": (
         "{count} declaration(s) start working — the book may change its "
         "appearance in places nobody has seen with this formatting"
+    ),
+    "style.regular.summary": (
+        "{count} CSS declaration(s) with the value 'regular', which no reader knows"
+    ),
+    "style.regular.detail": (
+        "In the stylesheet {where}, {count} declaration(s) write `regular` instead of "
+        "`normal`. No reader knows that value, so the whole declaration is dropped "
+        "and the element inherits its face. The same sheet sets italic or bold "
+        "elsewhere:\n\n{shown}\n\n"
+        "Writing `normal` does not restore the publisher's intent, it overrides: "
+        "where an element inherits italic, it will be set upright. The program "
+        "cannot prove that no element these rules reach inherits an emphasis, "
+        "so it asks."
+    ),
+    "style.regular.keep": "Leave it as it is",
+    "style.regular.keep.why": (
+        "Nothing changes; the declarations stay ignored by readers and the book "
+        "looks the way it looked"
+    ),
+    "style.regular.normal": "Correct to `normal`",
+    "style.regular.normal.why": (
+        "{count} declaration(s) start working: elements that inherited italic "
+        "or bold are set upright"
+    ),
+    "content.language.summary": (
+        "A short document says it is in {document}; the book is in {publication}"
+    ),
+    "content.language.detail": (
+        "The document {where} declares {document}; the publication, {publication}. "
+        "It has {count} character(s), too few for the program to judge its "
+        "language itself (the floor is 500). It begins:\n\n{sample}\n\n"
+        "A quotation in another language is entitled to its language; a note or a "
+        "dedication with an inherited `{document}` is not. The program does not "
+        "decide which this is."
+    ),
+    "content.language.keep": "Keep {document}",
+    "content.language.keep.why": (
+        "The document keeps the language it declares — rightly, if it is "
+        "really written in it"
+    ),
+    "content.language.publication": "Set {publication}, like the rest of the book",
+    "content.language.publication.why": (
+        "Screen readers and hyphenation get the book's language; reversible"
     ),
     "encoding.mojibake.summary": (
         "{count} punctuation marks a conversion turned into codes with no shape"

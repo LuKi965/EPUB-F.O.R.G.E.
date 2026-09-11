@@ -1360,6 +1360,75 @@ class ContentStage(Stage):
                 anchors.add(name)
         return anchors
 
+    def _short_document_language(self, ctx: Context, root, resource, stated: str,
+                                 language: str) -> str:
+        """What a document that names a language other than its book's is set
+        to — and, when it is too short to be evidence of anything, whom to ask.
+
+        A document of a page or more that says `fr` in a book that says `en`
+        is a bilingual edition, believed as before. A document of forty
+        characters saying `en` in a book the text proved to be Polish — a
+        note, a dedication, the two of ten the owner's manual kept `en-GB`
+        on — is not evidence of anything: `_contradicted_by_text` cannot
+        measure it, and keeping `en` there was not a judgement but the
+        absence of one (A12 of the 0.4.4 recovery audit, AC07). So it is
+        put to the person with the text in front of them, grouped so that
+        one answer carries across the book's short documents, and the
+        default is still to keep: a real quotation in another language
+        must not lose its language to a rule.
+        """
+        from ..decisions import KEEP, METADATA, Option, Question
+        from ..question_texts import say
+
+        text = " ".join(" ".join(root.itertext()).split())
+        if len(text) >= ENOUGH_TEXT or stated.split("-")[0].lower() == language.split("-")[0].lower():
+            self.note(
+                ctx,
+                Level.PRESERVED,
+                "xhtml.document-language-kept",
+                values={"document": stated, "publication": language},
+                location=resource.path,
+            )
+            return stated
+        sample = text[:160] + ("…" if len(text) > 160 else "")
+        question = Question(
+            kind=METADATA,
+            where=resource.path,
+            summary=say("content.language.summary", document=stated, publication=language),
+            detail=say("content.language.detail", where=resource.path, count=len(text),
+                       document=stated, publication=language, sample=sample),
+            options=(
+                Option(KEEP, say("content.language.keep", document=stated),
+                       say("content.language.keep.why")),
+                Option("publication", say("content.language.publication", publication=language),
+                       say("content.language.publication.why")),
+            ),
+            recommended=KEEP,
+            reversible=True,
+            risk=Risk.NONE,
+            group="content:short-document-language",
+            subject=resource.path,
+        )
+        answer = ctx.decide(question)
+        if answer.option == "publication":
+            self.note(
+                ctx,
+                Level.FIX,
+                "xhtml.document-language-aligned",
+                values={"was": stated, "now": language, "count": len(text)},
+                location=resource.path,
+            )
+            self.attribute_rewritten(ctx, resource.path, "lang", "xml:lang")
+            return language
+        values = {"document": stated, "publication": language, "count": len(text)}
+        if answer.source == "unanswered":
+            self.note(ctx, Level.PRESERVED, "xhtml.document-language-undecided",
+                      values=values, location=resource.path)
+        else:
+            self.note(ctx, Level.PRESERVED, "xhtml.document-language-kept",
+                      values=values, location=resource.path)
+        return stated
+
     def _skeleton(self, ctx: Context, root, resource) -> None:
         """Guarantee html/head/title/body with the right namespace and language."""
         # The publication's language is a *default*, not an instruction to make
@@ -1407,13 +1476,7 @@ class ContentStage(Stage):
             )
             self.attribute_rewritten(ctx, resource.path, "lang", "xml:lang")
         elif stated != language:
-            self.note(
-                ctx,
-                Level.PRESERVED,
-                "xhtml.document-language-kept",
-                values={"document": stated, "publication": language},
-                location=resource.path,
-            )
+            settled = self._short_document_language(ctx, root, resource, stated, language)
         root.set("lang", settled)
         root.set(XML_LANG, settled)
 
