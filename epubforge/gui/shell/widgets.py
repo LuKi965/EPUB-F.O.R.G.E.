@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -340,25 +341,34 @@ class ActionFooter(QWidget):
         super().__init__()
         self.tokens = tokens
         self.setObjectName("actionFooter")
-        self._row = QHBoxLayout(self)
-        self._row.setContentsMargins(CONTENT_MARGIN, 10, CONTENT_MARGIN, 12)
-        self._row.setSpacing(12)
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(CONTENT_MARGIN, 10, CONTENT_MARGIN, 12)
+        self._grid.setHorizontalSpacing(12)
+        self._grid.setVerticalSpacing(6)
         # One line that gives way, not a wrapping label: a word-wrapped
         # `QLabel` picks its own width for its size hint, and picked 108 px
         # for *1 dokument gotowy do konwersji* in a footer 736 px wide — three
         # lines in a column (A09 of the 0.4.4 recovery audit). The count
         # takes what the action leaves, so the action keeps its whole width
-        # first (03-UI-UX), and shortens rather than breaking words.
+        # first (03-UI-UX).
         self.count = Eliding("", "cardTitle")
-        self._row.addWidget(self.count, 1)
+        self._action: "QWidget | None" = None
+        # And when the two do not fit in one row — on the Windows runner's
+        # face the count came out `1 dokument gotowy do ko…` beside the
+        # button at 800×520 — the count goes above the action rather than
+        # losing its last words: a controlled second row, which is what the
+        # design asks for at the extreme, not an ellipsis (03-UI-UX §54).
+        self._stacked = False
+        self._place()
         self.hide()
 
     def carry(self, action: QWidget, said: str) -> None:
         """Hold *action* — and only it — with *said* beside it."""
         self.clear_except(action)
-        if action.parent() is not self:
-            self._row.addWidget(action)
+        self._action = action
         self.count.setText(said)
+        self._stacked = self._must_stack()
+        self._place()
         self.setVisible(True)
 
     def holds(self, action: "QWidget | None") -> bool:
@@ -366,14 +376,51 @@ class ActionFooter(QWidget):
 
     def clear_except(self, keep: "QWidget | None" = None) -> None:
         """Drop everything but the count and *keep*."""
-        for index in reversed(range(self._row.count())):
-            item = self._row.itemAt(index)
+        for index in reversed(range(self._grid.count())):
+            item = self._grid.itemAt(index)
             widget = item.widget() if item is not None else None
             if widget is None or widget is keep or widget is self.count:
                 continue
-            self._row.takeAt(index)
+            self._grid.takeAt(index)
             widget.setParent(None)
             widget.deleteLater()
+        if self._action is not keep:
+            self._action = None
+
+    def _place(self) -> None:
+        """One row, or the count over the action: the same two widgets."""
+        self._grid.removeWidget(self.count)
+        if self._action is not None:
+            self._grid.removeWidget(self._action)
+        self._grid.setColumnStretch(0, 1)
+        self._grid.setColumnStretch(1, 0)
+        if self._stacked and self._action is not None:
+            self._grid.addWidget(self.count, 0, 0, 1, 2)
+            self._grid.addWidget(self._action, 1, 1, Qt.AlignRight)
+            return
+        self._grid.addWidget(self.count, 0, 0)
+        if self._action is not None:
+            self._grid.addWidget(self._action, 0, 1)
+
+    def _must_stack(self) -> bool:
+        """Whether the whole count and the whole action fit side by side."""
+        if self._action is None:
+            return False
+        left, _top, right, _bottom = self._grid.getContentsMargins()
+        words = self.count.fontMetrics().horizontalAdvance(self.count.full_text())
+        needed = left + words + self._grid.horizontalSpacing() + self._action.sizeHint().width() + right
+        return self.width() < needed
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().resizeEvent(event)
+        # Out of the resize, like every other re-arrangement in this file.
+        QTimer.singleShot(0, self._arrange)
+
+    def _arrange(self) -> None:
+        stacked = self._must_stack()
+        if stacked != self._stacked:
+            self._stacked = stacked
+            self._place()
 
 
 class BoundedList(QScrollArea):

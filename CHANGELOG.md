@@ -206,9 +206,14 @@ się w sobie wewnątrz przewijanej strony.
   prosi; dokumenty, wybrane krok wcześniej, są listą pod nim. Po zmianie oba
   wybory leżą na 281 i 359 px — widoczne bez przewijania w 800×520 (448 px)
   i w 900×600 (528 px).
-- **Licznik w stopce** jest jedną linią z elizją (`Eliding`), nie zawijaną
-  etykietą, i bierze to, co zostawi główna akcja — przycisk najpierw ma swoją
-  pełną szerokość (03-UI-UX). Po zmianie: 474 px, jedna linia.
+- **Licznik w stopce** jest jedną linią (`Eliding`), nie zawijaną etykietą, i
+  bierze to, co zostawi główna akcja — przycisk najpierw ma swoją pełną
+  szerokość (03-UI-UX). Po zmianie: 474 px, jedna linia. Pierwszy bieg na
+  Windowsie (Tests (Windows) #77) pokazał, że na kroju biegacza licznik i
+  przycisk nie mieszczą się razem w 800×520 („1 dokument gotowy do ko…”), więc
+  stopka, gdy nie ma miejsca na oba w całości, stawia licznik nad akcją —
+  kontrolowany drugi wiersz zamiast wielokropka (03-UI-UX §54). Test wymusza
+  to szerokością, bo na tutejszym kroju oba mieszczą się w każdym rozmiarze.
 - **Lista** w układzie jednokolumnowym nie ma własnego ograniczenia: powód
   ograniczenia (F08 — akcja pod czterystoma wierszami) nie zachodzi tam, gdzie
   akcja stoi w stopce poza wszystkim, co się przewija. `BoundedList` prosi o

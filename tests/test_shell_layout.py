@@ -1354,6 +1354,44 @@ class TestTheSmallWindowKeepsTheDecisionInSightA09:
         finally:
             finish(page)
 
+    def test_the_footer_stacks_rather_than_cutting_the_count(self, qt_app):
+        """What the Windows runner's face showed on the first run of this
+        class (Tests (Windows) #77): `1 dokument gotowy do ko…` beside the
+        button at 800×520, and `6 książek gotowych do prze…` at 900×600 on
+        the rebuild — the footer had the room for one of the two whole, and
+        the count lost. The design asks for a controlled second row at the
+        extreme, not an ellipsis (03-UI-UX §54). Forced here by width, since
+        this machine's face fits both in one row at every supported size.
+        """
+        from epubforge.gui.shell.widgets import ActionFooter, button
+
+        footer = ActionFooter(tokens_module.DARK)
+        action = button("Konwertuj do EPUB", kind="primary")
+        said = "1 dokument gotowy do konwersji"
+        footer.carry(action, said)
+        # Room for the whole sentence alone, and not for the sentence and
+        # the button side by side — the runner's case, in this face's units.
+        sentence = footer.count.fontMetrics().horizontalAdvance(said)
+        narrow = sentence + 2 * tokens_module.CONTENT_MARGIN + 30
+        assert narrow < sentence + action.sizeHint().width() + 2 * tokens_module.CONTENT_MARGIN
+        footer.setFixedWidth(narrow)
+        footer.show()
+        try:
+            for _ in range(10):
+                qt_app.processEvents()
+            assert footer.count.text() == said, footer.count.text()
+            assert action.width() >= action.sizeHint().width()
+            assert action.y() > footer.count.y(), "akcja ma stac pod licznikiem, nie obok"
+            footer.setFixedWidth(700)
+            for _ in range(10):
+                qt_app.processEvents()
+            assert footer.count.text() == said
+            assert action.y() == footer.count.y() or abs(action.y() - footer.count.y()) < action.height(), (
+                "w szerokiej stopce jeden wiersz"
+            )
+        finally:
+            footer.close()
+
     def test_a_narrow_page_scrolls_as_one_surface(self, qt_app, host):
         """03-UI-UX: in the narrow composition, no list scroll inside the
         page scroll. The reason the list was bounded — the main action under
