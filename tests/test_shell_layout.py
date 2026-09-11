@@ -1392,6 +1392,40 @@ class TestTheSmallWindowKeepsTheDecisionInSightA09:
         finally:
             footer.close()
 
+    def test_the_footer_does_not_take_the_action_back(self, qt_app):
+        """The second Windows run (Tests (Windows) #79): at 1440×900 the
+        conversion button stayed in the footer, and the page's own column
+        had lost it — *glowna akcja jest niewidoczna* on four tests. The
+        footer had been narrow when it took the button (stacked), the page
+        then moved the button home for the wide composition, and the
+        footer's deferred re-arrangement, finding it no longer needed to
+        stack, re-placed *its* action — reparenting a widget that was not
+        its any more. The same sequence, forced by width."""
+        from PySide6.QtWidgets import QVBoxLayout
+
+        from epubforge.gui.shell.widgets import ActionFooter, button
+
+        footer = ActionFooter(tokens_module.DARK)
+        action = button("Konwertuj do EPUB", kind="primary")
+        footer.setFixedWidth(120)
+        footer.show()
+        footer.carry(action, "1 dokument gotowy do konwersji")
+        for _ in range(6):
+            qt_app.processEvents()
+        home = QWidget()
+        column = QVBoxLayout(home)
+        column.addWidget(action)
+        home.show()
+        footer.setFixedWidth(900)
+        try:
+            for _ in range(10):
+                qt_app.processEvents()
+            assert action.parent() is home, "stopka odebrala przycisk kolumnie"
+            assert not footer.holds(action)
+        finally:
+            footer.close()
+            home.close()
+
     def test_a_narrow_page_scrolls_as_one_surface(self, qt_app, host):
         """03-UI-UX: in the narrow composition, no list scroll inside the
         page scroll. The reason the list was bounded — the main action under

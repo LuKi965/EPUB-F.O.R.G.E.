@@ -366,6 +366,8 @@ class ActionFooter(QWidget):
         """Hold *action* — and only it — with *said* beside it."""
         self.clear_except(action)
         self._action = action
+        if action.parent() is not self:
+            self._grid.addWidget(action, 0, 1)
         self.count.setText(said)
         self._stacked = self._must_stack()
         self._place()
@@ -387,9 +389,23 @@ class ActionFooter(QWidget):
         if self._action is not keep:
             self._action = None
 
+    def _own_action(self) -> "QWidget | None":
+        """The action, while it is still this footer's.
+
+        The page moves the button back into its column for the wide
+        composition without telling the footer. A deferred re-arrangement
+        that then re-placed "its" action reparented a widget that was not
+        its any more — the button vanished from the column on the Windows
+        runner (Tests (Windows) #79). What is not a child here is not held.
+        """
+        if self._action is not None and self._action.parent() is not self:
+            self._action = None
+        return self._action
+
     def _place(self) -> None:
         """One row, or the count over the action: the same two widgets."""
         self._grid.removeWidget(self.count)
+        self._own_action()
         if self._action is not None:
             self._grid.removeWidget(self._action)
         self._grid.setColumnStretch(0, 1)
@@ -404,7 +420,7 @@ class ActionFooter(QWidget):
 
     def _must_stack(self) -> bool:
         """Whether the whole count and the whole action fit side by side."""
-        if self._action is None:
+        if self._own_action() is None:
             return False
         left, _top, right, _bottom = self._grid.getContentsMargins()
         words = self.count.fontMetrics().horizontalAdvance(self.count.full_text())

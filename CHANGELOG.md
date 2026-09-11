@@ -214,6 +214,11 @@ się w sobie wewnątrz przewijanej strony.
   stopka, gdy nie ma miejsca na oba w całości, stawia licznik nad akcją —
   kontrolowany drugi wiersz zamiast wielokropka (03-UI-UX §54). Test wymusza
   to szerokością, bo na tutejszym kroju oba mieszczą się w każdym rozmiarze.
+  Drugi bieg (Tests (Windows) #79) pokazał, że stopka, przestawiając się z
+  dwóch wierszy na jeden po poszerzeniu, odbierała przycisk kolumnie, do
+  której strona już go przeniosła — akcja znikała z widoku w 1440×900. Stopka
+  nie dotyka widgetu, który nie jest już jej dzieckiem; sekwencja odtworzona
+  testem (wąska stopka → przeniesienie → poszerzenie), czerwonym przed zmianą.
 - **Lista** w układzie jednokolumnowym nie ma własnego ograniczenia: powód
   ograniczenia (F08 — akcja pod czterystoma wierszami) nie zachodzi tam, gdzie
   akcja stoi w stopce poza wszystkim, co się przewija. `BoundedList` prosi o
