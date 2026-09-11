@@ -1007,8 +1007,8 @@ def join_lines(lines) -> str:
 def _read(source: str):
     """Pages with their lines and pictures, the document info, and the outline."""
     from pdfminer.high_level import extract_pages
-    from pdfminer.layout import (LAParams, LTChar, LTCurve, LTFigure, LTImage,
-                                 LTTextContainer, LTTextLine)
+    from pdfminer.layout import (LAParams, LTCurve, LTFigure, LTImage,
+                                 LTTextContainer)
     from pdfminer.pdfdocument import PDFDocument
     from pdfminer.pdfpage import PDFPage
     from pdfminer.pdfparser import PDFParser
@@ -1250,6 +1250,7 @@ def _links_of(source: str) -> "tuple[dict[int, list[Link]], int]":
     from pdfminer.pdfpage import PDFPage
     from pdfminer.pdfparser import PDFParser
     from pdfminer.pdftypes import resolve1
+    from pdfminer.psparser import PSException
 
     found: dict = {}
     unresolved = 0
@@ -1275,7 +1276,12 @@ def _links_of(source: str) -> "tuple[dict[int, list[Link]], int]":
                     found.setdefault(number, []).append(Link(
                         number, min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1), target,
                     ))
-    except Exception:  # noqa: BLE001 — a file whose annotations will not parse has no links to carry; the count says so
+    except (OSError, ValueError, TypeError, PSException):
+        # A file that cannot be opened, an annotation whose rectangle is not
+        # four numbers, or a page tree pdfminer refuses: the links read so
+        # far are kept and the rest are not carried — and the count of
+        # annotations in the report is what says so. `PSException` is the
+        # root of every error pdfminer raises about a file's syntax.
         return found, unresolved
     return found, unresolved
 
