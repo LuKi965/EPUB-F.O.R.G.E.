@@ -528,6 +528,53 @@ class TestNothingSetsAColumnsWidthByItself:
         assert eliding.toolTip() == said
         assert eliding.accessibleName() == said
 
+    def test_a_shortened_label_does_not_shorten_the_button(self, qt_app):
+        """The label gives way to the room the row has — not to itself.
+
+        Measured before the change, with this machine's DejaVu Sans: eliding
+        the path in the middle to a width, then again to the width of what
+        came out, is not a fixed point. At 16 pt it went 39, 37, 35
+        characters; at 10 pt 65, 63. `elidedText` at exactly the advance of
+        its own result comes back a character or two shorter, face by face.
+        A button whose size hint followed the *shown* label handed that
+        narrower width to the layout, the layout handed it back as the
+        button's width, and the label was elided again to fit it. This
+        machine's face stops after two or three rounds; the Windows runner's
+        went on to `\\bardz…ybrany`, thirteen characters of a path in a row
+        726 px wide (Tests (Windows) #71 on 631ff2e).
+
+        So the hint is the whole label's, whatever is showing, and the
+        button takes the room the row has.
+        """
+        from PySide6.QtWidgets import QHBoxLayout
+
+        from epubforge.gui.shell.widgets import button
+
+        path = "/" + "/".join(["bardzo-dluga-nazwa-folderu"] * 8) + "/wybrany"
+        for points in (10, 16):
+            row = QWidget()
+            row.setStyleSheet(f"font-size: {points}pt")
+            lane = QHBoxLayout(row)
+            lane.setContentsMargins(0, 0, 0, 0)
+            eliding = button(path, elides=True, elide="middle")
+            lane.addWidget(eliding)
+            lane.addStretch(1)
+            row.setFixedWidth(400)
+            row.show()
+            try:
+                asked = eliding.sizeHint().width()
+                assert asked > 400, (points, "sciezka ma nie miescic sie w wierszu")
+                for _ in range(12):
+                    qt_app.processEvents()
+                assert eliding.sizeHint().width() == asked, (
+                    points, "podpowiedz rozmiaru poszla za skroconym napisem"
+                )
+                assert eliding.width() == 400, (points, eliding.width(), eliding.text())
+                assert "…" in eliding.text(), (points, eliding.text())
+                assert eliding.text().endswith("wybrany"), (points, eliding.text())
+            finally:
+                row.close()
+
 
 class TestBothThemes:
     """The light theme shipped and nothing ever laid it out.
@@ -1080,27 +1127,31 @@ class TestALongPathDoesNotWidenThePlanA08:
                 laid_out(qt_app, page, host, size)
                 for _ in range(6):
                     qt_app.processEvents()
-                assert not problems_with(page), (name, size)
+                assert not problems_with(page), (name, size, face_of(page))
                 button = page.destination_button
                 assert button.width() > 0 and button.isVisibleTo(page), (name, size)
                 assert str(self.LONG) in button.toolTip(), (name, "pelna sciezka ma byc w podpowiedzi")
                 # Elided in the middle: the chosen folder is what shows.
-                assert button.text().endswith("wybrany"), (name, button.text())
+                assert button.text().endswith("wybrany"), (
+                    name, size, button.text(), button.width(), face_of(page)
+                )
             finally:
                 finish(page)
 
     def test_a_short_destination_is_shown_whole(self, qt_app, host):
         """The negative: a path that fits is not shortened, and the tooltip
-        is the button's own tip, not the path repeated."""
+        is the button's own tip, not the path repeated. Compared as the
+        platform spells it: on Windows a `Path` prints with backslashes."""
+        short = pathlib.Path("/home/kto/polka")
         for name, page, files in self._pages(qt_app):
             try:
-                page.destination = pathlib.Path("/home/kto/polka")
+                page.destination = short
                 page.start(files)
                 settle(qt_app, lambda: page.stage is Stage.PLAN)
                 laid_out(qt_app, page, host, (1440, 900))
                 for _ in range(6):
                     qt_app.processEvents()
-                assert page.destination_button.text() == "/home/kto/polka", name
+                assert page.destination_button.text() == str(short), name
                 assert "…" not in page.destination_button.text(), name
             finally:
                 finish(page)
@@ -1114,6 +1165,16 @@ class TestALongPathDoesNotWidenThePlanA08:
                 laid_out(qt_app, page, host, (800, 520))
                 for _ in range(6):
                     qt_app.processEvents()
-                assert not problems_with(page), name
+                assert not problems_with(page), (name, face_of(page))
             finally:
                 finish(page)
+
+
+def face_of(widget) -> str:
+    """The face a widget is actually drawn in, for a failure that has to be
+    read from another machine's log: the family Qt resolved (not the one the
+    stylesheet asked for), its size, and the logical DPI it is scaled by."""
+    from PySide6.QtGui import QFontInfo
+
+    info = QFontInfo(widget.font())
+    return f"{info.family()} {info.pointSize()}pt @ {widget.logicalDpiX()} dpi"

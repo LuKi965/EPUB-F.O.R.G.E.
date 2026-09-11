@@ -97,11 +97,34 @@ class ElidingButton(QPushButton):
         parts = ([self._full] if shortened or not self._tip else []) + ([self._tip] if self._tip else [])
         self.setToolTip("\n".join(parts))
 
+    def _advance(self, text: str) -> int:
+        """What the label costs, measured the way `QPushButton.sizeHint` does."""
+        return self.fontMetrics().size(Qt.TextShowMnemonic, text).width()
+
+    def sizeHint(self):  # noqa: N802 - Qt casing
+        """As wide as the *whole* label, whatever is showing.
+
+        The layout decides the button's width from this hint, and `_shorten`
+        decides the label from the width. When the hint followed the shown
+        label instead, the two fed each other: a label elided to fit the
+        width made a smaller hint, the layout handed that smaller width back,
+        and the label was elided again to fit it. Eliding a path to exactly
+        the advance of its own result is not a fixed point — it comes back a
+        character or two shorter, face by face (39, 37, 35 characters at
+        16 pt on DejaVu Sans) — so the loop only stops where the metrics
+        happen to agree. On this machine's face that is after a round or
+        two; on the Windows runner's it was `\\bardz…ybrany`, thirteen
+        characters of a path in a row 726 px wide. A hint that does not
+        depend on the shown label has nothing to feed back.
+        """
+        size = super().sizeHint()
+        size.setWidth(size.width() + self._advance(self._full) - self._advance(self._shown))
+        return size
+
     def minimumSizeHint(self):  # noqa: N802 - Qt casing
-        """As wide as the frame, the glyph and a few letters — not the label."""
+        """As wide as the frame, the glyph and an ellipsis — not the label."""
         size = super().minimumSizeHint()
-        metrics = self.fontMetrics()
-        spare = metrics.horizontalAdvance(self._full) - metrics.horizontalAdvance("…")
+        spare = self._advance(self._full) - self._advance("…")
         size.setWidth(max(0, size.width() - max(0, spare)))
         return size
 
@@ -115,7 +138,8 @@ class ElidingButton(QPushButton):
         if self._busy:
             return
         metrics = self.fontMetrics()
-        spent = self.sizeHint().width() - metrics.horizontalAdvance(self._shown)
+        # The frame, the glyph and the padding: the hint less the whole label.
+        spent = self.sizeHint().width() - self._advance(self._full)
         room = max(0, self.width() - spent)
         shown = metrics.elidedText(self._full, self._elide, room) if room else self._full
         if not shown or shown == self._shown:

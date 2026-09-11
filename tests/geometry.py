@@ -128,19 +128,29 @@ def sideways_scrolling(page: QWidget) -> "list[str]":
     return found
 
 
-def _widest_in(inner) -> str:
-    """The child that reaches furthest right inside *inner*, named."""
+def _widest_in(inner, count: int = 4) -> str:
+    """The children that reach furthest right inside *inner*, named.
+
+    More than one, because the first answer from the Windows runner named a
+    `Panels` — the container whose floor is the floor of whichever block it
+    holds — and said nothing about which block. A container and the block
+    inside it reach the same edge; the next few names down are the ones a
+    person on another machine can act on.
+    """
     if inner is None:
         return ""
-    worst = ("", 0)
+    reaching = []
     for child in inner.findChildren(QWidget):
         if not child.isVisibleTo(inner):
             continue
         needs = max(child.minimumSizeHint().width(), child.minimumWidth())
         reach = child.mapTo(inner, child.rect().topLeft()).x() + needs
-        if reach > worst[1]:
-            worst = (_name_of(child), reach)
-    return f", najdalej siega {worst[0]} do {worst[1]}" if worst[0] else ""
+        reaching.append((reach, _name_of(child)))
+    if not reaching:
+        return ""
+    reaching.sort(key=lambda one: -one[0])
+    named = ", ".join(f"{name} do {reach}" for reach, name in reaching[:count])
+    return f", najdalej siegaja {named}"
 
 
 def problems_with(page: QWidget, *, main_action=None,

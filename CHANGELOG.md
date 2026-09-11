@@ -152,6 +152,21 @@ przyciskowi 0 px). Trzy testy na obu stronach, w trzech rozmiarach i przy
 szerszym kroju. Z A09 nie zrobiono reszty: nagłówek i stepper w 900×600,
 licznik w stopce, lista w liście — zmierzone przez audyt, tu nieodtworzone.
 
+Pierwszy bieg tych testów na Windowsie (Tests (Windows) #71) pokazał, że
+`ElidingButton` skracał sam siebie: jego podpowiedź rozmiaru szła za
+*pokazanym* napisem, układ oddawał mu tę mniejszą szerokość, a napis był
+skracany jeszcze raz, żeby się w niej zmieścić. Elizja ścieżki do dokładnie
+szerokości własnego wyniku nie jest punktem stałym — na DejaVu Sans przy
+16 pt idzie 39, 37, 35 znaków i staje; na kroju biegacza Windows skończyła na
+`\bardz…ybrany`, trzynastu znakach ścieżki w wierszu 726 px. Podpowiedź
+rozmiaru jest teraz szerokością **całej** etykiety, niezależnie od tego, co
+widać, a skracanie jest czystą funkcją szerokości. Test odtwarza pętlę na
+wierszu 400 px w dwóch stopniach pisma. Dwa testy A08 porównywały ścieżkę
+tak, jak pisze ją Linux — porównują ją teraz tak, jak pisze ją platforma.
+Diagnostyka przewijania poziomego nazywa cztery najdalej sięgające elementy,
+nie jeden (pierwsza odpowiedź z Windowsa nazwała kontener `Panels`, a nie
+blok w nim).
+
 ### A11 / W07 — okładka z wysokością w procentach niczego dostaje ograniczenia strony
 
 `img { height: 97% }` bez wysokości na niczym nad obrazem był zostawiany
