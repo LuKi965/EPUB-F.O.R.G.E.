@@ -16,8 +16,8 @@ the class that holds it:
   tried and none interleaved. That is the measurement, not a verdict: the page
   it was found on is a private one, denser than anything written here. Kept as
   a passing regression test against `LEGEND` below.
-* **Q07, the render gate never looks at the source — open**, as
-  `xfail(strict=True)`.
+* **Q07, the render gate never looks at the source — closed by A06** of the
+  0.4.4 recovery plan, with a measured tolerance (`gate.LOST_SHARE`).
 
 That marker does the two things the package asks for at once — *„Zapisz ich
 testy jako jawne znane luki z identyfikatorem i powodem, bez przedstawiania
@@ -286,46 +286,37 @@ class TestQ02TheColumnsAreReadAcross:
         assert not intruded, intruded
 
 
-class TestQ07TheRenderGateNeverLooksAtTheSource:
+class TestQ07TheRenderGateLooksAtTheSource:
     """*„`render_gate` uruchamia `render_fidelity.drawn(candidate, …)`:
     kontrolę niepustego renderowania wyniku, bez porównania z PDF."*
 
-    **Known gap, not fixed in this iteration**, and the reason has moved since
-    it was written. A renderer now exists — `pdfconv/draw.py`, optional, drawn
-    on for Q01 — so the comparison is no longer blocked on choosing one. What
-    it is blocked on is the number: a gate that compares two rasters needs a
-    tolerance, and a tolerance nobody measured is a tolerance that either
-    passes everything or refuses good books. That measurement is work of its
-    own, on real documents, and inventing a threshold here to turn a test
-    green is the one thing this project's rules forbid outright (D-012).
+    Closed with A06 of the 0.4.4 recovery plan, and closed the way this file
+    said it had to be: with a tolerance that was **measured** rather than
+    chosen. `gate.LOST_SHARE` carries the seven measurements it stands
+    between (D-012). For a fixed book the gate is handed the source and
+    compares page for page; for a reflowable one it still measures what
+    can be measured — a page that draws blank — and says so.
 
-    What is asserted is the shape of the gate as it stands, so the day the
-    comparison arrives, this says where it goes.
+    What used to be an `xfail(strict=True)` is now the requirement, asserted.
     """
 
-    @pytest.mark.xfail(strict=True, reason="Q07: brama nie porownuje wyniku ze zrodlem")
-    def test_the_gate_compares_the_output_against_the_source_page(self, tmp_path):
-        """What the gate would have to do, asserted against what it does.
-
-        Written this way round on purpose. The first draft asserted the gate's
-        *current* shape — which passes, and a passing test is how a gap comes
-        to look like a feature. This one states the requirement and is expected
-        to fail until somebody meets it.
-
-        A page carrying a drawing and four labels is not blank, so the present
-        check is content with it while the drawing is gone. That is Q07 in one
-        sentence: „strona z samymi A1–A11 nie jest pusta".
-        """
+    def test_the_gate_is_handed_the_source(self):
         import inspect
 
         from epubforge.pdfconv import gate
 
-        # Asked of the signature, not of the prose: an earlier draft looked for
-        # the word „source" in the body and passed on the docstring, which is
-        # the same mistake as grepping for a name instead of asking what ran.
-        # A gate that is not handed the source cannot compare anything to it.
         taken = list(inspect.signature(gate.render_gate).parameters)
         assert "source" in taken, (
             "brama publikacji dla PDF-a nie dostaje nawet zrodla "
             f"({', '.join(taken)}) — mierzy tylko, czy wynik cokolwiek narysowal"
         )
+
+    def test_the_limit_stands_between_the_measurements_it_records(self):
+        """The number is in the code with what it was measured against; this
+        keeps the two from drifting apart — a limit moved without moving
+        its evidence fails here."""
+        from epubforge.pdfconv import gate
+
+        faithful = (0.047, 0.023, 0.028)
+        damaged = (0.092, 0.237, 0.490, 0.526)
+        assert max(faithful) < gate.LOST_SHARE < min(damaged)

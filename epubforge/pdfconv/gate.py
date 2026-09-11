@@ -189,22 +189,186 @@ def note_second_opinion(report: Report, check: Check, consented: list) -> str:
     return f"K1-PDF: {check.detail}"
 
 
-def render_gate(candidate: str, policy, report: Report, queue, cannot_verify) -> str:
+#: The share of a source page's ink that may be missing from the book's page
+#: before the page is refused (A06 of the 0.4.4 recovery audit, Q07 of the
+#: quality roadmap). **Measured, not chosen** (D-012), on this machine —
+#: Chromium 1194 drawing the fixed page, PDFium drawing the source, both at
+#: 612 × 792 px, ink counted per block on a 24 × 32 grid, `missing` = the
+#: source's ink that the book's block does not have, as a share of the
+#: source's ink:
+#:
+#:     the same page, Helvetica prose            missing 0.047   worst block 0.067
+#:     the same page, a drawing carried          missing 0.023   worst block 0.067
+#:     the narrow face, fitted (A03)             missing 0.028   worst block 0.063
+#:     the narrow face, unfitted — A03's clip    missing 0.092   worst block 0.110
+#:     one line of prose deleted from the book   missing 0.237   worst block 0.195
+#:     three lines deleted                       missing 0.490   worst block 0.377
+#:     the drawing removed from the book         missing 0.526   worst block 1.000
+#:
+#: Seven hundredths stands between the faithful pages (at most 0.047) and the
+#: smallest loss measured (0.092): half again the one, three quarters of the
+#: other. What it does not measure is a Windows machine drawing in Segoe UI,
+#: which is why the report names the engine beside the number.
+LOST_SHARE = 0.07
+#: The grid the ink is counted on: 24 across, 32 down — 25 × 25 px blocks on
+#: a letter page, about two lines of 12 pt type each.
+INK_GRID = (24, 32)
+#: A pixel darker than this is ink. Antialiased text is grey at its edges;
+#: the source and the book are both counted the same way, so the edge
+#: pixels cancel.
+INK_BELOW = 200
+
+
+def ink_blocks(image) -> "list[float]":
+    """The share of ink in each block of *image*, row by row."""
+    grey = image.convert("L")
+    across, down = INK_GRID
+    width, height = grey.size
+    cell_w, cell_h = max(1, width // across), max(1, height // down)
+    pixels = grey.load()
+    shares = []
+    for row in range(down):
+        for col in range(across):
+            dark = 0
+            for y in range(row * cell_h, min(height, (row + 1) * cell_h)):
+                for x in range(col * cell_w, min(width, (col + 1) * cell_w)):
+                    if pixels[x, y] < INK_BELOW:
+                        dark += 1
+            shares.append(dark / (cell_w * cell_h))
+    return shares
+
+
+def missing_share(source_blocks, output_blocks) -> float:
+    """The source's ink the output does not have, block by block, as a share
+    of the source's ink. Ink the output *adds* does not count against it —
+    a font a little heavier is not a loss — and a page with no ink at all
+    has nothing to lose."""
+    total = sum(source_blocks)
+    if total <= 0:
+        return 0.0
+    return sum(max(0.0, a - b) for a, b in zip(source_blocks, output_blocks)) / total
+
+
+def _fixed_layout(candidate: str) -> bool:
+    """Whether the book declares itself pre-paginated — the one shape whose
+    pages can be paired with the source's."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(candidate) as archive:
+            for name in archive.namelist():
+                if name.endswith(".opf"):
+                    return b"pre-paginated" in archive.read(name)
+    except (OSError, zipfile.BadZipFile):
+        return False
+    return False
+
+
+def compare_fixed(source: str, candidate: str, *, sample: int, browser=None):
+    """Every sampled page of the fixed book against the same page of the PDF.
+
+    The source is drawn by PDFium (`draw.Sheet.page`), the book's page by
+    the browser the appearance gate uses, both at the page's size in points
+    as pixels, and the two are compared by `missing_share` against
+    `LOST_SHARE`. Returns a `RenderFidelity` in the core's own shape, so the
+    report and the gate read it as they read a rebuild's.
+    """
+    import pathlib
+    import tempfile
+
+    from .. import render, render_fidelity
+    from . import draw
+
+    browser = browser or render.find_renderer()
+    if browser is None:
+        return render_fidelity.RenderFidelity(available=False, reason=render.why_not())
+    if not draw.available():
+        return render_fidelity.RenderFidelity(
+            available=False, reason="brak renderera PDF (pypdfium2), nie ma czym narysować źródła",
+        )
+    result = render_fidelity.RenderFidelity(available=True, engine=render.version(browser))
+    sheet = draw.Sheet(source)
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as room:
+            room_path = pathlib.Path(room)
+            root = render_fidelity._extract(candidate, room_path / "po")
+            spine = render_fidelity._spine_of(root)
+            if not spine:
+                result.reason = "nie udało się odczytać kolejności czytania"
+                return result
+            indices = render_fidelity._sample(len(spine), sample) if sample else list(range(len(spine)))
+            shots = room_path / "obrazy"
+            shots.mkdir()
+            for index in indices:
+                result.pages.append(_compare_page(sheet, spine[index], index, shots, browser))
+            result.completed = bool(result.pages)
+            if not result.completed:
+                result.reason = "nie było czego narysować"
+    finally:
+        sheet.close()
+    return result
+
+
+def _compare_page(sheet, page_path, index: int, shots, browser):
+    """One page of the fixed book against its source page: the check, with
+    the problem named when the book's page lost more ink than allowed."""
+    import io
+
+    from PIL import Image
+
+    from .. import render, render_fidelity
+
+    number = _page_number_of(page_path.name, index)
+    check = render_fidelity.PageCheck(document=page_path.name, viewport=(0, 0))
+    size = sheet.page_size(number)
+    if size is None:
+        check.notes.append("źródło nie ma tej strony; nie porównano")
+        return check
+    viewport = (max(1, round(size[0])), max(1, round(size[1])))
+    check.viewport = viewport
+    original = sheet.page(number, scale=1.0)
+    if original is None:
+        check.notes.append("PDFium nie narysował strony źródła; nie porównano")
+        return check
+    try:
+        shot = render.shoot(page_path, shots / f"{index}.png", viewport=viewport, browser=browser)
+    except render.RenderError as exc:
+        check.problems.append(f"nie udało się narysować: {exc}")
+        return check
+    before = ink_blocks(Image.open(io.BytesIO(original)).resize(viewport))
+    after = ink_blocks(Image.open(shot).resize(viewport))
+    check.output_ink = render.ink_of(shot)
+    check.difference = missing_share(before, after)
+    if check.difference > LOST_SHARE:
+        check.problems.append(
+            f"strona {number}: {check.difference:.0%} tuszu strony źródła nie ma "
+            f"w książce (próg {LOST_SHARE:.0%})"
+        )
+    return check
+
+
+def _page_number_of(name: str, index: int) -> int:
+    """The source page a fixed document stands for: `page-0012.xhtml` is page
+    12; a document named otherwise is taken in spine order."""
+    import re
+
+    match = re.search(r"page-(\d+)", name)
+    return int(match.group(1)) if match else index + 1
+
+
+def render_gate(candidate: str, policy, report: Report, queue, cannot_verify,
+                source: "str | None" = None) -> str:
     """The appearance check for a book that came out of a PDF.
 
-    There is no *before* to compare against: the source is a PDF, and until
-    EF-086 this gate handed it to `zipfile` and the whole rebuild ended on
-    `BadZipFile` — in `preserve`, the preset the window uses, on every PDF the
-    owner would ever drop on it. Both PDF acceptance runs missed it because
-    both turned the render gate off; a gate nobody runs is a gate nobody
-    tests.
-
-    Turning it off for PDFs by default would have been the smaller change and
-    the wrong one. What can honestly be measured is measured — a document that
-    carries text and draws blank is the damage this gate exists for, and it
-    does not need a source page to be a defect — and the report says that is
-    what was done, rather than borrowing "checked" from a comparison that did
-    not happen.
+    Two shapes, and the report says which ran (A06 of the 0.4.4 recovery
+    audit, Q07 of the quality roadmap). A **fixed** book has a page for every
+    page of the source, so it is compared page for page: the source drawn by
+    PDFium, the book by the browser, and a page that lost more than
+    `LOST_SHARE` of the source's ink is refused. A **reflowable** book has no
+    page to pair with — its illustrations are accounted for by the drawing
+    ledger (A05) and its text by K1 — so what is measured is what can be:
+    a document that carries text and draws blank, which is the damage this
+    gate was built for (EF-086 is why it exists at all).
 
     *cannot_verify* is the core's own answer to "the check could not run",
     handed in rather than reached for: whether a book may be published
@@ -212,6 +376,8 @@ def render_gate(candidate: str, policy, report: Report, queue, cannot_verify) ->
     """
     from .. import render_fidelity
 
+    if source is not None and _fixed_layout(candidate):
+        return _judge_fixed(source, candidate, policy, report, queue, cannot_verify)
     measured = render_fidelity.drawn(candidate, sample=policy.render_sample)
     if not measured.available:
         return cannot_verify(policy, report, queue)
@@ -232,3 +398,28 @@ def render_gate(candidate: str, policy, report: Report, queue, cannot_verify) ->
     if policy.render_gate == "report":
         return ""
     return f"{len(measured.problems)} page(s) came out blank"
+
+
+def _judge_fixed(source, candidate, policy, report, queue, cannot_verify) -> str:
+    measured = compare_fixed(source, candidate, sample=policy.render_sample)
+    if not measured.available:
+        return cannot_verify(policy, report, queue)
+    if not measured.completed:
+        return cannot_verify(policy, report, queue, why=measured.reason)
+    report.check("render", PASSED if measured.ok else FAILED)
+    for page in measured.pages:
+        if page.problems:
+            report.add(
+                "render", Level.ERROR, "render.pdf-page-differs",
+                values={"detail": "; ".join(page.problems)}, location=page.document,
+            )
+    compared = [page for page in measured.pages if page.viewport != (0, 0)]
+    report.add(
+        "render", Level.INFO if measured.ok else Level.WARN, "render.pdf-compared",
+        values={"count": len(compared), "engine": measured.engine,
+                "worst": f"{max((p.difference for p in compared), default=0.0):.0%}",
+                "limit": f"{LOST_SHARE:.0%}"},
+    )
+    if measured.ok or policy.render_gate == "report":
+        return ""
+    return f"{len(measured.problems)} page(s) lost more than {LOST_SHARE:.0%} of the source's ink"

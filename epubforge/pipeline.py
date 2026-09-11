@@ -370,7 +370,7 @@ def _render_gate(source: str, policy: Policy, report: Report, destination: str, 
             # A source with no *before* to draw: what the check means there is
             # the importer's to say (D-056), and `_cannot_verify` goes with it
             # because whether to publish unchecked is the core's decision.
-            return importer.render_gate(candidate, policy, report, queue, _cannot_verify)
+            return importer.render_gate(candidate, policy, report, queue, _cannot_verify, source=source)
 
         # The rebuild's own ledger of moved files, so the pairing knows which
         # output page is which source page — names alone stopped being enough

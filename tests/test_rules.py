@@ -92,7 +92,10 @@ SOURCE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 # `xhtml.document-language-aligned`, `xhtml.document-language-undecided`.
 # Two uncertainties became questions with their evidence, and a report
 # tells a person's answer from nobody's.
-TAGGED_TODAY = 431
+# 433 on 2026-09-11 with A06: `render.pdf-compared` and
+# `render.pdf-page-differs`. The fixed book's pages are compared with the
+# source's, page for page, against a measured limit.
+TAGGED_TODAY = 433
 
 def report_calls():
     """Every `note(...)` / `add(...)` in the package, as parsed syntax.
@@ -237,7 +240,9 @@ _AREAS_STILL_BEING_CONVERTED: set[str] = set()
 #: 327 → 328 (2026-09-11, A11): `xhtml.cover-height-unresolved` in both languages.
 #:
 #: 328 → 331 (2026-09-11, A12): the three rules above in both languages.
-TEMPLATED_TODAY = 331
+#:
+#: 331 → 333 (2026-09-11, A06): the two comparison rules in both languages.
+TEMPLATED_TODAY = 333
 
 
 class TestTheTranslationCannotStall:

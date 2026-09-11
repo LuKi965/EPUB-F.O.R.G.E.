@@ -129,6 +129,32 @@ class Sheet:
             # not a reason to lose a conversion that finished.
             pass
 
+    def page_size(self, page: int) -> "tuple[float, float] | None":
+        """The page's width and height in points, or `None` when the file
+        is not open or the page is past the end."""
+        document = self._opened()
+        if document is None:
+            return None
+        try:
+            width, height = document[page - 1].get_size()
+        except (IndexError, *_refusals()):
+            return None
+        return float(width), float(height)
+
+    def page(self, page: int, scale: float = 1.0) -> "bytes | None":
+        """A PNG of the whole page at *scale*, or `None` (A06): the source
+        side of the fixed book's appearance check."""
+        document = self._opened()
+        if document is None:
+            return None
+        try:
+            image = document[page - 1].render(scale=scale).to_pil()
+        except (IndexError, *_refusals()):
+            return None
+        out = io.BytesIO()
+        image.convert("RGB").save(out, format="PNG", optimize=True)
+        return out.getvalue()
+
     def region(self, page: int, box, height: float, scale: float = SCALE) -> "bytes | None":
         """A PNG of *box* on *page*, or `None` when it cannot be drawn.
 

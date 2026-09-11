@@ -193,6 +193,23 @@ odsyłaczy i pozycji konspektu. Odmowa ma kod tłumaczony w powłoce
 Wiersz w oknie mówi zmierzone liczby; `READY` nadal znaczy „gotowe do
 uruchomienia”, nie „dobre”. Nie zrobione: złożone regiony w preflight.
 
+### A06 — brama wyglądu książki stałej porównuje strony ze źródłem
+
+`render_gate` dla PDF-a wołał `drawn(candidate)` — tylko, czy strona cokolwiek
+rysuje; strona z samymi etykietami bez rysunku „nie jest pusta” i przechodziła
+(Q07 roadmapy, dotąd `xfail(strict)`, bo brakowało zmierzonej tolerancji).
+Dla książki stałej każda strona jest porównywana ze swoją stroną PDF-a:
+źródło rysuje PDFium, książkę przeglądarka, tusz liczony blokami 24×32, miara
+to udział tuszu źródła, którego blok książki nie ma. Próg zmierzony, nie
+wybrany (D-012): strony wierne 0,023–0,047, najmniejsza zmierzona strata
+0,092 (nieskalowany wąski krój z A03), wiersz usunięty 0,237, rysunek usunięty
+0,526 — `LOST_SHARE` = 0,07, siedem pomiarów w docstringu i test trzymający
+próg między nimi. `render.pdf-compared` z silnikiem, najgorszą stroną
+i progiem; `render.pdf-page-differs` na stronie; stan kontroli wyglądu
+`passed`/`failed`. Książka płynna bez zmian (nie ma strony do sparowania;
+ilustracje rozlicza rejestr regionów z A05, tekst K1). Ograniczenie: pomiar
+na Linuksie z Liberation Sans, Windows z Segoe UI niezmierzony.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki
