@@ -111,6 +111,21 @@ i `pdf.links-not-carried` z rozbiciem na powody. Prostokąty w fixture są
 mierzone pdfminerem, nie zgadywane; obie postaci książki z odsyłaczami
 przechodzą EPUBCheck 5.3.0.
 
+### A04 / W05 — kolumny legendy czytane jedna po drugiej także przy wąskim marginesie
+
+Kształt z audytu, słowo w słowo: „C1. Wybrany profil (przycisk dostępu do
+C8. Pasek personalizacji napoju menu profili)” — zawinięty wpis lewej kolumny
+legendy połykał wpis prawej kolumny obok. Odtworzone bez etykiet instrukcji:
+legenda w dwóch kolumnach pod nagłówkiem na całą szerokość, z marginesem
+między kolumnami 19 pt. Test kolumn na poziomie strony odrzuca stronę
+z wierszem szerszym niż 55 % (nagłówek), a cięcie obszarów potrzebuje
+przerwy 4 % szerokości (24 pt) — żadne z nich nie mówi, że legenda nie jest
+dwoma stosami. `_two_stacks` — test kolumn wyjęty ze strony — jest teraz
+pytany o jedno pasmo, gdy nie ma przerwy dość szerokiej, żeby na niej ciąć:
+dwa stosy o odległych lewych krawędziach, bez wiersza w poprzek, po co
+najmniej trzy wiersze każdy. Cztery testy: wąski margines, szeroki (sąsiad),
+własność „akapit legendy nazywa jeden element”, zgoda źródłowej strony K1.
+
 ## 0.4.4 — alpha — 2026-09-09
 
 ### Konwerter stoi na własnych nogach, okno mieści się na ekranie, a rysunek dociera do książki

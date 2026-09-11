@@ -36,7 +36,11 @@ PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "epubforge"
 
 #: Ile bloków (funkcji, metod, klas) ma dziś ocenę D. Wolno zejść, nie wolno
 #: urosnąć — a kiedy schodzi, ta liczba idzie w dół razem z nim.
-COMPLEX_TODAY = 32
+#: 32 → 29 (2026-09-10, A04/A05/A07 of the recovery plan): `_read`, `_regions`
+#: and `batch_summary` grew past D while three findings were being fixed in
+#: them, and were split instead of excused — `_lines_of`, `_count_links`,
+#: `_cut_down`, `_shelf_buckets`, `_most_repaired`.
+COMPLEX_TODAY = 29
 
 #: Najgorsza dopuszczalna ocena. Od `e887252` w pakiecie nie ma ani jednego
 #: bloku gorszego niż D; ta stała jest jedyną rzeczą, która pilnuje, żeby

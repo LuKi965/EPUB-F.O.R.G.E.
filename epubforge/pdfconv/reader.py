@@ -1695,6 +1695,21 @@ def _two_columns(page: Page) -> "float | None":
     """Two clusters of left edges, each narrower than half the page: columns.
     Returns the x that divides them, or None for a single column."""
     body = [line for line in page.lines if not line.running_head]
+    return _two_stacks(body, page.width)
+
+
+def _two_stacks(body: "list[Line]", width: float) -> "float | None":
+    """The x that divides *body* into two columns, or None.
+
+    The page-level test, factored so that `_regions` can ask it of one band
+    (A04 of the 0.4.4 recovery audit): a two-column legend under a heading
+    that spans the page fails the page-level test on the heading's width,
+    and its gutter — 19 points on the fixture, 3 % of the page — is too
+    narrow for the widest-gap cut. Read row by row, a wrapped left-hand entry
+    swallowed the right-hand entry beside it: *„C1. Wybrany profil (przycisk
+    dostępu do C8. Pasek personalizacji napoju menu profili)"*. The two
+    stacks are still two stacks, and this is what says so.
+    """
     if len(body) < 8:
         return None
     starts = Counter(round(line.x0 / 10) * 10 for line in body)
@@ -1702,9 +1717,9 @@ def _two_columns(page: Page) -> "float | None":
     if len(common) < 2:
         return None
     left, right = sorted(common)
-    if right - left <= page.width * 0.35:
+    if right - left <= width * 0.35:
         return None
-    if any((line.x1 - line.x0) >= page.width * 0.55 for line in body):
+    if any((line.x1 - line.x0) >= width * 0.55 for line in body):
         return None
     # Two columns are two *stacks*: most lines start at one edge or the
     # other, and none straddles the divide. A centred title page has many
@@ -1802,14 +1817,34 @@ def _regions(lines: "list[Line]", width: float, height: float,
                     + _regions(lower, width, height, split, grouped, depth + 1))
     down = _widest_gap([(line.x0, line.x1) for line in lines])
     if down and down[0] >= GUTTER_SHARE * width:
-        cut = down[1]
-        left = [line for line in lines if (line.x0 + line.x1) / 2 < cut]
-        right = [line for line in lines if (line.x0 + line.x1) / 2 >= cut]
-        if left and right and (split is not None
-                               or not _splits_a_grid(left, right, grouped)):
-            return (_regions(left, width, height, split, grouped, depth + 1)
-                    + _regions(right, width, height, split, grouped, depth + 1))
+        columns = _cut_down(lines, down[1], split, width, height, split, grouped, depth)
+        if columns is not None:
+            return columns
+    # No gap wide enough to cut on — and still two stacks (A04): the lines
+    # of this band start at two edges far apart, none straddles the divide
+    # between them, and there are enough of each to be columns rather than
+    # an indent. The gutter is narrow, not absent, and the cut is made on
+    # it; the stacks then order themselves by it if they cannot be cut again.
+    stacked = _two_stacks(lines, width)
+    if stacked is not None:
+        columns = _cut_down(lines, stacked, stacked, width, height, split, grouped, depth)
+        if columns is not None:
+            return columns
     return [_in_order(lines, split)]
+
+
+def _cut_down(lines, cut: float, order_by, width, height, split, grouped, depth):
+    """The lines cut into a left and a right area at *cut*, each cut further,
+    or `None` when the cut would separate two cells of one grid or leave a
+    side empty. *order_by* is the split the two sides carry down with them."""
+    left = [line for line in lines if (line.x0 + line.x1) / 2 < cut]
+    right = [line for line in lines if (line.x0 + line.x1) / 2 >= cut]
+    if not (left and right):
+        return None
+    if split is None and _splits_a_grid(left, right, grouped):
+        return None
+    return (_regions(left, width, height, order_by, grouped, depth + 1)
+            + _regions(right, width, height, order_by, grouped, depth + 1))
 
 
 def _grouped(lines: "list[Line]") -> list:

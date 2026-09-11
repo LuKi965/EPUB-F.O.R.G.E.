@@ -2415,3 +2415,89 @@ class TestTheLinksOfTheSourceReachTheBookA07:
             assert verdict.available and verdict.clean, (layout, verdict.lines[:5])
 
 
+class TestTheColumnsOfALegendAreReadOneAfterTheOtherA04:
+    """A04 of the 0.4.4 recovery plan: *reflow nadal miesza relacje kolumn.*
+    The audit's shape, in its own words: *„C1. Wybrany profil (przycisk
+    dostępu do C8. Pasek personalizacji napoju menu profili)"* — the wrapped
+    entry of the left column of a legend swallowing the entry of the right
+    column beside it. Reproduced here without the manual's labels standing
+    for anything: a legend in two columns under a heading that spans the
+    page, with a gutter of 19 points.
+
+    Why it happened: the page-level column test refuses a page with a line
+    wider than 55 % of it (the heading), and the region cut needs a gap of
+    4 % of the width (24 points) to cut on. Neither says the legend is not
+    two stacks. `_two_stacks` now asks that of one band.
+    """
+
+    LEFT = [("C1.", "Wybrany profil (przycisk dostepu do menu", "menu profili)"),
+            ("C2.", "Wskaznik temperatury wody w bojlerze", None),
+            ("C3.", "Przycisk ustawien napoju (dwa stopnie", "stopnie mocy)"),
+            ("C4.", "Wylacznik glowny urzadzenia z lampka", None)]
+    RIGHT = [("C5.", "Pasek personalizacji napoju", None),
+             ("C6.", "Przycisk ekspresowej kawy (jedna", "porcja albo dwie)"),
+             ("C7.", "Wskaznik pustego zbiornika", None),
+             ("C8.", "Przycisk pary do mleka", None)]
+
+    @classmethod
+    def _legend(cls, tmp_path, right_at: float):
+        lines = [(72, 740, 16.0, "Opis panelu sterowania i jego elementow na rysunku ponizej")]
+        y = 560
+        for (label, first, second), (rlabel, rfirst, rsecond) in zip(cls.LEFT, cls.RIGHT):
+            lines.append((72, y, 10.0, f"{label} {first}"))
+            lines.append((right_at, y, 10.0, f"{rlabel} {rfirst}"))
+            if second or rsecond:
+                y -= 12
+                if second:
+                    lines.append((90, y, 10.0, second))
+                if rsecond:
+                    lines.append((right_at + 18, y, 10.0, rsecond))
+            y -= 16
+        return make_pdf(tmp_path / f"legend-{int(right_at)}.pdf", [lines],
+                        strokes={0: _spiral(300, 660, 70)})
+
+    @staticmethod
+    def _entries(book) -> list:
+        markup = next(r.data.decode() for r in book.resources.values() if r.path.endswith(".xhtml"))
+        paragraphs = re.findall(r"<(?:p|li)[^>]*>(.*?)</(?:p|li)>", markup, re.S)
+        return [" ".join(re.sub(r"<[^>]+>", "", p).split()) for p in paragraphs]
+
+    def _expected(self):
+        return [f"{label} {first}" + (f" {second}" if second else "")
+                for label, first, second in self.LEFT + self.RIGHT]
+
+    def test_a_narrow_gutter_still_keeps_each_entry_whole(self, tmp_path):
+        """The reproduction: the left column's lines end 19 points before
+        the right column begins (measured with pdfminer on this fixture:
+        276.5 to 296). Before the fix the first entry read
+        "C1. … do menu C5. Pasek personalizacji napoju menu profili)"."""
+        book = pdf.read_pdf(str(self._legend(tmp_path, right_at=296)), Report())
+        entries = [e for e in self._entries(book) if re.match(r"C\d\.", e)]
+        assert entries == self._expected(), entries
+
+    def test_a_wide_gutter_reads_the_same_way(self, tmp_path):
+        """The neighbour: a legend whose gutter the region cut already
+        handled reads exactly as it did."""
+        book = pdf.read_pdf(str(self._legend(tmp_path, right_at=320)), Report())
+        entries = [e for e in self._entries(book) if re.match(r"C\d\.", e)]
+        assert entries == self._expected(), entries
+
+    def test_no_entry_carries_two_labels(self, tmp_path):
+        """The property behind both cases, stated without the expected list:
+        a paragraph of the legend names one element."""
+        for right_at in (296, 320):
+            book = pdf.read_pdf(str(self._legend(tmp_path, right_at=right_at)), Report())
+            for entry in self._entries(book):
+                assert len(re.findall(r"\bC\d\.", entry)) <= 1, entry
+
+    def test_the_source_side_of_k1_reads_the_columns_the_same_way(self, tmp_path):
+        """`text_of` is K1's reading of the source and it goes through the
+        same regions; the two must agree, or the gate refuses the book for
+        a difference in order that is only its own."""
+        source = self._legend(tmp_path, right_at=296)
+        book = pdf.read_pdf(str(source), Report())
+        assert fidelity.first_character_lost(
+            pdf.text_of(str(source)),
+            " ".join(fidelity.document_text(book.resources[item.path].data) or ""
+                     for item in book.spine),
+        ) == -1
