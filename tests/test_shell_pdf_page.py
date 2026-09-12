@@ -417,6 +417,24 @@ class TestTheDocumentsThatReachIt:
         said = [one.text() for one in page.findChildren(QLabel) if one.text()]
         assert tr("pdf.limits.ocr") in said
 
+    def test_the_plan_says_what_the_conversion_will_meet(self, qt_app, page):
+        """W10 pt 2 / A10: the options are set after seeing what they are for.
+        The plan's summary lists the candidates the preflight found in the
+        chosen documents — each kind once — and drops them with the document."""
+        from PySide6.QtWidgets import QLabel
+
+        page.start(["Instrukcja.pdf", "Katalog.pdf"])
+        settle(qt_app, page, lambda: page.stage is Stage.PLAN)
+        said = [one.text() for one in page.findChildren(QLabel) if one.text()]
+        assert tr("pdf.candidates") in said
+        assert tr("pdf.candidate.heads", pages=4, sampled=4) in said
+        assert tr("pdf.candidate.drawings", count=3) in said
+        # Untick the one document that had them: nothing left to meet.
+        page._toggle(page.documents[0], False)
+        page.show_settings()
+        said = [one.text() for one in page.findChildren(QLabel) if one.text()]
+        assert tr("pdf.candidates") not in said
+
 
 class TestWhatAConversionResultMeans:
     def test_a_scan_is_a_refusal_and_not_a_publication(self, qt_app, page):

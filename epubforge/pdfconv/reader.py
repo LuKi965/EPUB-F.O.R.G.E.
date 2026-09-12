@@ -1004,11 +1004,115 @@ def join_lines(lines) -> str:
     return out
 
 
+def _scan_page(lt_page, number: int, seen: int, links: "list | None" = None) -> "tuple[Page, int, int]":
+    """One page's lines, pictures and drawing boxes, off pdfminer's tree.
+
+    The walk `_read` has always made, factored so the preflight can make the
+    same one over a sample of pages (W10 of the 0.4.4 recovery plan: the plan
+    shows what the conversion will meet, counted the way the conversion
+    counts it). Returns the page, the running picture count after it, and how
+    many images on it could not be decoded. Nothing is carried or ordered
+    here — that is the reader's business, and the preflight's is to look.
+    """
+    from pdfminer.layout import LTCurve, LTFigure, LTImage, LTTextContainer
+
+    page = Page(number=number, width=lt_page.width, height=lt_page.height)
+    # Before the lines: a character learns which link it stands in while the
+    # line is being cut into runs (A07).
+    page.links = list(links or [])
+    skipped = 0
+    strokes: list = []
+    stack = list(lt_page)
+    while stack:
+        element = stack.pop(0)
+        if isinstance(element, LTCurve):
+            # `LTLine` and `LTRect` are curves too. Kept as boxes only: what
+            # this reader wants from them is where the drawing *is*.
+            strokes.append((element.x0, element.y0, element.x1, element.y1))
+        elif isinstance(element, LTTextContainer):
+            page.lines.extend(_lines_of(element, page))
+        elif isinstance(element, LTFigure):
+            stack[:0] = list(element)
+        elif isinstance(element, LTImage):
+            seen += 1
+            picture = _picture(element, seen, number)
+            if picture is None:
+                skipped += 1
+            else:
+                page.pictures.append(picture)
+    page.drawings = _drawings(strokes, page.width, page.height)
+    return page, seen, skipped
+
+
+@dataclass
+class Sample:
+    """What a sample of pages shows before anything is converted.
+
+    Counted with the reader's own functions over the reader's own view of the
+    page — the same running-head detector, the same column test, the same
+    grids — so that what the plan says the conversion will meet is what the
+    conversion meets (W10 pt 2 of the 0.4.4 recovery plan). A number here is a
+    number about the *sample*: `pages` says how many.
+    """
+
+    pages: int = 0
+    #: Characters drawn on the sampled pages, spaces left out.
+    characters: int = 0
+    column_pages: int = 0
+    #: Vector drawings the detector found; whether they can be carried is the
+    #: renderer's question, asked beside this.
+    drawings: int = 0
+    pictures: int = 0
+    tables: int = 0
+    #: Lines the running-head detector marked, and the pages it marked them on.
+    running_heads: int = 0
+    running_head_pages: int = 0
+
+
+def sample_layout(source: str, pages: int) -> Sample:
+    """Read the first *pages* pages the way the conversion would and count.
+
+    At least `RUNNING_HEAD_MIN_PAGES` for the head detector to say anything —
+    below that it says nothing, by design, and the sample would report no
+    running heads on a manual that has them on every page.
+    """
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LAParams
+
+    sampled: list[Page] = []
+    seen = 0
+    for number, lt_page in enumerate(
+        extract_pages(source, laparams=LAParams(all_texts=True), maxpages=pages), 1
+    ):
+        page, seen, _lost = _scan_page(lt_page, number, seen)
+        page.lines.sort(key=lambda line: (-round(line.y1), line.x0))
+        page.split = _two_columns(page)
+        page.columns = page.split is not None
+        sampled.append(page)
+    _mark_running_heads(sampled, Layout())
+    for page in sampled:
+        _lay_out(page)
+    return Sample(
+        pages=len(sampled),
+        characters=sum(
+            1 for page in sampled for line in page.lines for character in line.text
+            if not character.isspace()
+        ),
+        column_pages=sum(1 for page in sampled if page.columns),
+        drawings=sum(len(page.drawings) for page in sampled),
+        pictures=sum(len(page.pictures) for page in sampled),
+        tables=sum(len(_tables(region)) for page in sampled for region in page.regions),
+        running_heads=sum(1 for page in sampled for line in page.lines if line.running_head),
+        running_head_pages=sum(
+            1 for page in sampled if any(line.running_head for line in page.lines)
+        ),
+    )
+
+
 def _read(source: str):
     """Pages with their lines and pictures, the document info, and the outline."""
     from pdfminer.high_level import extract_pages
-    from pdfminer.layout import (LAParams, LTCurve, LTFigure, LTImage,
-                                 LTTextContainer)
+    from pdfminer.layout import LAParams
     from pdfminer.pdfdocument import PDFDocument
     from pdfminer.pdfpage import PDFPage
     from pdfminer.pdfparser import PDFParser
@@ -1031,28 +1135,10 @@ def _read(source: str):
     links_by_page, links_unresolved = _links_of(source)
     for number, lt_page in enumerate(extract_pages(source, laparams=LAParams(all_texts=True)), 1):
         _walk_characters(lt_page, drawn)
-        page = Page(number=number, width=lt_page.width, height=lt_page.height)
-        page.links = links_by_page.get(number, [])
-        strokes: list = []
-        stack = list(lt_page)
-        while stack:
-            element = stack.pop(0)
-            if isinstance(element, LTCurve):
-                # `LTLine` and `LTRect` are curves too. Kept as boxes only: what
-                # this reader wants from them is where the drawing *is*.
-                strokes.append((element.x0, element.y0, element.x1, element.y1))
-            elif isinstance(element, LTTextContainer):
-                page.lines.extend(_lines_of(element, page))
-            elif isinstance(element, LTFigure):
-                stack[:0] = list(element)
-            elif isinstance(element, LTImage):
-                pictures_seen += 1
-                picture = _picture(element, pictures_seen, number)
-                if picture is None:
-                    skipped += 1
-                else:
-                    page.pictures.append(picture)
-        page.drawings = _drawings(strokes, page.width, page.height)
+        page, pictures_seen, lost = _scan_page(
+            lt_page, number, pictures_seen, links_by_page.get(number, [])
+        )
+        skipped += lost
         # A drawing this reader cannot draw becomes a picture of itself (Q01).
         # Appended to `pictures` and not to some list of its own, because
         # everything a picture already gets is what a drawing needs: the

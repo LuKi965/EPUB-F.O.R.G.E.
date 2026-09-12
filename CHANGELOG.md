@@ -246,6 +246,27 @@ nie mieszczą, zostawia nazwę tylko bieżącemu krokowi — niezależnie od teg
 co powie tryb strony; przy 20 pt na 900 px strona nie przewija się w bok.
 Trzy testy czerwone przed zmianą.
 
+### W10 pkt 2 / A10 — plan mówi, co konwersja zastanie
+
+Audyt A10: „użytkownik ustawia opcje przed poznaniem realnych decyzji, a raport
+dostaje po pracy”; W10: „plan zawiera rzeczywiste kandydatury”. Preflight
+(`service.look_at`) czyta teraz próbkę stron **tak, jak czyta je konwersja** —
+`reader.sample_layout` używa tego samego skanu strony, tego samego wykrywacza
+żywej paginy, testu kolumn i siatek — i liczy: strony w kolumnach, rysunki
+wektorowe, obrazy, tabele, linie paginy i strony, na których stoją. Cztery
+strony próbki zamiast trzech, bo wykrywacz paginy poniżej czterech nie mówi
+nic. Wiersz analizy dopowiada te liczby po dotychczasowych; `BookItem` niesie
+zdania-kandydatury (pagina na N z M stron → konwersja zapyta; rysunki z
+rendererem / bez; kolumny czytane po obszarach; tabele), a karta podsumowania
+planu pokazuje je pod nagłówkiem „Co konwersja zastanie:”, każdy rodzaj raz,
+tylko dla zaznaczonych dokumentów. Pętla strony w `_read` wyjęta do
+`_scan_page`, żeby preflight nie miał drugiej, prostszej wersji czytania.
+Sześć testów (fixture z paginą, kolumnami, spiralą i siatką; proza bez niczego;
+zgodność próbki z pełnym odczytem czytnika; wiersz i kandydatury adaptera; plan
+na atrapie), cztery czerwone przed zmianą. Nie zrobione: próbka to pierwsze
+cztery strony, nie losowe — instrukcja, która zaczyna się od stron tytułowych,
+pokaże w próbce mniej niż w środku.
+
 ### EF-102 — rejestr usunięć liczony, nie czytany
 
 Korpusowy test renderowy (Gutenberg wydrukowany Chromium z żywą paginą,

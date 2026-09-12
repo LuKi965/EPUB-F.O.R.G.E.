@@ -58,7 +58,7 @@ class PdfBackend:
             item = BookItem(
                 source=source, title=info.title or source.stem, kind="PDF",
                 size=info.size, status=BookStatus.READY,
-                summary=self._measured(info),
+                summary=self._measured(info), candidates=self._candidates(info),
             )
             if info.refusal:
                 item.status = BookStatus.FAILED
@@ -77,7 +77,7 @@ class PdfBackend:
 
         if not info.checked:
             return tr("pdf.analysis.unchecked")
-        return tr(
+        measured = tr(
             "pdf.analysis.checked",
             pages=info.pages,
             text=tr("pdf.analysis.text.yes", sampled=info.sampled_pages) if info.has_text
@@ -85,6 +85,41 @@ class PdfBackend:
             links=info.links,
             renderer=tr("pdf.analysis.renderer.yes") if info.renderer else tr("pdf.analysis.renderer.no"),
         )
+        if not info.has_text:
+            return measured
+        # And what the sample looks like, in the same breath (W10 pt 2).
+        return measured + "; " + tr(
+            "pdf.analysis.layout", columns=info.columns_pages, drawings=info.drawings,
+            tables=info.tables, heads=info.running_head_pages, sampled=info.sampled_pages,
+        )
+
+    @staticmethod
+    def _candidates(info) -> tuple:
+        """What the plan can say the conversion will meet, from the sample.
+
+        Each sentence names a decision or a limit the run will reach — the
+        running-heads question, drawings the renderer will or will not carry,
+        columns read by area, tables — so a person sets the options after
+        seeing what they are for and not only after the run (A10 / W10 pt 2).
+        Nothing here is a verdict about the whole file: every number is the
+        sample's, and the sentence says so.
+        """
+        from ..strings import tr
+
+        if not info.checked or not info.has_text:
+            return ()
+        said: list[str] = []
+        sampled = info.sampled_pages
+        if info.running_head_pages:
+            said.append(tr("pdf.candidate.heads", pages=info.running_head_pages, sampled=sampled))
+        if info.drawings:
+            key = "pdf.candidate.drawings" if info.renderer else "pdf.candidate.drawings.no-renderer"
+            said.append(tr(key, count=info.drawings))
+        if info.columns_pages:
+            said.append(tr("pdf.candidate.columns", pages=info.columns_pages, sampled=sampled))
+        if info.tables:
+            said.append(tr("pdf.candidate.tables", count=info.tables))
+        return tuple(said)
 
     def destination_for(self, source: pathlib.Path, folder: "pathlib.Path | None") -> str:
         return service.destination_for(source, folder)
@@ -232,6 +267,13 @@ class DemoPdfBackend(PdfBackend):
                 source=source, title=source.stem.replace("_", " "), kind="PDF",
                 size=900_000 + index * 400_000, status=BookStatus.READY,
                 summary=tr("pdf.analysis.unchecked"),
+                # The first document meets the two commonest things a manual
+                # has — a running head and drawings — so the plan's list of
+                # candidates has something to show (W10 pt 2).
+                candidates=(
+                    tr("pdf.candidate.heads", pages=4, sampled=4),
+                    tr("pdf.candidate.drawings", count=3),
+                ) if index == 1 else (),
             ))
         return documents
 

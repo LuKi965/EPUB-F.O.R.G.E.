@@ -69,11 +69,14 @@ PDF_STAGES = (
 EXTENSION = ".epub"
 
 
-#: How many pages the preflight reads for a text layer. A budget, not a
-#: threshold: the layout analysis of a page is what the conversion itself
-#: pays per page, and three of them cost a manual of a hundred a fraction of
-#: a second while a text layer that exists shows on the first.
-PREFLIGHT_PAGES = 3
+#: How many pages the preflight reads. A budget, not a threshold: the layout
+#: analysis of a page is what the conversion itself pays per page, and four
+#: of them cost a manual of a hundred a fraction of a second while a text
+#: layer that exists shows on the first. Four rather than three because the
+#: running-head detector says nothing below `reader.RUNNING_HEAD_MIN_PAGES`
+#: pages (W10 pt 2: the plan names what the conversion will meet, and a
+#: running head on every page is the commonest thing it meets).
+PREFLIGHT_PAGES = 4
 
 
 def look_at(source) -> PdfDocumentInfo:
@@ -103,16 +106,13 @@ def look_at(source) -> PdfDocumentInfo:
 
 def _preflight(info: PdfDocumentInfo) -> None:
     """The measurements behind `look_at`, on the file's structure alone."""
-    from pdfminer.high_level import extract_pages
-    from pdfminer.layout import LTChar, LTTextContainer
     from pdfminer.pdfdocument import PDFDocument, PDFNoOutlines
     from pdfminer.pdfpage import PDFPage
     from pdfminer.pdfparser import PDFParser
     from pdfminer.pdftypes import resolve1
     from pdfminer.psparser import PSException
 
-    from . import draw
-    from .reader import MIN_CHARACTERS_PER_PAGE
+    from . import draw, reader
 
     try:
         with open(info.source, "rb") as handle:
@@ -134,14 +134,10 @@ def _preflight(info: PdfDocumentInfo) -> None:
             info.refusal_code = "encrypted"
             info.refusal = "the document is encrypted and its text cannot be read"
             return
-        for page in extract_pages(str(info.source), maxpages=PREFLIGHT_PAGES):
-            info.sampled_pages += 1
-            for element in page:
-                if isinstance(element, LTTextContainer):
-                    info.characters += sum(
-                        1 for line in element for char in line
-                        if isinstance(char, LTChar) and not char.get_text().isspace()
-                    )
+        # The sample, read the way the conversion reads a page: what the plan
+        # says the conversion will meet is counted by the conversion's own
+        # functions (W10 pt 2), not by a second, simpler reading of the page.
+        sample = reader.sample_layout(str(info.source), PREFLIGHT_PAGES)
     except (OSError, ValueError, TypeError, KeyError, PSException) as exc:
         # Not a PDF, a truncated one, or one pdfminer will not parse: the
         # refusal names the error, the counts stay at what was read, and
@@ -149,7 +145,15 @@ def _preflight(info: PdfDocumentInfo) -> None:
         info.refusal_code = "unreadable"
         info.refusal = f"{type(exc).__name__}: {exc}"
         return
-    info.has_text = info.characters >= MIN_CHARACTERS_PER_PAGE * max(1, info.sampled_pages)
+    info.sampled_pages = sample.pages
+    info.characters = sample.characters
+    info.columns_pages = sample.column_pages
+    info.drawings = sample.drawings
+    info.pictures = sample.pictures
+    info.tables = sample.tables
+    info.running_heads = sample.running_heads
+    info.running_head_pages = sample.running_head_pages
+    info.has_text = info.characters >= reader.MIN_CHARACTERS_PER_PAGE * max(1, info.sampled_pages)
     info.renderer = draw.available()
     if info.needs_ocr:
         info.refusal_code = "no-text"

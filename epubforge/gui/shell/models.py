@@ -169,6 +169,12 @@ class BookItem:
     #: True while the person keeps it in the batch. Unticking a row removes it
     #: from the run without removing it from the list.
     chosen: bool = True
+    #: What the conversion will meet in this document, as sentences the plan
+    #: shows before anything runs (W10 pt 2 of the 0.4.4 recovery plan): a
+    #: running head on most sampled pages, drawings with or without a
+    #: renderer, columns, tables. Empty for a book, and for a document nobody
+    #: has looked at.
+    candidates: tuple[str, ...] = ()
     #: How clean the finished book is, kept apart from whether it was written.
     severity: Severity = Severity.CLEAN
     #: Every file this book actually published. Usually one, and then it is

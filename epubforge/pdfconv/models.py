@@ -56,6 +56,17 @@ class PdfDocumentInfo:
     #: A short code for the refusal, for a front end to say in its language:
     #: `encrypted`, `no-text`, `unreadable`, `not-a-file`.
     refusal_code: str = ""
+    #: What the sampled pages show, counted by the reader's own functions
+    #: (W10 pt 2 of the 0.4.4 recovery plan): pages set in columns, vector
+    #: drawings, raster pictures, grids of cells, and the lines the
+    #: running-head detector marked with the pages it marked them on. All
+    #: about the sample of `sampled_pages`, none a guess about the rest.
+    columns_pages: int = 0
+    drawings: int = 0
+    pictures: int = 0
+    tables: int = 0
+    running_heads: int = 0
+    running_head_pages: int = 0
 
     @property
     def checked(self) -> bool:

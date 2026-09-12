@@ -517,6 +517,15 @@ class PdfConversionPage(Responsive, QWidget):
             said = label(value, "cardSubtitle")
             self._summary_rows[name] = said
             card.body.addWidget(said)
+        # What the conversion will meet, from the preflight's sample of each
+        # chosen document (W10 pt 2 / A10): the decisions and limits the run
+        # reaches, said before the options are set rather than after the
+        # report. One line per kind, across the batch; a repeat says nothing new.
+        candidates = self._candidates()
+        if candidates:
+            card.body.addWidget(label(tr("pdf.candidates"), "cardTitle"))
+            for sentence in candidates:
+                card.body.addWidget(label(sentence, "muted"))
         card.body.addSpacing(8)
         self.convert_button = button(
             tr("pdf.convert"), kind="primary", glyph="play", tokens=self.tokens,
@@ -532,6 +541,21 @@ class PdfConversionPage(Responsive, QWidget):
         card.body.addWidget(self._safety_note)
         card.body.addStretch(1)
         return card
+
+    #: How many candidate sentences the summary shows: the plan is a card, not
+    #: a report, and the report is a click away.
+    CANDIDATES_SHOWN = 5
+
+    def _candidates(self) -> "list[str]":
+        """The chosen documents' candidate sentences, each kind once."""
+        seen: list[str] = []
+        for item in self.documents:
+            if not item.chosen:
+                continue
+            for sentence in item.candidates:
+                if sentence not in seen:
+                    seen.append(sentence)
+        return seen[: self.CANDIDATES_SHOWN]
 
     def _destination_text(self) -> str:
         return str(self.destination) if self.destination else tr("pdf.where.body")
