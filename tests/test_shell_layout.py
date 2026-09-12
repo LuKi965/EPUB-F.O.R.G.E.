@@ -1512,8 +1512,6 @@ class TestTheSmallWindowHasACompactHeaderA09:
             stepper.close()
 
     def test_the_header_is_shorter_in_a_small_window(self, qt_app, host):
-        from PySide6.QtGui import QFontInfo
-
         page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
         try:
             page.start(["Instrukcja.pdf"])
@@ -1523,14 +1521,18 @@ class TestTheSmallWindowHasACompactHeaderA09:
                 qt_app.processEvents()
             header = page.header
             assert not header.eyebrow.isVisibleTo(page), "w malym oknie modul nazywa pasek boczny"
-            assert QFontInfo(header.title.font()).pixelSize() <= 24, QFontInfo(header.title.font()).pixelSize()
+            # In points, which is what the stylesheet sets: 18 pt is 24 px at
+            # 96 dpi. `QFontInfo.pixelSize()` answered 32 here and -1 on the
+            # Windows runner (Tests (Windows) #85) for the same point-sized
+            # font, so it is not a measure two machines agree on.
+            assert header.title.font().pointSizeF() <= 18, header.title.font().pointSizeF()
             assert header.height() <= 60, header.height()
             assert header.subtitle.isVisibleTo(page), "krotki status zostaje"
             laid_out(qt_app, page, host, (1440, 900))
             for _ in range(8):
                 qt_app.processEvents()
             assert header.eyebrow.isVisibleTo(page)
-            assert QFontInfo(header.title.font()).pixelSize() > 24
+            assert header.title.font().pointSizeF() > 18, header.title.font().pointSizeF()
         finally:
             finish(page)
 
