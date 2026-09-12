@@ -89,16 +89,20 @@ def instead_of_rebuilding(report: Report) -> None:
 REMOVAL_LEDGER = base_stage.REMOVAL_LEDGER
 
 
-def _folded(text: str) -> Counter:
-    """The characters of *text* as the check counts them: same fold, no space.
+def _counted(bag: str) -> Counter:
+    """The characters a ledger entry says left, counted and nothing more.
 
-    It has to be the same fold on both sides or the accounting subtracts
-    characters the check never counted — a quote of one shape against a quote
-    of another, and a removal that explains nothing looks like one that does.
+    The entry's `text` was folded once, when `stages.base` wrote it — the
+    same fold the check measures in — and then written out as a **sorted
+    bag** of characters: every full stop beside every other full stop. Folding
+    that bag a second time, as prose, is what this used to do, and `canonical`
+    makes an ellipsis of three full stops in a row: 138 full stops from the
+    `.xhtml` footers Chromium prints on every page came back as 46 ellipses,
+    which paid for nothing the check had counted, because on the page each
+    stop stands a footer apart (EF-102, refused on v0.4.4 and every commit
+    after). A bag is counted; it is not read.
     """
-    return Counter(
-        character for character in canonical(legal(text)) if not character.isspace()
-    )
+    return Counter(character for character in bag if not character.isspace())
 
 
 def account_for(report: Report, check: Check, consented: list) -> "tuple[Counter, str]":
@@ -127,7 +131,7 @@ def account_for(report: Report, check: Check, consented: list) -> "tuple[Counter
         )
     paid: Counter = Counter()
     for entry in entries:
-        paid += _folded(str(entry.get("text") or ""))
+        paid += _counted(str(entry.get("text") or ""))
     return missing - paid, ""
 
 

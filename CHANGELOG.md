@@ -233,6 +233,23 @@ w wąskim układzie lista nie ma udziału strony, ma brak własnego scrolla, a
 udział strony sprawdza się w 1440×900. Nie zrobione z A09: „zwarty wskaźnik etapu” — stepper ma
 nadal 44 px w każdym rozmiarze; nagłówek nadal powtarza zdanie o zadaniu.
 
+### EF-102 — rejestr usunięć liczony, nie czytany
+
+Korpusowy test renderowy (Gutenberg wydrukowany Chromium z żywą paginą,
+odpowiedź `remove`) kończył się odmową `package.pdf-characters-lost-beyond-consent`:
+20 337 znaków z PDF-a nie było w wyniku, a zgoda na usunięcie paginy nie
+tłumaczyła 138 z nich — samych kropek. Tak samo na v0.4.4 i na każdym
+commicie po niej. Przyczyna: wpis rejestru usunięć (`text_removed`) zapisuje
+to, co przebieg usunął, jako **posortowany worek** znaków — każda kropka obok
+każdej innej — a brama rozliczając zgodę przepuszczała ten worek jeszcze raz
+przez `canonical`, jak prozę. `canonical` robi z trzech kropek pod rząd
+wielokropek: 138 kropek ze stopek „.xhtml” Chromium wróciło jako 46 „…”,
+którymi nie dało się zapłacić za kropki, bo na stronie każda stoi o stopkę od
+następnej. Brama liczy teraz worek zamiast go czytać; fold wykonano raz, przy
+zapisie. Dwa testy: worek `...---` płaci za `{'.': 3, '-': 3}` (czerwony przed
+zmianą: `{'.': 3}` niezapłacone) i ta sama droga od `text_changed` po
+rozliczenie. Test korpusowy z żywą paginą przechodzi.
+
 ### A11 / W07 — okładka z wysokością w procentach niczego dostaje ograniczenia strony
 
 `img { height: 97% }` bez wysokości na niczym nad obrazem był zostawiany

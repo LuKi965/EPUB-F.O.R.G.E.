@@ -300,6 +300,57 @@ class TestTheSevenCasesOfConsentScope:
         assert entries[0]["rule"] == "xhtml.watermark-relocated"
         assert entries[0]["text"] == "", entries
 
+    def test_the_ledger_is_a_bag_of_characters_and_is_counted_as_one(self):
+        """EF-102. The corpus test that removes Chromium's own running heads
+        was refused for 138 characters *beyond* the consent — every one of
+        them a full stop — on v0.4.4 and on every commit after it.
+
+        The ledger entry's `text` is what a pass took out, written as a
+        sorted bag: `"...............,,,---"`. The gate then folded that bag
+        through `canonical` again, the way it folds prose — and `canonical`
+        makes an ellipsis of three full stops in a row. A hundred and
+        thirty-eight full stops from 138 `.xhtml` footers came back as 46
+        ellipses, which paid for nothing the check had counted; the check
+        had counted full stops, since on the page they stand a footer apart.
+        The bag was folded once when it was written; counting it is all
+        that is left to do.
+        """
+        from epubforge.fidelity import Check
+
+        report = Report()
+        report.stats[gate.REMOVAL_LEDGER] = [
+            {"rule": "pdf.running-heads-removed", "document": "text/a.xhtml", "text": "...---"},
+        ]
+        check = Check("K1-PDF", False, "6 znakow", {"missing": {".": 3, "-": 3}})
+        left, why = gate.account_for(report, check, ["pdf.running-heads-removed"])
+        assert not why
+        assert not left, dict(left)
+
+    def test_the_recorder_and_the_gate_agree_on_full_stops(self):
+        """The same thing end to end: a document that loses three lines, each
+        ending in a full stop that stood alone on the page, and a gate that
+        is paid for exactly those three."""
+        from types import SimpleNamespace
+
+        from epubforge.fidelity import Check
+        from epubforge.stages.base import Stage
+
+        page = (
+            b'<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+            b'<p class="head">a.</p><p>Tekst.</p><p class="head">b.</p><p class="head">c.</p>'
+            b"</body></html>"
+        )
+        stripped = b'<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Tekst.</p></body></html>'
+        report = Report()
+        ctx = SimpleNamespace(text_changes={}, report=report)
+        Stage.text_changed(
+            Stage(), ctx, "text/a.xhtml", "pdf.running-heads-removed", before=page, after=stripped,
+        )
+        check = Check("K1-PDF", False, "6 znakow", {"missing": {".": 3, "a": 1, "b": 1, "c": 1}})
+        left, why = gate.account_for(report, check, ["pdf.running-heads-removed"])
+        assert not why
+        assert not left, dict(left)
+
     def test_7_an_ordinary_epub_rebuild_is_untouched_by_the_scope_rule(self, tmp_path):
         """The change is in the importer's path. A book that was never a PDF
         goes through the gate it always did, and still comes out."""
