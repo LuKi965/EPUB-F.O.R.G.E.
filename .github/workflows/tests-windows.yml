@@ -60,5 +60,12 @@ jobs:
           pip install --require-hashes -r requirements.lock
           pip install -e . --no-deps
 
+      # A report, not a gate: the face this runner draws the window in, in
+      # numbers a layout failure below can be read against. The runner has
+      # measured the interface about 1.9 times wider than the machine the
+      # layout tests were written on, and no failing test could say why.
+      - name: Name the face the window draws in
+        run: python tools/face_report.py
+
       - name: Run tests
         run: pytest -q -rs
