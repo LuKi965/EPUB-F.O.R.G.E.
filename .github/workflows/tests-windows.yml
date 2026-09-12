@@ -33,6 +33,15 @@ jobs:
         working-directory: D:\forge
     env:
       QT_QPA_PLATFORM: offscreen
+      # The offscreen platform on Windows does not read the system's fonts:
+      # `tools/face_report.py` found zero families on this runner, every
+      # face resolving to '' and every glyph measuring as a square the height
+      # of the line — a sentence 416 px wide at 10 pt where Segoe UI sets it
+      # in about 220. Five layout tests were tuned against that phantom
+      # before it was named (Tests (Windows) #71–#87). Pointing Qt's basic
+      # font database at the system's fonts makes the runner measure the
+      # face the program ships to; the report step below says which.
+      QT_QPA_FONTDIR: C:\Windows\Fonts
       # Deliberately absent: this job is about the platform, not the tools.
       EPUBCHECK_JAR: C:\nonexistent\epubcheck.jar
     steps:
