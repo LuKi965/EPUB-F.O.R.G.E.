@@ -1482,7 +1482,13 @@ class TestTheSmallWindowHasACompactHeaderA09:
             stepper = page.findChild(Stepper)
             texts = [label.text() for label in stepper._labels]
             assert texts[2].endswith(tr("pdf.step.settings")), texts
-            assert all(len(text) <= 2 for index, text in enumerate(texts) if index != 2), texts
+            # Squeezed exactly when the names do not fit — which is a fact
+            # about the face: DejaVu Sans at 20 pt does not fit them in 826 px
+            # and the runner's Segoe UI does (Tests (Windows) #91: 199 px for
+            # the test sentence at 10 pt against 222 here). Either way the
+            # page does not scroll sideways, and that is the property.
+            squeezed = [index for index, text in enumerate(texts) if index != 2 and len(text) <= 2]
+            assert bool(squeezed) == (not stepper._names_fit()), (texts, stepper.width(), face_of(page))
         finally:
             finish(page)
             qt_app.setStyleSheet(before)
