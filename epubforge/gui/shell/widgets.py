@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from ..strings import tr
 from . import icons
 from .models import STATUS_LOOK, BookItem, BookStatus, Preset, Stage
-from .responsive import LayoutMode
+from .responsive import LayoutMode, mode_for
 from .tokens import (CONTENT_MARGIN, SIDEBAR_COMPACT_WIDTH,
                      SIDEBAR_WIDTH,
                      Tokens)
@@ -615,7 +615,17 @@ class Card(QFrame):
 
 
 class PageHeader(QWidget):
-    """Eyebrow, title, one sentence. The same shape on every page."""
+    """Eyebrow, title, one sentence. The same shape on every page.
+
+    And a shorter shape for a small window (03-UI-UX, the table's second
+    column: *tytuł 22–24 px jako punkt startowy*, no describing the task
+    twice). Measured at 800×520 before this: 84 px of header in every mode —
+    eyebrow 18, title 38 in 32 px type, status 16 — over a 448 px surface
+    (A09). Narrow, the eyebrow goes (the sidebar names the module) and the
+    title drops to 24 px; the one-line status stays, because a status is
+    not a description. Decided from the header's own width through the same
+    thresholds every page composes by, so no page has to remember to say.
+    """
 
     def __init__(self, eyebrow: str, title: str, subtitle: str) -> None:
         super().__init__()
@@ -628,11 +638,31 @@ class PageHeader(QWidget):
         stack.addWidget(self.eyebrow)
         stack.addWidget(self.title)
         stack.addWidget(self.subtitle)
+        self._compact = False
 
     def retitle(self, title: str, subtitle: str = "") -> None:
         self.title.setText(title)
         if subtitle:
             self.subtitle.setText(subtitle)
+
+    def set_compact(self, compact: bool) -> None:
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.eyebrow.setVisible(not compact)
+        self.title.setObjectName("pageTitleCompact" if compact else "pageTitle")
+        # A new object name is a new stylesheet match; the label keeps its
+        # old font until the style is asked to look again.
+        self.title.style().unpolish(self.title)
+        self.title.style().polish(self.title)
+        self.title.updateGeometry()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._fit)
+
+    def _fit(self) -> None:
+        self.set_compact(mode_for(self.width()).narrow)
 
 
 class Sidebar(QWidget):
@@ -740,11 +770,13 @@ class Stepper(QWidget):
         if keys is not None:
             self.KEYS = keys
         self._labels: list[QLabel] = []
-        self._compact = False
+        self._asked = False
+        self._squeezed = False
         self._stage = Stage.FILES
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 2, 0, 2)
         row.setSpacing(8)
+        self._row = row
         for index, key in enumerate(self.KEYS):
             item = QLabel(f"{index + 1}   {tr(key)}")
             item.setAlignment(Qt.AlignCenter)
@@ -754,17 +786,44 @@ class Stepper(QWidget):
             row.addWidget(item, 1)
         self.set_stage(Stage.FILES)
 
+    @property
+    def _compact(self) -> bool:
+        return self._asked or self._squeezed
+
     def set_compact(self, compact: bool) -> None:
         """Four names do not fit a narrow page; four numbers do.
 
         The step a person is *on* keeps its name either way — that is the one
         thing the stepper is for — and every step keeps its accessible name, so
         a screen reader reads the same four steps at every width.
+
+        The page asks for this in its compact composition. The stepper also
+        decides it for itself, from its width and its face: at 20 pt the four
+        names reached 837 px on a page 826 wide and the page scrolled
+        sideways (EF-101), in a mode the page did not call compact.
         """
-        if compact == self._compact:
+        if compact == self._asked:
             return
-        self._compact = compact
+        self._asked = compact
         self.set_stage(self._stage)
+
+    def _names_fit(self) -> bool:
+        """Whether the four names, with their numbers, fit the width."""
+        left, _top, right, _bottom = self._row.getContentsMargins()
+        needed = left + right + self._row.spacing() * (len(self._labels) - 1)
+        for index, item in enumerate(self._labels):
+            needed += item.fontMetrics().horizontalAdvance(f"{index + 1}   {tr(self.KEYS[index])}") + 16
+        return needed <= self.width()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt casing
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._fit)
+
+    def _fit(self) -> None:
+        squeezed = not self._names_fit()
+        if squeezed != self._squeezed:
+            self._squeezed = squeezed
+            self.set_stage(self._stage)
 
     def set_stage(self, stage: Stage) -> None:
         self._stage = stage

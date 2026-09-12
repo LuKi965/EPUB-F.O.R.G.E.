@@ -230,8 +230,21 @@ się w sobie wewnątrz przewijanej strony.
 Sześć testów na stronie konwersji i na samej plakietce; wszystkie czerwone
 przed zmianą. Jeden stary test (długa partia w 900×600) zmienił oczekiwanie:
 w wąskim układzie lista nie ma udziału strony, ma brak własnego scrolla, a
-udział strony sprawdza się w 1440×900. Nie zrobione z A09: „zwarty wskaźnik etapu” — stepper ma
-nadal 44 px w każdym rozmiarze; nagłówek nadal powtarza zdanie o zadaniu.
+udział strony sprawdza się w 1440×900.
+
+Końcówka A09 i EF-101 (tabela 03-UI-UX dla małego okna: *tytuł 22–24 px,
+zwarty wskaźnik etapu, bez wielokrotnego opisywania zadania*). Zmierzone
+w 800×520 przed zmianą: nagłówek 84 px w każdym trybie (eyebrow 18, tytuł
+38 w piśmie 32 px, status 16), stepper 44 px z czterema nazwami, które przy
+20 pt na stronie 900 px sięgały 837 px w widoku 826 — strona przewijała się
+w bok o 39 px (EF-101). **Nagłówek** decyduje z własnej szerokości, tymi
+samymi progami, którymi strony składają układ: w wąskim układzie eyebrow
+znika (moduł nazywa pasek boczny), tytuł ma 24 px, jednolinijkowy status
+zostaje — bo status to nie opis. Po zmianie: 52 px w 800×520 i 900×600, 84 px
+w 1440×900. **Stepper** mierzy swoje cztery nazwy wobec szerokości i gdy się
+nie mieszczą, zostawia nazwę tylko bieżącemu krokowi — niezależnie od tego,
+co powie tryb strony; przy 20 pt na 900 px strona nie przewija się w bok.
+Trzy testy czerwone przed zmianą.
 
 ### EF-102 — rejestr usunięć liczony, nie czytany
 

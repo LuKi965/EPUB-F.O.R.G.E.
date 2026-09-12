@@ -174,6 +174,7 @@ def stylesheet(tokens: Tokens) -> str:
     QLabel#version, QLabel#muted, QLabel#pageSubtitle, QLabel#cardSubtitle,
     QLabel#eyebrow, QLabel#tagline {{ color: {t.muted}; }}
     QLabel#pageTitle {{ font-size: 24pt; font-weight: 750; }}
+    QLabel#pageTitleCompact {{ font-size: 18pt; font-weight: 750; }}
     QLabel#eyebrow {{ font-size: 11pt; }}
     QLabel#cardTitle {{ font-size: 12pt; font-weight: 700; }}
     QLabel#metric {{ font-size: 19pt; font-weight: 750; }}

@@ -1446,6 +1446,95 @@ class TestTheSmallWindowKeepsTheDecisionInSightA09:
             finish(page)
 
 
+class TestTheSmallWindowHasACompactHeaderA09:
+    """The tail of A09 and EF-101. 03-UI-UX's table for the small window:
+    *tytuł 22–24 px jako punkt startowy; zwarty wskaźnik etapu*, and no
+    describing the task twice. Measured before the change at 800×520: the
+    header was 84 px in every mode — eyebrow 18, title 38 (32 px type),
+    status 16 — and the stepper 44 with all four names, which at 20 pt on a
+    900 px page reached 837 px in a viewport of 826 (EF-101).
+    """
+
+    @staticmethod
+    def _face(qt_app, points: int):
+        before = qt_app.styleSheet()
+        qt_app.setStyleSheet(
+            tokens_module.stylesheet(tokens_module.DARK).replace("font-size: 10pt", f"font-size: {points}pt")
+        )
+        return before
+
+    def test_the_stepper_gives_way_before_the_page_scrolls_sideways(self, qt_app, host):
+        """EF-101, reproduced: at 20 pt the four names of the conversion's
+        stepper did not fit a 900 px page and the page scrolled sideways.
+        The stepper measures its names against its width and keeps only the
+        current step's name when they do not fit — whatever the mode says."""
+        from epubforge.gui.shell.widgets import Stepper
+
+        before = self._face(qt_app, 20)
+        page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+        try:
+            page.start(["Instrukcja.pdf"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (900, 600))
+            for _ in range(8):
+                qt_app.processEvents()
+            assert not problems_with(page), face_of(page)
+            stepper = page.findChild(Stepper)
+            texts = [label.text() for label in stepper._labels]
+            assert texts[2].endswith(tr("pdf.step.settings")), texts
+            assert all(len(text) <= 2 for index, text in enumerate(texts) if index != 2), texts
+        finally:
+            finish(page)
+            qt_app.setStyleSheet(before)
+
+    def test_the_stepper_alone_shrinks_to_numbers_when_the_names_do_not_fit(self, qt_app):
+        from PySide6.QtGui import QFontMetrics
+
+        from epubforge.gui.shell.widgets import Stepper
+
+        stepper = Stepper(tokens_module.DARK)
+        stepper.set_stage(Stage.FILES)
+        names = [label.text() for label in stepper._labels]
+        wide = sum(QFontMetrics(label.font()).horizontalAdvance(label.text()) for label in stepper._labels)
+        stepper.setFixedWidth(wide // 2)
+        stepper.show()
+        try:
+            for _ in range(8):
+                qt_app.processEvents()
+            squeezed = [label.text() for label in stepper._labels]
+            assert squeezed[0] == names[0], "biezacy krok zachowuje nazwe"
+            assert squeezed[1:] == ["2", "3", "4"], squeezed
+            stepper.setFixedWidth(wide * 2)
+            for _ in range(8):
+                qt_app.processEvents()
+            assert [label.text() for label in stepper._labels] == names
+        finally:
+            stepper.close()
+
+    def test_the_header_is_shorter_in_a_small_window(self, qt_app, host):
+        from PySide6.QtGui import QFontInfo
+
+        page = PdfConversionPage(tokens_module.DARK, DemoPdfBackend())
+        try:
+            page.start(["Instrukcja.pdf"])
+            settle(qt_app, lambda: page.stage is Stage.PLAN)
+            laid_out(qt_app, page, host, (800, 520))
+            for _ in range(8):
+                qt_app.processEvents()
+            header = page.header
+            assert not header.eyebrow.isVisibleTo(page), "w malym oknie modul nazywa pasek boczny"
+            assert QFontInfo(header.title.font()).pixelSize() <= 24, QFontInfo(header.title.font()).pixelSize()
+            assert header.height() <= 60, header.height()
+            assert header.subtitle.isVisibleTo(page), "krotki status zostaje"
+            laid_out(qt_app, page, host, (1440, 900))
+            for _ in range(8):
+                qt_app.processEvents()
+            assert header.eyebrow.isVisibleTo(page)
+            assert QFontInfo(header.title.font()).pixelSize() > 24
+        finally:
+            finish(page)
+
+
 def face_of(widget) -> str:
     """The face a widget is actually drawn in, for a failure that has to be
     read from another machine's log: the family Qt resolved (not the one the
