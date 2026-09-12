@@ -7,7 +7,7 @@
 **Przebudowuje dowolnego EPUB-a od zera na zgodnego z EPUB 3.3 — zachowując to,
 jak książka wygląda.**
 
-`0.4.4` · alpha · **Windows**
+`0.4.5` · alpha · **Windows**
 
 [Instalacja](#instalacja) · [Użycie](#użycie) · [Tryby](#trzy-tryby) ·
 [Ograniczenia](#ograniczenia) · [Zmiany](CHANGELOG.md) ·
@@ -225,7 +225,11 @@ deklaruje (propozycja z tekstu, ustawiana tylko na słowo człowieka). Skan bez
 warstwy tekstowej jest odmową z powodem (`pdf.no-text-layer`) — OCR to inny
 program. Dwie kolumny są czytane kolumna po kolumnie i zgłaszane, nie
 przekładane; siatka komórek wraca tabelą, a ciąg akapitów zaczynających się od
-znacznika — listą, obie policzone w raporcie; okładki nie ma.
+znacznika — listą, obie policzone w raporcie; okładki nie ma. Odsyłacze
+PDF-a (adnotacje `/Link`) owijają w książce słowa, które je niosły, a te,
+które prowadzą donikąd, zostają tekstem i są policzone w raporcie. Zanim
+konwersja ruszy, plan mówi z próbki stron, co zastanie: paginę, kolumny,
+rysunki, tabele.
 
 Ze stron powstaje książka **z tekstem płynnym** — tak jest domyślnie i tak być
 powinno, bo książka, która się przelewa, jest książką do przeczytania przez
@@ -300,7 +304,7 @@ obok źródła.
 
 Rzeczy, o których lepiej wiedzieć przed, niż po:
 
-- **Alpha.** Wersja `0.3.x` **jest** alfą: zakres funkcji jest ustalony,
+- **Alpha.** Wersja `0.4.x` **jest** alfą: zakres funkcji jest ustalony,
   a poprawność sprawdzana na prawdziwych książkach, nie tylko na atrapach.
 - **Tryb ścisły potrafi odmówić wydania pliku.** Pyta EPUBCheck *zanim* plik
   trafi pod swoją nazwę i nie wydaje czegoś, co walidator uznaje za niepoprawne —

@@ -40,10 +40,50 @@ written; only the current version was reset.
 
 ## Unreleased
 
-Paczka naprawcza właściciela po 0.4.4 (`EPUB-FORGE-044-RECOVERY-PLAN`,
-2026-09-10): audyt A01–A16 i pakiety W00–W11. Każdy wpis niżej jest jedną
-iteracją paczki, ze statusem najwyżej `FIXED_UNVERIFIED` — werdykt należy do
-audytora.
+## 0.4.5 — alpha — 2026-09-12
+
+### Program mówi tylko to, co zmierzył: werdykt w granicach pomiaru, zgoda w granicach dokumentu, plan z próbki
+
+Wydanie o **paczce naprawczej właściciela po 0.4.4**
+(`EPUB-FORGE-044-RECOVERY-PLAN`, 2026-09-10): audyt A01–A16 i pakiety
+W00–W11. Każdy wpis niżej jest jedną iteracją paczki — reprodukcja, test
+czerwony przed zmianą, najmniejsza naprawa, regresja — ze statusem najwyżej
+`FIXED_UNVERIFIED`, bo werdykt należy do audytora. Do tego cztery ustalenia
+spoza paczki, które wyszły przy jej robieniu (EF-101, EF-102, EF-104 i
+zmierzone, nienaprawione EF-103).
+
+Zdanie, które wiąże te wpisy: *program może powiedzieć tylko to, co
+zmierzył.* „Zdrowa" nie ponad zakres kontroli, zgoda nie ponad dokument,
+w którym jej udzielono, rysunek nie „przeniesiony", gdy przepadł obok
+innego, plan nie mniejszy niż to, co konwersja zastanie.
+
+| co | skala |
+|---|---|
+| werdykt „książka jest zdrowa" | o książce bez renderu i bez EPUBCheck → **tylko, gdy obie kontrole przeszły i nic nie czeka** |
+| odsyłacze instrukcji w książce | 824 adnotacje, **0** `<a>` → każdy przeniesiony **albo policzony z powodem** |
+| zgoda na usunięcie tekstu | dwie miary globalne → **łańcuch zmian per dokument**, pęknięte ogniwo nazwane |
+| region rysunku dotykający obrazu | przepadał bez słowa → **wpis w rejestrze**: `carried` / `merged` / `skipped` |
+| brama wyglądu książki stałej | „strona coś rysuje" → **udział utraconego tuszu wobec PDF-a**, próg 0,07 z siedmiu pomiarów |
+| kropki z paginy Chromium poza zgodą | **138** → 0: rejestr liczony, nie czytany |
+| plan konwersji w 800×520 z długą ścieżką | **231 px przewijania w bok** → 0 |
+| wybór układu w 900×600 | 532 px w głąb strony 515 px → **359 px, w oknie** |
+| biegacz Windows | okno mierzone **bez fontów** (zdanie 416 px przy 10 pt) → Segoe UI, 199 px |
+| suita | 4 456 → **4 690** (tu: 4 614 zielonych, 76 pominiętych z powodem) |
+
+**Nowe.** Plan konwersji mówi, co konwersja zastanie — paginę, kolumny,
+rysunki, tabele — z próbki czterech stron czytanej kodem czytnika. Odsyłacze
+PDF-a trafiają do książki, a te bez celu są policzone. Niepewności
+(`font-style: regular`, język krótkiego dokumentu) są pytaniami z dowodem,
+nie cichym zachowaniem. Konwerter ma własną, nazwaną listę etapów.
+
+**Naprawione.** Werdykt raportu nie wykracza poza pomiar. Zgoda na
+usunięcie rozliczana dokument po dokumencie; rejestr usunięć liczony jako
+worek znaków. Każdy region rysunku rozliczony. Legenda w dwóch kolumnach
+czytana kolumna po kolumnie także przy wąskim marginesie. Okładka z
+wysokością w procentach bez wysokości rodzica dostaje ograniczenia strony.
+Długa ścieżka, plakietka statusu, licznik w stopce, nagłówek i stepper
+w małym oknie. CI Windows mierzy w prawdziwym kroju, więc czerwień na
+Windowsie znaczy to, co zobaczy człowiek.
 
 ### A13 / W02 — raport nie mówi „zdrowa” ponad zakres pomiaru
 

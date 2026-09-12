@@ -7,7 +7,7 @@
 **Rebuilds any EPUB from scratch into a conforming EPUB 3.3 — while keeping the
 book looking the way it looked.**
 
-`0.4.4` · alpha · **Windows**
+`0.4.5` · alpha · **Windows**
 
 [Install](#install) · [Usage](#usage) · [Modes](#three-modes) ·
 [Limits](#limits) · [Changes](CHANGELOG.md) ·
@@ -232,7 +232,10 @@ no text layer is refused with the reason (`pdf.no-text-layer`) — OCR is a
 different program. Two columns are read column by column and reported, not
 re-flowed; a grid of cells comes back a table and a run of paragraphs each
 opening with a marker comes back a list, both counted in the report; there
-is no cover.
+is no cover. The PDF's links (`/Link` annotations) wrap the words that
+carried them in the book; those leading nowhere stay text and are counted
+in the report. Before the conversion starts, the plan says from a sample of
+pages what it will meet: running heads, columns, drawings, tables.
 
 The pages become a book that **reflows** — that is the default and should be,
 because a book that reflows is a book anybody can read at any size. A document
@@ -306,7 +309,7 @@ source.
 
 Things worth knowing before rather than after:
 
-- **Alpha.** `0.3.x` **is** alpha: the feature set is settled, and correctness
+- **Alpha.** `0.4.x` **is** alpha: the feature set is settled, and correctness
   is checked against real books rather than fixtures alone.
 - **Strict mode can refuse to produce a file.** It asks EPUBCheck *before* the
   file takes its name and will not publish something the validator calls invalid
